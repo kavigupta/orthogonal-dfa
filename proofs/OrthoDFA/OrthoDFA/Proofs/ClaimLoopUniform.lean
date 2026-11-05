@@ -223,7 +223,8 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     prefixLaw_uniformStrings le_rfl
   have hwS : windowLaw (uniformStrings (α := A) m) k L₁ = windowStrings k L₁ :=
     windowLaw_uniformStrings (by omega)
-  obtain ⟨settings, hwk, hcnt, hprob⟩ := hw (toDist x) M O L γ (uniformStrings m) hxd hQ hA hL hη
+  obtain ⟨settings, hwk, hcnt, hprob⟩ := hw (toDist x) M O L γ (uniformStrings m) hxd hQ
+    hA hL hη
     (uniformStrings_long m)
     (fun u => (uniformStrings_prefix_le (by omega) u).trans (by rw [hAc]; exact hp₀))
     (fun i _ hi y a => by

@@ -329,6 +329,7 @@ lemma length_harvestsOf {D : Measure (FreeMonoid α)} {k : ℕ} {rounds : List (
 theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.DFA α σ)
     (O : Oracle μ (FreeMonoid α)) (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
     (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) (settings : LoopSettings K)
+    (hN : 0 < settings.level3.harvestReadCap)
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) (k : ℕ)
     (hk : settings.level3.walkStart = k) (εcov slack A sl m εd y T : ℝ)
     (E : σ → Set (FreeMonoid α)) (u : ℝ)
@@ -363,10 +364,13 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     have hs := (hspec i hi hiσ).1
     rw [hk] at e
     rw [e] at hs ⊢
-    obtain ⟨hmem, hq⟩ := loopRound_quality settings O P.D Dsf (histOf P.D k (L.take i))
-      (draws ⟨i, hiK⟩) (D' := P.D) (εcov := εcov) (slack := slack) hs
+    obtain ⟨hmem, hq⟩ := loopRound_quality settings O P.D Dsf
+      (histOf P.D k settings.level3.harvestReadCap (L.take i))
+      (draws ⟨i, hiK⟩) (D' := P.D) (εcov := εcov) (slack := slack)
+      (by rw [histOf_pops settings.level3.harvestReadCap P.D hN]; exact hs)
+    rw [histOf_pops settings.level3.harvestReadCap P.D hN] at hmem hq
     exact ⟨hsched _ _ hmem, one_notMem_loopRound_family settings O P.D Dsf
-      (histOf P.D k (L.take i)) (draws ⟨i, hiK⟩), hq⟩
+      (histOf P.D k settings.level3.harvestReadCap (L.take i)) (draws ⟨i, hiK⟩), hq⟩
   -- a round that does not harvest agrees
   have hagree : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
       L[i].result.ending.harvested = none →

@@ -1,4 +1,5 @@
 import OrthoDFA.Code.Level3Harvest
+import OrthoDFA.Code.Level3HarvestCode
 import Mathlib.MeasureTheory.Constructions.UnitInterval
 
 /-!
@@ -228,10 +229,18 @@ def LoopRound.population {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (o : 
   o.result.ending.harvested.map fun site =>
     popLaw (Random.harvestLaw o.read D k o.result.hypothesis site)
 
+/-- The operational population: the bounded-rejection sampler's law at cap `N`, in place of the
+ideal `harvestLaw`.  Equal in law to `population` (`populationOp_eq_population`), but reading the
+oracle only along the at most `N` probes the sampler walks. -/
+def LoopRound.populationOp {K : ℕ} (D : Measure (FreeMonoid α)) (k N : ℕ) (o : LoopRound Ω α K) :
+    Option (Measure (FreeMonoid α)) :=
+  o.result.ending.harvested.map fun site =>
+    popLaw (Random.harvestCodeLaw o.read D k o.result.hypothesis site N)
+
 /-- What the rounds hand on: their harvests' populations, and what their clusterings read. -/
-def histOf {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (rounds : List (LoopRound Ω α K)) :
+def histOf {K : ℕ} (D : Measure (FreeMonoid α)) (k N : ℕ) (rounds : List (LoopRound Ω α K)) :
     LoopHist α :=
-  ⟨rounds.filterMap fun o => o.population D k,
+  ⟨rounds.filterMap fun o => o.populationOp D k N,
     rounds.foldr (fun o T => o.prefs ∪ T) ∅, rounds.foldr (fun o T => o.suffs ∪ T) ∅⟩
 
 /-- The first `r` rounds, cut short at a round that does not end in a harvest. -/
@@ -241,10 +250,12 @@ def loopRounds {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid 
     ℕ → List (LoopRound Ω α K)
   | 0 => []
   | r + 1 =>
-    if h : r < K ∧ ∀ o ∈ loopRounds settings O D Dsf draws r, o.result.ending.harvested ≠ none then
+    if h : r < K ∧ ∀ o ∈ loopRounds settings O D Dsf draws r, o.result.ending.harvested ≠ none
+    then
       loopRounds settings O D Dsf draws r
         ++ [loopRound settings O D Dsf
-          (histOf D settings.level3.walkStart (loopRounds settings O D Dsf draws r))
+          (histOf D settings.level3.walkStart settings.level3.harvestReadCap
+            (loopRounds settings O D Dsf draws r))
           (draws ⟨r, h.1⟩)]
     else loopRounds settings O D Dsf draws r
 

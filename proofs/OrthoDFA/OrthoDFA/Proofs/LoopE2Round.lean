@@ -23,7 +23,6 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpac
 section Stage
 
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-  (N : ℕ)
 
 /-- Some state of the schedule returns. -/
 def Returns (h : LoopHist α) (c : ClusterDraws Ω α K) : Prop :=
@@ -36,21 +35,33 @@ open Classical in
 keys, where every earlier clustering and this one returned. -/
 def stage4 (r : ℕ) (hr : r < K) (ω : Ω) (g : Fin K → RoundDraws α K settings.level3.probeBudget) :
     Option (List (HarvestCode α) × State × Finset (FreeMonoid α) × Finset (FreeMonoid α)) :=
-  if HistOK settings O D Dsf N ω g r ∧ (histCodes settings O D Dsf N ω g r).length = r
-      ∧ Returns settings O D Dsf (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf N ω g r)) (ω, (g ⟨r, hr⟩).1) then
-    some (histCodes settings O D Dsf N ω g r,
-      roundState settings O D Dsf (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf N ω g r)) (ω, (g ⟨r, hr⟩).1),
-      clusterAt O.mq (loopPopulations K (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf N ω g r)).pops.length) (clusterRun D Dsf (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf N ω g r)) (ω, (g ⟨r, hr⟩).1))
-        (roundState settings O D Dsf (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf N ω g r)) (ω, (g ⟨r, hr⟩).1)),
-      roundKeys settings D Dsf (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf N ω g r)) (ω, (g ⟨r, hr⟩).1))
+  if HistOK settings O D Dsf ω g r ∧ (histCodes settings O D Dsf ω g r).length = r
+      ∧ Returns settings O D Dsf
+        (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r))
+        (ω, (g ⟨r, hr⟩).1) then
+    some (histCodes settings O D Dsf ω g r,
+      roundState settings O D Dsf
+        (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r))
+        (ω, (g ⟨r, hr⟩).1),
+      clusterAt O.mq (loopPopulations K
+          (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r)).pops.length)
+        (clusterRun D Dsf
+          (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r))
+          (ω, (g ⟨r, hr⟩).1))
+        (roundState settings O D Dsf
+          (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r))
+          (ω, (g ⟨r, hr⟩).1)),
+      roundKeys settings D Dsf
+        (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf ω g r))
+        (ω, (g ⟨r, hr⟩).1))
   else none
 
 omit [IsProbabilityMeasure μ] in
 lemma stage4_eq_some (r : ℕ) (hr : r < K) (ω : Ω)
     (g : Fin K → RoundDraws α K settings.level3.probeBudget) (c : List (HarvestCode α)) (B : State)
     (F K₀ : Finset (FreeMonoid α)) :
-    stage4 settings O D Dsf N r hr ω g = some (c, B, F, K₀) ↔
-      HistOK settings O D Dsf N ω g r ∧ histCodes settings O D Dsf N ω g r = c ∧ c.length = r
+    stage4 settings O D Dsf r hr ω g = some (c, B, F, K₀) ↔
+      HistOK settings O D Dsf ω g r ∧ histCodes settings O D Dsf ω g r = c ∧ c.length = r
         ∧ Returns settings O D Dsf (decodeHist D settings.level3.walkStart c) (ω, (g ⟨r, hr⟩).1)
         ∧ roundState settings O D Dsf (decodeHist D settings.level3.walkStart c)
             (ω, (g ⟨r, hr⟩).1) = B
@@ -73,10 +84,10 @@ lemma stage4_eq_some (r : ℕ) (hr : r < K) (ω : Ω)
 omit [IsProbabilityMeasure μ] in
 lemma stage4_eq_none (r : ℕ) (hr : r < K) (ω : Ω)
     (g : Fin K → RoundDraws α K settings.level3.probeBudget) :
-    stage4 settings O D Dsf N r hr ω g = none ↔
-      ¬ (HistOK settings O D Dsf N ω g r ∧ (histCodes settings O D Dsf N ω g r).length = r
+    stage4 settings O D Dsf r hr ω g = none ↔
+      ¬ (HistOK settings O D Dsf ω g r ∧ (histCodes settings O D Dsf ω g r).length = r
         ∧ Returns settings O D Dsf (decodeHist D settings.level3.walkStart
-          (histCodes settings O D Dsf N ω g r)) (ω, (g ⟨r, hr⟩).1)) := by
+          (histCodes settings O D Dsf ω g r)) (ω, (g ⟨r, hr⟩).1)) := by
   unfold stage4
   split_ifs with h
   · simp only [reduceCtorEq, false_iff, not_not]; exact h
@@ -86,10 +97,10 @@ omit [IsProbabilityMeasure μ] in
 lemma stage4_congr_draws (r : ℕ) (hr : r < K) (ω : Ω)
     (g g' : Fin K → RoundDraws α K settings.level3.probeBudget)
     (h : ∀ i : Fin K, i.1 < r → g i = g' i) (h1 : (g ⟨r, hr⟩).1 = (g' ⟨r, hr⟩).1) :
-    stage4 settings O D Dsf N r hr ω g = stage4 settings O D Dsf N r hr ω g' := by
+    stage4 settings O D Dsf r hr ω g = stage4 settings O D Dsf r hr ω g' := by
   unfold stage4
-  rw [histCodes_congr_draws settings O D Dsf N r ω g g' h, h1]
-  have hok := histOK_congr_draws settings O D Dsf N ω g g' r h
+  rw [histCodes_congr_draws settings O D Dsf r ω g g' h, h1]
+  have hok := histOK_congr_draws settings O D Dsf ω g g' r h
   split_ifs with ha hb hb
   · rfl
   · exact absurd ⟨hok.1 ha.1, ha.2⟩ hb
@@ -113,21 +124,21 @@ lemma measurableSet_returns (r : ℕ) (hr : r < K) (h : LoopHist α) :
   exact Finset.measurableSet_biUnion _ fun B _ =>
     measurable_clusterRun_at settings D Dsf h ⟨r, hr⟩ (measurableSet_ret O _ none _ _ _ _ B)
 
-lemma measurableSet_stage4 {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
+lemma measurableSet_stage4 [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (hN : L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap) (r : ℕ)
     (hr : r < K)
     (y : Option (List (HarvestCode α) × State × Finset (FreeMonoid α) × Finset (FreeMonoid α))) :
     MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
-      stage4 settings O D Dsf N r hr p.1 p.2 = y} := by
+      stage4 settings O D Dsf r hr p.1 p.2 = y} := by
   classical
-  have hhc := measurableSet_histCodes settings O D Dsf N hlen hN r
-  have hok := measurableSet_histOK settings O D Dsf N hlen hN r
+  have hhc := measurableSet_histCodes settings O D Dsf hlen hN r
+  have hok := measurableSet_histOK settings O D Dsf hlen hN r
   set dec := decodeHist D settings.level3.walkStart
   rcases y with _ | ⟨c, B, F, K₀⟩
   · have hset : {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
-        stage4 settings O D Dsf N r hr p.1 p.2 = none}
-        = ({p | HistOK settings O D Dsf N p.1 p.2 r} ∩ ⋃ c : List (HarvestCode α),
-          ({p | histCodes settings O D Dsf N p.1 p.2 r = c} ∩ {_p | c.length = r}
+        stage4 settings O D Dsf r hr p.1 p.2 = none}
+        = ({p | HistOK settings O D Dsf p.1 p.2 r} ∩ ⋃ c : List (HarvestCode α),
+          ({p | histCodes settings O D Dsf p.1 p.2 r = c} ∩ {_p | c.length = r}
             ∩ {p | Returns settings O D Dsf (dec c) (p.1, (p.2 ⟨r, hr⟩).1)}))ᶜ := by
       ext p
       simp only [Set.mem_ofPred_eq, stage4_eq_none, Set.mem_compl_iff, Set.mem_inter_iff,
@@ -145,9 +156,9 @@ lemma measurableSet_stage4 {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ 
         ((p.1, (p.2 ⟨r, hr⟩).1) : ClusterDraws Ω α K) :=
       measurable_fst.prodMk (measurable_fst.comp ((measurable_pi_apply _).comp measurable_snd))
     have hset : {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
-        stage4 settings O D Dsf N r hr p.1 p.2 = some (c, B, F, K₀)}
-        = {p | HistOK settings O D Dsf N p.1 p.2 r}
-          ∩ {p | histCodes settings O D Dsf N p.1 p.2 r = c}
+        stage4 settings O D Dsf r hr p.1 p.2 = some (c, B, F, K₀)}
+        = {p | HistOK settings O D Dsf p.1 p.2 r}
+          ∩ {p | histCodes settings O D Dsf p.1 p.2 r = c}
           ∩ {_p | c.length = r}
           ∩ {p | Returns settings O D Dsf H (p.1, (p.2 ⟨r, hr⟩).1)}
           ∩ (fun p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) =>
@@ -177,30 +188,30 @@ lemma roundKeys_eq_prefsOf (h : LoopHist α) (ω : Ω) (c : ClusterRest α K) :
 
 /-- Where the clustering's state test returned, the answers at the strings the earlier rounds and
 it read fix what reaches level 3. -/
-lemma stage4_stop {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget + 2 ≤ N) (r : ℕ)
+lemma stage4_stop [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (hN : L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap) (r : ℕ)
     (hr : r < K) (c : List (HarvestCode α)) (B : State) (F K₀ : Finset (FreeMonoid α))
     (g : Fin K → RoundDraws α K settings.level3.probeBudget) (ω ω' ω₀ : Ω)
-    (hs : stage4 settings O D Dsf N r hr ω g = some (c, B, F, K₀))
-    (h : ∀ w ∈ histReads settings D Dsf N c g r ω₀
+    (hs : stage4 settings O D Dsf r hr ω g = some (c, B, F, K₀))
+    (h : ∀ w ∈ histReads settings D Dsf c g r ω₀
       ∪ schedReads (settings.schedule (loopPopulations K
           (decodeHist D settings.level3.walkStart c).pops.length))
         (loopPopulations K (decodeHist D settings.level3.walkStart c).pops.length)
         ((ω₀, runOf D Dsf (decodeHist D settings.level3.walkStart c) (g ⟨r, hr⟩).1) :
           Run Ω (FreeMonoid α) (Option (Fin K))),
       (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
-    stage4 settings O D Dsf N r hr ω' g = some (c, B, F, K₀) := by
+    stage4 settings O D Dsf r hr ω' g = some (c, B, F, K₀) := by
   classical
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
-    (stage4_eq_some settings O D Dsf N r hr ω g c B F K₀).1 hs
-  have hst : stageH settings O D Dsf N r ω g = some c := by
+    (stage4_eq_some settings O D Dsf r hr ω g c B F K₀).1 hs
+  have hst : stageH settings O D Dsf r ω g = some c := by
     simp only [stageH, if_pos h1, h2]
-  have hst' := stageH_stop settings O D Dsf N hlen hN r c g ω ω' ω₀ hst
+  have hst' := stageH_stop settings O D Dsf hlen hN r c g ω ω' ω₀ hst
     fun w hw => h w (Finset.mem_union_left _ hw)
-  have hok' : HistOK settings O D Dsf N ω' g r := by
+  have hok' : HistOK settings O D Dsf ω' g r := by
     by_contra hn
     simp only [stageH, if_neg hn, reduceCtorEq] at hst'
-  have hc' : histCodes settings O D Dsf N ω' g r = c := by
+  have hc' : histCodes settings O D Dsf ω' g r = c := by
     simp only [stageH, if_pos hok', Option.some.injEq] at hst'
     exact hst'
   set H := decodeHist D settings.level3.walkStart c
@@ -218,7 +229,7 @@ lemma stage4_stop {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
   have hBs : B ∈ sched := by
     rw [← h5]
     exact (Classical.epsilon_spec h4).1
-  refine (stage4_eq_some settings O D Dsf N r hr ω' g c B F K₀).2
+  refine (stage4_eq_some settings O D Dsf r hr ω' g c B F K₀).2
     ⟨hok', hc', h3, hret', hrs, ?_, by rw [← h7]; rfl⟩
   rw [← h6]
   exact (clusterAt_congr_sched O sched (loopPopulations K H.pops.length) hBs _ hsr).symm
@@ -250,9 +261,9 @@ include hL in
 collides, fails its claim with chance at most
 `δ + |Q||Σ| misledTail T (2 prefixMax) (2(|Q| + 1)ζ) u`.
 -/
-theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (m u crossLimit : ℝ)
+theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP : ℕ) (m u crossLimit : ℝ)
     (hu : 0 ≤ u)
-    (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
+    (hN : P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
     (hband : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
       ∀ p r : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 →
@@ -264,17 +275,17 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (
     (hm1 : m ≤ 1 / 2)
     (r : ℕ) (hr : r < K) :
     (loopMeasure μ α K settings.level3.probeBudget).real
-      {p | HistOK settings O P.D Dsf N p.1 p.2 r
-        ∧ (histCodes settings O P.D Dsf N p.1 p.2 r).length = r
+      {p | HistOK settings O P.D Dsf p.1 p.2 r
+        ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
         ∧ Returns settings O P.D Dsf (decodeHist P.D settings.level3.walkStart
-            (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1)
+            (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1)
         ∧ ¬ RoundSpec M O P (roundSlope σ P.L settings.level3)
             (roundSlack σ α settings.level3 (2 * prefixMax P.D settings.level3.walkStart)) m
             (settings.level3.disagreementRate + m)
             (settings.level3.harvestRate / 2) settings.level3.walkStart E (u + m)
             (loopRound settings O P.D Dsf (decodeHist P.D settings.level3.walkStart
-              (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, p.2 ⟨r, hr⟩))
-        ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
+              (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, p.2 ⟨r, hr⟩))
+        ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 r) p.2 r hr}
       ≤ settings.level3.δ + Fintype.card σ * Fintype.card α
         * misledTail settings.level3.probeBudget (2 * prefixMax P.D settings.level3.walkStart)
             (2 * (Fintype.card σ + 1) * crossLimit) u := by
@@ -325,7 +336,7 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (
     | some t => if h : Good t then Classical.choose (hex t h) else ∅
     | none => ∅ with hBad
   set W : Y → (Fin K → RoundDraws α K T) → Finset (FreeMonoid α) := fun y x => match y with
-    | some t => histReads settings P.D Dsf N t.1 x r ω₀
+    | some t => histReads settings P.D Dsf t.1 x r ω₀
         ∪ schedReads (settings.schedule (loopPopulations K (dec t.1).pops.length))
           (loopPopulations K (dec t.1).pops.length)
           ((ω₀, runOf P.D Dsf (dec t.1) (x rK).1) : Run Ω (FreeMonoid α) (Option (Fin K)))
@@ -344,13 +355,13 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (
     | none => Set.univ
   have hmain := persist_stage_le O ν (restLaw α K)
     (Measure.pi fun _ : Fin T => (volume : Measure unitInterval)) id hσ id measurable_id
-    (fun w => rfl) rK (stage4 settings O P.D Dsf N r hr)
-    (fun ω x x' hxx' h1 => stage4_congr_draws settings O P.D Dsf N r hr ω x x'
+    (fun w => rfl) rK (stage4 settings O P.D Dsf r hr)
+    (fun ω x x' hxx' h1 => stage4_congr_draws settings O P.D Dsf r hr ω x x'
       (fun i hi => hxx' i hi) h1)
-    (measurableSet_stage4 settings O P.D Dsf N P.length_le hN r hr) W G
+    (measurableSet_stage4 settings O P.D Dsf P.length_le hN r hr) W G
     (fun y x ω ω' hG hs h => by
       obtain ⟨⟨c, B, F, K₀⟩, rfl, -⟩ := hG
-      exact stage4_stop settings O P.D Dsf N P.length_le hN r hr c B F K₀ x ω ω' ω₀ hs h)
+      exact stage4_stop settings O P.D Dsf P.length_le hN r hr c B F K₀ x ω ω' ω₀ hs h)
     Bad (fun y hy => by
       rcases y with _ | t
       · rfl
@@ -408,7 +419,7 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (
       obtain ⟨hnc, hF, hK⟩ := hx
       have hpop : histAt settings P.D c r = dec c := by
         simp only [histAt, List.take_of_length_le (le_of_eq hcr), hdec] <;> rfl
-      have hdis := disjoint_hist_family settings P.D Dsf N Ls
+      have hdis := disjoint_hist_family settings P.D Dsf Ls
         (max (P.L + settings.level3.probeBudget + 2)
           (probesLen (probesOf settings P.D K₀ (x rK).2) + 1 + settings.level3.probeBudget + 2))
         c x r hr ω₀ hnc F hF
@@ -436,14 +447,14 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (
         · simp)
   refine ENNReal.toReal_le_of_le_ofReal (by positivity) ((measure_mono ?_).trans hmain)
   rintro p ⟨hok, hlen, hret, hnot, hnc⟩
-  set c := histCodes settings O P.D Dsf N p.1 p.2 r
+  set c := histCodes settings O P.D Dsf p.1 p.2 r
   set H := dec c
   set cd : ClusterDraws Ω α K := (p.1, (p.2 rK).1)
   set B := roundState settings O P.D Dsf H cd
   set F := clusterAt O.mq (loopPopulations K H.pops.length) (clusterRun P.D Dsf H cd) B
   set K₀ := roundKeys settings P.D Dsf H cd
-  have hst : stage4 settings O P.D Dsf N r hr p.1 p.2 = some (c, B, F, K₀) :=
-    (stage4_eq_some settings O P.D Dsf N r hr p.1 p.2 c B F K₀).2
+  have hst : stage4 settings O P.D Dsf r hr p.1 p.2 = some (c, B, F, K₀) :=
+    (stage4_eq_some settings O P.D Dsf r hr p.1 p.2 c B F K₀).2
       ⟨hok, rfl, hlen, hret, rfl, rfl, rfl⟩
   have hBs : B ∈ settings.schedule (loopPopulations K H.pops.length) :=
     (Classical.epsilon_spec hret).1
@@ -484,8 +495,8 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP N : ℕ) (
             * ∑ B ∈ settings.schedule (loopPopulations K H.pops.length), B.npref
           ≤ 3 * (K + 1) * (2 * NP) := Nat.mul_le_mul (Nat.mul_le_mul_left 3 hpops) this
         _ = 6 * (K + 1) * NP := by ring
-  show (p.1, (id (p.2 rK)).2) ∈ Bad (stage4 settings O P.D Dsf N r hr p.1 p.2)
-    ∧ p.2 ∈ Dj (stage4 settings O P.D Dsf N r hr p.1 p.2)
+  show (p.1, (id (p.2 rK)).2) ∈ Bad (stage4 settings O P.D Dsf r hr p.1 p.2)
+    ∧ p.2 ∈ Dj (stage4 settings O P.D Dsf r hr p.1 p.2)
   rw [hst]
   refine ⟨?_, hnc, hFs, by rw [hpop]; exact hK₀⟩
   show (p.1, (p.2 rK).2) ∈ (if h : Good (c, B, F, K₀) then Classical.choose (hex _ h) else ∅)
