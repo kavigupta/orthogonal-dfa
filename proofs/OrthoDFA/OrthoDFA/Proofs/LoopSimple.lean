@@ -289,7 +289,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
         (∀ v, Dsf.real {v} ≤ cap) →
         (loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).real
-            {p | let rounds := indecisiveLStarLoop settings (P.L + settings.level3.probeBudget + 2) O P.D Dsf (persistDraws p)
+            {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
               ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                   o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96) E
                     (ε + ε / 96))

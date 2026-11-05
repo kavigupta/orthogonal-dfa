@@ -89,7 +89,7 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : LoopDistRun 
   (∃ q, q ∈ nonStartZoneStatesOn (prefixLaw D L) M L x.R q ∧
     1 - γ ≤ rerootAccuracyOn (prefixLaw D L) M L (nonStartZoneStatesOn (prefixLaw D L) M L x.R q)
       q) →
-  ∃ settings : LoopSettings (Fintype.card Q + 1), 0 < settings.level3.harvestReadCap ∧
+  ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
     (∀ draws : Fin (Fintype.card Q + 1)
         → LoopRoundDraws Ω A (Fintype.card Q + 1) settings.level3.probeBudget,
@@ -158,7 +158,7 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
   (∃ q, q ∈ nonStartZoneStates M L x.R q ∧
     1 - γ ≤ rerootAccuracy M L (nonStartZoneStates M L x.R q) q) →
   L₀ x ≤ L →
-  ∃ settings : LoopSettings (Fintype.card Q + 1), 0 < settings.level3.harvestReadCap ∧
+  ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
     (∀ draws : Fin (Fintype.card Q + 1)
         → LoopRoundDraws Ω A (Fintype.card Q + 1) settings.level3.probeBudget,

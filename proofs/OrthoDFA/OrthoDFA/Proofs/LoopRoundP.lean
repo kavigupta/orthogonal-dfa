@@ -172,7 +172,8 @@ lemma measurableSet_stageH [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
     exact (measurableSet_histOK settings O D Dsf hlen hN r).compl
   · have : {p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget) |
         stageH settings O D Dsf r p.1 p.2 = some c}
-        = {p | HistOK settings O D Dsf p.1 p.2 r} ∩ {p | histCodes settings O D Dsf p.1 p.2 r = c} := by
+        = {p | HistOK settings O D Dsf p.1 p.2 r}
+          ∩ {p | histCodes settings O D Dsf p.1 p.2 r = c} := by
       ext p
       simp only [stageH, Set.mem_setOf_eq, Set.mem_inter_iff]
       split_ifs with h <;> simp [h]
@@ -192,7 +193,8 @@ lemma stageH_stop [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.to
   unfold stageH at hs ⊢
   split_ifs at hs with hok
   obtain rfl := Option.some.inj hs
-  obtain ⟨hok', hc⟩ := hist_congr settings O D Dsf hlen (Nat.le_trans (Nat.le_add_right _ 2) hN) (by omega) g r ω ω' hok h
+  obtain ⟨hok', hc⟩ := hist_congr settings O D Dsf hlen (Nat.le_trans (Nat.le_add_right _ 2) hN)
+    (by omega) g r ω ω' hok h
   rw [if_pos hok', hc]
 
 end Stage

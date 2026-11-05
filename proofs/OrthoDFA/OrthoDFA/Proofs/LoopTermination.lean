@@ -364,7 +364,8 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     have hs := (hspec i hi hiσ).1
     rw [hk] at e
     rw [e] at hs ⊢
-    obtain ⟨hmem, hq⟩ := loopRound_quality settings O P.D Dsf (histOf P.D k settings.level3.harvestReadCap (L.take i))
+    obtain ⟨hmem, hq⟩ := loopRound_quality settings O P.D Dsf
+      (histOf P.D k settings.level3.harvestReadCap (L.take i))
       (draws ⟨i, hiK⟩) (D' := P.D) (εcov := εcov) (slack := slack)
       (by rw [histOf_pops settings.level3.harvestReadCap P.D hN]; exact hs)
     rw [histOf_pops settings.level3.harvestReadCap P.D hN] at hmem hq
