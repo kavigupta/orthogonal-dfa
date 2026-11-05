@@ -163,4 +163,87 @@ theorem offLaw_popLaw_harvestDraw [IsProbabilityMeasure D] (prefs : Finset (Free
     funext u; rfl
   rw [hset, hfun]
 
+open scoped Classical in
+/-- The raw (unnormalised) law of `m` conditioned harvest draws: each of the `m` blocks of `N`
+i.i.d. probes must hit AND land its harvested string off `prefs`; the `m` kept strings. -/
+noncomputable def drawManyOffRaw (prefs : Finset (FreeMonoid α)) (m : ℕ) :
+    Measure (Fin m → FreeMonoid α) :=
+  ((Measure.pi fun _ : Fin m => Measure.pi fun _ : Fin N => D).restrict
+      {yss | ∀ i, (Random.harvestFirst read k H site (List.ofFn (yss i))).isSome = true
+              ∧ (Random.harvestFirst read k H site (List.ofFn (yss i))).getD 1
+                  ∉ (↑prefs : Set (FreeMonoid α))}).map
+    fun yss i => (Random.harvestFirst read k H site (List.ofFn (yss i))).getD 1
+
+open scoped Classical in
+/-- The `m`-draw conditioned law, normalised to a probability (matching `popLaw`): the `m`-fold
+conditioned population clustering consumes after the off-prefix rejection. -/
+noncomputable def drawManyOffLaw (prefs : Finset (FreeMonoid α)) (m : ℕ) :
+    Measure (Fin m → FreeMonoid α) :=
+  let raw := drawManyOffRaw read D k H site N prefs m
+  if raw Set.univ = 0 ∨ raw Set.univ = ∞ then Measure.dirac 1 else (raw Set.univ)⁻¹ • raw
+
+/-- The raw conditioned `m`-draw law factors as the `m`-fold product of `harvestCodeLaw` restricted
+off `prefs`: the all-hit-off-prefix event and the coordinatewise map both factor over `Fin m`. -/
+lemma drawManyOffRaw_eq [IsProbabilityMeasure D] (prefs : Finset (FreeMonoid α)) (m : ℕ) :
+    drawManyOffRaw read D k H site N prefs m
+      = Measure.pi (fun _ : Fin m =>
+          (Random.harvestCodeLaw read D k H site N).restrict (↑prefs)ᶜ) := by
+  classical
+  have : IsFiniteMeasure (Random.harvestCodeLaw read D k H site N) :=
+    ⟨lt_of_le_of_lt (Random.harvestCodeLaw_univ_le_one read D k H site N) ENNReal.one_lt_top⟩
+  have : IsFiniteMeasure ((Random.harvestCodeLaw read D k H site N).restrict (↑prefs)ᶜ) :=
+    by infer_instance
+  unfold drawManyOffRaw
+  refine (Measure.pi_eq fun s hs => ?_).symm
+  rw [Measure.map_apply (measurable_of_countable _) (MeasurableSet.univ_pi hs),
+      Measure.restrict_apply (Set.to_countable _).measurableSet]
+  have hbox :
+      ((fun (yss : Fin m → (Fin N → FreeMonoid α)) i =>
+            (Random.harvestFirst read k H site (List.ofFn (yss i))).getD 1) ⁻¹' Set.univ.pi s)
+        ∩ {yss | ∀ i, (Random.harvestFirst read k H site (List.ofFn (yss i))).isSome = true
+              ∧ (Random.harvestFirst read k H site (List.ofFn (yss i))).getD 1
+                  ∉ (↑prefs : Set (FreeMonoid α))}
+      = Set.univ.pi (fun i =>
+          (fun z => (Random.harvestFirst read k H site (List.ofFn z)).getD 1) ⁻¹' (s i)
+            ∩ ((fun z => (Random.harvestFirst read k H site (List.ofFn z)).getD 1) ⁻¹' (↑prefs)ᶜ
+              ∩ {z | (Random.harvestFirst read k H site (List.ofFn z)).isSome = true})) := by
+    ext yss
+    simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_univ_pi, Set.mem_setOf_eq,
+      Set.mem_compl_iff, Finset.mem_coe]
+    constructor
+    · rintro ⟨hmap, hcond⟩ i; exact ⟨hmap i, (hcond i).2, (hcond i).1⟩
+    · intro h; exact ⟨fun i => (h i).1, fun i => ⟨(h i).2.2, (h i).2.1⟩⟩
+  rw [hbox, Measure.pi_pi]
+  refine Finset.prod_congr rfl (fun i _ => ?_)
+  rw [Measure.restrict_apply (hs i), Random.harvestCodeLaw_apply']
+  congr 1
+  ext z
+  simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_setOf_eq, Set.mem_compl_iff,
+    Finset.mem_coe]
+  tauto
+
+/-- (AGR, conditioned) The `m`-draw conditioned operational law is the `m`-fold product of the
+abstract conditioned population `offLaw populationOp prefs` — the `offLaw` analogue of
+`drawManyLaw_eq_pi`.  On the all-hit-off-prefix event the operational draws match the abstract
+`offLaw populationOp prefs` draws in law. -/
+theorem drawManyOffLaw_eq_pi [IsProbabilityMeasure D] (prefs : Finset (FreeMonoid α)) (m : ℕ) :
+    drawManyOffLaw read D k H site N prefs m
+      = Measure.pi (fun _ : Fin m =>
+          offLaw (popLaw (Random.harvestCodeLaw read D k H site N)) prefs) := by
+  classical
+  have : IsFiniteMeasure (Random.harvestCodeLaw read D k H site N) :=
+    ⟨lt_of_le_of_lt (Random.harvestCodeLaw_univ_le_one read D k H site N) ENNReal.one_lt_top⟩
+  have hν : ((Random.harvestCodeLaw read D k H site N).restrict (↑prefs)ᶜ) Set.univ ≠ ∞ := by
+    rw [Measure.restrict_apply_univ]
+    exact ne_of_lt (lt_of_le_of_lt
+      (le_trans (measure_mono (Set.subset_univ _))
+        (Random.harvestCodeLaw_univ_le_one read D k H site N)) ENNReal.one_lt_top)
+  have hpop : (fun _ : Fin m => offLaw (popLaw (Random.harvestCodeLaw read D k H site N)) prefs)
+      = (fun _ : Fin m =>
+          popLaw ((Random.harvestCodeLaw read D k H site N).restrict (↑prefs)ᶜ)) := by
+    funext i; rw [offLaw_popLaw]
+  rw [hpop]
+  unfold drawManyOffLaw
+  exact Random.norm_pi (drawManyOffRaw_eq read D k H site N prefs m) hν
+
 end OrthoDFA
