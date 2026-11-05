@@ -165,8 +165,8 @@ instance (T : ℕ) : IsProbabilityMeasure (loopMeasure μ α K T) := by
 most `m` of each population and `ms` of the suffixes, and nothing collides, fails its claim with
 chance at most `δc`: off what the earlier rounds read it fails its claim at `slack - m` with that
 chance, and a population's average moves by at most `m` off them. -/
-theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m ms pAP : ℝ)
-    (hδc : 0 ≤ δc) (hN : P.L + settings.level3.probeBudget + 2 ≤ N)
+theorem loop_cluster_round_le_persist (Ls : ℕ) (εcov δc slack cap capSf m ms pAP : ℝ)
+    (hδc : 0 ≤ δc) (hN : P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap)
     (hm : m ≤ 1 / 2) (hms : ms ≤ 1 / 2)
     (hclust : ∀ pops : Finset (Option (Fin K)), none ∈ pops →
       ∀ (L : Option (Fin K) → Measure (FreeMonoid α)) (Lsf : Measure (FreeMonoid α)),
@@ -193,22 +193,22 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
     (hpAP : pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L}) (hsfat : ∀ t, Dsf.real {t} ≤ capSf)
     (r : ℕ) (hr : r < K) :
     (loopMeasure μ α K settings.level3.probeBudget).real
-      {p | HistOK settings O P.D Dsf N p.1 p.2 r
-        ∧ (histCodes settings O P.D Dsf N p.1 p.2 r).length = r
+      {p | HistOK settings O P.D Dsf p.1 p.2 r
+        ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
         ∧ (∀ ν' ∈ (decodeHist P.D settings.level3.walkStart
-            (histCodes settings O P.D Dsf N p.1 p.2 r)).pops,
+            (histCodes settings O P.D Dsf p.1 p.2 r)).pops,
           (∀ t, ν'.real {t} ≤ cap) ∧ ν' {q | Ls ≤ q.toList.length} = 0)
         ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D (decodeHist P.D
-            settings.level3.walkStart (histCodes settings O P.D Dsf N p.1 p.2 r)).pops j).real
+            settings.level3.walkStart (histCodes settings O P.D Dsf p.1 p.2 r)).pops j).real
               ↑(decodeHist P.D settings.level3.walkStart
-                (histCodes settings O P.D Dsf N p.1 p.2 r)).prefs ≤ m)
+                (histCodes settings O P.D Dsf p.1 p.2 r)).prefs ≤ m)
         ∧ Dsf.real ↑(decodeHist P.D settings.level3.walkStart
-            (histCodes settings O P.D Dsf N p.1 p.2 r)).suffs ≤ ms
+            (histCodes settings O P.D Dsf p.1 p.2 r)).suffs ≤ ms
         ∧ ¬ ClusterSpec settings O P.D εcov slack (decodeHist P.D settings.level3.walkStart
-            (histCodes settings O P.D Dsf N p.1 p.2 r)).pops
+            (histCodes settings O P.D Dsf p.1 p.2 r)).pops
           (clusterRun P.D Dsf (decodeHist P.D settings.level3.walkStart
-            (histCodes settings O P.D Dsf N p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))
-        ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf N p.1 p.2 r) p.2 r hr}
+            (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))
+        ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 r) p.2 r hr}
       ≤ δc := by
   classical
   set T := settings.level3.probeBudget
@@ -220,7 +220,7 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
     ⟨measurable_const.prodMk measurable_id, by rw [Measure.dirac_prod]⟩
   set Y := Option (List (HarvestCode α))
   set W : Y → (Fin K → RoundDraws α K T) → Finset (FreeMonoid α) := fun y x => match y with
-    | some c => histReads settings P.D Dsf N c x r ω₀
+    | some c => histReads settings P.D Dsf c x r ω₀
     | none => ∅
   set G : Y → Prop := fun y => ∃ c, y = some c ∧ c.length = r
   set Good : List (HarvestCode α) → Prop := fun c => c.length = r
@@ -244,12 +244,12 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
     (measurable_clusterRun P.D Dsf (dec c)).comp
       (measurable_fst.prodMk (measurable_fst.comp measurable_snd))
   have hmain := persist_stage_le O ν (Measure.dirac ()) ν (fun d => ((() : Unit), d)) hσ Prod.snd
-    measurable_snd (fun w => Prod.ext rfl rfl) ⟨r, hr⟩ (stageH settings O P.D Dsf N r)
-    (fun ω x x' hxx' _ => stageH_congr_draws settings O P.D Dsf N r ω x x' fun i hi => hxx' i hi)
-    (measurableSet_stageH settings O P.D Dsf N P.length_le hN r) W G
+    measurable_snd (fun w => Prod.ext rfl rfl) ⟨r, hr⟩ (stageH settings O P.D Dsf r)
+    (fun ω x x' hxx' _ => stageH_congr_draws settings O P.D Dsf r ω x x' fun i hi => hxx' i hi)
+    (measurableSet_stageH settings O P.D Dsf P.length_le hN r) W G
     (fun y x ω ω' hG hs h => by
       obtain ⟨c, rfl, -⟩ := hG
-      exact stageH_stop settings O P.D Dsf N P.length_le hN r c x ω ω' ω₀ hs h)
+      exact stageH_stop settings O P.D Dsf P.length_le hN r c x ω ω' ω₀ hs h)
     Bad (fun y hy => by
       rcases y with _ | c
       · rfl
@@ -272,7 +272,7 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
       obtain ⟨c, rfl, hcr⟩ := hG
       have e : histAt settings P.D c r = dec c := by
         simp only [histAt, List.take_of_length_le (le_of_eq hcr), hdec]
-      have := disjoint_hist_round settings P.D Dsf N Ls c x r hr ω₀ hx
+      have := disjoint_hist_round settings P.D Dsf Ls c x r hr ω₀ hx
       rw [e] at this
       exact this)
     (ENNReal.ofReal δc) (fun y => by
@@ -391,11 +391,11 @@ theorem loop_cluster_round_le_persist (Ls N : ℕ) (εcov δc slack cap capSf m 
               exact ENNReal.ofReal_le_ofReal hc)
   refine ENNReal.toReal_le_of_le_ofReal hδc ((measure_mono ?_).trans hmain)
   rintro p ⟨hok, hlen, hgood, hpm, hsm, hspec, hnc⟩
-  have hst : stageH settings O P.D Dsf N r p.1 p.2
-      = some (histCodes settings O P.D Dsf N p.1 p.2 r) := by
+  have hst : stageH settings O P.D Dsf r p.1 p.2
+      = some (histCodes settings O P.D Dsf p.1 p.2 r) := by
     simp only [stageH, if_pos hok]
-  show (p.1, p.2 ⟨r, hr⟩) ∈ Bad (stageH settings O P.D Dsf N r p.1 p.2)
-    ∧ p.2 ∈ Dj (stageH settings O P.D Dsf N r p.1 p.2)
+  show (p.1, p.2 ⟨r, hr⟩) ∈ Bad (stageH settings O P.D Dsf r p.1 p.2)
+    ∧ p.2 ∈ Dj (stageH settings O P.D Dsf r p.1 p.2)
   rw [hst]
   exact ⟨⟨⟨hlen, hgood, hpm, hsm⟩, hspec⟩, hnc⟩
 
