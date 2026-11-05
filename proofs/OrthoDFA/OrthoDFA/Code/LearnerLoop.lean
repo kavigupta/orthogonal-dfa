@@ -237,6 +237,15 @@ def LoopRound.populationOp {K : ℕ} (D : Measure (FreeMonoid α)) (k N : ℕ) (
   o.result.ending.harvested.map fun site =>
     popLaw (Random.harvestCodeLaw o.read D k o.result.hypothesis site N)
 
+/-- One operational harvest draw at cap `N`: the bounded-rejection sampler run on `N` probes drawn
+from `D` by the uniforms `u`, reading the oracle only along them.  `none` if all `N` miss.  Its law
+over `u` is the sampler's `Option` law (`map_harvestDraw`), so `popLaw` of its hits is the
+operational population. -/
+noncomputable def harvestDraw (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) (k : ℕ)
+    (H : HypothesisDFA α) (site : Random.Level3Site) (N : ℕ) (u : Fin N → unitInterval) :
+    Option (FreeMonoid α) :=
+  Random.harvestFirst read k H site (List.ofFn fun i => drawFrom D (u i))
+
 /-- What the rounds hand on: their harvests' populations, and what their clusterings read. -/
 def histOf {K : ℕ} (D : Measure (FreeMonoid α)) (k N : ℕ) (rounds : List (LoopRound Ω α K)) :
     LoopHist α :=
