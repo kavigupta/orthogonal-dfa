@@ -258,7 +258,8 @@ def popDrawsQ {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ) (pops : List
   | some i =>
     match pops[i.val]? with
     | some s => (Random.drawManyFirstQ k s.hyp s.site ↑T
-        fun (n : Fin M) (t : Fin N) => drawFrom D ((u n).2 t)).subst (familyReadQ s.family s.kl s.kh)
+        fun (n : Fin M) (t : Fin N) => drawFrom D ((u n).2 t)).subst
+          (familyReadQ s.family s.kl s.kh)
     | none => .pure (some fun _ => 1)
 
 /-- The clustering's draws after the history `h`: suffixes from `Dsf` off what the earlier rounds

@@ -120,7 +120,8 @@ lemma eval_roundQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) 
   set xc := streams (fun _ => ∅) none dr.flat with hxc
   have hx : xc = ((), xs.2) := rfl
   have hxs1 : xs.1 = ω := hω
-  have hscan : ScanWithin sched ps settings.scanCap dr.flat ↔ ScanWithin sched ps settings.scanCap dr :=
+  have hscan :
+      ScanWithin sched ps settings.scanCap dr.flat ↔ ScanWithin sched ps settings.scanCap dr :=
     Iff.rfl
   by_cases hsc : ScanWithin sched ps settings.scanCap dr
   swap
@@ -226,6 +227,15 @@ theorem indecisiveLStarLoop_eq (settings : LoopSettings K) (D Dsf : Measure (Fre
       = (loopRounds settings O D Dsf (persistDraws p) K).map (List.map SpecRound.data) :=
   (eval_loopRoundsQ O p.1 settings D Dsf p.2 K).1
 
+lemma indecisiveLStarLoop_some {settings : LoopSettings K} {D Dsf : Measure (FreeMonoid α)}
+    {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)}
+    {rounds : List (LoopRound α)} (h : indecisiveLStarLoop settings O D Dsf p = some rounds) :
+    ∃ rs, loopRounds settings O D Dsf (persistDraws p) K = some rs
+      ∧ rounds = rs.map SpecRound.data := by
+  rw [indecisiveLStarLoop_eq] at h
+  obtain ⟨rs, hrs, rfl⟩ := Option.map_eq_some_iff.1 h
+  exact ⟨rs, hrs, rfl⟩
+
 theorem loopRounds_read (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
     (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap
       settings.level3.probeBudget)) :
@@ -233,6 +243,223 @@ theorem loopRounds_read (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid
   (eval_loopRoundsQ O p.1 settings D Dsf p.2 K).2
 
 end Bridge
+
+/-! ## What the program asks -/
+
+section Reads
+
+/-- A law that is `ν` scaled, or a point mass at `1`, keeps what `ν` almost surely has and `1`
+has. -/
+lemma ae_popLaw {ν : Measure (FreeMonoid α)} {P : FreeMonoid α → Prop} (hν : ∀ᵐ x ∂ν, P x)
+    (h1 : P 1) : ∀ᵐ x ∂(popLaw ν), P x := by
+  unfold popLaw
+  split_ifs
+  · exact (ae_dirac_iff (MeasurableSet.of_discrete)).2 h1
+  · rw [ae_iff, Measure.smul_apply, ae_iff.1 hν, smul_zero]
+
+/-- The bound on a round's reads. -/
+def roundCallBound (K a b T M N L A : ℕ) : ℕ :=
+  K * (b * (M * (N * ((3 + Nat.clog 2 L) * (T + 1))))) + a * (b + 1)
+    + b * (T * (Random.Kappa.probeSifts L * (T + 1) + (T + 2) * A * (T + 2)))
+
+variable (o : FreeMonoid α → ℝ)
+
+theorem card_reads_popDrawsQ_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (k N M : ℕ) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) (j : Option (Fin K))
+    (u : ℕ → unitInterval × (Fin N → unitInterval)) {L b P : ℕ}
+    (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (hpops : ∀ s ∈ pops, (Random.mids s.hyp.tree).card ≤ P + 1 ∧ s.family.card ≤ b) :
+    ((popDrawsQ D k N M pops T j u).reads o).card
+      ≤ if j = none then 0 else b * (M * (N * ((3 + Nat.clog 2 L) * (P + 1)))) := by
+  rcases j with _ | i
+  · simp [popDrawsQ]
+  simp only [popDrawsQ, reduceCtorEq, if_false]
+  rcases hs : pops[i.val]? with _ | s
+  · simp
+  obtain ⟨hm, hb⟩ := hpops s (List.mem_of_getElem? hs)
+  refine (card_reads_subst_le o _ _ (n := b)
+    fun q _ => (card_reads_familyReadQ_le _ _ _ q o).trans hb).trans ?_
+  rw [Nat.mul_comm _ b]
+  refine Nat.mul_le_mul_left _ ((card_reads_drawManyFirstQ_le _ _ _ _ _ _
+    fun n t => drawFrom_length_le _ hD _).trans ?_)
+  gcongr
+
+theorem card_reads_clusterDrawsQ_le (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (k N M : ℕ) (h : LoopHist α) (c : ClusterRest α K N) {L b P : ℕ}
+    (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (hpops : ∀ s ∈ h.pops, (Random.mids s.hyp.tree).card ≤ P + 1 ∧ s.family.card ≤ b) :
+    ((clusterDrawsQ D Dsf k N M h c).reads o).card
+      ≤ K * (b * (M * (N * ((3 + Nat.clog 2 L) * (P + 1))))) := by
+  unfold clusterDrawsQ
+  rw [reads_map, reads_pi]
+  refine (Finset.card_biUnion_le).trans ?_
+  rw [Fintype.sum_option]
+  have := fun j => card_reads_popDrawsQ_le o D k N M h.pops h.prefs j (c.2.1 j) hD hpops
+  refine (Nat.add_le_add (this none) (Finset.sum_le_sum fun i _ => this (some i))).trans ?_
+  simp
+
+open scoped Classical in
+/-- A round reads at most `roundCallBound` strings, against any answers. -/
+theorem card_reads_roundQ_le (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
+    [IsProbabilityMeasure D] (h : LoopHist α)
+    (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) {L a b : ℕ}
+    (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (hab : ∀ pops (x : Run Unit (FreeMonoid α) (Option (Fin K))),
+      (roundPrefs (settings.schedule pops) pops x).card ≤ a
+        ∧ (roundSuffs (settings.schedule pops) x).card ≤ b)
+    (hpops : ∀ s ∈ h.pops, (Random.mids s.hyp.tree).card ≤ settings.level3.probeBudget + 1
+      ∧ s.family.card ≤ b) :
+    ((roundQ settings D Dsf h d).reads o).card
+      ≤ roundCallBound K a b settings.level3.probeBudget settings.scanCap
+        settings.level3.harvestReadCap L (Fintype.card α) := by
+  have hA := card_reads_clusterDrawsQ_le o D Dsf settings.level3.walkStart
+    settings.level3.harvestReadCap settings.scanCap h d.1 hD hpops
+  unfold roundQ roundCallBound
+  rw [reads_bind]
+  refine (Finset.card_union_le _ _).trans ?_
+  rw [Nat.add_assoc]
+  refine Nat.add_le_add hA ?_
+  rcases (clusterDrawsQ D Dsf settings.level3.walkStart settings.level3.harvestReadCap
+    settings.scanCap h d.1).eval o with _ | dr
+  · simp
+  simp only
+  set ps := loopPopulations K h.pops.length
+  set sched := settings.schedule ps
+  set x := streams (fun _ => ∅) none dr
+  obtain ⟨hpa, hsb⟩ := hab ps x
+  split_ifs with hsc
+  swap
+  · simp
+  rw [reads_bind]
+  refine (Finset.card_union_le _ _).trans (Nat.add_le_add ?_ ?_)
+  · rw [reads_table]
+    refine (List.toFinset_card_le _).trans ?_
+    rw [Finset.length_toList]
+    refine Finset.card_image_le.trans ?_
+    rw [Finset.card_product]
+    exact Nat.mul_le_mul hpa ((Finset.card_insert_le _ _).trans (Nat.add_le_add_right hsb 1))
+  split_ifs with hex
+  swap
+  · simp
+  set t := (Query.table (clusterReads sched ps x).toList).eval o
+  have hBs := (Classical.epsilon_spec (p := fun B => B ∈ sched ∧ x ∈ ret (fun w _ => t w) ps
+    none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
+    (by obtain ⟨B, hB, hr⟩ := hex; exact ⟨B, hB, hr⟩)).1
+  have hF := (Finset.card_le_card
+    (clusterAt_sub_roundSuffs (fun w _ => t w) sched ps hBs x)).trans hsb
+  rw [reads_map]
+  refine (card_reads_subst_le _ _ _ (n := b) fun q _ =>
+    (card_reads_familyReadQ_le _ _ _ q _).trans hF).trans ?_
+  rw [Nat.mul_comm _ b]
+  exact Nat.mul_le_mul_left _ (card_reads_level3Q_le _ _ _ fun i =>
+    drawFrom_length_le _ (ae_popLaw (ae_restrict_of_ae hD) (by simp)) _)
+
+/-- Level 3's hypothesis over `T` probes has at most `T + 1` midfixes. -/
+lemma mids_level3_le (read : FreeMonoid α → ARU) (C : Random.Level3Settings) {T : ℕ}
+    (xs : Fin T → FreeMonoid α) :
+    (Random.mids (Random.indecisiveLStarLevel3 C read xs).hypothesis.tree).card ≤ T + 1 := by
+  have := (Random.runProbes_tree read C (List.ofFn xs)).2.1
+  have hm := Random.mids_card (Random.runProbes read C Random.initialState (List.ofFn xs)).1.tree
+  rw [List.length_ofFn] at this
+  show (Random.mids (Random.runProbes read C Random.initialState (List.ofFn xs)).1.tree).card
+    ≤ T + 1
+  omega
+
+section Small
+
+variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
+  (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
+
+/-- Every round the loop runs has a hypothesis of at most `T + 1` midfixes and a family of at
+most `b` members. -/
+lemma loopRounds_small {b : ℕ}
+    (hb : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
+      (roundSuffs (settings.schedule pops) x).card ≤ b) (n : ℕ) :
+    ∀ rs ∈ loopRounds settings O D Dsf draws n, ∀ o ∈ rs,
+      (Random.mids o.result.hypothesis.tree).card ≤ settings.level3.probeBudget + 1
+        ∧ o.family.card ≤ b := by
+  induction n with
+  | zero =>
+    intro rounds hr
+    rw [loopRounds, Option.mem_def, Option.some.injEq] at hr
+    subst hr
+    simp
+  | succ r ih =>
+    intro rounds hr
+    rw [loopRounds] at hr
+    obtain ⟨rs, hrs, hr⟩ := Option.mem_bind_iff.1 hr
+    have hrr := ih rs hrs
+    split_ifs at hr with hc
+    · obtain ⟨o, ho, rfl⟩ := Option.mem_map.1 hr
+      intro o' ho'
+      rcases List.mem_append.1 ho' with h1 | h1
+      · exact hrr o' h1
+      · rw [List.mem_singleton] at h1
+        subst h1
+        unfold loopRound at ho
+        obtain ⟨dr, -, hdr⟩ := Option.mem_bind_iff.1 ho
+        split_ifs at hdr with hcond
+        · rw [← Option.mem_some_iff.1 hdr]
+          obtain ⟨B, hB, hr⟩ := hcond.2
+          have hBs := (Classical.epsilon_spec (p := fun B => B ∈ settings.schedule
+            (loopPopulations K (specHistOf rs).pops.length) ∧ streams (fun _ => ∅) none dr ∈ ret
+              O.mq (loopPopulations K (specHistOf rs).pops.length) none settings.η₀
+              settings.indecisionLimit settings.εcov settings.gateLevel B) ⟨B, hB, hr⟩).1
+          exact ⟨mids_level3_le _ _ _,
+            (Finset.card_le_card (clusterAt_sub_roundSuffs _ _ _ hBs _)).trans (hb _ _)⟩
+        · cases hdr
+    · rw [Option.mem_some_iff] at hr
+      subst hr
+      exact hrr
+
+end Small
+
+/-- The program's first `r` rounds, against the answers at one noise, read at most `r` times
+`roundCallBound` strings. -/
+theorem card_reads_loopRoundsQ_le (O : Oracle μ (FreeMonoid α)) (ω : Ω)
+    (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (rd : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    {L a b : ℕ} (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (hab : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
+      (roundPrefs (settings.schedule pops) pops x).card ≤ a
+        ∧ (roundSuffs (settings.schedule pops) x).card ≤ b) :
+    ∀ r, ((loopRoundsQ settings D Dsf rd r).reads fun w => O.mq w ω).card
+      ≤ r * roundCallBound K a b settings.level3.probeBudget settings.scanCap
+        settings.level3.harvestReadCap L (Fintype.card α)
+  | 0 => by simp [loopRoundsQ]
+  | r + 1 => by
+    have ih := card_reads_loopRoundsQ_le O ω settings D Dsf rd hD hab r
+    rw [loopRoundsQ, reads_bind, Nat.succ_mul]
+    refine (Finset.card_union_le _ _).trans (Nat.add_le_add ih ?_)
+    rw [(eval_loopRoundsQ O ω settings D Dsf rd r).1]
+    rcases hrs : loopRounds settings O D Dsf (persistDraws (ω, rd)) r with _ | rs
+    · simp
+    have hsm := loopRounds_small settings O D Dsf _ (fun pops x => (hab pops x).2) r rs hrs
+    simp only [Option.map_some]
+    split_ifs with hc
+    swap
+    · simp
+    rw [reads_map]
+    refine card_reads_roundQ_le _ settings D Dsf _ _ hD (fun pops x => hab pops (ω, x.2))
+      fun s hs => ?_
+    obtain ⟨o, ho, hos⟩ := List.mem_filterMap.1 hs
+    obtain ⟨o', ho', rfl⟩ := List.mem_map.1 ho
+    obtain ⟨site, -, rfl⟩ := Option.map_eq_some_iff.1 hos
+    exact hsm o' ho'
+
+theorem card_reads_loopQ_le (O : Oracle μ (FreeMonoid α)) (settings : LoopSettings K)
+    (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
+    {L a b : ℕ} (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (hab : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
+      (roundPrefs (settings.schedule pops) pops x).card ≤ a
+        ∧ (roundSuffs (settings.schedule pops) x).card ≤ b) :
+    ((loopQ settings D Dsf p.2).reads fun w => O.mq w p.1).card
+      ≤ K * roundCallBound K a b settings.level3.probeBudget settings.scanCap
+        settings.level3.harvestReadCap L (Fintype.card α) :=
+  card_reads_loopRoundsQ_le O p.1 settings D Dsf p.2 hD hab K
+
+end Reads
 
 end OrthoDFA
 

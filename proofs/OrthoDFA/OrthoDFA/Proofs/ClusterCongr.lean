@@ -199,6 +199,21 @@ lemma ret_eqOn (mq mq' : FreeMonoid α → Ω → ℝ) (sched : Finset State)
       (fun p hp v hv => h _ (hrs hc hCs p hp v (Finset.mem_sdiff.1 hv).1))
       (fun p hp => hseed _ hc p hp)
 
+/-- The cluster at a state of `sched` is among the suffixes it reads. -/
+lemma clusterAt_sub_roundSuffs (mq : FreeMonoid α → Ω → ℝ) (sched : Finset State)
+    (pops : Finset (Option (Fin K))) {B : State} (hB : B ∈ sched)
+    (x : Run Ω (FreeMonoid α) (Option (Fin K))) :
+    clusterAt mq pops x B ⊆ roundSuffs sched x := by
+  classical
+  intro v hv
+  have hv1 : v ≠ 1 := (Finset.mem_erase.1 (by rwa [clusterAt_eq] at hv)).1
+  rw [clusterAt_eq] at hv
+  have hC := poolAt_sub_roundSuffs hB x (Finset.filter_subset _ _
+    (nearestClusterer.subset _ _ _ _
+      (one_mem_screened' (mq := mq) B.sc B.scd _ _ (Finset.mem_insert_self _ _))
+      (Finset.mem_of_mem_erase hv)))
+  exact (Finset.mem_insert.1 hC).resolve_left hv1
+
 /-- The cluster at a state of `sched` reads only `clusterReads sched`. -/
 lemma clusterAt_eqOn_sched (mq mq' : FreeMonoid α → Ω → ℝ) (sched : Finset State)
     (pops : Finset (Option (Fin K))) {B : State} (hB : B ∈ sched)

@@ -1,5 +1,5 @@
 import OrthoDFA.Proofs.LoopDFAArith
-import OrthoDFA.Proofs.LoopCalls
+import OrthoDFA.Proofs.LoopQuery
 
 /-!
 # The loop's calls as a real bound

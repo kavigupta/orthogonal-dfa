@@ -1,7 +1,6 @@
 import Mathlib.Analysis.Asymptotics.Defs
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import OrthoDFA.LowLevelClaims.LoopDFA
-import OrthoDFA.Code.LoopCalls
 
 /-!
 # The learner's costs, asymptotically
