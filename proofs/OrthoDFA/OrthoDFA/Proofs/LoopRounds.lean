@@ -60,7 +60,8 @@ lemma length_eq_of_allHarvested {r : ℕ} (hr : r ≤ K)
   | succ r ih =>
     rw [loopRounds_succ] at h ⊢
     split_ifs at h ⊢ with hc
-    · have hall : AllHarvested (loopRounds settings O D Dsf draws r) := fun o ho => h o (by simp [ho])
+    · have hall : AllHarvested (loopRounds settings O D Dsf draws r) :=
+        fun o ho => h o (by simp [ho])
       simp [ih (by omega) hall]
     · exact absurd ⟨by omega, h⟩ hc
 
