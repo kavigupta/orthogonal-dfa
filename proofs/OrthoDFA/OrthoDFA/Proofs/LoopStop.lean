@@ -196,13 +196,15 @@ def roundReads (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (N 
 
 theorem clusterSpec_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D' D Dsf : Measure (FreeMonoid α)) (εcov slack : ℝ) (h : LoopHist α)
-    {harvests : List (Measure (FreeMonoid α))} (hlen : harvests.length = h.pops.length)
+    (k : ℕ)
     {ω ω' : Ω} (c : ClusterRest α K settings.level3.harvestReadCap)
     (hr : ∀ w ∈ schedReads (settings.schedule (loopPopulations K h.pops.length))
       (loopPopulations K h.pops.length) (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (ω, c)),
       (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
-    ClusterSpec settings O D' εcov slack harvests (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (ω, c))
-      ↔ ClusterSpec settings O D' εcov slack harvests (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (ω', c)) := by
+    ClusterSpec settings O D' k εcov slack h.pops
+      (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (ω, c))
+      ↔ ClusterSpec settings O D' k εcov slack h.pops
+      (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (ω', c)) := by
   set pops := loopPopulations K h.pops.length
   set sched := settings.schedule pops
   have hnone : none ∈ pops := Finset.mem_insert_self _ _
@@ -215,7 +217,6 @@ theorem clusterSpec_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
     unfold familyAt
     exact congrArg (insert 1) (clusterAt_congr_sched O sched pops hB (runOf settings D Dsf h c) hr)
   unfold ClusterSpec
-  rw [hlen]
   refine and_congr ?_ ?_
   · exact exists_congr fun B => and_congr_right fun hB => hret B hB
   · refine forall₂_congr fun B hB => ?_

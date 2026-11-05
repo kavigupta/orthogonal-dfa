@@ -121,12 +121,12 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit : ℝ)
           (probesLen (probesOf settings P.D K₀ v) + 1 + settings.level3.probeBudget + 2))
           settings.level3.walkStart K₀ F, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
         (ω, v) ∈ Bd → (ω', v) ∈ Bd)
-      ∧ ∀ x₀ Pr Sf ω v, (ω, v) ∉ Bd →
+      ∧ ∀ Pr Sf ω v, (ω, v) ∉ Bd →
         RoundSpec M O P (roundSlope σ P.L settings.level3)
           (roundSlack σ α settings.level3 (2 * prefixMax P.D settings.level3.walkStart)) m
           (settings.level3.disagreementRate + m)
           (settings.level3.harvestRate / 2) settings.level3.walkStart E (u + m)
-          (mkRound settings O P.D x₀ B F K₀ Pr Sf (ω, v)) := by
+          (mkRound settings O P.D B F K₀ Pr Sf (ω, v)) := by
   classical
   obtain ⟨hδ0, hδ1, hy0, hyρ, hρ1, hP, hκ0, t, t', ht, ht', htc, hfin⟩ := hprem
   set C := settings.level3 with hCdef
@@ -206,7 +206,7 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit : ℝ)
           ⟨mem_shortStrings.2 hz, hv⟩, rfl⟩, not_not.1 hzv⟩)
     exact level3Fail_congr_up fam' C D' hD'len _ _ E u (probesOf settings P.D K₀ v) hread hω
   · -- off the bad draws, the actual round meets its claim
-    intro x₀ Pr Sf' ω v hnot
+    intro Pr Sf' ω v hnot
     set xs := probesOf settings P.D K₀ v
     set read' : FreeMonoid α → ARU := fun z => fam'.read (ω, ω₀) z
     have hgood : ¬ ((ω, ω₀), xs) ∈ Sf := hnot

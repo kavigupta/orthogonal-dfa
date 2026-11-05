@@ -203,23 +203,25 @@ lemma good_of_heavy [IsProbabilityMeasure μ] (M : _root_.DFA α σ)
 
 variable {K : ℕ}
 
-/-- What the clustering claims of a round run after `harvests`, at its run `x`: it returns at some
-state of the schedule, and at every state it could return at, its family miscuts `D` at most
-`εcov + slack` of the time and leaves each population undecided at most
-`2·indecisionLimit + slack`. -/
+/-- What the clustering claims of a round run after the samplers `pops`, their probes from `D`
+walked from `k`, at its run `x`: it returns at some state of the schedule, and at every state it
+could return at, its family miscuts `D` at most `εcov + slack` of the time and leaves each
+population undecided at most `2·indecisionLimit + slack`. -/
 def ClusterSpec (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D : Measure (FreeMonoid α)) (εcov slack : ℝ) (harvests : List (Measure (FreeMonoid α)))
+    (D : Measure (FreeMonoid α)) (k : ℕ) (εcov slack : ℝ) (pops : List (HarvestSampler α))
     (x : Run Ω (FreeMonoid α) (Option (Fin K))) : Prop :=
-  (∃ B ∈ settings.schedule (loopPopulations K harvests.length),
-      x ∈ ret O.mq (loopPopulations K harvests.length) none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
-    ∧ ∀ B ∈ settings.schedule (loopPopulations K harvests.length),
-      x ∈ ret O.mq (loopPopulations K harvests.length) none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B →
-      ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq (loopPopulations K harvests.length) x B) p
+  (∃ B ∈ settings.schedule (loopPopulations K pops.length),
+      x ∈ ret O.mq (loopPopulations K pops.length) none settings.η₀ settings.indecisionLimit
+        settings.εcov settings.gateLevel B)
+    ∧ ∀ B ∈ settings.schedule (loopPopulations K pops.length),
+      x ∈ ret O.mq (loopPopulations K pops.length) none settings.η₀ settings.indecisionLimit
+        settings.εcov settings.gateLevel B →
+      ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq (loopPopulations K pops.length) x B) p
           ∂D ≤ εcov + slack
-        ∧ ∀ j ∈ loopPopulations K harvests.length,
+        ∧ ∀ j ∈ loopPopulations K pops.length,
           ∫ p, undecidedProb O B.lo (B.hi + 1)
-              (familyAt O.mq (loopPopulations K harvests.length) x B) p
-            ∂(popDists D harvests j) ≤ 2 * settings.indecisionLimit + slack
+              (familyAt O.mq (loopPopulations K pops.length) x B) p
+            ∂(loopDistributions D k pops j) ≤ 2 * settings.indecisionLimit + slack
 
 /-- The probes past their first `k` letters some string of which, followed by a midfix of `T`,
 reads on the side its state reads less often under `dist`. -/
@@ -296,20 +298,18 @@ lemma one_notMem_idealRound_family : 1 ∉ (idealRound settings O D Dsf h d).fam
 
 /-- The clustering's claim, at the state the round returned at. -/
 lemma idealRound_quality {D' : Measure (FreeMonoid α)} {εcov slack : ℝ}
-    {harvests : List (Measure (FreeMonoid α))} (hlen : harvests.length = h.pops.length)
-    (hs : ClusterSpec settings O D' εcov slack harvests
+    (hs : ClusterSpec settings O D' settings.level3.walkStart εcov slack h.pops
       (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))) :
-    (idealRound settings O D Dsf h d).state ∈ settings.schedule (loopPopulations K harvests.length)
+    (idealRound settings O D Dsf h d).state ∈ settings.schedule (loopPopulations K h.pops.length)
     ∧ ∫ p, miscutProb O (idealRound settings O D Dsf h d).state.lo
           ((idealRound settings O D Dsf h d).state.hi + 1)
           (insert 1 (idealRound settings O D Dsf h d).family) p ∂D' ≤ εcov + slack
-      ∧ ∀ j ∈ loopPopulations K harvests.length,
+      ∧ ∀ j ∈ loopPopulations K h.pops.length,
         ∫ p, undecidedProb O (idealRound settings O D Dsf h d).state.lo
             ((idealRound settings O D Dsf h d).state.hi + 1)
             (insert 1 (idealRound settings O D Dsf h d).family) p
-          ∂(popDists D' harvests j) ≤ 2 * settings.indecisionLimit + slack := by
-  rw [ClusterSpec, hlen] at hs
-  rw [hlen]
+          ∂(loopDistributions D' settings.level3.walkStart h.pops j)
+          ≤ 2 * settings.indecisionLimit + slack := by
   have hr := idealRound_returns settings O D Dsf h d hs.1
   exact ⟨hr.1, hs.2 _ hr.1 hr.2⟩
 
@@ -335,7 +335,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) (settings : LoopSettings K)
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
       settings.level3.probeBudget) (k : ℕ)
-    (εcov slack A sl m εd y T : ℝ)
+    (hk : settings.level3.walkStart = k) (εcov slack A sl m εd y T : ℝ)
     (E : σ → Set (FreeMonoid α)) (u : ℝ)
     (hK : Fintype.card σ + 1 ≤ K) (hT : 0 < T) (hy : 0 < y) (hm0 : 0 ≤ m)
     (hc : 0 < 2 * settings.indecisionLimit + slack)
@@ -344,8 +344,8 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     (hsched : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi)
     (hspec : ∀ i (hi : i < (idealRounds settings O P.D Dsf draws K).length) (hiK : i < K),
       i ≤ Fintype.card σ →
-      ClusterSpec settings O P.D εcov slack
-          (harvestsOf P.D k ((idealRounds settings O P.D Dsf draws K).take i))
+      ClusterSpec settings O P.D k εcov slack
+          (histOf ((idealRounds settings O P.D Dsf draws K).take i)).pops
           (idealRunAt settings O P.D Dsf draws ⟨i, hiK⟩)
         ∧ RoundSpec M O P A sl m εd y k E u (idealRounds settings O P.D Dsf draws K)[i]) :
     (idealRounds settings O P.D Dsf draws K).length ≤ Fintype.card σ + 1
@@ -366,11 +366,13 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
     intro i hi hiσ
     obtain ⟨hiK, e⟩ := getElem_idealRounds settings O P.D Dsf draws K i hi
     have hs := (hspec i hi hiK hiσ).1
-    rw [idealRunAt, ← take_idealRounds settings O P.D Dsf draws hiK.le] at hs
+    rw [idealRunAt, ← take_idealRounds settings O P.D Dsf draws hiK.le, ← hk] at hs
     rw [e]
     obtain ⟨hmem, hq⟩ := idealRound_quality settings O P.D Dsf (histOf (L.take i))
-      (draws ⟨i, hiK⟩) (D' := P.D)
-      (by rw [← histOf_pops P.D k, samplerLaws_length]) hs
+      (draws ⟨i, hiK⟩) (D' := P.D) hs
+    rw [hk] at hq
+    rw [← samplerLaws_length P.D k (histOf (L.take i)).pops, histOf_pops] at hmem hq
+    simp only [loopDistributions_eq_popDists, histOf_pops] at hq
     exact ⟨hsched _ _ hmem, one_notMem_idealRound_family settings O P.D Dsf
       (histOf (L.take i)) (draws ⟨i, hiK⟩), hq⟩
   -- a round that does not harvest agrees
