@@ -94,15 +94,16 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : LoopDistRun 
     (∀ draws : Fin (Fintype.card Q + 1)
         → LoopRoundDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget,
-      ∀ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws,
+      ∀ rounds,
+        indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws = some rounds →
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => prefixLaw D L)).real
-      {q | ¬ ∃ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-            (persistDraws q.1),
+      {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+            (persistDraws q.1) = some rounds ∧
         (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {w | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 w
@@ -165,16 +166,16 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
     (∀ draws : Fin (Fintype.card Q + 1)
         → LoopRoundDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget,
-      ∀ rounds ∈ indecisiveLStarLoop settings O (windowStrings k L₁)
-        (uniformStrings (L₁ + Fintype.card Q + 3)) draws,
+      ∀ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
+        (uniformStrings (L₁ + Fintype.card Q + 3)) draws = some rounds →
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
-      {q | ¬ ∃ rounds ∈ indecisiveLStarLoop settings O (windowStrings k L₁)
-            (uniformStrings (L₁ + Fintype.card Q + 3)) (persistDraws q.1),
+      {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
+            (uniformStrings (L₁ + Fintype.card Q + 3)) (persistDraws q.1) = some rounds ∧
         (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {w | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 w

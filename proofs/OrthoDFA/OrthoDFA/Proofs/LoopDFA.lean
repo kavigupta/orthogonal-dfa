@@ -433,15 +433,16 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       (∀ draws : Fin (Fintype.card σ + 1)
           → LoopRoundDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
             settings.level3.probeBudget,
-        ∀ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws,
+        ∀ rounds,
+          indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws = some rounds →
         rounds.length ≤ Fintype.card σ + 1
           ∧ ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ (Q + 1) * (6 * (Q + 2) * RB)
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1)) ∧
       ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget).prod
           (Measure.pi fun _ : Fin n => prefixLaw D L)).real
-        {q | ¬ ∃ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-              (persistDraws q.1),
+        {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+              (persistDraws q.1) = some rounds ∧
           (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
               o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
                 o.result.hypothesis.rerootedDFA o.read q.2 x
@@ -627,8 +628,8 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
   have hsub : {q : (Ω × (Fin (Fintype.card σ + 1)
         → RoundDraws α (Fintype.card σ + 1) settings.level3.harvestReadCap T))
         × (Fin n → FreeMonoid α) |
-      ¬ ∃ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-        (persistDraws q.1),
+      ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+        (persistDraws q.1) = some rounds ∧
       (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
             o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
@@ -796,15 +797,16 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
       (∀ draws : Fin (Fintype.card σ + 1)
           → LoopRoundDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
             settings.level3.probeBudget,
-        ∀ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws,
+        ∀ rounds,
+          indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws = some rounds →
         rounds.length ≤ Fintype.card σ + 1
           ∧ ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ (Q + 1) * (6 * (Q + 2) * RB)
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1)) ∧
       ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget).prod
           (Measure.pi fun _ : Fin n => prefixLaw D L)).real
-        {q | ¬ ∃ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-              (persistDraws q.1),
+        {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+              (persistDraws q.1) = some rounds ∧
           (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
               o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
                 o.result.hypothesis.rerootedDFA o.read q.2 x
@@ -903,7 +905,8 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
       (∀ draws : Fin (Fintype.card σ + 1)
           → LoopRoundDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
             settings.level3.probeBudget,
-        ∀ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws,
+        ∀ rounds,
+          indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) draws = some rounds →
         ((rounds.map fun o => o.prefs.card).sum : ℝ)
             ≤ (Q + 1) * (6 * (Q + 2) * loopCount (L + Q + 4) Q A Ae δ c ξ pAP η₀)
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ)
@@ -913,8 +916,8 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
       ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget).prod
           (Measure.pi fun _ : Fin n => prefixLaw D L)).real
-        {q | ¬ ∃ rounds ∈ indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-              (persistDraws q.1),
+        {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
+              (persistDraws q.1) = some rounds ∧
           (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
               o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
                 o.result.hypothesis.rerootedDFA o.read q.2 x
