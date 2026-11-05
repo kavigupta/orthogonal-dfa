@@ -1,20 +1,17 @@
 import OrthoDFA.Proofs.HarvestCode
 import OrthoDFA.Proofs.DrawFrom
 import OrthoDFA.Proofs.DrawMany
+import OrthoDFA.Proofs.LoopRuns
 
 /-! # The loop's harvest draws
 
-`harvestDraw` draws `N` probes from `D` by uniforms and runs the sampler off `T`; `popDraws` takes
-a population's first `M` draws, a harvested population's each on its own block of `N` uniforms.
-Drawing the probes from the uniforms is measure preserving, so
+`popDraws` takes a population's first `M` draws, a harvested population's each by its sampler over
+`N` probes drawn by its own block of uniforms.
 
-* `harvestCodeLaw_eq_harvestDraw`, `popLaw_harvestDraw`: a hit's law is the sampler's, and
-  normalised it is the population off `T`;
-* `harvestDraw_miss_le`, `popDraws_miss_le`: a draw misses with chance at most `δₛ`, the `M` draws
-  with chance at most `δₛ'`, at the cap `harvestN`;
-* `popDraws_eq_some_law`: where the `M` draws hit they are i.i.d. from the population off `T`;
-* `harvestDraw_congr`, `popDraws_congr`: with the uniforms fixed, a draw reads only along the
-  probes it draws, at most `M · N · (3 + clog₂ L) · |mids|` strings (`popDrawReads_card_le`).
+* `popDraws_miss_le`: at the cap `harvestN y (δₛ'/M)` the `M` draws miss with chance at most `δₛ'`;
+* `popDraws_eq_some_law`: where they all hit, they are i.i.d. from the population off `T`;
+* `popDraws_congr`, `popDrawReads_card_le`: with the uniforms fixed, the draws read only along
+  their probes, at most `M · N · (3 + clog₂ L) · |mids|` strings.
 -/
 
 namespace OrthoDFA
@@ -26,7 +23,6 @@ variable {α : Type*} [Fintype α]
 variable (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α)
   (site : Random.Level3Site) (T : Set (FreeMonoid α)) (N : ℕ)
 
-omit [Fintype α] in
 /-- A draw lands on a string its law gives mass, or on `1`. -/
 lemma drawFrom_pos_or (ν : Measure (FreeMonoid α)) [IsProbabilityMeasure ν] (u : unitInterval) :
     0 < ν {drawFrom ν u} ∨ drawFrom ν u = 1 := by
@@ -40,13 +36,12 @@ lemma drawFrom_pos_or (ν : Measure (FreeMonoid α)) [IsProbabilityMeasure ν] (
         ext z'; simp [strCode_injective.eq_iff]
       rw [hset] at hs
       have hpos : 0 < ν.real {drawFrom ν u} := by linarith
-      exact (measureReal_pos_iff_pos_measure (measure_ne_top _ _)).1 hpos
+      exact (ENNReal.toReal_pos_iff.1 hpos).1
     · exact Or.inr h1
   · right
     unfold drawFrom
     rw [dif_neg h]
 
-omit [Fintype α] in
 /-- Every draw from a law on strings at most `L` long is at most `L` long. -/
 lemma drawFrom_length_le (ν : Measure (FreeMonoid α)) [IsProbabilityMeasure ν] {L : ℕ}
     (hν : ∀ᵐ x ∂ν, x.toList.length ≤ L) (u : unitInterval) :
@@ -58,35 +53,6 @@ lemma drawFrom_length_le (ν : Measure (FreeMonoid α)) [IsProbabilityMeasure ν
     rw [this] at h
     exact lt_irrefl _ h
   · rw [h]; simp
-
-/-! ## One draw -/
-
-/-- A hit's law over the uniforms is the sampler's law. -/
-theorem harvestCodeLaw_eq_harvestDraw [IsProbabilityMeasure D] :
-    Random.harvestCodeLaw read D k H site T N
-      = ((Measure.pi fun _ : Fin N => (volume : Measure unitInterval)).restrict
-            {u | (harvestDraw read D k H site T N u).isSome = true}).map
-          fun u => (harvestDraw read D k H site T N u).getD 1 := by
-  classical
-  set g : (Fin N → unitInterval) → (Fin N → FreeMonoid α) := fun u i => drawFrom D (u i) with hg_def
-  have hg : MeasurePreserving g (Measure.pi fun _ : Fin N => (volume : Measure unitInterval))
-      (Measure.pi fun _ : Fin N => D) :=
-    measurePreserving_pi _ _ fun _ => ⟨measurable_drawFrom _, map_drawFrom _⟩
-  set f : (Fin N → FreeMonoid α) → FreeMonoid α :=
-    fun xs => (Random.harvestFirst read k H site T (List.ofFn xs)).getD 1 with hf_def
-  set S : Set (Fin N → FreeMonoid α) :=
-    {xs | (Random.harvestFirst read k H site T (List.ofFn xs)).isSome = true} with hS_def
-  have hSmeas : MeasurableSet S := (Set.to_countable _).measurableSet
-  have hfmeas : Measurable f := measurable_of_countable _
-  have hcomp : (fun u => (harvestDraw read D k H site T N u).getD 1) = f ∘ g := by funext u; rfl
-  have hset : {u | (harvestDraw read D k H site T N u).isSome = true} = g ⁻¹' S := by ext u; rfl
-  have key : ((Measure.pi fun _ : Fin N => (volume : Measure unitInterval)).restrict (g ⁻¹' S)).map
-        (f ∘ g)
-      = ((Measure.pi fun _ : Fin N => D).restrict S).map f := by
-    rw [← Measure.map_map hfmeas hg.measurable, ← Measure.restrict_map hg.measurable hSmeas,
-      hg.map_eq]
-  rw [hcomp, hset]
-  exact key.symm
 
 /-- Conditioning a normalised law off `T` conditions the measure off `T`. -/
 lemma offLaw_popLaw {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν] (T : Finset (FreeMonoid α)) :
@@ -108,59 +74,10 @@ lemma offLaw_popLaw {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν] (T : Fin
     rw [hpop, Measure.restrict_smul]
     exact Random.popLaw_smul (ENNReal.inv_ne_zero.2 htop) (ENNReal.inv_ne_top.2 h0)
 
-/-- Normalised, a hit's law is the harvested population off `T`. -/
-theorem popLaw_harvestDraw [IsProbabilityMeasure D] (T : Finset (FreeMonoid α)) (hN : 0 < N) :
-    popLaw (((Measure.pi fun _ : Fin N => (volume : Measure unitInterval)).restrict
-          {u | (harvestDraw read D k H site ↑T N u).isSome = true}).map
-        fun u => (harvestDraw read D k H site ↑T N u).getD 1)
-      = offLaw (popLaw (Random.harvestLaw read D k H site)) T := by
-  haveI : IsFiniteMeasure (Random.harvestLaw read D k H site) :=
-    ⟨lt_top_iff_ne_top.2 (Random.harvestLaw_univ_ne_top read D k H site)⟩
-  rw [← harvestCodeLaw_eq_harvestDraw, Random.harvestCodeLaw_popLaw_eq read D k H site _ N hN,
-    offLaw_popLaw]
-
-/-- A draw misses all `N` probes with the sampler's miss chance. -/
-theorem harvestDraw_miss [IsProbabilityMeasure D] :
-    (Measure.pi fun _ : Fin N => (volume : Measure unitInterval))
-        {u | harvestDraw read D k H site T N u = none}
-      = Random.harvestMiss read D k H site T N := by
-  classical
-  set g : (Fin N → unitInterval) → (Fin N → FreeMonoid α) := fun u i => drawFrom D (u i) with hg_def
-  have hg : MeasurePreserving g (Measure.pi fun _ : Fin N => (volume : Measure unitInterval))
-      (Measure.pi fun _ : Fin N => D) :=
-    measurePreserving_pi _ _ fun _ => ⟨measurable_drawFrom _, map_drawFrom _⟩
-  set S : Set (Fin N → FreeMonoid α) :=
-    {xs | Random.harvestFirst read k H site T (List.ofFn xs) = none} with hS_def
-  have hSmeas : MeasurableSet S := (Set.to_countable _).measurableSet
-  have hset : {u | harvestDraw read D k H site T N u = none} = g ⁻¹' S := by ext u; rfl
-  rw [hset, ← Measure.map_apply hg.measurable hSmeas, hg.map_eq]
-  rfl
-
-/-- At the cap `harvestN y δₛ`, with `y` at most the chance a probe harvests a string off `T`, a
-draw misses with chance at most `δₛ`. -/
-theorem harvestDraw_miss_le [IsProbabilityMeasure D] {y δₛ : ℝ}
-    (hy0 : 0 < y) (hy1 : y ≤ 1) (hδ : 0 < δₛ)
-    (hyield : y ≤ (Random.harvestLaw read D k H site).real Tᶜ) :
-    (Measure.pi fun _ : Fin (Random.harvestN y δₛ) => (volume : Measure unitInterval))
-        {u | harvestDraw read D k H site T (Random.harvestN y δₛ) u = none}
-      ≤ ENNReal.ofReal δₛ := by
-  rw [harvestDraw_miss]
-  exact Random.harvestCodeLaw_miss_le read D k H site T hy0 hy1 hδ hyield
-
-/-- With the uniforms fixed, a draw depends on the read only through the strings its probes'
-walks read. -/
-theorem harvestDraw_congr {read read' : FreeMonoid α → ARU} (D : Measure (FreeMonoid α)) (k : ℕ)
-    (H : HypothesisDFA α) (site : Random.Level3Site) (T : Set (FreeMonoid α)) (N : ℕ)
-    (u : Fin N → unitInterval)
-    (h : ∀ w ∈ Random.harvestFirstReads read H.tree H.edges k (List.ofFn fun i => drawFrom D (u i)),
-        read w = read' w) :
-    harvestDraw read D k H site T N u = harvestDraw read' D k H site T N u :=
-  Random.harvestFirst_congr k H site T _ h
-
 /-! ## A population's draws -/
 
 /-- The probes a population's first `M` draws walk, draw `n`'s drawn from `D` by its block. -/
-def probeBlocks (D : Measure (FreeMonoid α)) (N M : ℕ)
+noncomputable def probeBlocks (D : Measure (FreeMonoid α)) (N M : ℕ)
     (u : ℕ → unitInterval × (Fin N → unitInterval)) : Fin M → Fin N → FreeMonoid α :=
   fun n t => drawFrom D ((u n).2 t)
 
@@ -173,29 +90,26 @@ lemma map_firstM {β : Type*} [MeasurableSpace β] (ν : Measure β) [IsProbabil
       = Measure.pi fun _ : Fin M => ν := by
   classical
   refine (Measure.pi_eq fun s hs => ?_).symm
-  rw [Measure.map_apply (measurable_pi_lambda _ fun n => measurable_pi_apply _)
-    (MeasurableSet.univ_pi hs)]
+  rw [Measure.map_apply (by fun_prop) (MeasurableSet.univ_pi hs)]
   set t : ℕ → Set β := fun i => if h : i < M then s ⟨i, h⟩ else Set.univ
   have hpre : (fun u (n : Fin M) => u n) ⁻¹' Set.univ.pi s = Set.pi ↑(Finset.range M) t := by
     ext u
     simp only [Set.mem_preimage, Set.mem_univ_pi, Set.mem_pi, Finset.coe_range, Set.mem_Iio, t]
     constructor
-    · intro h i hi; rw [dif_pos hi]; exact h ⟨i, hi⟩
-    · intro h n; have := h n n.2; rwa [dif_pos n.2] at this
+    · intro h i hi; rw [dif_pos hi]; exact h ⟨i, hi⟩ (Set.mem_univ _)
+    · intro h n _; have := h n n.2; rwa [dif_pos n.2] at this
   rw [hpre, Measure.infinitePi_pi _ fun i _ => by
     simp only [t]; split_ifs; exacts [hs _, .univ]]
   rw [← Fin.prod_univ_eq_prod_range (fun i => ν (t i)) M]
   refine Finset.prod_congr rfl fun n _ => ?_
   simp only [t, dif_pos n.2]
 
-omit [Fintype α] in
 lemma measurable_probeBlocks (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (N M : ℕ) :
     Measurable (probeBlocks D N M) :=
   measurable_pi_lambda _ fun n => measurable_pi_lambda _ fun t =>
     (measurable_drawFrom D).comp ((measurable_pi_apply t).comp
       (measurable_snd.comp (measurable_pi_apply _)))
 
-omit [Fintype α] in
 /-- The probes the blocks draw are i.i.d. from `D`. -/
 theorem map_probeBlocks (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (N M : ℕ) :
     (Measure.infinitePi fun _ : ℕ => drawLaw N).map (probeBlocks D N M)
@@ -237,10 +151,10 @@ theorem popDraws_miss_le {K : ℕ} [IsProbabilityMeasure D] (M : ℕ) (pops : Li
     (T : Finset (FreeMonoid α)) (i : Fin K) (s : HarvestSampler α) (hs : pops[i.val]? = some s)
     {y δₛ' : ℝ} (hy0 : 0 < y) (hy1 : y ≤ 1) (hδ : 0 < δₛ') (hM : 0 < M)
     (hyield : y ≤ (Random.harvestLaw s.read D k s.hyp s.site).real (↑T)ᶜ) :
-    (Measure.infinitePi fun _ : ℕ => drawLaw N)
+    (Measure.infinitePi fun _ : ℕ => drawLaw (Random.harvestN y (δₛ' / M)))
         {u | popDraws D k (Random.harvestN y (δₛ' / M)) M pops T (some i) u = none}
       ≤ ENNReal.ofReal δₛ' := by
-  rw [popDraws_miss]
+  rw [popDraws_miss D k _ M pops T i s hs]
   exact Random.drawManyMiss_le s.read D k s.hyp s.site _ hy0 hy1 hδ hM hyield
 
 /-- Where a harvested population's `M` draws all hit, they are i.i.d. from it off `T`. -/
@@ -253,6 +167,7 @@ theorem popDraws_eq_some_law {K : ℕ} [IsProbabilityMeasure D] (M : ℕ) (hN : 
     (if raw Set.univ = 0 ∨ raw Set.univ = ∞ then Measure.dirac 1 else (raw Set.univ)⁻¹ • raw)
       = Measure.pi fun _ : Fin M => offLaw (popLaw (Random.harvestLaw s.read D k s.hyp s.site)) T := by
   intro raw
+  classical
   haveI : IsFiniteMeasure (Random.harvestLaw s.read D k s.hyp s.site) :=
     ⟨lt_top_iff_ne_top.2 (Random.harvestLaw_univ_ne_top s.read D k s.hyp s.site)⟩
   have hraw : raw = ((Measure.pi fun _ : Fin M => Measure.pi fun _ : Fin N => D).restrict
@@ -280,7 +195,6 @@ theorem popDraws_eq_some_law {K : ℕ} [IsProbabilityMeasure D] (M : ℕ) (hN : 
 
 /-! ## Measurability -/
 
-omit [Fintype α] in
 lemma measurable_popDraws_isSome {K : ℕ} (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (k N M : ℕ) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) (j : Option (Fin K)) :
     Measurable fun u => (popDraws D k N M pops T j u).isSome := by
@@ -295,7 +209,6 @@ lemma measurable_popDraws_isSome {K : ℕ} (D : Measure (FreeMonoid α)) [IsProb
       rw [this]
       exact (measurable_of_countable _).comp (measurable_probeBlocks D N M)
 
-omit [Fintype α] in
 lemma measurable_popDraws_getD {K : ℕ} (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (k N M : ℕ) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) (j : Option (Fin K))
     (d : Fin M → FreeMonoid α) :
@@ -371,7 +284,7 @@ theorem popDrawReads_card_le {K : ℕ} (D : Measure (FreeMonoid α)) [IsProbabil
     (hs : pops[i.val]? = some s) {L : ℕ} (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (u : ℕ → unitInterval × (Fin N → unitInterval)) :
     (popDrawReads D k N M pops (some i) u).card
-      ≤ M * (N * ((3 + Nat.clog 2 L) * (mids s.hyp.tree).card)) := by
+      ≤ M * (N * ((3 + Nat.clog 2 L) * (Random.mids s.hyp.tree).card)) := by
   simp only [popDrawReads, hs]
   refine Random.drawManyReads_card_le s.read k s.hyp _ fun n x hx => ?_
   obtain ⟨t, rfl⟩ := List.mem_ofFn.1 hx

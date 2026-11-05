@@ -106,24 +106,34 @@ lemma harvestLaw_restrict_apply (A : Set (FreeMonoid α)) :
       = fun x => hitA.indicator (fun _ => (1 : ℝ≥0∞)) x := by
     funext x
     have hlen := siteHarvest_length read k H site x
-    rcases hx : siteHarvest read k H site x with _ | ⟨s, tl⟩
-    · have hxnot : x ∉ hitA := by rintro ⟨v, hv, -⟩; simp [hx] at hv
+    have hmemA : x ∈ hitA ↔ ∃ v, ((siteHarvest read k H site x).head?.filter fun z => z ∉ T)
+        = some v ∧ v ∈ A := Iff.rfl
+    have hcases : siteHarvest read k H site x = [] ∨ ∃ s, siteHarvest read k H site x = [s] := by
+      rcases h : siteHarvest read k H site x with _ | ⟨s, _ | ⟨b, l⟩⟩
+      · exact Or.inl rfl
+      · exact Or.inr ⟨s, rfl⟩
+      · rw [h] at hlen; simp at hlen
+    rcases hcases with hx | ⟨s, hx⟩
+    · rw [hx] at hmemA ⊢
+      have hxnot : x ∉ hitA := by rw [hmemA]; simp
       rw [Set.indicator_of_notMem hxnot]; simp
-    · have htl : tl = [] := by
-        rcases tl with _ | ⟨b, l⟩
-        · rfl
-        · rw [hx] at hlen; simp at hlen
-      subst htl
+    · rw [hx] at hmemA ⊢
       by_cases hs : s ∈ A ∩ Tᶜ
-      · have hmem : x ∈ hitA := ⟨s, by simp [hx, hs.2], hs.1⟩
-        rw [Set.indicator_of_mem hmem (fun _ => (1 : ℝ≥0∞))]
-        simp [hs]
+      · have hsT : s ∉ T := hs.2
+        have hmem : x ∈ hitA := hmemA.2 ⟨s, by simp [hsT], hs.1⟩
+        have hf : [s].filter (· ∈ A ∩ Tᶜ) = [s] := by
+          rw [List.filter_cons_of_pos (by simpa using hs)]; rfl
+        rw [Set.indicator_of_mem hmem, hf]; simp
       · have hxnot : x ∉ hitA := by
+          rw [hmemA]
           rintro ⟨v, hv, hvA⟩
-          simp only [hx, List.head?_cons, Option.filter_some] at hv
-          split_ifs at hv with hT
-          · cases hv; exact hs ⟨hvA, by simpa using hT⟩
-        rw [Set.indicator_of_notMem hxnot]; simp [hs]
+          simp only [List.head?_cons, Option.filter_some, decide_eq_true_eq] at hv
+          split_ifs at hv with hsT
+          cases hv
+          exact hs ⟨hvA, hsT⟩
+        have hf : [s].filter (· ∈ A ∩ Tᶜ) = [] := by
+          rw [List.filter_cons_of_neg (by simpa using hs)]; rfl
+        rw [Set.indicator_of_notMem hxnot, hf]; simp
   rw [hint, lintegral_indicator_const hhitA_meas, one_mul]
 
 /-- The sampler's output is a positive finite multiple of the harvest law off `T`: with `p` the
@@ -287,12 +297,13 @@ theorem harvestCodeLaw_miss_le [IsProbabilityMeasure D] {y δₛ : ℝ}
   have hhit : (harvestLaw read D k H site).real Tᶜ = D.real missᶜ := by
     have h := harvestLaw_restrict_apply read D k H site T Set.univ
     rw [Measure.restrict_apply_univ] at h
-    rw [measureReal_def, h, measureReal_def]
-    congr 2
-    ext x
-    simp only [Set.mem_setOf_eq, Set.mem_univ, and_true, hmissdef, Set.mem_compl_iff]
-    exact ⟨fun ⟨v, hv⟩ h0 => by rw [h0] at hv; cases hv,
-      fun h0 => Option.ne_none_iff_exists'.1 h0⟩
+    have hset : {x | ∃ v, ((siteHarvest read k H site x).head?.filter fun z => z ∉ T) = some v
+        ∧ v ∈ Set.univ} = missᶜ := by
+      ext x
+      have : ∀ o : Option (FreeMonoid α), (∃ v, o = some v ∧ v ∈ Set.univ) ↔ ¬ o = none :=
+        fun o => by cases o <;> simp
+      exact this _
+    rw [measureReal_def, h, hset, measureReal_def]
   -- D(miss) ≤ 1 - y as reals.
   have hmissreal : D.real miss ≤ 1 - y := by
     have huniv1 : D.real Set.univ = 1 := by simp [measureReal_def]
@@ -417,21 +428,5 @@ theorem harvestFirst_congr {read read' : FreeMonoid α → ARU} (k : ℕ) (H : H
   simpa only [harvestFirst] using key xs hsite
 
 end Random
-
-open MeasureTheory in
-/-- The operational population equals the handed-on one in law: the bounded-rejection sampler at
-any cap `N ≥ 1` reproduces `popLaw (harvestLaw …)` exactly (via `harvestCodeLaw_popLaw_eq`), so the
-loop can be rewired to `populationOp` without changing any population it hands on. -/
-theorem LoopRound.populationOp_eq_population {α : Type*} [Fintype α]
-    {Ω : Type*} [MeasurableSpace Ω] {K N : ℕ}
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hN : 0 < N) (k : ℕ)
-    (o : LoopRound Ω α K) :
-    o.populationOp D k N = o.population D k := by
-  unfold LoopRound.populationOp LoopRound.population
-  rcases o.result.ending.harvested with _ | site
-  · rfl
-  · simp only [Option.map_some]
-    rw [Random.harvestCodeLaw_popLaw_eq (read := o.read) (D := D) (k := k)
-      (H := o.result.hypothesis) (site := site) (N := N) hN]
 
 end OrthoDFA
