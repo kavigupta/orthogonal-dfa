@@ -13,8 +13,8 @@ a draw from it walks fresh probes from the probes' distribution `D` under the ro
 hypothesis, at most level 3's `harvestReadCap` of them, and takes the first string undecided
 at the harvest's site, as the round reads them, that no earlier clustering read. The first
 population is `D` itself. Each population's streams are its first `scanCap` draws; the round fails
-if a harvested draw finds no string or the clustering would read past them, and the loop fails
-with it. Draws are made from uniforms (`drawFrom`).
+if a harvested draw finds no string, the clustering would read past them, or no state of the
+schedule returns, and the loop fails with it. Draws are made from uniforms (`drawFrom`).
 
 The clustering is the one `ClusteringQualityGuarantee` is about, every population tame and none
 harvested into a table: the family is `clusterAt` at a state of the schedule at which `ret`
@@ -227,10 +227,9 @@ structure LoopSettings (K : ℕ) where
   /-- The draws of each population's streams the clustering may read. -/
   scanCap : ℕ
 
-/-- A round: the clustering's run, the state it returned at and its family, the family's reads,
-what level 3 returned, and the prefixes and suffixes its clustering read. -/
-structure LoopRound (Ω α : Type*) (K : ℕ) where
-  run : Run Ω (FreeMonoid α) (Option (Fin K))
+/-- A round: the state its clustering returned at and its family, the family's reads, what level 3
+returned, and the prefixes and suffixes its clustering read. -/
+structure LoopRound (α : Type*) where
   state : State
   family : Finset (FreeMonoid α)
   read : FreeMonoid α → ARU
@@ -268,30 +267,32 @@ family, and level 3's run over probes drawn by `u` from `D` avoiding the first `
 prefixes the clustering read. -/
 def roundOf {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D : Measure (FreeMonoid α)) (h : LoopHist α) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
-    (u : Fin settings.level3.probeBudget → unitInterval) : LoopRound Ω α K :=
+    (u : Fin settings.level3.probeBudget → unitInterval) : LoopRound α :=
   let ps := loopPopulations K h.pops.length
   let B := Classical.epsilon fun B => B ∈ settings.schedule ps
     ∧ x ∈ ret O.mq ps none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
   let F := clusterAt O.mq ps x B
   let read := fun z => familyRead O.mq F B.lo (B.hi + 1) z x.1
   let K₀ := clusterKeys (settings.schedule ps) ps settings.level3.walkStart x
-  ⟨x, B, F, read, Random.indecisiveLStarLevel3 settings.level3 read
+  ⟨B, F, read, Random.indecisiveLStarLevel3 settings.level3 read
     (fun i => drawFrom (avoidLaw D settings.level3.walkStart K₀) (u i)),
     roundPrefs (settings.schedule ps) ps x, roundSuffs (settings.schedule ps) x⟩
 
 open scoped Classical in
 /-- The round after the history `h`: the clustering's draws off what the earlier rounds read, then
-the clustering on them and level 3.  `none` if a harvested draw misses or the clustering would read
-past the `scanCap` draws. -/
+the clustering on them and level 3.  `none` if a harvested draw misses, the clustering would read
+past the `scanCap` draws, or no state of the schedule returns. -/
 def loopRound {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) :
-    Option (LoopRound Ω α K) :=
+    Option (LoopRound α) :=
   let ps := loopPopulations K h.pops.length
   (clusterDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap h
       (d.1, d.2.1)).bind fun dr =>
-    if ScanWithin (settings.schedule ps) ps settings.scanCap dr then
-      some (roundOf settings O D h (streams (fun _ => ∅) none dr) d.2.2)
+    if ScanWithin (settings.schedule ps) ps settings.scanCap dr
+        ∧ ∃ B ∈ settings.schedule ps, streams (fun _ => ∅) none dr
+          ∈ ret O.mq ps none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
+    then some (roundOf settings O D h (streams (fun _ => ∅) none dr) d.2.2)
     else none
 
 def RoundEnd.harvested {H : Type*} : RoundEnd H → Option H
@@ -300,17 +301,17 @@ def RoundEnd.harvested {H : Type*} : RoundEnd H → Option H
 
 /-- The population a round's harvest hands on: its sampler's law over probes from `D`, walked
 from `k`, scaled to a probability. -/
-def LoopRound.population {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (o : LoopRound Ω α K) :
+def LoopRound.population (D : Measure (FreeMonoid α)) (k : ℕ) (o : LoopRound α) :
     Option (Measure (FreeMonoid α)) :=
   o.result.ending.harvested.map fun site =>
     popLaw (Random.harvestLaw o.read D k o.result.hypothesis site)
 
 /-- The sampler a round's harvest hands on: its family read, hypothesis and level-3 site. -/
-def LoopRound.sampler {K : ℕ} (o : LoopRound Ω α K) : Option (HarvestSampler α) :=
+def LoopRound.sampler (o : LoopRound α) : Option (HarvestSampler α) :=
   o.result.ending.harvested.map fun site => ⟨o.read, o.result.hypothesis, site⟩
 
 /-- What the rounds hand on: their harvests' samplers, and what their clusterings read. -/
-def histOf {K : ℕ} (rounds : List (LoopRound Ω α K)) : LoopHist α :=
+def histOf (rounds : List (LoopRound α)) : LoopHist α :=
   ⟨rounds.filterMap fun o => o.sampler,
     rounds.foldr (fun o T => o.prefs ∪ T) ∅, rounds.foldr (fun o T => o.suffs ∪ T) ∅⟩
 
@@ -320,7 +321,7 @@ def loopRounds {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid 
     (D Dsf : Measure (FreeMonoid α))
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
       settings.level3.probeBudget) :
-    ℕ → Option (List (LoopRound Ω α K))
+    ℕ → Option (List (LoopRound α))
   | 0 => some []
   | r + 1 => (loopRounds settings O D Dsf draws r).bind fun rs =>
     if h : r < K ∧ ∀ o ∈ rs, o.result.ending.harvested ≠ none then
@@ -332,7 +333,7 @@ def indecisiveLStarLoop {K : ℕ} (settings : LoopSettings K)
     (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
     (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
       settings.level3.probeBudget) :
-    Option (List (LoopRound Ω α K)) :=
+    Option (List (LoopRound α)) :=
   loopRounds settings O D Dsf draws K
 
 end OrthoDFA
