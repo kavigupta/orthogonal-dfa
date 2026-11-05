@@ -1,18 +1,20 @@
 \definecolor{bgsolved}{HTML}{1F5FA8}
 \definecolor{bgfailed}{HTML}{BF8330}
 \def\bgcell#1#2#3#4{
-    \fill[bg#3] (#1, -#2 - 1) rectangle +(1, 1);
-    \fill[bg#4] (#1, -#2 - 1) -- (#1 + 1, -#2 - 1) -- (#1 + 1, -#2) -- cycle;
-    \draw[white, line width=0.8pt] (#1, -#2 - 1) rectangle +(1, 1);
+    \begin{scope}[shift={(#1 + 0.5, -#2 - 0.5)}, x=0.42cm, y=0.42cm]
+        \fill[bg#3] (-0.5, -0.5) rectangle (0.5, 0.5);
+        \fill[bg#4] (-0.5, -0.5) -- (0.5, -0.5) -- (0.5, 0.5) -- cycle;
+        \draw[white, line width=0.8pt] (-0.5, -0.5) rectangle (0.5, 0.5);
+    \end{scope}
 }
-\def\bgtarget#1#2{\node[anchor=east, font=\footnotesize, inner sep=2pt] at (0, -#1 - 0.5) {#2};}
-\def\bgeta#1#2{\node[anchor=base, font=\footnotesize, inner sep=0pt] at (#1 + 0.5, 0.25) {#2};}
+\def\bgtarget#1#2{\node[anchor=east, font=\footnotesize, inner sep=2pt] at (0.5 - 0.5 * 0.42cm / 0.62cm, -#1 - 0.5) {#2};}
+\def\bgeta#1#2{\node[anchor=base, font=\footnotesize, inner sep=0pt] at (#1 + 0.5, 0.35) {#2};}
 \def\bgtitle#1#2{
-    \node[anchor=base east, font=\footnotesize, inner sep=2pt] at (0, 0.25) {$\eta$};
-    \draw[black!50] (0.1, 1.15) -- (#1 - 0.1, 1.15);
-    \node[anchor=south, font=\footnotesize, inner sep=2pt] at (#1 / 2, 1.15) {#2};
+    \node[anchor=base east, font=\footnotesize, inner sep=2pt] at (0.5 - 0.5 * 0.42cm / 0.62cm, 0.35) {$\eta$};
+    \draw[black!50] (0.1, 1.45) -- (#1 - 0.1, 1.45);
+    \node[anchor=south, font=\footnotesize, inner sep=2pt] at (#1 / 2, 1.45) {#2};
 }
-\begin{tikzpicture}[x=0.6cm, y=0.6cm, baseline=0pt]
+\begin{tikzpicture}[x=0.62cm, y=0.42cm, baseline=0pt]
     \bgtitle{4}{CAPAL suite}
     \bgeta{0}{0.05}
     \bgeta{1}{0.1}
@@ -45,7 +47,7 @@
     \bgcell{3}{4}{failed}{solved}
 \end{tikzpicture}
 \quad
-\begin{tikzpicture}[x=0.6cm, y=0.6cm, baseline=0pt]
+\begin{tikzpicture}[x=0.62cm, y=0.42cm, baseline=0pt]
     \bgtitle{4}{our benchmarks}
     \bgeta{0}{0.05}
     \bgeta{1}{0.1}
@@ -78,12 +80,13 @@
     \bgcell{3}{4}{failed}{solved}
 \end{tikzpicture}
 \quad
-\begin{tikzpicture}[x=0.6cm, y=0.6cm, baseline=0pt, font=\footnotesize]
-    \draw[black!50] (0, -1.5) rectangle (1.5, 0) (0, -1.5) -- (1.5, 0);
-    \node[anchor=south, inner sep=2pt] at (0.75, 0) {CAPAL};
-    \node[anchor=north, inner sep=2pt] at (0.75, -1.5) {\ours{}};
-    \foreach \kind/\name [count=\i] in {solved/solved, failed/not solved} {
-        \fill[bg\kind] (0, -2.5 - \i) rectangle +(0.8, 0.8);
-        \node[anchor=west, inner sep=2pt] at (0.8, -2.1 - \i) {\name};
+\begin{tikzpicture}[x=0.42cm, y=0.42cm, baseline=0pt, font=\footnotesize]
+    \draw[black!50] (0, -2) rectangle (2, 0) (0, -2) -- (2, 0);
+    \node[anchor=base, inner sep=0pt] at (1, 0.35) {CAPAL};
+    \node[anchor=center, inner sep=0pt] at (1, -2.5) {\ours{}};
+    \foreach \kind/\name/\row in {solved/solved/3, failed/not solved/4} {
+        \fill[bg\kind] (0, -\row - 1) rectangle +(1, 1);
+        \draw[white, line width=0.8pt] (0, -\row - 1) rectangle +(1, 1);
+        \node[anchor=west, inner sep=2pt] at (1, -\row - 0.5) {\name};
     }
 \end{tikzpicture}
