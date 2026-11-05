@@ -40,6 +40,15 @@ def idealRounds (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
         (draws ⟨r, h.1⟩)]
     else idealRounds settings O D Dsf draws r
 
+/-- Alike histories make the same round. -/
+theorem idealRound_alike {L : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+    (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    {h h' : LoopHist α} (hh : HistAlike L h h')
+    (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) :
+    idealRound settings O D Dsf h d = idealRound settings O D Dsf h' d := by
+  unfold idealRound roundOf
+  rw [idealRun_alike hh D Dsf hD, hh.length]
+
 /-- The round's draws hit, its filled draws scan within `scanCap`, and its clustering on them
 returns at a scheduled state. -/
 def RoundGood (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
@@ -74,6 +83,36 @@ theorem loopRounds_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoi
       rw [loopRound_eq_some settings O D Dsf _ _ h1 h2 h3]
       rfl
     · rfl
+
+/-! ## The samplers' populations -/
+
+/-- The populations' distributions, given populations: the probes' `D`, then each in turn. -/
+def popDists (D : Measure (FreeMonoid α)) (pops : List (Measure (FreeMonoid α))) :
+    Option (Fin K) → Measure (FreeMonoid α)
+  | none => D
+  | some i => pops.getD i (Measure.dirac 1)
+
+/-- Each sampler's population over probes from `D` walked from `k`. -/
+def samplerLaws (D : Measure (FreeMonoid α)) (k : ℕ) (pops : List (HarvestSampler α)) :
+    List (Measure (FreeMonoid α)) :=
+  pops.map fun s => popLaw (Random.harvestLaw s.read D k s.hyp s.site)
+
+omit [MeasurableSpace Ω] in
+lemma loopDistributions_eq_popDists (D : Measure (FreeMonoid α)) (k : ℕ)
+    (pops : List (HarvestSampler α)) (j : Option (Fin K)) :
+    loopDistributions D k pops j = popDists D (samplerLaws D k pops) j := by
+  rcases j with _ | i
+  · rfl
+  simp only [loopDistributions, popDists, samplerLaws]
+  rcases h : pops[i.val]? with _ | s
+  · rw [List.getD_eq_default _ _ (by simpa using List.getElem?_eq_none_iff.1 h)]
+  · obtain ⟨hi, hs⟩ := List.getElem?_eq_some_iff.1 h
+    rw [List.getD_eq_getElem _ _ (by simpa using hi)]
+    simp [hs]
+
+omit [MeasurableSpace Ω] in
+lemma samplerLaws_length (D : Measure (FreeMonoid α)) (k : ℕ) (pops : List (HarvestSampler α)) :
+    (samplerLaws D k pops).length = pops.length := List.length_map _
 
 end OrthoDFA
 

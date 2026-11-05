@@ -115,7 +115,7 @@ are at most half of each state's strings shorter than `L + 1`, plus `εm`, both 
 against the coverage `c`, has a leaf from which its hypothesis misjudges at most what re-rooting
 at a covered start does, `D` extending each prefix by each letter at least `1/Ae` of the time. -/
 theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
-    (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) {K : ℕ} (o : LoopRound Ω α K)
+    (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) {K : ℕ} (o : LoopRound α)
     (L : ℕ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (hlong : ∀ᵐ x ∂D, L + Fintype.card σ + 3 ≤ x.toList.length) {Ae c εr εu εB εm γ : ℝ}
     (hAe : 0 ≤ Ae)
@@ -352,7 +352,7 @@ theorem covered_bridge {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] 
     let N : ℝ := L₁ + 1 - k
     let ε : ℝ := c / (4 * (Ae + 1) * N)
     let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
-    ∀ o : LoopRound Ω α K,
+    ∀ o : LoopRound α,
       o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
         (shortAt M (L + 1)) (ε + ε / 96) →
       ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
@@ -415,7 +415,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     (∀ᵐ w ∂D, Ls ≤ w.toList.length) →
     (∀ u, D.real {w | prefixOf w k = u} ≤ p₀) →
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-    (∀ o : LoopRound Ω α (Fintype.card σ + 1),
+    (∀ o : LoopRound α,
       o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
         (shortAt M (L + 1)) (ε + ε / 96) →
       ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
@@ -572,8 +572,8 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       (prefixLaw D Ls) draws _ _
       hreads
     have hQ : Q = (Fintype.card σ : ℝ) := rfl
-    have e : ∀ (f : LoopRound Ω α (Fintype.card σ + 1) → ℕ)
-        (l : List (LoopRound Ω α (Fintype.card σ + 1))),
+    have e : ∀ (f : LoopRound α → ℕ)
+        (l : List (LoopRound α)),
         (l.map fun o => (f o : ℝ)).sum = ((l.map f).sum : ℝ) := fun f l => by
       rw [Nat.cast_list_sum, List.map_map]; rfl
     refine ⟨(e _ _).trans_le ((Nat.cast_le.2 hpr).trans ?_),
@@ -867,7 +867,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     (∀ᵐ w ∂D, Ls ≤ w.toList.length) →
     (∀ u, D.real {w | prefixOf w k = u} ≤ p₀) →
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-    (∀ o : LoopRound Ω α (Fintype.card σ + 1),
+    (∀ o : LoopRound α,
       o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
         (shortAt M (L + 1)) (ε + ε / 96) →
       ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
@@ -1071,7 +1071,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     gcongr
     exact this
   · gcongr
-  · have hlen := length_loopRounds_le settings O (windowLaw D k L₁) (prefixLaw D Ls) draws
+  · have hlen := length_idealRounds_le settings O (windowLaw D k L₁) (prefixLaw D Ls) draws
       (Fintype.card σ + 1)
     have hlen' : ((indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
         draws).length : ℝ) ≤ Q + 1 := by

@@ -227,15 +227,15 @@ lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D
             (histAt settings D (histCodes settings O D Dsf ω g r) i).pops.length))
           (((), runOf D Dsf (histAt settings D (histCodes settings O D Dsf ω g r) i)
             (g ⟨i, hiK⟩).1) : Run Unit (FreeMonoid α) (Option (Fin K)))
-  | 0, i, hi => by simp [histCodes, loopRounds, codesOf] at hi
+  | 0, i, hi => by simp [histCodes, idealRounds, codesOf] at hi
   | r + 1, i, hi => by
     by_cases hrK : r < K
-    · have hy := codesOf_loopRounds_succ settings O D Dsf hlen
+    · have hy := codesOf_idealRounds_succ settings O D Dsf hlen
         (Nat.le_trans (Nat.le_add_right _ 2) hN) (by omega) (fun i => (ω, g i)) r hrK
       set c := histCodes settings O D Dsf ω g r with hcd
       have hy' : histCodes settings O D Dsf ω g (r + 1) = if c.length = r then
           c ++ (popCode settings.level3.harvestReadCap
-            (loopRound settings O D Dsf (decodeHist D settings.level3.walkStart c)
+            (idealRound settings O D Dsf (decodeHist D settings.level3.walkStart c)
               (ω, g ⟨r, hrK⟩))).toList else c := hy
       have ih := histCodes_getElem hlen hN ω g r
       by_cases hcl : c.length = r
@@ -251,7 +251,7 @@ lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D
           · rw [ht]; exact h1
           · rw [ht]; exact h2
         · revert hi
-          rcases ho : popCode settings.level3.harvestReadCap (loopRound settings O D Dsf
+          rcases ho : popCode settings.level3.harvestReadCap (idealRound settings O D Dsf
               (decodeHist D settings.level3.walkStart c) (ω, g ⟨r, hrK⟩)) with _ | code
           · intro hi
             simp only [Option.toList_none, List.append_nil] at hi
@@ -278,7 +278,7 @@ lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D
         exact ih i hi
     · have hst : histCodes settings O D Dsf ω g (r + 1) = histCodes settings O D Dsf ω g r := by
         simp only [histCodes]
-        rw [loopRounds_succ, dif_neg (fun h' => hrK h'.1)]
+        rw [idealRounds_succ, dif_neg (fun h' => hrK h'.1)]
       rw [hst] at hi ⊢
       exact histCodes_getElem hlen hN ω g r i hi
 

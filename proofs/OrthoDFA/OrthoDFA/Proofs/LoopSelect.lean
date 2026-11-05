@@ -176,27 +176,27 @@ theorem selG_unique (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
   obtain ⟨rfl, -⟩ := ha'
   obtain ⟨c', B', F', K₀'⟩ := a'
   obtain ⟨-, hc', -⟩ := (stage4_eq_some settings O P.D Dsf r' hr' ω x c' B' F' K₀').1 h4'
-  have hcl : ((loopRounds settings O P.D Dsf draws r').filterMap
+  have hcl : ((idealRounds settings O P.D Dsf draws r').filterMap
       (popCode settings.level3.harvestReadCap)).length = r' :=
     (congrArg List.length hc').trans hlen'
-  have hlr : (loopRounds settings O P.D Dsf draws r').length = r' := by
+  have hlr : (idealRounds settings O P.D Dsf draws r').length = r' := by
     have := List.length_filterMap_le (popCode settings.level3.harvestReadCap)
-      (loopRounds settings O P.D Dsf draws r')
-    have := length_loopRounds_le settings O P.D Dsf draws r'
+      (idealRounds settings O P.D Dsf draws r')
+    have := length_idealRounds_le settings O P.D Dsf draws r'
     omega
-  have hall : ∀ o ∈ loopRounds settings O P.D Dsf draws r', o.result.ending.harvested ≠ none := by
+  have hall : ∀ o ∈ idealRounds settings O P.D Dsf draws r', o.result.ending.harvested ≠ none := by
     intro o ho hno
     have := (List.length_filterMap_lt_length_iff_exists
       (f := popCode settings.level3.harvestReadCap)
-      (xs := loopRounds settings O P.D Dsf draws r')).2 ⟨o, ho, by simp [popCode, hno]⟩
+      (xs := idealRounds settings O P.D Dsf draws r')).2 ⟨o, ho, by simp [popCode, hno]⟩
     omega
-  have htake := take_loopRounds settings O P.D Dsf draws (le_of_lt hr')
-  have hrK : r < (loopRounds settings O P.D Dsf draws K).length := by
+  have htake := take_idealRounds settings O P.D Dsf draws (le_of_lt hr')
+  have hrK : r < (idealRounds settings O P.D Dsf draws K).length := by
     have := congrArg List.length htake
     rw [List.length_take, hlr] at this
     omega
-  have hharv : (loopRounds settings O P.D Dsf draws K)[r].result.ending.harvested ≠ none := by
-    have hr'' : r < (loopRounds settings O P.D Dsf draws r').length := by omega
+  have hharv : (idealRounds settings O P.D Dsf draws K)[r].result.ending.harvested ≠ none := by
+    have hr'' : r < (idealRounds settings O P.D Dsf draws r').length := by omega
     have := hall _ (List.getElem_mem hr'')
     simp only [← htake, List.getElem_take] at this
     exact this
@@ -209,10 +209,10 @@ theorem selG_unique (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
   obtain ⟨c, B, F, K₀⟩ := a
   obtain ⟨-, hc, -, -, hB, hF, hK₀⟩ :=
     (stage4_eq_some settings O P.D Dsf r hr ω x c B F K₀).1 h4
-  have hres : (loopRounds settings O P.D Dsf draws K)[r].result
+  have hres : (idealRounds settings O P.D Dsf draws K)[r].result
       = stageRes settings O P.D (c, B, F, K₀) ω (x ⟨r, hr⟩).2 := by
     subst hc hB hF hK₀
-    rw [e, loopRound_eq_mkRound]
+    rw [e, idealRound_eq_mkRound]
     rfl
   rw [hres] at hharv
   revert hharv htrue
@@ -467,7 +467,7 @@ theorem stageSel_last (Ls : ℕ)
     (hN : P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap)
     (p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget))
     (hfr : RoundsFresh settings O P.D Dsf Ls p)
-    (o : LoopRound Ω α K)
+    (o : LoopRound α)
     (ho : o ∈ (indecisiveLStarLoop settings O P.D Dsf
       (persistDraws p)).getLast?)
     (hcons : o.result.ending = .consistent) :
@@ -481,7 +481,7 @@ theorem stageSel_last (Ls : ℕ)
       ∧ o.read = (fun z => familyRead O.mq o.family o.state.lo (o.state.hi + 1) z p.1)
       ∧ (resCode o.result).hyp = o.result.hypothesis := by
   classical
-  set rounds := loopRounds settings O P.D Dsf (persistDraws p) K with hrounds
+  set rounds := idealRounds settings O P.D Dsf (persistDraws p) K with hrounds
   change o ∈ rounds.getLast? at ho
   change ∃ r, ∃ hr : r < K, r + 1 = rounds.length ∧ _
   have hne : rounds ≠ [] := by
@@ -509,7 +509,7 @@ theorem stageSel_last (Ls : ℕ)
   have ho' : o = mkRound settings O P.D (clusterRun P.D Dsf H cd) B F K₀
       (roundSets settings P.D Dsf H cd).1 (roundSets settings P.D Dsf H cd).2
       (p.1, (p.2 ⟨r, hK⟩).2) := by
-    rw [← hor, e, loopRound_eq_mkRound]
+    rw [← hor, e, idealRound_eq_mkRound]
   have hres : o.result = stageRes settings O P.D (c, B, F, K₀) p.1 (p.2 ⟨r, hK⟩).2 := by
     rw [ho']
     rfl
@@ -518,7 +518,7 @@ theorem stageSel_last (Ls : ℕ)
   have hpop : histAt settings P.D c r = H := by
     simp only [histAt, List.take_of_length_le (le_of_eq hlen)]
     rfl
-  obtain ⟨xs, hxs⟩ := loopRounds_result settings O P.D Dsf (persistDraws p) K o
+  obtain ⟨xs, hxs⟩ := idealRounds_result settings O P.D Dsf (persistDraws p) K o
     (hor ▸ List.getElem_mem hrl)
   refine ⟨r, hK, by omega, (c, B, F, K₀), ?_, ⟨(c, B, F, K₀), resCode o.result, rfl, hlen, ?_⟩,
     ?_, ?_, ?_, ?_, ?_⟩

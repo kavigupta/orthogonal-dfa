@@ -205,7 +205,7 @@ omit [MeasurableSpace Ω] in
 /-- A round whose tree is in `classSet |Q|` hands on a population supported on strings shorter
 than `Ls`. -/
 lemma population_short {σ : Type*} [Fintype σ] (P : PrefixDistribution α) {Ls : ℕ}
-    (hLs : P.L + Fintype.card σ < Ls) (k : ℕ) (o : LoopRound Ω α K)
+    (hLs : P.L + Fintype.card σ < Ls) (k : ℕ) (o : LoopRound α)
     (hcls : o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ))
     {ν : Measure (FreeMonoid α)} (hν : o.population P.D k = some ν) :
     ν {p | Ls ≤ p.toList.length} = 0 := by
@@ -276,19 +276,19 @@ include hlen hN in
 /-- Round `i` of the persistent run is the round after the history the rounds before it hand
 on. -/
 lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget)) (i : ℕ)
-    (hi : i < (loopRounds settings O D Dsf (persistDraws p) K).length) :
+    (hi : i < (idealRounds settings O D Dsf (persistDraws p) K).length) :
     ∃ hK : i < K, (histCodes settings O D Dsf p.1 p.2 i).length = i
       ∧ decodeHist D settings.level3.walkStart (histCodes settings O D Dsf p.1 p.2 i)
         = histOf D settings.level3.walkStart settings.level3.harvestReadCap
-          ((loopRounds settings O D Dsf (persistDraws p) K).take i)
-      ∧ (loopRounds settings O D Dsf (persistDraws p) K)[i] = loopRound settings O D Dsf
+          ((idealRounds settings O D Dsf (persistDraws p) K).take i)
+      ∧ (idealRounds settings O D Dsf (persistDraws p) K)[i] = idealRound settings O D Dsf
         (decodeHist D settings.level3.walkStart (histCodes settings O D Dsf p.1 p.2 i))
         (p.1, p.2 ⟨i, hK⟩) := by
   set draws := persistDraws p
-  obtain ⟨hK, e⟩ := getElem_loopRounds settings O D Dsf draws K i hi
-  have hiK : i ≤ K := (hi.trans_le (length_loopRounds_le settings O D Dsf draws K)).le
-  have htake := take_loopRounds settings O D Dsf draws hiK
-  have hall : AllHarvested (loopRounds settings O D Dsf draws i) := by
+  obtain ⟨hK, e⟩ := getElem_idealRounds settings O D Dsf draws K i hi
+  have hiK : i ≤ K := (hi.trans_le (length_idealRounds_le settings O D Dsf draws K)).le
+  have htake := take_idealRounds settings O D Dsf draws hiK
+  have hall : AllHarvested (idealRounds settings O D Dsf draws i) := by
     intro o ho
     rw [← htake] at ho
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem ho
@@ -297,9 +297,9 @@ lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level3.probe
     exact harvested_of_lt settings O D Dsf draws K j (by omega)
   have hdec := decodeHist_codesOf settings.level3 hlen (Nat.le_trans (Nat.le_add_right _ 2) hN)
     (by omega) settings.level3.walkStart
-    (loopRounds settings O D Dsf draws i) (loopRounds_result settings O D Dsf draws i) hall
+    (idealRounds settings O D Dsf draws i) (idealRounds_result settings O D Dsf draws i) hall
   have hc : histCodes settings O D Dsf p.1 p.2 i
-      = codesOf settings.level3.harvestReadCap (loopRounds settings O D Dsf draws i) := rfl
+      = codesOf settings.level3.harvestReadCap (idealRounds settings O D Dsf draws i) := rfl
   refine ⟨hK, ?_, ?_, ?_⟩
   · rw [hc, length_codesOf settings.level3.harvestReadCap D settings.level3.walkStart,
       length_harvestsOf hall,
@@ -312,11 +312,11 @@ include hlen hN in
 /-- Every earlier clustering returned, where each met its claim. -/
 lemma histOK_of_specs (εcov slack : ℝ)
     (p : Ω × (Fin K → RoundDraws α K settings.level3.probeBudget)) :
-    ∀ i, i ≤ (loopRounds settings O D Dsf (persistDraws p) K).length →
-      (∀ j (hj : j < (loopRounds settings O D Dsf (persistDraws p) K).length), j < i →
+    ∀ i, i ≤ (idealRounds settings O D Dsf (persistDraws p) K).length →
+      (∀ j (hj : j < (idealRounds settings O D Dsf (persistDraws p) K).length), j < i →
         ClusterSpec settings O D εcov slack (harvestsOf D settings.level3.walkStart
-          ((loopRounds settings O D Dsf (persistDraws p) K).take j))
-          (loopRounds settings O D Dsf (persistDraws p) K)[j].run) →
+          ((idealRounds settings O D Dsf (persistDraws p) K).take j))
+          (idealRounds settings O D Dsf (persistDraws p) K)[j].run) →
       HistOK settings O D Dsf p.1 p.2 i
   | 0, _, _ => trivial
   | i + 1, hi, h => by
@@ -358,16 +358,16 @@ lemma loop_reads_le {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ
     ((indecisiveLStarLoop settings O D Dsf draws).map fun o => o.prefs.card).sum ≤ K * a
       ∧ ((indecisiveLStarLoop settings O D Dsf draws).map fun o => o.suffs.card).sum ≤ K * b := by
   have hlen : (indecisiveLStarLoop settings O D Dsf draws).length ≤ K :=
-    length_loopRounds_le settings O D Dsf draws K
+    length_idealRounds_le settings O D Dsf draws K
   have hmem : ∀ o ∈ indecisiveLStarLoop settings O D Dsf draws,
       o.prefs.card ≤ a ∧ o.suffs.card ≤ b := by
     intro o ho
     unfold indecisiveLStarLoop at ho
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ho
-    obtain ⟨hK, e⟩ := getElem_loopRounds settings O D Dsf draws K i hi
+    obtain ⟨hK, e⟩ := getElem_idealRounds settings O D Dsf draws K i hi
     rw [e]
     exact h _ _
-  have hsum : ∀ (f : LoopRound Ω α K → ℕ) (c : ℕ),
+  have hsum : ∀ (f : LoopRound α → ℕ) (c : ℕ),
       (∀ o ∈ indecisiveLStarLoop settings O D Dsf draws, f o ≤ c) →
       ((indecisiveLStarLoop settings O D Dsf draws).map f).sum ≤ K * c := fun f c hf => by
     refine (List.sum_le_card_nsmul _ c fun n hn => ?_).trans ?_
@@ -717,7 +717,7 @@ theorem loop_core_holds : LoopCore := by
         ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf p.1 p.2 r))
             (p.1, (p.2 ⟨r, hr⟩).1)
         ∧ ¬ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) k E (u + mr)
-            (loopRound settings O P.D Dsf (dec (histCodes settings O P.D Dsf p.1 p.2 r))
+            (idealRound settings O P.D Dsf (dec (histCodes settings O P.D Dsf p.1 p.2 r))
               (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 r) p.2 r hr}
   set E3 : (r : ℕ) → r < K → Set (Ω × (Fin K → RoundDraws α K T)) := fun r hr =>
@@ -771,7 +771,7 @@ theorem loop_core_holds : LoopCore := by
     intro p hp
     by_contra hno
     simp only [Set.mem_iUnion, Finset.mem_range, not_exists] at hno
-    set Lr := loopRounds settings O P.D Dsf (persistDraws p) K with hLr
+    set Lr := idealRounds settings O P.D Dsf (persistDraws p) K with hLr
     have hspec : ∀ i, i ≤ Fintype.card σ → ∀ hi : i < Lr.length,
         (ClusterSpec settings O P.D (513 / 512 * εcov) slack (harvestsOf P.D k (Lr.take i))
             Lr[i].run
@@ -871,7 +871,7 @@ theorem loop_core_holds : LoopCore := by
           by_contra h
           exact hn1 ⟨hok, hlen, hpops, hmP, hmS, h, hnc⟩
         have h4 : RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) k E (u + mr)
-            (loopRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)) := by
+            (idealRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)) := by
           by_contra h
           exact hn2 ⟨hok, hlen, hcs.1, h, hnc⟩
         have hret := hcs.1

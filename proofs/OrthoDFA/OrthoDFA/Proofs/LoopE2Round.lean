@@ -283,7 +283,7 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP : ℕ) (m 
             (roundSlack σ α settings.level3 (2 * prefixMax P.D settings.level3.walkStart)) m
             (settings.level3.disagreementRate + m)
             (settings.level3.harvestRate / 2) settings.level3.walkStart E (u + m)
-            (loopRound settings O P.D Dsf (decodeHist P.D settings.level3.walkStart
+            (idealRound settings O P.D Dsf (decodeHist P.D settings.level3.walkStart
               (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 r) p.2 r hr}
       ≤ settings.level3.δ + Fintype.card σ * Fintype.card α

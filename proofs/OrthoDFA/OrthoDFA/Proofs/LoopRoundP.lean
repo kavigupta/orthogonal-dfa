@@ -39,7 +39,7 @@ lemma histCodes_congr_draws (r : ℕ) (ω : Ω) (g g' : Fin K → RoundDraws α 
     (h : ∀ i : Fin K, i.1 < r → g i = g' i) :
     histCodes settings O D Dsf ω g r = histCodes settings O D Dsf ω g' r := by
   unfold histCodes
-  rw [loopRounds_congr settings O D Dsf (fun i => (ω, g i)) (fun i => (ω, g' i)) r
+  rw [idealRounds_congr settings O D Dsf (fun i => (ω, g i)) (fun i => (ω, g' i)) r
     fun i hi => by rw [h i hi]]
 
 omit [IsProbabilityMeasure μ] in

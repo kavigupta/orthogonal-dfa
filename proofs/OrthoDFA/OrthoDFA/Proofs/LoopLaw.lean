@@ -271,10 +271,15 @@ theorem measurePreserving_idealDraws {μ : Measure Ω} [IsProbabilityMeasure μ]
       (Measure.pi fun j => Measure.infinitePi fun _ : ℕ => L j)).prod
       (Measure.pi fun j => Measure.infinitePi fun _ : ℕ => L j)) C).symm.comp hall
 
-lemma measurable_idealDraws {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k N : ℕ) (h : LoopHist α) :
-    Measurable (idealDraws (Ω := Ω) (K := K) D Dsf k N h) :=
-  (measurePreserving_idealDraws (μ := μ) D Dsf k N h).measurable
+lemma measurable_idealDraws (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k N : ℕ)
+    (h : LoopHist α) : Measurable (idealDraws (Ω := Ω) (K := K) D Dsf k N h) := by
+  rcases isEmpty_or_nonempty Ω with hΩ | hΩ
+  · exact Subsingleton.measurable
+  · exact (measurePreserving_idealDraws (μ := Measure.dirac hΩ.some) D Dsf k N h).measurable
+
+lemma measurable_idealRun (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k N : ℕ)
+    (h : LoopHist α) : Measurable (idealRun (Ω := Ω) (K := K) D Dsf k N h) :=
+  (measurable_streams _ none).comp (measurable_idealDraws D Dsf k N h)
 
 /-! ## The round's draws where they hit -/
 
