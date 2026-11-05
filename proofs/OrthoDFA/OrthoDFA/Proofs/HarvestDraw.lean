@@ -98,4 +98,26 @@ theorem harvestDraw_congr {read read' : FreeMonoid α → ARU} (D : Measure (Fre
     harvestDraw read D k H site N u = harvestDraw read' D k H site N u :=
   Random.harvestFirst_congr k H site _ h
 
+/-- Conditioning a normalized law off `T` equals conditioning the raw measure off `T`: the
+normalization scalar cancels under `popLaw`.  So the abstract harvested draw
+`offLaw populationOp prefs` is `popLaw` of `harvestCodeLaw` restricted off the prefixes. -/
+lemma offLaw_popLaw {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν] (T : Finset (FreeMonoid α)) :
+    offLaw (popLaw ν) T = popLaw (ν.restrict (↑T)ᶜ) := by
+  classical
+  unfold offLaw
+  by_cases h0 : ν Set.univ = 0
+  · have hν : ν = 0 := by rwa [← Measure.measure_univ_eq_zero]
+    subst hν
+    have hp0 : popLaw (0 : Measure (FreeMonoid α)) = Measure.dirac 1 := by
+      unfold popLaw; rw [if_pos (Or.inl (by simp))]
+    rw [Measure.restrict_zero, hp0, restrict_dirac' (measurableSet_of_countable _)]
+    split_ifs with h1
+    · unfold popLaw; simp
+    · exact hp0
+  · have htop : ν Set.univ ≠ ∞ := measure_ne_top ν Set.univ
+    have hpop : popLaw ν = (ν Set.univ)⁻¹ • ν := by
+      unfold popLaw; rw [if_neg (not_or.2 ⟨h0, htop⟩)]
+    rw [hpop, Measure.restrict_smul]
+    exact Random.popLaw_smul (ENNReal.inv_ne_zero.2 htop) (ENNReal.inv_ne_top.2 h0)
+
 end OrthoDFA
