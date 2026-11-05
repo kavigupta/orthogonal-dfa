@@ -223,6 +223,15 @@ def ClusterSpec (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
               (familyAt O.mq (loopPopulations K pops.length) x B) p
             ∂(loopDistributions D k pops j) ≤ 2 * settings.indecisionLimit + slack
 
+lemma clusterSpec_alike (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+    (D : Measure (FreeMonoid α)) {L : ℕ} (hD : ∀ᵐ x ∂D, x.toList.length ≤ L) (k : ℕ)
+    (εcov slack : ℝ) {pops pops' : List (HarvestSampler α)}
+    (hp : List.Forall₂ (SamplerAlike L) pops pops') (x : Run Ω (FreeMonoid α) (Option (Fin K))) :
+    ClusterSpec settings O D k εcov slack pops x ↔ ClusterSpec settings O D k εcov slack pops' x := by
+  unfold ClusterSpec
+  rw [hp.length_eq]
+  simp only [loopDistributions_alike hp D hD k]
+
 /-- The probes past their first `k` letters some string of which, followed by a midfix of `T`,
 reads on the side its state reads less often under `dist`. -/
 def rarerSet (M : _root_.DFA α σ) (dist : σ → ARU → ℝ) (read : FreeMonoid α → ARU) (k : ℕ)

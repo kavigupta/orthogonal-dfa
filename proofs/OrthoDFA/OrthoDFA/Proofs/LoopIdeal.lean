@@ -111,6 +111,17 @@ lemma loopDistributions_eq_popDists (D : Measure (FreeMonoid α)) (k : ℕ)
     simp [hs]
 
 omit [MeasurableSpace Ω] in
+lemma samplerLaws_alike {L : ℕ} {pops pops' : List (HarvestSampler α)}
+    (hp : List.Forall₂ (SamplerAlike L) pops pops') (D : Measure (FreeMonoid α))
+    (hD : ∀ᵐ x ∂D, x.toList.length ≤ L) (k : ℕ) :
+    samplerLaws D k pops = samplerLaws D k pops' := by
+  induction hp with
+  | nil => rfl
+  | cons h _ ih =>
+    simp only [samplerLaws, List.map_cons] at ih ⊢
+    rw [ih, harvestLaw_alike h D hD k]
+
+omit [MeasurableSpace Ω] in
 lemma samplerLaws_length (D : Measure (FreeMonoid α)) (k : ℕ) (pops : List (HarvestSampler α)) :
     (samplerLaws D k pops).length = pops.length := List.length_map _
 

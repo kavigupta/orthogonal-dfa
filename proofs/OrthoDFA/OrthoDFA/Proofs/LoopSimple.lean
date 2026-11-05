@@ -156,13 +156,13 @@ theorem roundPremises_of {σ α : Type*} [Fintype σ] [Fintype α] (C : Random.L
   linarith
 
 lemma agrees_mono {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
-    {μ : Measure Ω} {K : ℕ} {O : Oracle μ (FreeMonoid α)} {D : Measure (FreeMonoid α)}
+    {μ : Measure Ω} {O : Oracle μ (FreeMonoid α)} {D : Measure (FreeMonoid α)}
     {εr εu εr' εu' : ℝ} (hr : εr ≤ εr') (hu : εu ≤ εu') {o : LoopRound α}
     (h : o.Agrees O D εr εu) : o.Agrees O D εr' εu' :=
   ⟨h.1, h.2.1.trans hr, h.2.2.trans hu⟩
 
 lemma checks_mono {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ] {Ω : Type*}
-    [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} {M : _root_.DFA α σ} {O : Oracle μ (FreeMonoid α)}
+    [MeasurableSpace Ω] {μ : Measure Ω} {M : _root_.DFA α σ} {O : Oracle μ (FreeMonoid α)}
     {D : Measure (FreeMonoid α)} {k : ℕ} {εr εu εd εr' εu' εd' : ℝ} {E : σ → Set (FreeMonoid α)}
     {u u' : ℝ} (hr : εr ≤ εr') (hu : εu ≤ εu') (hd : εd ≤ εd') (hm : u ≤ u') {o : LoopRound α}
     (h : o.Checks M O D k εr εu εd E u) : o.Checks M O D k εr' εu' εd' E u' :=
@@ -246,7 +246,7 @@ at most `ε + ε/96`, level 3 running at disagreement rate `ε`, and at most hal
 theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*}
     [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (E : σ → Set (FreeMonoid α)) (η₀ εcov ε δ' pAP : ℝ) (k : ℕ) :
+    (E : σ → Set (FreeMonoid α)) (η₀ εcov ε δ' pAP : ℝ) (k scanCap : ℕ) :
     let Q : ℝ := Fintype.card σ
     let A : ℝ := Fintype.card α
     let L : ℝ := P.L
@@ -278,6 +278,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     16 * B₃ ^ 2 * prefixMax P.D k ≤ δ' →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
+      settings.scanCap = scanCap ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
       P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap ∧
       (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * ⌊RB⌋₊) ∧
@@ -288,8 +289,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         Dsf {v | v.toList.length ≠ P.L + Fintype.card σ + 3} = 0 →
         pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
         (∀ v, Dsf.real {v} ≤ cap) →
-        (loopMeasure μ α (Fintype.card σ + 1) settings.level3.probeBudget).real
-            {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
+        (loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
+            settings.level3.probeBudget).real
+            {p | let rounds := idealRounds settings O P.D Dsf (persistDraws p) (Fintype.card σ + 1)
               ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                   o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96) E
                     (ε + ε / 96))
@@ -350,7 +352,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   by_cases hpAP1 : pAP ≤ 1
   swap
   · -- no suffix distribution finds that many absorbing suffixes
-    refine ⟨⟨fun _ => ∅, η₀, ι, εcov / 2, δ' / 4, C⟩, rfl, rfl, hbud, le_rfl, fun _ => by simp,
+    refine ⟨⟨fun _ => ∅, η₀, ι, εcov / 2, δ' / 4, C, scanCap⟩, rfl, rfl, rfl, hbud, le_rfl, fun _ => by simp,
       fun _ _ => by simp [roundPrefs, roundSuffs], ?_⟩
     intro Dsf hDsf _ hpAPD _
     have := measureReal_le_one (μ := Dsf) (s := {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L})
@@ -625,9 +627,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     exact misledTail_le (by positivity) hTp (by positivity) he4 hεd (by positivity) hpε
   have hcore := loop_core_holds M O P E (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
     ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / 1536) ε cross Tu C
+    scanCap
   dsimp only at hcore
   rw [hcexp] at hcore
-  obtain ⟨settings, -, -, -, -, hC3, hnp, hreads, hmain⟩ := hcore hL hη hη₀ hι0
+  obtain ⟨settings, -, -, -, -, hC3, hscan, hnp, hreads, hmain⟩ := hcore hL hη hη₀ hι0
     (by linarith) (by positivity) (by linarith) (by positivity) (by linarith) hδ'0 hδ'1 hι0 hpAP
     hL1 (by omega) (by omega) hcap0 (by linarith) (by linarith) (by linarith) (by linarith)
     (fun pops hpops => by
@@ -639,7 +642,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
     hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond le_rfl
-  refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud,
+  refine ⟨settings, by rw [hC3], by rw [hC3], hscan, by rw [hC3]; exact hbud,
     by rw [hC3], hnp, hreads, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
