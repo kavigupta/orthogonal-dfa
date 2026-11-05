@@ -301,7 +301,8 @@ lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level3.probe
   have hc : histCodes settings O D Dsf p.1 p.2 i
       = codesOf settings.level3.harvestReadCap (loopRounds settings O D Dsf draws i) := rfl
   refine ⟨hK, ?_, ?_, ?_⟩
-  · rw [hc, length_codesOf settings.level3.harvestReadCap D settings.level3.walkStart, length_harvestsOf hall,
+  · rw [hc, length_codesOf settings.level3.harvestReadCap D settings.level3.walkStart,
+      length_harvestsOf hall,
       length_eq_of_allHarvested settings O D Dsf draws hiK hall]
   · rw [hc, hdec, htake]
   · rw [e, hc, hdec, htake]
@@ -462,7 +463,8 @@ set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
 theorem loop_core_holds : LoopCore := by
   intro α _ _ _ σ _ Ω _ μ _ M O P E K Ls NS NP η₀ ι gate εcov δc slack pAP cap m ms mr u cross Tu C
     c hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hL1 hK hLs hcap hmsl hm1 hmsp
-    hms1 hNSb hNPb hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0 hk1 hu hy0 hmr hmr1 hcr hprem hT hcond hcapC
+    hms1 hNSb hNPb hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0 hk1 hu hy0 hmr hmr1 hcr hprem hT hcond
+    hcapC
   classical
   have hδ : 0 < C.δ := hprem.1
   have hc : cross ^ 4 = c := rfl

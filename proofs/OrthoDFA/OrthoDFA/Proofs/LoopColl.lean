@@ -220,7 +220,8 @@ lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D
     (g : Fin K → RoundDraws α K settings.level3.probeBudget) :
     ∀ r i, i < (histCodes settings O D Dsf ω g r).length → ∃ hiK : i < K, ∃ code,
       (histCodes settings O D Dsf ω g r)[i]? = some code
-      ∧ code.2.2.2.1 = prefsOf settings D Dsf (histAt settings D (histCodes settings O D Dsf ω g r) i)
+      ∧ code.2.2.2.1 = prefsOf settings D Dsf
+            (histAt settings D (histCodes settings O D Dsf ω g r) i)
           (g ⟨i, hiK⟩).1
       ∧ code.2.2.2.2 = roundSuffs (settings.schedule (loopPopulations K
             (histAt settings D (histCodes settings O D Dsf ω g r) i).pops.length))
@@ -233,8 +234,9 @@ lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D
         (Nat.le_trans (Nat.le_add_right _ 2) hN) (by omega) (fun i => (ω, g i)) r hrK
       set c := histCodes settings O D Dsf ω g r with hcd
       have hy' : histCodes settings O D Dsf ω g (r + 1) = if c.length = r then
-          c ++ (popCode settings.level3.harvestReadCap (loopRound settings O D Dsf (decodeHist D settings.level3.walkStart c)
-            (ω, g ⟨r, hrK⟩))).toList else c := hy
+          c ++ (popCode settings.level3.harvestReadCap
+            (loopRound settings O D Dsf (decodeHist D settings.level3.walkStart c)
+              (ω, g ⟨r, hrK⟩))).toList else c := hy
       have ih := histCodes_getElem hlen hN ω g r
       by_cases hcl : c.length = r
       · rw [if_pos hcl] at hy'
