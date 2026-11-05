@@ -127,6 +127,7 @@ section Meas
 
 omit [IsProbabilityMeasure μ] in
 theorem measurableSet_selOk (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
+    [IsProbabilityMeasure D]
     (Ls r : ℕ) (hr : r < K) (y : Option (Stage4 α × ResCode α)) :
     MeasurableSet (SelOk settings D Dsf Ls r hr y) := by
   classical
@@ -468,10 +469,9 @@ theorem stageSel_last (Ls : ℕ)
     (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
     (hfr : RoundsFresh settings O P.D Dsf Ls p)
     (o : LoopRound α)
-    (ho : o ∈ (indecisiveLStarLoop settings O P.D Dsf
-      (persistDraws p)).getLast?)
+    (ho : o ∈ (idealRounds settings O P.D Dsf (persistDraws p) K).getLast?)
     (hcons : o.result.ending = .consistent) :
-    ∃ r, ∃ hr : r < K, r + 1 = (indecisiveLStarLoop settings O P.D Dsf (persistDraws p)).length
+    ∃ r, ∃ hr : r < K, r + 1 = (idealRounds settings O P.D Dsf (persistDraws p) K).length
       ∧ ∃ t : Stage4 α,
       stageSel settings O P.D Dsf r hr p.1 p.2
         = some (t, resCode o.result)
@@ -506,7 +506,7 @@ theorem stageSel_last (Ls : ℕ)
   have hst4 : stage4 settings O P.D Dsf r hK p.1 p.2 = some (c, B, F, K₀) :=
     (stage4_eq_some settings O P.D Dsf r hK p.1 p.2 c B F K₀).2
       ⟨hok, rfl, hlen, hret, rfl, rfl, rfl⟩
-  have ho' : o = mkRound settings O P.D (idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap H cd) B F K₀
+  have ho' : o = mkRound settings O P.D B F K₀
       (roundSets settings P.D Dsf H cd).1 (roundSets settings P.D Dsf H cd).2
       (p.1, (p.2 ⟨r, hK⟩).2) := by
     rw [← hor, e, idealRound_eq_mkRound]
