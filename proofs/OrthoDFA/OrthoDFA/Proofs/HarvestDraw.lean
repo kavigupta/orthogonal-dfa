@@ -1,19 +1,20 @@
 import OrthoDFA.Proofs.HarvestCode
-import OrthoDFA.Proofs.LoopLaw
+import OrthoDFA.Proofs.DrawFrom
 import OrthoDFA.Proofs.DrawMany
 
-/-! # The operational harvest draw matches the sampler law
+/-! # The loop's harvest draws
 
-`harvestDraw` draws `N` probes from `D` by uniforms and runs the bounded-rejection sampler,
-reading the oracle only along them.  Drawing the probes coordinatewise from `D` is measure
-preserving (`map_drawFrom`), so the operational draw's law over its uniforms is exactly the
-sampler's `Option` law:
+`harvestDraw` draws `N` probes from `D` by uniforms and runs the sampler off `T`; `popDraws` takes
+a population's first `M` draws, a harvested population's each on its own block of `N` uniforms.
+Drawing the probes from the uniforms is measure preserving, so
 
-* `harvestCodeLaw_eq_harvestDraw` — the hit-part equals `harvestCodeLaw`, so `popLaw` of the hits
-  is the operational population (`popLaw_harvestDraw`);
-* `harvestDraw_miss` — the all-miss mass equals `harvestMiss`;
-* `harvestDraw_congr` — per run, the draw depends on the reader only through the bounded
-  `harvestFirstReads` of the probes it drew.
+* `harvestCodeLaw_eq_harvestDraw`, `popLaw_harvestDraw`: a hit's law is the sampler's, and
+  normalised it is the population off `T`;
+* `harvestDraw_miss_le`, `popDraws_miss_le`: a draw misses with chance at most `δₛ`, the `M` draws
+  with chance at most `δₛ'`, at the cap `harvestN`;
+* `popDraws_eq_some_law`: where the `M` draws hit they are i.i.d. from the population off `T`;
+* `harvestDraw_congr`, `popDraws_congr`: with the uniforms fixed, a draw reads only along the
+  probes it draws, at most `M · N · (3 + clog₂ L) · |mids|` strings (`popDrawReads_card_le`).
 -/
 
 namespace OrthoDFA
@@ -23,28 +24,62 @@ open scoped ENNReal
 
 variable {α : Type*} [Fintype α]
 variable (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α)
-  (site : Random.Level3Site) (N : ℕ)
+  (site : Random.Level3Site) (T : Set (FreeMonoid α)) (N : ℕ)
 
-/-- The probes a harvest draw makes are the sampler's i.i.d. draws from `D`: pushing the uniforms
-through the hit-restricted, output-mapped draw reproduces `harvestCodeLaw`. -/
+omit [Fintype α] in
+/-- A draw lands on a string its law gives mass, or on `1`. -/
+lemma drawFrom_pos_or (ν : Measure (FreeMonoid α)) [IsProbabilityMeasure ν] (u : unitInterval) :
+    0 < ν {drawFrom ν u} ∨ drawFrom ν u = 1 := by
+  classical
+  by_cases h : ∃ n, (u : ℝ) < massBelow ν (n + 1)
+  · have hz := (drawFrom_eq_iff ν u (drawFrom ν u)).1 rfl
+    rcases hz with ⟨h1, h2⟩ | ⟨h1, -⟩
+    · left
+      have hs := massBelow_succ ν (strCode (drawFrom ν u))
+      have hset : {z' : FreeMonoid α | strCode z' = strCode (drawFrom ν u)} = {drawFrom ν u} := by
+        ext z'; simp [strCode_injective.eq_iff]
+      rw [hset] at hs
+      have hpos : 0 < ν.real {drawFrom ν u} := by linarith
+      exact (measureReal_pos_iff_pos_measure (measure_ne_top _ _)).1 hpos
+    · exact Or.inr h1
+  · right
+    unfold drawFrom
+    rw [dif_neg h]
+
+omit [Fintype α] in
+/-- Every draw from a law on strings at most `L` long is at most `L` long. -/
+lemma drawFrom_length_le (ν : Measure (FreeMonoid α)) [IsProbabilityMeasure ν] {L : ℕ}
+    (hν : ∀ᵐ x ∂ν, x.toList.length ≤ L) (u : unitInterval) :
+    (drawFrom ν u).toList.length ≤ L := by
+  rcases drawFrom_pos_or ν u with h | h
+  · by_contra hlt
+    have : ν {drawFrom ν u} = 0 := measure_mono_null (fun z hz => by
+      rw [Set.mem_singleton_iff.1 hz]; exact hlt) (ae_iff.1 hν)
+    rw [this] at h
+    exact lt_irrefl _ h
+  · rw [h]; simp
+
+/-! ## One draw -/
+
+/-- A hit's law over the uniforms is the sampler's law. -/
 theorem harvestCodeLaw_eq_harvestDraw [IsProbabilityMeasure D] :
-    Random.harvestCodeLaw read D k H site N
+    Random.harvestCodeLaw read D k H site T N
       = ((Measure.pi fun _ : Fin N => (volume : Measure unitInterval)).restrict
-            {u | (harvestDraw read D k H site N u).isSome = true}).map
-          fun u => (harvestDraw read D k H site N u).getD 1 := by
+            {u | (harvestDraw read D k H site T N u).isSome = true}).map
+          fun u => (harvestDraw read D k H site T N u).getD 1 := by
   classical
   set g : (Fin N → unitInterval) → (Fin N → FreeMonoid α) := fun u i => drawFrom D (u i) with hg_def
   have hg : MeasurePreserving g (Measure.pi fun _ : Fin N => (volume : Measure unitInterval))
       (Measure.pi fun _ : Fin N => D) :=
     measurePreserving_pi _ _ fun _ => ⟨measurable_drawFrom _, map_drawFrom _⟩
   set f : (Fin N → FreeMonoid α) → FreeMonoid α :=
-    fun xs => (Random.harvestFirst read k H site (List.ofFn xs)).getD 1 with hf_def
+    fun xs => (Random.harvestFirst read k H site T (List.ofFn xs)).getD 1 with hf_def
   set S : Set (Fin N → FreeMonoid α) :=
-    {xs | (Random.harvestFirst read k H site (List.ofFn xs)).isSome = true} with hS_def
+    {xs | (Random.harvestFirst read k H site T (List.ofFn xs)).isSome = true} with hS_def
   have hSmeas : MeasurableSet S := (Set.to_countable _).measurableSet
   have hfmeas : Measurable f := measurable_of_countable _
-  have hcomp : (fun u => (harvestDraw read D k H site N u).getD 1) = f ∘ g := by funext u; rfl
-  have hset : {u | (harvestDraw read D k H site N u).isSome = true} = g ⁻¹' S := by ext u; rfl
+  have hcomp : (fun u => (harvestDraw read D k H site T N u).getD 1) = f ∘ g := by funext u; rfl
+  have hset : {u | (harvestDraw read D k H site T N u).isSome = true} = g ⁻¹' S := by ext u; rfl
   have key : ((Measure.pi fun _ : Fin N => (volume : Measure unitInterval)).restrict (g ⁻¹' S)).map
         (f ∘ g)
       = ((Measure.pi fun _ : Fin N => D).restrict S).map f := by
@@ -53,55 +88,7 @@ theorem harvestCodeLaw_eq_harvestDraw [IsProbabilityMeasure D] :
   rw [hcomp, hset]
   exact key.symm
 
-/-- `popLaw` of the harvest draw's hits is the operational population. -/
-theorem popLaw_harvestDraw [IsProbabilityMeasure D] :
-    popLaw (((Measure.pi fun _ : Fin N => (volume : Measure unitInterval)).restrict
-          {u | (harvestDraw read D k H site N u).isSome = true}).map
-        fun u => (harvestDraw read D k H site N u).getD 1)
-      = popLaw (Random.harvestCodeLaw read D k H site N) :=
-  congrArg popLaw (harvestCodeLaw_eq_harvestDraw read D k H site N).symm
-
-/-- The chance a harvest draw misses on all `N` probes is the sampler's `harvestMiss`. -/
-theorem harvestDraw_miss [IsProbabilityMeasure D] :
-    (Measure.pi fun _ : Fin N => (volume : Measure unitInterval))
-        {u | harvestDraw read D k H site N u = none}
-      = Random.harvestMiss read D k H site N := by
-  classical
-  set g : (Fin N → unitInterval) → (Fin N → FreeMonoid α) := fun u i => drawFrom D (u i) with hg_def
-  have hg : MeasurePreserving g (Measure.pi fun _ : Fin N => (volume : Measure unitInterval))
-      (Measure.pi fun _ : Fin N => D) :=
-    measurePreserving_pi _ _ fun _ => ⟨measurable_drawFrom _, map_drawFrom _⟩
-  set T : Set (Fin N → FreeMonoid α) :=
-    {xs | Random.harvestFirst read k H site (List.ofFn xs) = none} with hT_def
-  have hTmeas : MeasurableSet T := (Set.to_countable _).measurableSet
-  have hset : {u | harvestDraw read D k H site N u = none} = g ⁻¹' T := by ext u; rfl
-  rw [hset, ← Measure.map_apply hg.measurable hTmeas, hg.map_eq]
-  rfl
-
-/-- At the cap `N = harvestN y δₛ`, a harvest draw misses on all its probes with chance at most
-`δₛ`: the round's per-draw failure mass, ready to thread as `δₛ'`. -/
-theorem harvestDraw_miss_le [IsProbabilityMeasure D] {y δₛ : ℝ}
-    (hy0 : 0 < y) (hy1 : y ≤ 1) (hδ : 0 < δₛ)
-    (hyield : y ≤ (Random.harvestLaw read D k H site).real Set.univ) :
-    (Measure.pi fun _ : Fin (Random.harvestN y δₛ) => (volume : Measure unitInterval))
-        {u | harvestDraw read D k H site (Random.harvestN y δₛ) u = none}
-      ≤ ENNReal.ofReal δₛ := by
-  rw [harvestDraw_miss]
-  exact Random.harvestCodeLaw_miss_le read D k H site hy0 hy1 hδ hyield
-
-/-- Per-run locality of the draw: with the uniforms fixed, the drawn probe list is fixed (the
-probes come from `D`, not the oracle), so `harvestDraw` depends on the reader only through the
-bounded `harvestFirstReads` of that list. -/
-theorem harvestDraw_congr {read read' : FreeMonoid α → ARU} (D : Measure (FreeMonoid α)) (k : ℕ)
-    (H : HypothesisDFA α) (site : Random.Level3Site) (N : ℕ) (u : Fin N → unitInterval)
-    (h : ∀ w ∈ Random.harvestFirstReads read H.tree H.edges k (List.ofFn fun i => drawFrom D (u i)),
-        read w = read' w) :
-    harvestDraw read D k H site N u = harvestDraw read' D k H site N u :=
-  Random.harvestFirst_congr k H site _ h
-
-/-- Conditioning a normalized law off `T` equals conditioning the raw measure off `T`: the
-normalization scalar cancels under `popLaw`.  So the abstract harvested draw
-`offLaw populationOp prefs` is `popLaw` of `harvestCodeLaw` restricted off the prefixes. -/
+/-- Conditioning a normalised law off `T` conditions the measure off `T`. -/
 lemma offLaw_popLaw {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν] (T : Finset (FreeMonoid α)) :
     offLaw (popLaw ν) T = popLaw (ν.restrict (↑T)ᶜ) := by
   classical
@@ -111,7 +98,7 @@ lemma offLaw_popLaw {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν] (T : Fin
     subst hν
     have hp0 : popLaw (0 : Measure (FreeMonoid α)) = Measure.dirac 1 := by
       unfold popLaw; rw [if_pos (Or.inl (by simp))]
-    rw [Measure.restrict_zero, hp0, restrict_dirac' (measurableSet_of_countable _)]
+    rw [Measure.restrict_zero, hp0, restrict_dirac' ((Set.to_countable _).measurableSet)]
     split_ifs with h1
     · unfold popLaw; simp
     · exact hp0
@@ -121,129 +108,273 @@ lemma offLaw_popLaw {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν] (T : Fin
     rw [hpop, Measure.restrict_smul]
     exact Random.popLaw_smul (ENNReal.inv_ne_zero.2 htop) (ENNReal.inv_ne_top.2 h0)
 
-/-- The conditioned operational draw's success law is the abstract conditioned population.  A
-single harvest draw's success event is a hit landing off `prefs`; on that event its law pushes to
-`offLaw populationOp prefs`.  No first-success-over-attempts argument is needed for the law — the
-amplification over attempts only drives the failure mass down, it does not change the hit law. -/
-theorem offLaw_popLaw_harvestDraw [IsProbabilityMeasure D] (prefs : Finset (FreeMonoid α)) :
-    offLaw (popLaw (Random.harvestCodeLaw read D k H site N)) prefs
-      = popLaw (((Measure.pi fun _ : Fin N => (volume : Measure unitInterval)).restrict
-            {u | (harvestDraw read D k H site N u).isSome = true
-              ∧ (harvestDraw read D k H site N u).getD 1 ∉ (↑prefs : Set (FreeMonoid α))}).map
-          fun u => (harvestDraw read D k H site N u).getD 1) := by
+/-- Normalised, a hit's law is the harvested population off `T`. -/
+theorem popLaw_harvestDraw [IsProbabilityMeasure D] (T : Finset (FreeMonoid α)) (hN : 0 < N) :
+    popLaw (((Measure.pi fun _ : Fin N => (volume : Measure unitInterval)).restrict
+          {u | (harvestDraw read D k H site ↑T N u).isSome = true}).map
+        fun u => (harvestDraw read D k H site ↑T N u).getD 1)
+      = offLaw (popLaw (Random.harvestLaw read D k H site)) T := by
+  haveI : IsFiniteMeasure (Random.harvestLaw read D k H site) :=
+    ⟨lt_top_iff_ne_top.2 (Random.harvestLaw_univ_ne_top read D k H site)⟩
+  rw [← harvestCodeLaw_eq_harvestDraw, Random.harvestCodeLaw_popLaw_eq read D k H site _ N hN,
+    offLaw_popLaw]
+
+/-- A draw misses all `N` probes with the sampler's miss chance. -/
+theorem harvestDraw_miss [IsProbabilityMeasure D] :
+    (Measure.pi fun _ : Fin N => (volume : Measure unitInterval))
+        {u | harvestDraw read D k H site T N u = none}
+      = Random.harvestMiss read D k H site T N := by
   classical
-  haveI : IsFiniteMeasure (Random.harvestCodeLaw read D k H site N) :=
-    ⟨lt_of_le_of_lt (Random.harvestCodeLaw_univ_le_one read D k H site N) ENNReal.one_lt_top⟩
-  rw [offLaw_popLaw]
-  congr 1
-  rw [Random.harvestCodeLaw]
-  set f : (Fin N → FreeMonoid α) → FreeMonoid α :=
-    fun xs => (Random.harvestFirst read k H site (List.ofFn xs)).getD 1 with hf_def
-  have hfmeas : Measurable f := measurable_of_countable _
-  rw [Measure.restrict_map hfmeas (Set.to_countable _).measurableSet,
-    Measure.restrict_restrict (Set.to_countable _).measurableSet]
-  set T : Set (Fin N → FreeMonoid α) :=
-    f ⁻¹' (↑prefs)ᶜ ∩ {xs | (Random.harvestFirst read k H site (List.ofFn xs)).isSome = true}
-    with hT_def
-  have hTmeas : MeasurableSet T := (Set.to_countable _).measurableSet
-  have hg : MeasurePreserving (fun (u : Fin N → unitInterval) i => drawFrom D (u i))
-      (Measure.pi fun _ : Fin N => (volume : Measure unitInterval))
+  set g : (Fin N → unitInterval) → (Fin N → FreeMonoid α) := fun u i => drawFrom D (u i) with hg_def
+  have hg : MeasurePreserving g (Measure.pi fun _ : Fin N => (volume : Measure unitInterval))
       (Measure.pi fun _ : Fin N => D) :=
     measurePreserving_pi _ _ fun _ => ⟨measurable_drawFrom _, map_drawFrom _⟩
-  rw [← hg.map_eq, Measure.restrict_map hg.measurable hTmeas, Measure.map_map hfmeas hg.measurable]
-  have hset : (fun (u : Fin N → unitInterval) i => drawFrom D (u i)) ⁻¹' T
-      = {u | (harvestDraw read D k H site N u).isSome = true
-            ∧ (harvestDraw read D k H site N u).getD 1 ∉ (↑prefs : Set (FreeMonoid α))} := by
-    ext u
-    simp only [hT_def, hf_def, harvestDraw, Set.mem_preimage, Set.mem_inter_iff, Set.mem_setOf_eq,
-      Set.mem_compl_iff, Finset.mem_coe]
-    tauto
-  have hfun : (f ∘ fun (u : Fin N → unitInterval) i => drawFrom D (u i))
-      = fun u => (harvestDraw read D k H site N u).getD 1 := by
-    funext u; rfl
-  rw [hset, hfun]
+  set S : Set (Fin N → FreeMonoid α) :=
+    {xs | Random.harvestFirst read k H site T (List.ofFn xs) = none} with hS_def
+  have hSmeas : MeasurableSet S := (Set.to_countable _).measurableSet
+  have hset : {u | harvestDraw read D k H site T N u = none} = g ⁻¹' S := by ext u; rfl
+  rw [hset, ← Measure.map_apply hg.measurable hSmeas, hg.map_eq]
+  rfl
 
-open scoped Classical in
-/-- The raw (unnormalised) law of `m` conditioned harvest draws: each of the `m` blocks of `N`
-i.i.d. probes must hit AND land its harvested string off `prefs`; the `m` kept strings. -/
-noncomputable def drawManyOffRaw (prefs : Finset (FreeMonoid α)) (m : ℕ) :
-    Measure (Fin m → FreeMonoid α) :=
-  ((Measure.pi fun _ : Fin m => Measure.pi fun _ : Fin N => D).restrict
-      {yss | ∀ i, (Random.harvestFirst read k H site (List.ofFn (yss i))).isSome = true
-              ∧ (Random.harvestFirst read k H site (List.ofFn (yss i))).getD 1
-                  ∉ (↑prefs : Set (FreeMonoid α))}).map
-    fun yss i => (Random.harvestFirst read k H site (List.ofFn (yss i))).getD 1
+/-- At the cap `harvestN y δₛ`, with `y` at most the chance a probe harvests a string off `T`, a
+draw misses with chance at most `δₛ`. -/
+theorem harvestDraw_miss_le [IsProbabilityMeasure D] {y δₛ : ℝ}
+    (hy0 : 0 < y) (hy1 : y ≤ 1) (hδ : 0 < δₛ)
+    (hyield : y ≤ (Random.harvestLaw read D k H site).real Tᶜ) :
+    (Measure.pi fun _ : Fin (Random.harvestN y δₛ) => (volume : Measure unitInterval))
+        {u | harvestDraw read D k H site T (Random.harvestN y δₛ) u = none}
+      ≤ ENNReal.ofReal δₛ := by
+  rw [harvestDraw_miss]
+  exact Random.harvestCodeLaw_miss_le read D k H site T hy0 hy1 hδ hyield
 
-open scoped Classical in
-/-- The `m`-draw conditioned law, normalised to a probability (matching `popLaw`): the `m`-fold
-conditioned population clustering consumes after the off-prefix rejection. -/
-noncomputable def drawManyOffLaw (prefs : Finset (FreeMonoid α)) (m : ℕ) :
-    Measure (Fin m → FreeMonoid α) :=
-  let raw := drawManyOffRaw read D k H site N prefs m
-  if raw Set.univ = 0 ∨ raw Set.univ = ∞ then Measure.dirac 1 else (raw Set.univ)⁻¹ • raw
+/-- With the uniforms fixed, a draw depends on the read only through the strings its probes'
+walks read. -/
+theorem harvestDraw_congr {read read' : FreeMonoid α → ARU} (D : Measure (FreeMonoid α)) (k : ℕ)
+    (H : HypothesisDFA α) (site : Random.Level3Site) (T : Set (FreeMonoid α)) (N : ℕ)
+    (u : Fin N → unitInterval)
+    (h : ∀ w ∈ Random.harvestFirstReads read H.tree H.edges k (List.ofFn fun i => drawFrom D (u i)),
+        read w = read' w) :
+    harvestDraw read D k H site T N u = harvestDraw read' D k H site T N u :=
+  Random.harvestFirst_congr k H site T _ h
 
-/-- The raw conditioned `m`-draw law factors as the `m`-fold product of `harvestCodeLaw` restricted
-off `prefs`: the all-hit-off-prefix event and the coordinatewise map both factor over `Fin m`. -/
-lemma drawManyOffRaw_eq [IsProbabilityMeasure D] (prefs : Finset (FreeMonoid α)) (m : ℕ) :
-    drawManyOffRaw read D k H site N prefs m
-      = Measure.pi (fun _ : Fin m =>
-          (Random.harvestCodeLaw read D k H site N).restrict (↑prefs)ᶜ) := by
+/-! ## A population's draws -/
+
+/-- The probes a population's first `M` draws walk, draw `n`'s drawn from `D` by its block. -/
+def probeBlocks (D : Measure (FreeMonoid α)) (N M : ℕ)
+    (u : ℕ → unitInterval × (Fin N → unitInterval)) : Fin M → Fin N → FreeMonoid α :=
+  fun n t => drawFrom D ((u n).2 t)
+
+instance (N : ℕ) : IsProbabilityMeasure (drawLaw N) := by unfold drawLaw; infer_instance
+
+omit [Fintype α] in
+/-- The first `M` coordinates of an i.i.d. sequence are i.i.d. -/
+lemma map_firstM {β : Type*} [MeasurableSpace β] (ν : Measure β) [IsProbabilityMeasure ν] (M : ℕ) :
+    (Measure.infinitePi fun _ : ℕ => ν).map (fun u (n : Fin M) => u n)
+      = Measure.pi fun _ : Fin M => ν := by
   classical
-  have : IsFiniteMeasure (Random.harvestCodeLaw read D k H site N) :=
-    ⟨lt_of_le_of_lt (Random.harvestCodeLaw_univ_le_one read D k H site N) ENNReal.one_lt_top⟩
-  have : IsFiniteMeasure ((Random.harvestCodeLaw read D k H site N).restrict (↑prefs)ᶜ) :=
-    by infer_instance
-  unfold drawManyOffRaw
   refine (Measure.pi_eq fun s hs => ?_).symm
-  rw [Measure.map_apply (measurable_of_countable _) (MeasurableSet.univ_pi hs),
-      Measure.restrict_apply (Set.to_countable _).measurableSet]
-  have hbox :
-      ((fun (yss : Fin m → (Fin N → FreeMonoid α)) i =>
-            (Random.harvestFirst read k H site (List.ofFn (yss i))).getD 1) ⁻¹' Set.univ.pi s)
-        ∩ {yss | ∀ i, (Random.harvestFirst read k H site (List.ofFn (yss i))).isSome = true
-              ∧ (Random.harvestFirst read k H site (List.ofFn (yss i))).getD 1
-                  ∉ (↑prefs : Set (FreeMonoid α))}
-      = Set.univ.pi (fun i =>
-          (fun z => (Random.harvestFirst read k H site (List.ofFn z)).getD 1) ⁻¹' (s i)
-            ∩ ((fun z => (Random.harvestFirst read k H site (List.ofFn z)).getD 1) ⁻¹' (↑prefs)ᶜ
-              ∩ {z | (Random.harvestFirst read k H site (List.ofFn z)).isSome = true})) := by
-    ext yss
-    simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_univ_pi, Set.mem_setOf_eq,
-      Set.mem_compl_iff, Finset.mem_coe]
+  rw [Measure.map_apply (measurable_pi_lambda _ fun n => measurable_pi_apply _)
+    (MeasurableSet.univ_pi hs)]
+  set t : ℕ → Set β := fun i => if h : i < M then s ⟨i, h⟩ else Set.univ
+  have hpre : (fun u (n : Fin M) => u n) ⁻¹' Set.univ.pi s = Set.pi ↑(Finset.range M) t := by
+    ext u
+    simp only [Set.mem_preimage, Set.mem_univ_pi, Set.mem_pi, Finset.coe_range, Set.mem_Iio, t]
     constructor
-    · rintro ⟨hmap, hcond⟩ i; exact ⟨hmap i, (hcond i).2, (hcond i).1⟩
-    · intro h; exact ⟨fun i => (h i).1, fun i => ⟨(h i).2.2, (h i).2.1⟩⟩
-  rw [hbox, Measure.pi_pi]
-  refine Finset.prod_congr rfl (fun i _ => ?_)
-  rw [Measure.restrict_apply (hs i), Random.harvestCodeLaw_apply']
-  congr 1
-  ext z
-  simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_setOf_eq, Set.mem_compl_iff,
-    Finset.mem_coe]
-  tauto
+    · intro h i hi; rw [dif_pos hi]; exact h ⟨i, hi⟩
+    · intro h n; have := h n n.2; rwa [dif_pos n.2] at this
+  rw [hpre, Measure.infinitePi_pi _ fun i _ => by
+    simp only [t]; split_ifs; exacts [hs _, .univ]]
+  rw [← Fin.prod_univ_eq_prod_range (fun i => ν (t i)) M]
+  refine Finset.prod_congr rfl fun n _ => ?_
+  simp only [t, dif_pos n.2]
 
-/-- (AGR, conditioned) The `m`-draw conditioned operational law is the `m`-fold product of the
-abstract conditioned population `offLaw populationOp prefs` — the `offLaw` analogue of
-`drawManyLaw_eq_pi`.  On the all-hit-off-prefix event the operational draws match the abstract
-`offLaw populationOp prefs` draws in law. -/
-theorem drawManyOffLaw_eq_pi [IsProbabilityMeasure D] (prefs : Finset (FreeMonoid α)) (m : ℕ) :
-    drawManyOffLaw read D k H site N prefs m
-      = Measure.pi (fun _ : Fin m =>
-          offLaw (popLaw (Random.harvestCodeLaw read D k H site N)) prefs) := by
+omit [Fintype α] in
+lemma measurable_probeBlocks (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (N M : ℕ) :
+    Measurable (probeBlocks D N M) :=
+  measurable_pi_lambda _ fun n => measurable_pi_lambda _ fun t =>
+    (measurable_drawFrom D).comp ((measurable_pi_apply t).comp
+      (measurable_snd.comp (measurable_pi_apply _)))
+
+omit [Fintype α] in
+/-- The probes the blocks draw are i.i.d. from `D`. -/
+theorem map_probeBlocks (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (N M : ℕ) :
+    (Measure.infinitePi fun _ : ℕ => drawLaw N).map (probeBlocks D N M)
+      = Measure.pi fun _ : Fin M => Measure.pi fun _ : Fin N => D := by
+  have hblock : MeasurePreserving (fun p : unitInterval × (Fin N → unitInterval) =>
+      fun t => drawFrom D (p.2 t)) (drawLaw N) (Measure.pi fun _ : Fin N => D) :=
+    (measurePreserving_pi _ _ fun _ => ⟨measurable_drawFrom _, map_drawFrom _⟩).comp
+      (measurePreserving_snd (μ := (volume : Measure unitInterval)))
+  have hfirst : MeasurePreserving (fun u (n : Fin M) => u n)
+      (Measure.infinitePi fun _ : ℕ => drawLaw N) (Measure.pi fun _ : Fin M => drawLaw N) :=
+    ⟨measurable_pi_lambda _ fun n => measurable_pi_apply _, map_firstM _ M⟩
+  exact ((measurePreserving_pi _ _ fun _ => hblock).comp hfirst).map_eq
+
+/-- `popDraws` at a harvested population: the sampler over its probe blocks. -/
+lemma popDraws_some {K : ℕ} (M : ℕ) (pops : List (HarvestSampler α))
+    (T : Finset (FreeMonoid α)) (i : Fin K) (s : HarvestSampler α) (hs : pops[i.val]? = some s)
+    (u : ℕ → unitInterval × (Fin N → unitInterval)) :
+    popDraws D k N M pops T (some i) u
+      = Random.drawManyFirst s.read k s.hyp s.site ↑T (probeBlocks D N M u) := by
+  simp only [popDraws, hs]
+  rfl
+
+/-- A harvested population's `M` draws miss with the sampler's chance. -/
+theorem popDraws_miss {K : ℕ} [IsProbabilityMeasure D] (M : ℕ) (pops : List (HarvestSampler α))
+    (T : Finset (FreeMonoid α)) (i : Fin K) (s : HarvestSampler α) (hs : pops[i.val]? = some s) :
+    (Measure.infinitePi fun _ : ℕ => drawLaw N)
+        {u | popDraws D k N M pops T (some i) u = none}
+      = Random.drawManyMiss s.read D k s.hyp s.site ↑T N M := by
+  have hset : {u | popDraws D k N M pops T (some i) u = none}
+      = probeBlocks D N M ⁻¹' {yss | Random.drawManyFirst s.read k s.hyp s.site ↑T yss = none} := by
+    ext u; simp only [Set.mem_setOf_eq, Set.mem_preimage, popDraws_some D k N M pops T i s hs]
+  rw [hset, ← Measure.map_apply (measurable_probeBlocks D N M) (Set.to_countable _).measurableSet,
+    map_probeBlocks]
+  rfl
+
+/-- At the cap `harvestN y (δₛ'/M)`, with `y` at most the chance a probe harvests a string off
+`T`, a harvested population's `M` draws miss with chance at most `δₛ'`. -/
+theorem popDraws_miss_le {K : ℕ} [IsProbabilityMeasure D] (M : ℕ) (pops : List (HarvestSampler α))
+    (T : Finset (FreeMonoid α)) (i : Fin K) (s : HarvestSampler α) (hs : pops[i.val]? = some s)
+    {y δₛ' : ℝ} (hy0 : 0 < y) (hy1 : y ≤ 1) (hδ : 0 < δₛ') (hM : 0 < M)
+    (hyield : y ≤ (Random.harvestLaw s.read D k s.hyp s.site).real (↑T)ᶜ) :
+    (Measure.infinitePi fun _ : ℕ => drawLaw N)
+        {u | popDraws D k (Random.harvestN y (δₛ' / M)) M pops T (some i) u = none}
+      ≤ ENNReal.ofReal δₛ' := by
+  rw [popDraws_miss]
+  exact Random.drawManyMiss_le s.read D k s.hyp s.site _ hy0 hy1 hδ hM hyield
+
+/-- Where a harvested population's `M` draws all hit, they are i.i.d. from it off `T`. -/
+theorem popDraws_eq_some_law {K : ℕ} [IsProbabilityMeasure D] (M : ℕ) (hN : 0 < N)
+    (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) (i : Fin K) (s : HarvestSampler α)
+    (hs : pops[i.val]? = some s) :
+    let raw := ((Measure.infinitePi fun _ : ℕ => drawLaw N).restrict
+        {u | (popDraws D k N M pops T (some i) u).isSome = true}).map
+      fun u => (popDraws D k N M pops T (some i) u).getD 1
+    (if raw Set.univ = 0 ∨ raw Set.univ = ∞ then Measure.dirac 1 else (raw Set.univ)⁻¹ • raw)
+      = Measure.pi fun _ : Fin M => offLaw (popLaw (Random.harvestLaw s.read D k s.hyp s.site)) T := by
+  intro raw
+  haveI : IsFiniteMeasure (Random.harvestLaw s.read D k s.hyp s.site) :=
+    ⟨lt_top_iff_ne_top.2 (Random.harvestLaw_univ_ne_top s.read D k s.hyp s.site)⟩
+  have hraw : raw = ((Measure.pi fun _ : Fin M => Measure.pi fun _ : Fin N => D).restrict
+      {yss | (Random.drawManyFirst s.read k s.hyp s.site ↑T yss).isSome = true}).map
+      fun yss => (Random.drawManyFirst s.read k s.hyp s.site ↑T yss).getD 1 := by
+    have hfun : (fun u => (popDraws D k N M pops T (some i) u).getD 1)
+        = (fun yss => (Random.drawManyFirst s.read k s.hyp s.site ↑T yss).getD 1)
+          ∘ probeBlocks D N M := by
+      funext u; simp only [Function.comp, popDraws_some D k N M pops T i s hs]
+    have hset : {u | (popDraws D k N M pops T (some i) u).isSome = true}
+        = probeBlocks D N M ⁻¹'
+          {yss | (Random.drawManyFirst s.read k s.hyp s.site ↑T yss).isSome = true} := by
+      ext u; simp only [Set.mem_setOf_eq, Set.mem_preimage, popDraws_some D k N M pops T i s hs]
+    simp only [raw]
+    rw [hfun, hset, ← Measure.map_map (measurable_of_countable _) (measurable_probeBlocks D N M),
+      ← Measure.restrict_map (measurable_probeBlocks D N M) (Set.to_countable _).measurableSet,
+      map_probeBlocks]
+  have h := Random.drawManyLaw_eq_pi s.read D k s.hyp s.site (↑T) (m := M) hN
+  unfold Random.drawManyLaw at h
+  simp only at h
+  rw [hraw, h]
+  congr 1
+  funext _
+  rw [offLaw_popLaw]
+
+/-! ## Measurability -/
+
+omit [Fintype α] in
+lemma measurable_popDraws_isSome {K : ℕ} (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (k N M : ℕ) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) (j : Option (Fin K)) :
+    Measurable fun u => (popDraws D k N M pops T j u).isSome := by
+  rcases j with _ | i
+  · exact measurable_const
+  · rcases hs : pops[i.val]? with _ | s
+    · simp only [popDraws, hs]; exact measurable_const
+    · have : (fun u => (popDraws D k N M pops T (some i) u).isSome)
+          = (fun yss => (Random.drawManyFirst s.read k s.hyp s.site ↑T yss).isSome)
+            ∘ probeBlocks D N M := by
+        funext u; simp only [Function.comp, popDraws_some D k N M pops T i s hs]
+      rw [this]
+      exact (measurable_of_countable _).comp (measurable_probeBlocks D N M)
+
+omit [Fintype α] in
+lemma measurable_popDraws_getD {K : ℕ} (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (k N M : ℕ) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) (j : Option (Fin K))
+    (d : Fin M → FreeMonoid α) :
+    Measurable fun u => (popDraws D k N M pops T j u).getD d := by
+  rcases j with _ | i
+  · simp only [popDraws, Option.getD_some]
+    exact measurable_pi_lambda _ fun n => (measurable_drawFrom _).comp
+      (measurable_fst.comp (measurable_pi_apply _))
+  · rcases hs : pops[i.val]? with _ | s
+    · simp only [popDraws, hs]; exact measurable_const
+    · have : (fun u => (popDraws D k N M pops T (some i) u).getD d)
+          = (fun yss => (Random.drawManyFirst s.read k s.hyp s.site ↑T yss).getD d)
+            ∘ probeBlocks D N M := by
+        funext u; simp only [Function.comp, popDraws_some D k N M pops T i s hs]
+      rw [this]
+      exact (measurable_of_countable _).comp (measurable_probeBlocks D N M)
+
+/-! ## Reads -/
+
+open scoped Classical in
+/-- The strings population `j`'s `M` draws read through its sampler: none for the probes'
+population. -/
+noncomputable def popDrawReads {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ)
+    (pops : List (HarvestSampler α)) (j : Option (Fin K))
+    (u : ℕ → unitInterval × (Fin N → unitInterval)) : Finset (FreeMonoid α) :=
+  match j with
+  | none => ∅
+  | some i =>
+    match pops[i.val]? with
+    | some s => Random.drawManyReads s.read s.hyp.tree s.hyp.edges k (probeBlocks D N M u)
+    | none => ∅
+
+/-- With the uniforms fixed, a population's draws depend on its sampler's read only through
+`popDrawReads`. -/
+theorem popDraws_congr {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ)
+    (pops pops' : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) (j : Option (Fin K))
+    (u : ℕ → unitInterval × (Fin N → unitInterval))
+    (hlen : pops.length = pops'.length)
+    (hs : ∀ i : ℕ, ∀ s s', pops[i]? = some s → pops'[i]? = some s' →
+      s.hyp = s'.hyp ∧ s.site = s'.site)
+    (h : ∀ w ∈ popDrawReads D k N M pops j u, ∀ i : Fin K, j = some i → ∀ s s',
+      pops[i.val]? = some s → pops'[i.val]? = some s' → s.read w = s'.read w) :
+    popDraws D k N M pops T j u = popDraws D k N M pops' T j u := by
   classical
-  have : IsFiniteMeasure (Random.harvestCodeLaw read D k H site N) :=
-    ⟨lt_of_le_of_lt (Random.harvestCodeLaw_univ_le_one read D k H site N) ENNReal.one_lt_top⟩
-  have hν : ((Random.harvestCodeLaw read D k H site N).restrict (↑prefs)ᶜ) Set.univ ≠ ∞ := by
-    rw [Measure.restrict_apply_univ]
-    exact ne_of_lt (lt_of_le_of_lt
-      (le_trans (measure_mono (Set.subset_univ _))
-        (Random.harvestCodeLaw_univ_le_one read D k H site N)) ENNReal.one_lt_top)
-  have hpop : (fun _ : Fin m => offLaw (popLaw (Random.harvestCodeLaw read D k H site N)) prefs)
-      = (fun _ : Fin m =>
-          popLaw ((Random.harvestCodeLaw read D k H site N).restrict (↑prefs)ᶜ)) := by
-    funext i; rw [offLaw_popLaw]
-  rw [hpop]
-  unfold drawManyOffLaw
-  exact Random.norm_pi (drawManyOffRaw_eq read D k H site N prefs m) hν
+  rcases j with _ | i
+  · rfl
+  rcases hp : pops[i.val]? with _ | s
+  · have hp' : pops'[i.val]? = none := by
+      rw [List.getElem?_eq_none_iff] at hp ⊢; omega
+    simp only [popDraws, hp, hp']
+  obtain ⟨s', hp'⟩ : ∃ s', pops'[i.val]? = some s' := by
+    refine Option.ne_none_iff_exists'.1 fun h' => ?_
+    rw [List.getElem?_eq_none_iff] at h'
+    have := (List.getElem?_eq_some_iff.1 hp).1
+    omega
+  obtain ⟨hhyp, hsite⟩ := hs i s s' hp hp'
+  rw [popDraws_some D k N M pops T i s hp, popDraws_some D k N M pops' T i s' hp', ← hhyp, ← hsite]
+  unfold Random.drawManyFirst
+  have hi : ∀ n, Random.harvestFirst s.read k s.hyp s.site ↑T
+        (List.ofFn (probeBlocks D N M u n))
+      = Random.harvestFirst s'.read k s.hyp s.site ↑T (List.ofFn (probeBlocks D N M u n)) := by
+    intro n
+    refine Random.harvestFirst_congr k s.hyp s.site _ _ fun w hw => ?_
+    refine h w ?_ i rfl s s' hp hp'
+    simp only [popDrawReads, hp, Random.drawManyReads]
+    exact Finset.mem_biUnion.2 ⟨n, Finset.mem_univ _, hw⟩
+  simp only [hi]
+
+/-- Where `D`'s probes are at most `L` long, a population's `M` draws read at most
+`M · N · (3 + clog₂ L) · |mids|` strings, `mids` its sampler's hypothesis's. -/
+theorem popDrawReads_card_le {K : ℕ} (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (k N M : ℕ) (pops : List (HarvestSampler α)) (i : Fin K) (s : HarvestSampler α)
+    (hs : pops[i.val]? = some s) {L : ℕ} (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
+    (u : ℕ → unitInterval × (Fin N → unitInterval)) :
+    (popDrawReads D k N M pops (some i) u).card
+      ≤ M * (N * ((3 + Nat.clog 2 L) * (mids s.hyp.tree).card)) := by
+  simp only [popDrawReads, hs]
+  refine Random.drawManyReads_card_le s.read k s.hyp _ fun n x hx => ?_
+  obtain ⟨t, rfl⟩ := List.mem_ofFn.1 hx
+  exact drawFrom_length_le D hD _
 
 end OrthoDFA

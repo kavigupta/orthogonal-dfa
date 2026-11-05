@@ -1,5 +1,6 @@
 import OrthoDFA.Code.Level3Harvest
 import OrthoDFA.Code.Level3HarvestCode
+import OrthoDFA.Code.Level3DrawMany
 import Mathlib.MeasureTheory.Constructions.UnitInterval
 
 /-!
@@ -7,10 +8,13 @@ import Mathlib.MeasureTheory.Constructions.UnitInterval
 
 Each round of `indecisiveLStarLoop` clusters a suffix family over the populations so far, runs
 level 3's algorithm (`indecisiveLStarLevel3`) reading that family, and stops at the first round
-that does not end in a harvest. A harvest's sampler, scaled to a probability, becomes a population
-of every later round: it draws a fresh probe from the probes' distribution `D`, walks it under the
-round's last hypothesis and takes its undecided strings at the harvest's site, as the round reads
-them. The first population is `D` itself. Draws are made from uniforms (`drawFrom`).
+that does not end in a harvest. A harvest's sampler becomes a population of every later round:
+a draw from it walks fresh probes from the probes' distribution `D` under the round's last
+hypothesis, at most `N` of them, and takes the first string undecided at the harvest's site, as the
+round reads them, that no earlier clustering read. The first population is `D` itself. Each
+population's stream is its first `M` draws; the round fails if a harvested draw finds no string or
+the clustering would read past the `M` draws, and the loop fails with it. Draws are made from
+uniforms (`drawFrom`).
 
 The clustering is the one `ClusteringQualityGuarantee` is about, every population tame and none
 harvested into a table: the family is `clusterAt` at a state of the schedule at which `ret`
@@ -85,23 +89,21 @@ def drawFrom (ν : Measure (FreeMonoid α)) (u : unitInterval) : FreeMonoid α :
 def loopPopulations (K r : ℕ) : Finset (Option (Fin K)) :=
   insert none ((Finset.univ.filter fun i : Fin K => i.val < r).image some)
 
-/-- The ingredients a harvested population hands on so its draws can be run operationally: the
-round's family read, its hypothesis, and the level-3 site. `harvestDraw read D k hyp site N` is the
-bounded-rejection sampler for this population; `D`, `k` and `N` are shared across the loop. -/
+/-- What a harvested population hands on to draw from it: its round's family read, its last
+hypothesis, and the level-3 site of its harvest. -/
 structure HarvestSampler (α : Type*) [Countable α] where
   read : FreeMonoid α → ARU
   hyp : HypothesisDFA α
   site : Random.Level3Site
 
-/-- The populations' distributions, given the earlier harvests' samplers: the probes' `D`, and each
-harvested population as `popLaw` of its bounded-rejection sampler's law.  This is the abstract target
-the operational draws (`clusterPopDraw`) couple to on the all-hit-off-prefix event. -/
-noncomputable def loopDistributions {K : ℕ} (D : Measure (FreeMonoid α)) (k N : ℕ)
+/-- The populations' distributions, given the earlier harvests' samplers: the probes' `D`, and
+each harvested population's sampler law over probes from `D` walked from `k`, as a probability. -/
+def loopDistributions {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ)
     (pops : List (HarvestSampler α)) : Option (Fin K) → Measure (FreeMonoid α)
   | none => D
   | some i =>
     match pops[i.val]? with
-    | some s => popLaw (Random.harvestCodeLaw s.read D k s.hyp s.site N)
+    | some s => popLaw (Random.harvestLaw s.read D k s.hyp s.site)
     | none => Measure.dirac 1
 
 /-- `ν` conditioned off `T`. -/
@@ -115,84 +117,111 @@ structure LoopHist (α : Type*) [Countable α] where
   prefs : Finset (FreeMonoid α)
   suffs : Finset (FreeMonoid α)
 
-/-- The uniforms by which the clustering draws its suffixes, and each population its two streams,
-and the side of the hash each string falls on. -/
-abbrev ClusterRest (α : Type*) (K : ℕ) :=
-  (ℕ → unitInterval) × ((Option (Fin K) → ℕ → unitInterval)
+/-- The uniforms by which the clustering draws its suffixes; each population's draws, a uniform
+and a block of `N` uniforms each; the probes' population's certification draws; and the side of
+the hash each string falls on.  A draw from the probes' population reads its uniform, a harvested
+population's draw its block. -/
+abbrev ClusterRest (α : Type*) (K N : ℕ) :=
+  (ℕ → unitInterval) × ((Option (Fin K) → ℕ → unitInterval × (Fin N → unitInterval))
     × ((Option (Fin K) → ℕ → unitInterval) × (FreeMonoid α → Bool)))
 
 /-- The clustering's draws: the noise and the rest. -/
-abbrev ClusterDraws (Ω α : Type*) (K : ℕ) := Ω × ClusterRest α K
+abbrev ClusterDraws (Ω α : Type*) (K N : ℕ) := Ω × ClusterRest α K N
 
 /-- A round's draws apart from the noise: the clustering's, and the uniforms by which the round
 draws its probes. -/
-abbrev RoundDraws (α : Type*) (K P : ℕ) := ClusterRest α K × (Fin P → unitInterval)
+abbrev RoundDraws (α : Type*) (K N P : ℕ) := ClusterRest α K N × (Fin P → unitInterval)
 
 /-- A round's draws with the noise it reads. -/
-abbrev LoopRoundDraws (Ω α : Type*) (K P : ℕ) := Ω × RoundDraws α K P
+abbrev LoopRoundDraws (Ω α : Type*) (K N P : ℕ) := Ω × RoundDraws α K N P
 
-def restLaw (α : Type*) (K : ℕ) : Measure (ClusterRest α K) :=
+/-- A draw's uniform and block, independent. -/
+def drawLaw (N : ℕ) : Measure (unitInterval × (Fin N → unitInterval)) :=
+  (volume : Measure unitInterval).prod (Measure.pi fun _ : Fin N => (volume : Measure unitInterval))
+
+def restLaw (α : Type*) (K N : ℕ) : Measure (ClusterRest α K N) :=
   (Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)).prod
-    ((Measure.pi fun _ : Option (Fin K) =>
-        Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)).prod
+    ((Measure.pi fun _ : Option (Fin K) => Measure.infinitePi fun _ : ℕ => drawLaw N).prod
       ((Measure.pi fun _ : Option (Fin K) =>
         Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)).prod
         (Measure.infinitePi fun _ : FreeMonoid α => fairCoin)))
 
-def roundLaw (α : Type*) (K P : ℕ) : Measure (RoundDraws α K P) :=
-  (restLaw α K).prod (Measure.pi fun _ : Fin P => (volume : Measure unitInterval))
+def roundLaw (α : Type*) (K N P : ℕ) : Measure (RoundDraws α K N P) :=
+  (restLaw α K N).prod (Measure.pi fun _ : Fin P => (volume : Measure unitInterval))
 
 variable {Ω : Type*} [MeasurableSpace Ω]
 
 /-- One noise for the whole run, which every string's read keeps, and `K` rounds' uniforms,
 independent. -/
-def loopMeasure (μ : Measure Ω) (α : Type*) (K P : ℕ) :
-    Measure (Ω × (Fin K → RoundDraws α K P)) :=
-  μ.prod (Measure.pi fun _ : Fin K => roundLaw α K P)
+def loopMeasure (μ : Measure Ω) (α : Type*) (K N P : ℕ) :
+    Measure (Ω × (Fin K → RoundDraws α K N P)) :=
+  μ.prod (Measure.pi fun _ : Fin K => roundLaw α K N P)
 
 /-- The rounds' draws, each read through the run's one noise. -/
-def persistDraws {K P : ℕ} (p : Ω × (Fin K → RoundDraws α K P)) :
-    Fin K → LoopRoundDraws Ω α K P :=
+def persistDraws {K N P : ℕ} (p : Ω × (Fin K → RoundDraws α K N P)) :
+    Fin K → LoopRoundDraws Ω α K N P :=
   fun i => (p.1, p.2 i)
 
-/-- One operational harvest draw at cap `N`: the bounded-rejection sampler run on `N` probes drawn
-from `D` by the uniforms `u`, reading the oracle only along them.  `none` if all `N` miss.  Its law
-over `u` is the sampler's `Option` law (`map_harvestDraw`), so `popLaw` of its hits is the
-operational population. -/
-noncomputable def harvestDraw (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) (k : ℕ)
-    (H : HypothesisDFA α) (site : Random.Level3Site) (N : ℕ) (u : Fin N → unitInterval) :
-    Option (FreeMonoid α) :=
-  Random.harvestFirst read k H site (List.ofFn fun i => drawFrom D (u i))
+/-- A harvest draw at cap `N`: the string the sampler harvests off `T` from the `N` probes the
+uniforms `u` draw from `D`; `none` if it harvests none. -/
+def harvestDraw (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) (k : ℕ)
+    (H : HypothesisDFA α) (site : Random.Level3Site) (T : Set (FreeMonoid α)) (N : ℕ)
+    (u : Fin N → unitInterval) : Option (FreeMonoid α) :=
+  Random.harvestFirst read k H site T (List.ofFn fun i => drawFrom D (u i))
 
-/-- One population's draw `n`, drawn operationally for a harvested population.  `none` → the probes
-conditioned off `prefs`.  `some i` → the harvested population: the bounded-rejection sampler run on
-the `N`-uniform block `[n·N, n·N+N)`, padding a miss with `1`.  The off-prefix rejection and the
-miss both live in the all-hit-off-prefix event the top-level theorem prices (`δₛ'`), not in this
-value, so the stream stays total and `clusterRun`'s type is unchanged. -/
-noncomputable def clusterPopDraw {K : ℕ} (D : Measure (FreeMonoid α)) (k N : ℕ)
-    (pops : List (HarvestSampler α)) (prefs : Finset (FreeMonoid α))
-    (j : Option (Fin K)) (u : ℕ → unitInterval) (n : ℕ) : FreeMonoid α :=
+/-- Population `j`'s first `M` draws off `T`, draw `n` by `u n`: for the probes' population from
+`D` conditioned off `T` by the uniform, for a harvested one by its sampler at cap `N` over the
+probes the block draws from `D`.  `none` if a harvested draw misses. -/
+def popDraws {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ) (pops : List (HarvestSampler α))
+    (T : Finset (FreeMonoid α)) (j : Option (Fin K)) (u : ℕ → unitInterval × (Fin N → unitInterval)) :
+    Option (Fin M → FreeMonoid α) :=
   match j with
-  | none => drawFrom (offLaw D prefs) (u n)
+  | none => some fun n => drawFrom (offLaw D T) (u n).1
   | some i =>
     match pops[i.val]? with
-    | some s => (harvestDraw s.read D k s.hyp s.site N (fun t : Fin N => u (n * N + t))).getD 1
-    | none => 1
+    | some s => Random.drawManyFirst s.read k s.hyp s.site ↑T
+        fun (n : Fin M) (t : Fin N) => drawFrom D ((u n).2 t)
+    | none => some fun _ => 1
 
-/-- The clustering's draws after the history `h`: suffixes from `Dsf` and each population's two
-streams, all off what the earlier rounds read, and the hash's sides.  Harvested populations are
-drawn operationally (`clusterPopDraw`) at cap `N`, walked from `k`. -/
-def clusterDraws {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (k N : ℕ) (h : LoopHist α)
-    (c : ClusterDraws Ω α K) : Draws Ω (FreeMonoid α) (Option (Fin K)) :=
-  ((c.1, ((fun n => drawFrom (offLaw Dsf h.suffs) (c.2.1 n),
-      fun j n => clusterPopDraw D k N h.pops h.prefs j (c.2.2.1 j) n),
-    fun j n => clusterPopDraw D k N h.pops h.prefs j (c.2.2.2.1 j) n)),
-    c.2.2.2.2)
+open scoped Classical in
+/-- `f`'s values, where every one is `some`. -/
+def allSome {ι β : Type*} (f : ι → Option β) : Option (ι → β) :=
+  if h : ∀ i, (f i).isSome then some fun i => (f i).get (h i) else none
 
-/-- The clustering's run: no population harvests strings into its table. -/
-def clusterRun {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (k N : ℕ) (h : LoopHist α)
-    (c : ClusterDraws Ω α K) : Run Ω (FreeMonoid α) (Option (Fin K)) :=
-  streams (fun _ => ∅) none (clusterDraws D Dsf k N h c)
+/-- Finite draws as a stream, `1` past them. -/
+def padDraws {M : ℕ} (f : Fin M → FreeMonoid α) (n : ℕ) : FreeMonoid α :=
+  if h : n < M then f ⟨n, h⟩ else 1
+
+/-- The clustering's draws after the history `h`: suffixes from `Dsf` off what the earlier rounds
+read, each population's first `M` draws (`popDraws`) as its stream, the probes' population a
+second `M` off the earlier rounds' prefixes as its certification stream, and the hash's sides.
+`none` if a draw misses. -/
+def clusterDraws {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (k N M : ℕ) (h : LoopHist α)
+    (c : ClusterDraws Ω α K N) : Option (Draws Ω (FreeMonoid α) (Option (Fin K))) :=
+  (allSome fun j => popDraws D k N M h.pops h.prefs j (c.2.2.1 j)).map fun tab =>
+    ((c.1, ((fun n => drawFrom (offLaw Dsf h.suffs) (c.2.1 n), fun j => padDraws (tab j)),
+      fun j => match j with
+        | none => padDraws fun n : Fin M => drawFrom (offLaw D h.prefs) (c.2.2.2.1 none n)
+        | some _ => fun _ => 1)),
+      c.2.2.2.2)
+
+/-- What the first `M` draws of population `j`'s streams fix of its table and certification
+sequences, in order: the probes' population reads its two streams as they are, a harvested one
+the hash's two sides of its one stream. -/
+def seqsOf {K : ℕ} (M : ℕ) (dr : Draws Ω (FreeMonoid α) (Option (Fin K))) :
+    Option (Fin K) → List (FreeMonoid α) × List (FreeMonoid α)
+  | none => ((List.range M).map (dr.1.2.1.2 none), (List.range M).map (dr.1.2.2 none))
+  | some i =>
+    ((List.range M).map (dr.1.2.1.2 (some i)) |>.filter fun s => dr.2 s,
+      (List.range M).map (dr.1.2.1.2 (some i)) |>.filter fun s => !dr.2 s)
+
+/-- At every state of `sched`, the clustering finds each sample it takes among what the first `M`
+draws of each population's streams fix. -/
+def ScanWithin {K : ℕ} (sched : Finset State) (pops : Finset (Option (Fin K))) (M : ℕ)
+    (dr : Draws Ω (FreeMonoid α) (Option (Fin K))) : Prop :=
+  ∀ B ∈ sched, ∀ j ∈ pops, B.npref ≤ (seqsOf M dr j).1.toFinset.card
+    ∧ ∀ e ≤ B.npref, B.npref + e
+      ≤ ((seqsOf M dr j).2.toFinset \ prefixesAt pops B.npref (streams (fun _ => ∅) none dr)).card
 
 /-- The clustering's schedule, FNR limit and gate level, and level 3's settings. -/
 structure LoopSettings (K : ℕ) where
@@ -239,22 +268,34 @@ def avoidLaw (D : Measure (FreeMonoid α)) (k : ℕ) (K₀ : Finset (FreeMonoid 
     Measure (FreeMonoid α) :=
   popLaw (D.restrict {x | k ≤ x.toList.length → prefixOf x k ∉ K₀})
 
-/-- The round after the history `h`. Its clustering draws off what the earlier rounds read, and
-level 3 draws its probes from `D` avoiding the first `k` letters of the prefixes the clustering
-read. -/
-def loopRound {K : ℕ} (settings : LoopSettings K) (N : ℕ) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
-    (d : LoopRoundDraws Ω α K settings.level3.probeBudget) : LoopRound Ω α K :=
+/-- The round after the history `h` whose clustering ran `x`: the state it returned at and its
+family, and level 3's run over probes drawn by `u` from `D` avoiding the first `k` letters of the
+prefixes the clustering read. -/
+def roundOf {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+    (D : Measure (FreeMonoid α)) (h : LoopHist α) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
+    (u : Fin settings.level3.probeBudget → unitInterval) : LoopRound Ω α K :=
   let ps := loopPopulations K h.pops.length
-  let x := clusterRun D Dsf settings.level3.walkStart N h (d.1, d.2.1)
   let B := Classical.epsilon fun B => B ∈ settings.schedule ps
     ∧ x ∈ ret O.mq ps none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
   let F := clusterAt O.mq ps x B
-  let read := fun z => familyRead O.mq F B.lo (B.hi + 1) z d.1
+  let read := fun z => familyRead O.mq F B.lo (B.hi + 1) z x.1
   let K₀ := clusterKeys (settings.schedule ps) ps settings.level3.walkStart x
   ⟨x, B, F, read, Random.indecisiveLStarLevel3 settings.level3 read
-    (fun i => drawFrom (avoidLaw D settings.level3.walkStart K₀) (d.2.2 i)),
+    (fun i => drawFrom (avoidLaw D settings.level3.walkStart K₀) (u i)),
     roundPrefs (settings.schedule ps) ps x, roundSuffs (settings.schedule ps) x⟩
+
+open scoped Classical in
+/-- The round after the history `h`: the clustering's draws off what the earlier rounds read, at
+cap `N` per harvested draw and `M` draws per stream, then the clustering on them and level 3.
+`none` if a draw misses or the clustering would read past the `M` draws. -/
+def loopRound {K : ℕ} (settings : LoopSettings K) (N M : ℕ) (O : Oracle μ (FreeMonoid α))
+    (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
+    (d : LoopRoundDraws Ω α K N settings.level3.probeBudget) : Option (LoopRound Ω α K) :=
+  let ps := loopPopulations K h.pops.length
+  (clusterDraws D Dsf settings.level3.walkStart N M h (d.1, d.2.1)).bind fun dr =>
+    if ScanWithin (settings.schedule ps) ps M dr then
+      some (roundOf settings O D h (streams (fun _ => ∅) none dr) d.2.2)
+    else none
 
 def RoundEnd.harvested {H : Type*} : RoundEnd H → Option H
   | .harvest h => some h
@@ -267,14 +308,6 @@ def LoopRound.population {K : ℕ} (D : Measure (FreeMonoid α)) (k : ℕ) (o : 
   o.result.ending.harvested.map fun site =>
     popLaw (Random.harvestLaw o.read D k o.result.hypothesis site)
 
-/-- The operational population: the bounded-rejection sampler's law at cap `N`, in place of the
-ideal `harvestLaw`.  Equal in law to `population` (`populationOp_eq_population`), but reading the
-oracle only along the at most `N` probes the sampler walks. -/
-def LoopRound.populationOp {K : ℕ} (D : Measure (FreeMonoid α)) (k N : ℕ) (o : LoopRound Ω α K) :
-    Option (Measure (FreeMonoid α)) :=
-  o.result.ending.harvested.map fun site =>
-    popLaw (Random.harvestCodeLaw o.read D k o.result.hypothesis site N)
-
 /-- The sampler a round's harvest hands on: its family read, hypothesis and level-3 site. -/
 def LoopRound.sampler {K : ℕ} (o : LoopRound Ω α K) : Option (HarvestSampler α) :=
   o.result.ending.harvested.map fun site => ⟨o.read, o.result.hypothesis, site⟩
@@ -284,26 +317,24 @@ def histOf {K : ℕ} (rounds : List (LoopRound Ω α K)) : LoopHist α :=
   ⟨rounds.filterMap fun o => o.sampler,
     rounds.foldr (fun o T => o.prefs ∪ T) ∅, rounds.foldr (fun o T => o.suffs ∪ T) ∅⟩
 
-/-- The first `r` rounds, cut short at a round that does not end in a harvest. -/
-def loopRounds {K : ℕ} (settings : LoopSettings K) (N : ℕ) (O : Oracle μ (FreeMonoid α))
+/-- The first `r` rounds, cut short at a round that does not end in a harvest; `none` if a round
+fails. -/
+def loopRounds {K : ℕ} (settings : LoopSettings K) (N M : ℕ) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) :
-    ℕ → List (LoopRound Ω α K)
-  | 0 => []
-  | r + 1 =>
-    if h : r < K ∧ ∀ o ∈ loopRounds settings N O D Dsf draws r, o.result.ending.harvested ≠ none
-    then
-      loopRounds settings N O D Dsf draws r
-        ++ [loopRound settings N O D Dsf
-          (histOf (loopRounds settings N O D Dsf draws r))
-          (draws ⟨r, h.1⟩)]
-    else loopRounds settings N O D Dsf draws r
+    (draws : Fin K → LoopRoundDraws Ω α K N settings.level3.probeBudget) :
+    ℕ → Option (List (LoopRound Ω α K))
+  | 0 => some []
+  | r + 1 => (loopRounds settings N M O D Dsf draws r).bind fun rs =>
+    if h : r < K ∧ ∀ o ∈ rs, o.result.ending.harvested ≠ none then
+      (loopRound settings N M O D Dsf (histOf rs) (draws ⟨r, h.1⟩)).map fun o => rs ++ [o]
+    else some rs
 
-/-- The rounds the loop runs, at most `K`. -/
-def indecisiveLStarLoop {K : ℕ} (settings : LoopSettings K) (N : ℕ) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α))
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.probeBudget) : List (LoopRound Ω α K) :=
-  loopRounds settings N O D Dsf draws K
+/-- The rounds the loop runs, at most `K`; `none` if a round fails. -/
+def indecisiveLStarLoop {K : ℕ} (settings : LoopSettings K) (N M : ℕ)
+    (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
+    (draws : Fin K → LoopRoundDraws Ω α K N settings.level3.probeBudget) :
+    Option (List (LoopRound Ω α K)) :=
+  loopRounds settings N M O D Dsf draws K
 
 end OrthoDFA
 

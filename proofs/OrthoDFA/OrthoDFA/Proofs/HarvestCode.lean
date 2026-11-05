@@ -6,13 +6,10 @@ import OrthoDFA.Proofs.RandomSearch
 
 /-! # Decoupling the harvest sampler from the harvest law
 
-The three facts that make `harvestCode` a drop-in for `harvestLaw` in the loop:
-
-* `harvestCodeLaw_popLaw_eq` — (A1) conditioned on a hit, its output law is exactly
-  `popLaw (harvestLaw …)`.  No `δ`, no good-event hypothesis: rejection sampling reproduces the
-  conditional law exactly.
-* `harvestCodeLaw_miss_le` — (A2) the all-miss mass is `(1 - hitProb) ^ N`; with the round's yield
-  bound `y ≤ hitProb` and `N = harvestN y δₛ`, it is `≤ δₛ`.
+* `harvestCodeLaw_popLaw_eq` — (A1) conditioned on a hit, the sampler's output law off `T` is
+  exactly `popLaw ((harvestLaw …).restrict Tᶜ)`.
+* `harvestCodeLaw_miss_le` — (A2) the all-miss mass is `(1 - q) ^ N`, `q` the chance one probe
+  harvests a string off `T`; with `y ≤ q` and `N = harvestN y δₛ`, it is at most `δₛ`.
 * `harvestCode_reads_card_le` — (B) the sampler reads only what its (at most `|xs|`) walked probes
   read, `≤ |xs|` probe-walks each of `≤ 2 + clog₂ L` reads. -/
 
@@ -25,7 +22,7 @@ open scoped ENNReal
 
 variable {α : Type*} [Fintype α]
 variable (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α)
-  (site : Level3Site) (N : ℕ) (xs : List (FreeMonoid α))
+  (site : Level3Site) (T : Set (FreeMonoid α)) (N : ℕ) (xs : List (FreeMonoid α))
 
 open scoped Classical in
 /-- The strings the bounded-rejection sampler reads: the union of `probeReads` over the probes it
@@ -93,16 +90,52 @@ private lemma findSome?_ofFn_eq_some {β γ : Type*} (g : β → Option γ) (v :
         · rw [hy0] at hhit; exact Option.some_inj.1 hhit
         · exact absurd (hmiss 0 (Fin.succ_pos j')) (by rw [hy0]; simp)
 
-/-- The sampler's output is a positive finite multiple of the harvest law.  Writing `p = D(miss)`
-for the single-probe miss mass, the first-hit decomposition over the `N` i.i.d. probes gives, for
-every `A`, `harvestCodeLaw A = (∑_{j<N} p^j) · harvestLaw A`, i.e. `harvestCodeLaw = c • harvestLaw`
-with `c = ∑_{j<N} p^j`.  For `0 < N` the `j = 0` term makes `c ≥ 1 > 0`, and `c ≤ N < ∞`. -/
+open scoped Classical in
+/-- The sampler law off `T` puts on `A` the chance one probe harvests a string in `A` off `T`. -/
+lemma harvestLaw_restrict_apply (A : Set (FreeMonoid α)) :
+    (harvestLaw read D k H site).restrict Tᶜ A
+      = D {x | ∃ v, ((siteHarvest read k H site x).head?.filter fun z => z ∉ T) = some v
+          ∧ v ∈ A} := by
+  classical
+  set hitA : Set (FreeMonoid α) :=
+    {x | ∃ v, ((siteHarvest read k H site x).head?.filter fun z => z ∉ T) = some v ∧ v ∈ A}
+  have hhitA_meas : MeasurableSet hitA := (Set.to_countable _).measurableSet
+  rw [Measure.restrict_apply (Set.to_countable A).measurableSet,
+    harvestLaw_apply read D k H site (A ∩ Tᶜ)]
+  have hint : (fun x => (((siteHarvest read k H site x).filter (· ∈ A ∩ Tᶜ)).length : ℝ≥0∞))
+      = fun x => hitA.indicator (fun _ => (1 : ℝ≥0∞)) x := by
+    funext x
+    have hlen := siteHarvest_length read k H site x
+    rcases hx : siteHarvest read k H site x with _ | ⟨s, tl⟩
+    · have hxnot : x ∉ hitA := by rintro ⟨v, hv, -⟩; simp [hx] at hv
+      rw [Set.indicator_of_notMem hxnot]; simp
+    · have htl : tl = [] := by
+        rcases tl with _ | ⟨b, l⟩
+        · rfl
+        · rw [hx] at hlen; simp at hlen
+      subst htl
+      by_cases hs : s ∈ A ∩ Tᶜ
+      · have hmem : x ∈ hitA := ⟨s, by simp [hx, hs.2], hs.1⟩
+        rw [Set.indicator_of_mem hmem (fun _ => (1 : ℝ≥0∞))]
+        simp [hs]
+      · have hxnot : x ∉ hitA := by
+          rintro ⟨v, hv, hvA⟩
+          simp only [hx, List.head?_cons, Option.filter_some] at hv
+          split_ifs at hv with hT
+          · cases hv; exact hs ⟨hvA, by simpa using hT⟩
+        rw [Set.indicator_of_notMem hxnot]; simp [hs]
+  rw [hint, lintegral_indicator_const hhitA_meas, one_mul]
+
+/-- The sampler's output is a positive finite multiple of the harvest law off `T`: with `p` the
+chance one probe harvests nothing off `T`, for every `A`
+
+    harvestCodeLaw A = (∑_{j<N} p^j) · (harvestLaw.restrict Tᶜ) A. -/
 theorem harvestCodeLaw_smul [IsProbabilityMeasure D] (hN : 0 < N) :
     ∃ c : ℝ≥0∞, c ≠ 0 ∧ c ≠ ∞ ∧
-      harvestCodeLaw read D k H site N = c • harvestLaw read D k H site := by
+      harvestCodeLaw read D k H site T N = c • (harvestLaw read D k H site).restrict Tᶜ := by
   classical
   set g : FreeMonoid α → Option (FreeMonoid α) :=
-    fun x => (siteHarvest read k H site x).head? with hgdef
+    fun x => (siteHarvest read k H site x).head?.filter fun z => z ∉ T with hgdef
   set miss : Set (FreeMonoid α) := {x | g x = none} with hmissdef
   set p : ℝ≥0∞ := D miss with hpdef
   have hmiss_meas : MeasurableSet miss := (Set.to_countable _).measurableSet
@@ -126,48 +159,24 @@ theorem harvestCodeLaw_smul [IsProbabilityMeasure D] (hN : 0 < N) :
     rw [Measure.smul_apply, smul_eq_mul]
     set hitA : Set (FreeMonoid α) := {x | ∃ v, g x = some v ∧ v ∈ A} with hhitAdef
     have hhitA_meas : MeasurableSet hitA := (Set.to_countable _).measurableSet
-    have hlaw : harvestLaw read D k H site A = D hitA := by
-      rw [harvestLaw_apply read D k H site A]
-      have hint : (fun x => (((siteHarvest read k H site x).filter (· ∈ A)).length : ℝ≥0∞))
-          = fun x => hitA.indicator (fun _ => (1 : ℝ≥0∞)) x := by
-        funext x
-        have hlen := siteHarvest_length read k H site x
-        rcases hx : siteHarvest read k H site x with _ | ⟨s, tl⟩
-        · have hgn : g x = none := by simp [hgdef, hx]
-          have hxnot : x ∉ hitA := by rintro ⟨v, hv, -⟩; rw [hgn] at hv; simp at hv
-          rw [Set.indicator_of_notMem hxnot]; simp [hx]
-        · have htl : tl = [] := by
-            rcases tl with _ | ⟨b, l⟩
-            · rfl
-            · rw [hx] at hlen; simp at hlen
-          subst htl
-          have hgx : g x = some s := by simp [hgdef, hx]
-          by_cases hs : s ∈ A
-          · have hmem : x ∈ hitA := ⟨s, hgx, hs⟩
-            rw [Set.indicator_of_mem hmem (fun _ => (1 : ℝ≥0∞))]
-            simp [hx, hs]
-          · have hxnot : x ∉ hitA := by
-              rintro ⟨v, hv, hvA⟩
-              rw [hgx] at hv
-              exact hs (by rw [Option.some_inj.1 hv]; exact hvA)
-            rw [Set.indicator_of_notMem hxnot]; simp [hx, hs]
-      rw [hint, lintegral_indicator_const hhitA_meas, one_mul]
+    have hlaw : (harvestLaw read D k H site).restrict Tᶜ A = D hitA :=
+      harvestLaw_restrict_apply read D k H site T A
     have hfmeas : Measurable fun ys : Fin N → FreeMonoid α =>
-        (harvestFirst read k H site (List.ofFn ys)).getD 1 := measurable_of_countable _
+        (harvestFirst read k H site T (List.ofFn ys)).getD 1 := measurable_of_countable _
     unfold harvestCodeLaw
     rw [Measure.map_apply hfmeas hA, Measure.restrict_apply (hfmeas hA)]
     set sset : Fin N → Fin N → Set (FreeMonoid α) :=
       fun j i => if i < j then miss else if i = j then hitA else Set.univ with hssetdef
     set E : Fin N → Set (Fin N → FreeMonoid α) := fun j => Set.univ.pi (sset j) with hEdef
     have hS : ((fun ys : Fin N → FreeMonoid α =>
-          (harvestFirst read k H site (List.ofFn ys)).getD 1) ⁻¹' A)
-          ∩ {ys | (harvestFirst read k H site (List.ofFn ys)).isSome = true}
+          (harvestFirst read k H site T (List.ofFn ys)).getD 1) ⁻¹' A)
+          ∩ {ys | (harvestFirst read k H site T (List.ofFn ys)).isSome = true}
         = ⋃ j, E j := by
       ext ys
       simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_setOf_eq, Set.mem_iUnion]
       constructor
       · rintro ⟨hAmem, hsome⟩
-        rcases ho : harvestFirst read k H site (List.ofFn ys) with _ | v
+        rcases ho : harvestFirst read k H site T (List.ofFn ys) with _ | v
         · rw [ho] at hsome; simp at hsome
         · rw [ho, Option.getD_some] at hAmem
           have hfs : (List.ofFn ys).findSome? g = some v := ho
@@ -189,11 +198,11 @@ theorem harvestCodeLaw_smul [IsProbabilityMeasure D] (hN : 0 < N) :
           intro i hi; have := hj i; rw [if_pos hi] at this; exact this
         have hfs : (List.ofFn ys).findSome? g = some v :=
           (findSome?_ofFn_eq_some g v ys).2 ⟨j, hmissbefore, hgv⟩
-        have hhf : harvestFirst read k H site (List.ofFn ys) = some v := hfs
+        have hhf : harvestFirst read k H site T (List.ofFn ys) = some v := hfs
         refine ⟨?_, ?_⟩
-        · show (harvestFirst read k H site (List.ofFn ys)).getD 1 ∈ A
+        · show (harvestFirst read k H site T (List.ofFn ys)).getD 1 ∈ A
           rw [hhf, Option.getD_some]; exact hvA
-        · show (harvestFirst read k H site (List.ofFn ys)).isSome = true
+        · show (harvestFirst read k H site T (List.ofFn ys)).isSome = true
           rw [hhf]; rfl
     rw [hS]
     have hEmeas : ∀ j, MeasurableSet (E j) := by
@@ -256,40 +265,34 @@ theorem harvestCodeLaw_smul [IsProbabilityMeasure D] (hN : 0 < N) :
     simp_rw [hEjmeasure]
     rw [← Finset.sum_mul, Fin.sum_univ_eq_sum_range (fun j => p ^ j) N, hlaw]
 
-/-- (A1) Agreement — exact.  Conditioned on a hit, the sampler's output law is the harvest law
-(both normalised by `popLaw`), for every cap `N ≥ 1`. -/
+/-- (A1) Conditioned on a hit, the sampler's output law is the harvest law off `T`, for every cap
+`N ≥ 1`. -/
 theorem harvestCodeLaw_popLaw_eq [IsProbabilityMeasure D] (hN : 0 < N) :
-    popLaw (harvestCodeLaw read D k H site N) = popLaw (harvestLaw read D k H site) := by
-  obtain ⟨c, hc0, hctop, hpr⟩ := harvestCodeLaw_smul read D k H site N hN
+    popLaw (harvestCodeLaw read D k H site T N)
+      = popLaw ((harvestLaw read D k H site).restrict Tᶜ) := by
+  obtain ⟨c, hc0, hctop, hpr⟩ := harvestCodeLaw_smul read D k H site T N hN
   rw [hpr, popLaw_smul hc0 hctop]
 
-/-- (A2) Failure mass.  The chance all `N` probes miss is `(1 - hitProb) ^ N`; with the (round-good)
-yield bound `y ≤ hitProb = (harvestLaw …).real univ` and `N = harvestN y δₛ`, it is `≤ δₛ`. -/
+/-- (A2) The chance all `N` probes harvest nothing off `T` is `(1 - q) ^ N`, `q` the chance one
+does; with `y ≤ q` and `N = harvestN y δₛ` it is at most `δₛ`. -/
 theorem harvestCodeLaw_miss_le [IsProbabilityMeasure D] {y δₛ : ℝ}
     (hy0 : 0 < y) (hy1 : y ≤ 1) (hδ : 0 < δₛ)
-    (hyield : y ≤ (harvestLaw read D k H site).real Set.univ) :
-    harvestMiss read D k H site (harvestN y δₛ) ≤ ENNReal.ofReal δₛ := by
+    (hyield : y ≤ (harvestLaw read D k H site).real Tᶜ) :
+    harvestMiss read D k H site T (harvestN y δₛ) ≤ ENNReal.ofReal δₛ := by
   classical
   set N := harvestN y δₛ with hNdef
-  set miss : Set (FreeMonoid α) := {x | (siteHarvest read k H site x).head? = none} with hmissdef
+  set miss : Set (FreeMonoid α) :=
+    {x | ((siteHarvest read k H site x).head?.filter fun z => z ∉ T) = none} with hmissdef
   have hmeas : MeasurableSet miss := (Set.to_countable _).measurableSet
-  -- (harvestLaw …).real univ equals the single-probe hit mass D(missᶜ).
-  have hhit : (harvestLaw read D k H site).real Set.univ = D.real missᶜ := by
-    rw [harvestLaw_real_univ]
-    have hfun : (fun x => ((siteHarvest read k H site x).length : ℝ))
-        = fun x => missᶜ.indicator (fun _ => (1 : ℝ)) x := by
-      funext x
-      have hlen := siteHarvest_length read k H site x
-      rcases hx : siteHarvest read k H site x with _ | ⟨a, tl⟩
-      · simp [hx, hmissdef, Set.indicator, List.head?]
-      · have htl : tl = [] := by
-          rcases tl with _ | ⟨b, l⟩
-          · rfl
-          · rw [hx] at hlen; simp at hlen
-        subst htl
-        simp [hx, hmissdef, Set.indicator, List.head?]
-    rw [hfun, MeasureTheory.integral_indicator_const (1 : ℝ) hmeas.compl]
-    simp
+  have hhit : (harvestLaw read D k H site).real Tᶜ = D.real missᶜ := by
+    have h := harvestLaw_restrict_apply read D k H site T Set.univ
+    rw [Measure.restrict_apply_univ] at h
+    rw [measureReal_def, h, measureReal_def]
+    congr 2
+    ext x
+    simp only [Set.mem_setOf_eq, Set.mem_univ, and_true, hmissdef, Set.mem_compl_iff]
+    exact ⟨fun ⟨v, hv⟩ h0 => by rw [h0] at hv; cases hv,
+      fun h0 => Option.ne_none_iff_exists'.1 h0⟩
   -- D(miss) ≤ 1 - y as reals.
   have hmissreal : D.real miss ≤ 1 - y := by
     have huniv1 : D.real Set.univ = 1 := by simp [measureReal_def]
@@ -314,7 +317,7 @@ theorem harvestCodeLaw_miss_le [IsProbabilityMeasure D] {y δₛ : ℝ}
           apply Real.exp_le_exp.2; rw [hlogδ] at hyN; linarith
       _ = δₛ := Real.exp_log hδ
   -- harvestMiss = D(miss) ^ N as the product measure of a pi-set.
-  have hset : {xs : Fin N → FreeMonoid α | harvestFirst read k H site (List.ofFn xs) = none}
+  have hset : {xs : Fin N → FreeMonoid α | harvestFirst read k H site T (List.ofFn xs) = none}
       = Set.univ.pi (fun _ => miss) := by
     ext xs
     simp only [Set.mem_setOf_eq, Set.mem_univ_pi, hmissdef]
@@ -322,7 +325,7 @@ theorem harvestCodeLaw_miss_le [IsProbabilityMeasure D] {y δₛ : ℝ}
     constructor
     · intro h i; exact h (xs i) (List.mem_ofFn.2 ⟨i, rfl⟩)
     · intro h x hx; obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx; exact h i
-  have hmisseq : harvestMiss read D k H site N = (D miss) ^ N := by
+  have hmisseq : harvestMiss read D k H site T N = (D miss) ^ N := by
     rw [harvestMiss, hset, Measure.pi_pi, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
   rw [hmisseq]
   -- Push the real bound through to ENNReal.
@@ -372,9 +375,9 @@ theorem harvestCode_reads_card_le {L : ℕ} (hxs : ∀ x ∈ xs, x.toList.length
 through `harvestFirstReads`, so two readers agreeing there return the same string.  This is the
 bounded (per-run) congruence; the per-measure version is false. -/
 theorem harvestFirst_congr {read read' : FreeMonoid α → ARU} (k : ℕ) (H : HypothesisDFA α)
-    (site : Level3Site) (xs : List (FreeMonoid α))
+    (site : Level3Site) (T : Set (FreeMonoid α)) (xs : List (FreeMonoid α))
     (h : ∀ w ∈ harvestFirstReads read H.tree H.edges k xs, read w = read' w) :
-    harvestFirst read k H site xs = harvestFirst read' k H site xs := by
+    harvestFirst read k H site T xs = harvestFirst read' k H site T xs := by
   classical
   have hmem : ∀ (l : List (FreeMonoid α)) (x : FreeMonoid α), x ∈ l →
       ∀ w ∈ Kappa.probeReads read H.tree H.edges k x,
@@ -400,35 +403,19 @@ theorem harvestFirst_congr {read read' : FreeMonoid α → ARU} (k : ℕ) (H : H
     cases site <;> simp only [siteHarvest, hpo]
   have key : ∀ (l : List (FreeMonoid α)),
       (∀ x ∈ l, siteHarvest read k H site x = siteHarvest read' k H site x) →
-      l.findSome? (fun x => (siteHarvest read k H site x).head?)
-        = l.findSome? (fun x => (siteHarvest read' k H site x).head?) := by
+      l.findSome? (fun x => (siteHarvest read k H site x).head?.filter fun z => z ∉ T)
+        = l.findSome? (fun x => (siteHarvest read' k H site x).head?.filter fun z => z ∉ T) := by
     intro l
     induction l with
     | nil => intro _; rfl
     | cons a rest ih =>
       intro hl
       rw [List.findSome?_cons, List.findSome?_cons, hl a (List.mem_cons.2 (Or.inl rfl))]
-      cases hb : (siteHarvest read' k H site a).head? with
+      cases hb : (siteHarvest read' k H site a).head?.filter fun z => z ∉ T with
       | none => simp only [hb]; exact ih (fun x hx => hl x (List.mem_cons.2 (Or.inr hx)))
       | some b => simp only [hb]
   simpa only [harvestFirst] using key xs hsite
 
 end Random
-
-open MeasureTheory in
-/-- The operational population equals the handed-on one in law: the bounded-rejection sampler at
-any cap `N ≥ 1` reproduces `popLaw (harvestLaw …)` exactly (via `harvestCodeLaw_popLaw_eq`), so the
-loop can be rewired to `populationOp` without changing any population it hands on. -/
-theorem LoopRound.populationOp_eq_population {α : Type*} [Fintype α]
-    {Ω : Type*} [MeasurableSpace Ω] {K N : ℕ}
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hN : 0 < N) (k : ℕ)
-    (o : LoopRound Ω α K) :
-    o.populationOp D k N = o.population D k := by
-  unfold LoopRound.populationOp LoopRound.population
-  rcases o.result.ending.harvested with _ | site
-  · rfl
-  · simp only [Option.map_some]
-    rw [Random.harvestCodeLaw_popLaw_eq (read := o.read) (D := D) (k := k)
-      (H := o.result.hypothesis) (site := site) (N := N) hN]
 
 end OrthoDFA
