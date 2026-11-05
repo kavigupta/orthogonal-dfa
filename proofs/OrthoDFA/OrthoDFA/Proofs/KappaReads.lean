@@ -1,5 +1,6 @@
 import OrthoDFA.LowLevelClaims.Level5Claim
 import OrthoDFA.Proofs.EpsSteps
+import OrthoDFA.Code.Reads
 
 /-!
 # What a probe reads
@@ -25,15 +26,6 @@ variable {α : Type*}
 
 section Sift
 
-open scoped Classical in
-/-- The strings sifting `z` reads. -/
-noncomputable def siftReads (read : FreeMonoid α → ARU) :
-    DTree α → FreeMonoid α → Finset (FreeMonoid α)
-  | .leaf, _ => ∅
-  | .node m r a, z => insert (z * m) (match read (z * m) with
-    | .accept => siftReads read a z
-    | .reject => siftReads read r z
-    | .undecided => ∅)
 
 theorem siftReads_congr {rd rd' : FreeMonoid α → ARU} : ∀ (T : DTree α) (z : FreeMonoid α),
     (∀ w ∈ siftReads rd T z, rd w = rd' w) →
@@ -254,38 +246,6 @@ end Search
 
 section Probe
 
-/-- The positions whose sifts a search reads: those it queries, and those its result names. -/
-def searchPos (res : SearchResult × List ℕ) (hi : ℕ) : List ℕ :=
-  res.2 ++ match res.1 with
-    | .edge p => [p - 1, p]
-    | .undecidedMid p => [p]
-    | .undecidedHi => [hi]
-    | _ => []
-
-open scoped Classical in
-/-- The strings the sifts of the prefixes of `x` at the positions `ps` read. -/
-noncomputable def posReads (read : FreeMonoid α → ARU) (T : DTree α) (x : FreeMonoid α)
-    (ps : List ℕ) : Finset (FreeMonoid α) :=
-  ps.toFinset.biUnion fun p => siftReads read T (prefixOf x p)
-
-open scoped Classical in
-/-- The strings a probe reads. -/
-noncomputable def probeReads (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
-    (x : FreeMonoid α) : Finset (FreeMonoid α) :=
-  if x.toList.length < k then ∅ else
-  siftReads read T (prefixOf x k) ∪
-    match T.sift read (prefixOf x k) with
-    | .inr _ => ∅
-    | .inl a =>
-      let hi := k + (walk E a (x.toList.drop k)).length - 1
-      let sr := posReads read T x (searchPos (tripartiteSearch false
-        (siftAgrees read T x fun p => (walk E a (x.toList.drop k)).getD (p - k) []) k hi) hi)
-      match x.toList[hi]? with
-      | some _ => siftReads read T (prefixOf x (hi + 1)) ∪
-        match T.sift read (prefixOf x (hi + 1)) with
-        | .inr _ => ∅
-        | .inl _ => sr
-      | none => sr
 
 theorem mem_posReads {rd : FreeMonoid α → ARU} {T : DTree α} {x w : FreeMonoid α}
     {ps : List ℕ} : w ∈ posReads rd T x ps ↔ ∃ p ∈ ps, w ∈ siftReads rd T (prefixOf x p) := by

@@ -1,6 +1,7 @@
 import OrthoDFA.LowLevelClaims.Level4Claim
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsTrue
+import OrthoDFA.Code.Reads
 
 /-!
 # Level 4's steps
@@ -34,23 +35,6 @@ structure WitInv (s : Level3State α) : Prop where
     leafOf M side s.tree (M.eval w.toList) = p
       ∧ leafOf M side s.tree (M.eval (w * FreeMonoid.of c).toList) = t
 
-open scoped Classical in
-/-- Each learned edge's witness's successor followed by a midfix of `T'`. -/
-noncomputable def resifts (s : Level3State α) (T' : DTree α) : Finset (FreeMonoid α) :=
-  (s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).biUnion fun e =>
-    match s.edges e with
-    | some (_, w) => (mids T').image ((w * FreeMonoid.of e.2) * ·)
-    | none => ∅
-
-/-- What a step's split re-sifts. -/
-noncomputable def splitReads (s : Level3State α) (x : FreeMonoid α) : Finset (FreeMonoid α) :=
-  match probeOrAgree read s.tree s.edges C.walkStart x with
-  | .wrongEdge p c _ t =>
-    match s.edges (p, c) with
-    | some (t₀, _) =>
-      resifts s (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p)
-    | none => ∅
-  | _ => ∅
 
 /-! ## The invariant -/
 

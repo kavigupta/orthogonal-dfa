@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.RandomRisk
 import OrthoDFA.Proofs.Level2Steps
+import OrthoDFA.Code.Reads
 
 /-!
 # The tree and the steps under reads that are never wrong
@@ -23,11 +24,6 @@ variable {α : Type*}
 def NoWrong {σ : Type*} (M : DFA α σ) (side : σ → Bool) (read : FreeMonoid α → ARU) : Prop :=
   ∀ z, read z ≠ if side (M.eval z.toList) then .reject else .accept
 
-open scoped Classical in
-/-- The midfixes of the tree's nodes. -/
-noncomputable def mids : DTree α → Finset (FreeMonoid α)
-  | .leaf => ∅
-  | .node m r a => insert m (mids r ∪ mids a)
 
 open scoped Classical in
 /-- The strings a probe of `x` can read: a prefix of length at least `k` followed by a midfix. -/

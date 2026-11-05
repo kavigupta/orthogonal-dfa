@@ -596,7 +596,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     have : cap * ε ≤ cap * 1 := mul_le_mul_of_nonneg_left (by linarith) hcap0.le
     linarith
   set Dsf : Measure (FreeMonoid α) := prefixLaw D Ls with hDsfd
-  have hD := hmain Dsf inferInstance (prefixLaw_length D hlong) hpAPu hatom
+  have hD := (hmain Dsf inferInstance (prefixLaw_length D hlong) hpAPu hatom).1
   set T := settings.level3.probeBudget
   set μL := loopMeasure μ α (Fintype.card σ + 1) T
   set β := Measure.pi fun _ : Fin n => prefixLaw D L

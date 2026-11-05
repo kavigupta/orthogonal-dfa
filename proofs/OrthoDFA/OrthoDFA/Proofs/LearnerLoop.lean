@@ -445,12 +445,19 @@ def LoopCore : Prop :=
       Dsf {v | v.toList.length ≠ Ls} = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ v, Dsf.real {v} ≤ cap) →
-      (loopMeasure μ α K settings.level3.probeBudget).real
+      ((loopMeasure μ α K settings.level3.probeBudget).real
           {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
             ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                 o.Checks M O P.D C.walkStart (513 / 512 * εcov + 2 * indecisionLimit + 2 * slack)
                   (2 * indecisionLimit + slack) (C.disagreementRate + mr) E (u + mr))
               ∧ RoundsFresh settings O P.D Dsf (P.L + settings.level3.probeBudget + 2) Ls p)}
+        ≤ (Fintype.card σ + 1) * (δc + gateLevel
+          + (C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
+            (2 * prefixMax P.D C.walkStart) (2 * (Fintype.card σ + 1) * cross) u)))
+      ∧ (loopMeasure μ α K settings.level3.probeBudget).real
+          {p | let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
+            ∃ i, i ≤ Fintype.card σ ∧ ∃ _ : i < rounds.length,
+              rounds[i].result.hypothesis.tree ∉ Random.classSet (Fintype.card σ)}
         ≤ (Fintype.card σ + 1) * (δc + gateLevel
           + (C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
             (2 * prefixMax P.D C.walkStart) (2 * (Fintype.card σ + 1) * cross) u))
@@ -757,12 +764,16 @@ theorem loop_core_holds : LoopCore := by
       have : 0 ≤ δc + gate + δ3 := by simp only [hδ3d]; nlinarith
       exact this
   -- a failing run fails one of the first `|Q| + 1` rounds' claims
-  have hsub : {p : Ω × (Fin K → RoundDraws α K T) |
+  have hsub : ({p : Ω × (Fin K → RoundDraws α K T) |
       let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.Checks M O P.D k (513 / 512 * εcov + 2 * ι + 2 * slack) (2 * ι + slack)
             (C.disagreementRate + mr) E (u + mr))
         ∧ RoundsFresh settings O P.D Dsf N Ls p)}
+      ∪ {p : Ω × (Fin K → RoundDraws α K T) |
+        let rounds := indecisiveLStarLoop settings O P.D Dsf (persistDraws p)
+        ∃ i, i ≤ Fintype.card σ ∧ ∃ _ : i < rounds.length,
+          rounds[i].result.hypothesis.tree ∉ Random.classSet (Fintype.card σ)})
       ⊆ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r := by
     intro p hp
     by_contra hno
@@ -878,18 +889,25 @@ theorem loop_core_holds : LoopCore := by
       ((mul_nonneg (by positivity) hpm0).trans hmr) (by linarith) hcond
       (fun pops B hB => (hband pops B hB).1)
       fun i hi hiσ => (hspec i hiσ hi).1
-    refine hp ⟨hag, fun i hi => ?_⟩
-    have hle := hag.1
-    unfold indecisiveLStarLoop at hle hi
-    exact (hspec i (by omega) hi).2
-  calc μL.real _ ≤ μL.real (⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r) :=
-        measureReal_mono hsub (measure_ne_top _ _)
-    _ ≤ ∑ r ∈ Finset.range (Fintype.card σ + 1), μL.real (Ev r) := measureReal_biUnion_finset_le _ _
-    _ ≤ ∑ _r ∈ Finset.range (Fintype.card σ + 1), (δc + gate + δ3) :=
-        Finset.sum_le_sum fun r _ => hEv r
-    _ = (Fintype.card σ + 1) * (δc + gate + δ3) := by
-        rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
-        push_cast
-        ring
+    rcases hp with hp | hp
+    · refine hp ⟨hag, fun i hi => ?_⟩
+      have hle := hag.1
+      unfold indecisiveLStarLoop at hle hi
+      exact (hspec i (by omega) hi).2
+    · obtain ⟨i, hiσ, hi, htree⟩ := hp
+      exact htree (hspec i hiσ hi).1.2.2.1
+  have hcalc : μL.real _ ≤ (Fintype.card σ + 1) * (δc + gate + δ3) :=
+    calc μL.real _ ≤ μL.real (⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r) :=
+          measureReal_mono hsub (measure_ne_top _ _)
+      _ ≤ ∑ r ∈ Finset.range (Fintype.card σ + 1), μL.real (Ev r) :=
+          measureReal_biUnion_finset_le _ _
+      _ ≤ ∑ _r ∈ Finset.range (Fintype.card σ + 1), (δc + gate + δ3) :=
+          Finset.sum_le_sum fun r _ => hEv r
+      _ = (Fintype.card σ + 1) * (δc + gate + δ3) := by
+          rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+          push_cast
+          ring
+  exact ⟨(measureReal_mono Set.subset_union_left (measure_ne_top _ _)).trans hcalc,
+    (measureReal_mono Set.subset_union_right (measure_ne_top _ _)).trans hcalc⟩
 
 end OrthoDFA
