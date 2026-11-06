@@ -269,7 +269,7 @@ variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Me
 omit [IsProbabilityMeasure μ] in
 /-- Each earlier round's data hold the prefixes and suffixes its clustering read. -/
 lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap) (ω : Ω)
+    (ω : Ω)
     (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     ∀ r i, i < (histCodes settings O D Dsf ω g r).length → ∃ hiK : i < K, ∃ code,
       (histCodes settings O D Dsf ω g r)[i]? = some code
@@ -283,14 +283,14 @@ lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D
   | 0, i, hi => by simp [histCodes, idealRounds, codesOf] at hi
   | r + 1, i, hi => by
     by_cases hrK : r < K
-    · have hy := codesOf_idealRounds_succ settings O D Dsf hlen
-        (Nat.le_trans (Nat.le_add_right _ 2) hN) (fun i => (ω, g i)) r hrK
+    · have hy := codesOf_idealRounds_succ settings O D Dsf (ae_lenBound hlen) (N := codeLen settings D) le_rfl
+        (fun i => (ω, g i)) r hrK
       set c := histCodes settings O D Dsf ω g r with hcd
       have hy' : histCodes settings O D Dsf ω g (r + 1) = if c.length = r then
-          c ++ (popCode settings.level3.harvestReadCap
+          c ++ (popCode (codeLen settings D)
             (idealRound settings O D Dsf (decodeHist c)
               (ω, g ⟨r, hrK⟩))).toList else c := hy
-      have ih := histCodes_getElem hlen hN ω g r
+      have ih := histCodes_getElem hlen ω g r
       by_cases hcl : c.length = r
       · rw [if_pos hcl] at hy'
         rw [hy'] at hi ⊢
@@ -304,7 +304,7 @@ lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D
           · rw [ht]; exact h1
           · rw [ht]; exact h2
         · revert hi
-          rcases ho : popCode settings.level3.harvestReadCap (idealRound settings O D Dsf
+          rcases ho : popCode (codeLen settings D) (idealRound settings O D Dsf
               (decodeHist c) (ω, g ⟨r, hrK⟩)) with _ | code
           · intro hi
             simp only [Option.toList_none, List.append_nil] at hi
@@ -333,7 +333,7 @@ lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D
         simp only [histCodes]
         rw [idealRounds_succ, dif_neg (fun h' => hrK h'.1)]
       rw [hst] at hi ⊢
-      exact histCodes_getElem hlen hN ω g r i hi
+      exact histCodes_getElem hlen ω g r i hi
 
 end Codes
 
@@ -411,7 +411,7 @@ omit [IsProbabilityMeasure μ] in
 /-- Where every uniform is below `1`, no round through `r` reads a string an earlier round read,
 and every string read has a length its distribution gives mass. -/
 theorem noColl_of_allLt (Ls : ℕ)
-    (hN : P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap) (hLs : P.L < Ls)
+    (hLs : P.L < Ls)
     (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0) (ω : Ω)
     (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) (r : ℕ) (hr : r < K)
     (hlen : (histCodes settings O P.D Dsf ω g r).length = r)
@@ -501,7 +501,7 @@ theorem noColl_of_allLt (Ls : ℕ)
     intro i hir
     have hic : i.1 < c.length := by omega
     obtain ⟨hiK, code, hget, h1, h2⟩ :=
-      histCodes_getElem settings O P.D Dsf P.length_le hN ω g r i hic
+      histCodes_getElem settings O P.D Dsf P.length_le ω g r i hic
     have hmem : code ∈ c := List.mem_of_getElem? hget
     refine ⟨fun p hp => ?_, fun v hv => ?_⟩
     · simp only [H, decodeHist]
@@ -525,7 +525,7 @@ theorem noColl_of_allLt (Ls : ℕ)
 /-- Round `r` reads a prefix or a suffix an earlier round read, or a string of a length its
 distribution gives no mass, with chance zero. -/
 theorem loop_coll_null (Ls : ℕ)
-    (hN : P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap) (hLs : P.L < Ls)
+    (hLs : P.L < Ls)
     (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0) (r : ℕ) (hr : r < K) :
     (loopMeasure μ α K settings.level3.harvestReadCap settings.level3.probeBudget)
       {p | (histCodes settings O P.D Dsf p.1 p.2 r).length = r
@@ -541,7 +541,7 @@ theorem loop_coll_null (Ls : ℕ)
   measure_mono_null (by
     intro p hp hlt
     obtain ⟨hlen, hsupp, hpm, hsm, hnc⟩ := hp
-    exact hnc (noColl_of_allLt settings O P Dsf Ls hN hLs hDsf p.1 p.2 r hr hlen hsupp hpm
+    exact hnc (noColl_of_allLt settings O P Dsf Ls hLs hDsf p.1 p.2 r hr hlen hsupp hpm
       hsm hlt))
     (allLt_ae settings r)
 

@@ -150,6 +150,30 @@ theorem runInv_step {X : List (FreeMonoid α)} {s s' : Level3State α} {x : Free
     · simp only [splitLeaf, newHypothesis]; rw [hlen]
   · exact ⟨⟨⟨hs.inv.edges, hs.inv.cls, hs.inv.two⟩, hs.keys, hs.wit⟩, by simp [countProbe]⟩
 
+theorem leaves_le_step {X : List (FreeMonoid α)} {s s' : Level3State α} {x : FreeMonoid α}
+    (hs : RunInv read C X s) (h : applyProbe read C s x = .inl s') :
+    s.tree.leaves.length ≤ s'.tree.leaves.length := by
+  rcases step_cases read C hs.inv h with
+    ⟨p, c, u, t, -, -, -, -, -, rfl⟩ | ⟨p, c, u, t, t₀, w₀, -, -, -, hp, -, -, rfl⟩ | ⟨rfl, -, -⟩
+  · simp [newHypothesis]
+  · simp only [splitLeaf, newHypothesis]
+    rw [DTree.length_leaves_splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀))
+      s.tree p hp]
+    omega
+  · simp [countProbe]
+
+/-- A run's tree never loses a leaf. -/
+theorem leaves_le_runProbes {X : List (FreeMonoid α)} :
+    ∀ (xs : List (FreeMonoid α)) (s : Level3State α), (∀ x ∈ xs, x ∈ X) → RunInv read C X s →
+      s.tree.leaves.length ≤ (runProbes read C s xs).1.tree.leaves.length
+  | [], s, _, _ => by simp [runProbes]
+  | x :: xs, s, hX, hs => by
+    simp only [runProbes]
+    rcases ha : applyProbe read C s x with s' | e
+    · exact (leaves_le_step read C hs ha).trans (leaves_le_runProbes xs s'
+        (fun y hy => hX y (by simp [hy])) (runInv_step read C (hX x (by simp)) hs ha).1)
+    · exact le_rfl
+
 theorem runInv_runProbes {X : List (FreeMonoid α)} :
     ∀ (xs : List (FreeMonoid α)) (s : Level3State α), (∀ x ∈ xs, x ∈ X) → RunInv read C X s →
       RunInv read C X (runProbes read C s xs).1

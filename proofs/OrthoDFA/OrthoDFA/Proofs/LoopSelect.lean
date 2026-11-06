@@ -163,7 +163,6 @@ theorem selG_unique (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) (ω : Ω)
     (x : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) {r r' : ℕ} (hr : r < K)
     (hr' : r' < K) (hrr : r < r')
-    (hN : P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap)
     (h : SelG r (stageSel settings O P.D Dsf r hr ω x))
     (h' : SelG r'
       (stageSel settings O P.D Dsf r' hr' ω x)) :
@@ -178,17 +177,17 @@ theorem selG_unique (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
   obtain ⟨c', B', F', K₀'⟩ := a'
   obtain ⟨-, hc', -⟩ := (stage4_eq_some settings O P.D Dsf r' hr' ω x c' B' F' K₀').1 h4'
   have hcl : ((idealRounds settings O P.D Dsf draws r').filterMap
-      (popCode settings.level3.harvestReadCap)).length = r' :=
+      (popCode (codeLen settings P.D))).length = r' :=
     (congrArg List.length hc').trans hlen'
   have hlr : (idealRounds settings O P.D Dsf draws r').length = r' := by
-    have := List.length_filterMap_le (popCode settings.level3.harvestReadCap)
+    have := List.length_filterMap_le (popCode (codeLen settings P.D))
       (idealRounds settings O P.D Dsf draws r')
     have := length_idealRounds_le settings O P.D Dsf draws r'
     omega
   have hall : ∀ o ∈ idealRounds settings O P.D Dsf draws r', o.result.ending.harvested ≠ none := by
     intro o ho hno
     have := (List.length_filterMap_lt_length_iff_exists
-      (f := popCode settings.level3.harvestReadCap)
+      (f := popCode (codeLen settings P.D))
       (xs := idealRounds settings O P.D Dsf draws r')).2 ⟨o, ho, by simp [popCode, hno]⟩
     omega
   have htake := take_idealRounds settings O P.D Dsf draws (le_of_lt hr')
@@ -202,7 +201,7 @@ theorem selG_unique (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     simp only [← htake, List.getElem_take] at this
     exact this
   -- round `r` is what `stageSel` records, and it ended consistent
-  obtain ⟨hK, -, -, e⟩ := persist_bridge settings O P.D Dsf P.length_le hN (ω, x) r hrK
+  obtain ⟨hK, -, -, e⟩ := persist_bridge settings O P.D Dsf P.length_le (ω, x) r hrK
   obtain ⟨t, hh, e₁, -, htrue⟩ := h
   obtain ⟨a, h4, ha⟩ := Option.map_eq_some_iff.1 e₁
   simp only [Prod.mk.injEq] at ha
@@ -230,7 +229,6 @@ theorem loop_select_le (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α
     (Dh : Measure (FreeMonoid α)) [IsProbabilityMeasure Dh] (Ls L n nL NP : ℕ) (t p₀ : ℝ)
     (ht : 0 ≤ t) (hlen : Dh {x | x.toList.length ≠ L} = 0)
     (hpre : ∀ u, Dh.real {x | prefixOf x settings.level3.walkStart = u} ≤ p₀)
-    (hN : P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP) :
     ((loopMeasure μ α K settings.level3.harvestReadCap settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => Dh)).real
@@ -268,8 +266,8 @@ theorem loop_select_le (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α
     (fun rK rK' ω x h h' => by
       by_contra hne
       rcases Nat.lt_or_gt_of_ne (Fin.val_ne_of_ne hne) with hlt | hlt
-      · exact selG_unique settings O P Dsf ω x rK.2 rK'.2 hlt hN h h'
-      · exact selG_unique settings O P Dsf ω x rK'.2 rK.2 hlt hN h' h)
+      · exact selG_unique settings O P Dsf ω x rK.2 rK'.2 hlt h h'
+      · exact selG_unique settings O P Dsf ω x rK'.2 rK.2 hlt h' h)
     (fun rK y hy => by
       obtain ⟨t', h', rfl, -, -⟩ := hy
       have hset : {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap T) | stage rK p.1 p.2 = some (t', h')}
@@ -290,7 +288,7 @@ theorem loop_select_le (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α
         · rintro ⟨ht, he⟩
           exact ⟨t', ht, by simp only [Prod.mk.injEq]; exact ⟨trivial, he⟩⟩
       rw [hset]
-      refine (measurableSet_stage4 settings O P.D Dsf P.length_le hN rK rK.2 _).inter ?_
+      refine (measurableSet_stage4 settings O P.D Dsf P.length_le rK rK.2 _).inter ?_
       refine (measurable_fst.prodMk ((measurable_probesOf settings P.D _).comp
         (measurable_snd.comp ((measurable_pi_apply rK).comp measurable_snd)))) ?_
       refine measurableSet_prod_countable_right _ fun xs => ?_
@@ -314,7 +312,7 @@ theorem loop_select_le (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α
       simp only [Prod.mk.injEq] at he
       obtain ⟨rfl, he⟩ := he
       obtain ⟨c, B, F, K₀⟩ := t''
-      have h4 := stage4_stop settings O P.D Dsf P.length_le hN rK rK.2 c B F K₀ x ω ω' ω₀ ht4
+      have h4 := stage4_stop settings O P.D Dsf P.length_le rK rK.2 c B F K₀ x ω ω' ω₀ ht4
         (fun w hw => h w (Finset.mem_union_left _ hw))
       have hres : stageRes settings O P.D (c, B, F, K₀) ω (x rK).2
           = stageRes settings O P.D (c, B, F, K₀) ω' (x rK).2 :=
@@ -465,7 +463,6 @@ variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (P : Prefix
 /-- Where the rounds ran fresh, the last round is what `stageSel` records, and its draws are
 `SelOk`'s. -/
 theorem stageSel_last (Ls : ℕ)
-    (hN : P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap)
     (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
     (hfr : RoundsFresh settings O P.D Dsf Ls p)
     (o : SpecRound α)
@@ -496,7 +493,7 @@ theorem stageSel_last (Ls : ℕ)
     rw [List.getLast?_eq_getElem?] at ho
     exact (List.getElem?_eq_some_iff.1 (Option.mem_def.1 ho)).2
   obtain ⟨hK, hok, hret, hnc⟩ := hfr r hrl
-  obtain ⟨hK', hlen, -, e⟩ := persist_bridge settings O P.D Dsf P.length_le hN p r hrl
+  obtain ⟨hK', hlen, -, e⟩ := persist_bridge settings O P.D Dsf P.length_le p r hrl
   set c := histCodes settings O P.D Dsf p.1 p.2 r
   set H := decodeHist c
   set cd : ClusterDraws Ω α K settings.level3.harvestReadCap := (p.1, (p.2 ⟨r, hK⟩).1)

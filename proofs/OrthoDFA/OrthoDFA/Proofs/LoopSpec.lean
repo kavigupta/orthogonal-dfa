@@ -113,7 +113,8 @@ def roundOf {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
 open scoped Classical in
 /-- The round after the history `h`: the clustering's draws off what the earlier rounds read, then
 the clustering on them and level 3.  `none` if a harvested draw misses, the clustering would read
-past the `scanCap` draws, or no state of the schedule returns. -/
+past the `scanCap` draws, no state of the schedule returns, or level 3's tree has more than
+`leafCap` leaves. -/
 def loopRound {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) :
@@ -122,8 +123,10 @@ def loopRound {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid �
   (clusterDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap h
       (d.1, d.2.1)).bind fun dr =>
     if ScanWithin (settings.schedule ps) ps settings.scanCap dr
-        ∧ ∃ B ∈ settings.schedule ps, streams (fun _ => ∅) none dr
-          ∈ ret O.mq ps none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
+        ∧ (∃ B ∈ settings.schedule ps, streams (fun _ => ∅) none dr
+          ∈ ret O.mq ps none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
+        ∧ (roundOf settings O D h (streams (fun _ => ∅) none dr) d.2.2).result.hypothesis.tree.leaves.length
+          ≤ settings.level3.leafCap
     then some (roundOf settings O D h (streams (fun _ => ∅) none dr) d.2.2)
     else none
 

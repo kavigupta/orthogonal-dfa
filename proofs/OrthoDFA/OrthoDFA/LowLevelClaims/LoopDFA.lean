@@ -170,9 +170,8 @@ def LearnerLoopDFASimple : Prop :=
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The clustering's scan cap: twice the distinct draws each population's sides need.
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
-  -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
-  -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+  -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
+  let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -194,7 +193,7 @@ def LearnerLoopDFASimple : Prop :=
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -262,9 +261,8 @@ def LearnerLoopDFA : Prop :=
   -- count bounded as above.
   let SC : ℝ := 8 * (Q + 4) * ((L₁ + 1) ^ 2 * (1 + Real.log (L₁ + 1)) * R₀)
     + 16 * Real.log (16 * (Q + 2) / δ') + 2
-  -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
-  -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+  -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
+  let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -280,7 +278,7 @@ def LearnerLoopDFA : Prop :=
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -352,9 +350,8 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let n : ℕ := ⌈512 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The clustering's scan cap: twice the distinct draws each population's sides need.
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
-  -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
-  -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+  -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
+  let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -379,7 +376,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -451,9 +448,8 @@ def LearnerLoopDFARelative : Prop :=
   -- count bounded as above.
   let SC : ℝ := 8 * (Q + 4) * ((L₁ + 1) ^ 2 * (1 + Real.log (L₁ + 1)) * R₀)
     + 16 * Real.log (16 * (Q + 2) / δ') + 2
-  -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
-  -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+  -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
+  let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -472,7 +468,7 @@ def LearnerLoopDFARelative : Prop :=
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -543,9 +539,8 @@ def LearnerLoopDFADist : Prop :=
   let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
   -- The clustering's scan cap: twice the distinct draws each population's sides need.
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
-  -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
-  -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+  -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
+  let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -575,7 +570,7 @@ def LearnerLoopDFADist : Prop :=
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => prefixLaw D L)).real

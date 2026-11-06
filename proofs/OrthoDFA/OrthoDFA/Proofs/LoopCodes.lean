@@ -7,7 +7,8 @@ Level 3's edge tables only ever hold edges out of the tree's leaves, finitely ma
 probes its midfixes are at most `T` long, so a probe at most `L` long walked under the round's last
 hypothesis reads only strings at most `L + T` long. So the sampler a round hands on is fixed, on
 probes at most `L` long, by finite data: its harvest's site, its last hypothesis's tree and edge
-graph, and the round's reads of the strings at most `N` long (`decodePop_alike`). The data range
+graph, and the round's reads of the strings at most `N` long (`decodePop_alike`), `N` at least
+`lenBound D + T`, `lenBound D` the length `D`'s strings almost surely keep within. The data range
 over a countable type, so a round can be split off from the rounds before it; and alike samplers
 draw alike, run by run (`idealRun_alike`).
 -/
@@ -254,6 +255,15 @@ theorem decodeHist_alike {L N : ℕ} (C : Random.Level3Settings) (hN : L + C.pro
     simp only [decodeHist, codesOf, specHistOf, List.filterMap_cons, hc, hs, List.map_cons,
       List.foldr_cons] at ih1 ih2 ih3 ⊢
     exact ⟨List.Forall₂.cons (decodePop_alike C hN o xs ho hc hs) ih1, by rw [ih2], by rw [ih3]⟩
+
+/-- The least `L` with `D`'s strings almost surely at most `L` long; `0` where none is. -/
+noncomputable def lenBound (D : Measure (FreeMonoid α)) : ℕ :=
+  sInf {L : ℕ | ∀ᵐ x ∂D, x.toList.length ≤ L}
+
+theorem ae_lenBound {D : Measure (FreeMonoid α)} {L : ℕ} (h : ∀ᵐ x ∂D, x.toList.length ≤ L) :
+    ∀ᵐ x ∂D, x.toList.length ≤ lenBound D := by
+  have hne : ({L : ℕ | ∀ᵐ x ∂D, x.toList.length ≤ L} : Set ℕ).Nonempty := ⟨L, h⟩
+  exact Nat.sInf_mem hne
 
 /-! ## Alike samplers draw alike -/
 

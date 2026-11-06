@@ -285,7 +285,8 @@ theorem roundOf_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
   rw [← hpred, hr.clusterAt O.mq hB, hr.1, clusterKeys, clusterKeys, hr.roundPrefs, hr.roundSuffs]
 
 /-- Where the filled draws after the history `h` hit, scan within `scanCap` and return at a
-scheduled state, the round is the one on the filled draws. -/
+scheduled state, and level 3 on them keeps within `leafCap` leaves, the round is the one on the
+filled draws. -/
 theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
@@ -297,7 +298,10 @@ theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
     (hret : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
       idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)
         ∈ ret O.mq (loopPopulations K h.pops.length) none settings.η₀ settings.indecisionLimit
-          settings.εcov settings.gateLevel B) :
+          settings.εcov settings.gateLevel B)
+    (hcap : (roundOf settings O D h
+      (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))
+      d.2.2).result.hypothesis.tree.leaves.length ≤ settings.level3.leafCap) :
     loopRound settings O D Dsf h d = some (roundOf settings O D h
       (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))
       d.2.2) := by
@@ -313,8 +317,9 @@ theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
     exact ⟨B, hB, (hsr.ret O.mq none _ _ _ _ hB).1 hx⟩
   unfold loopRound
   simp only [hdr, Option.bind_some]
-  rw [if_pos ⟨scanWithin_agree hag.symm hscan, hret'⟩]
-  exact congrArg some (roundOf_congr settings O D h hsr' hret' d.2.2)
+  have hro := roundOf_congr settings O D h hsr' hret' d.2.2
+  rw [if_pos ⟨scanWithin_agree hag.symm hscan, hret', by rw [hro]; exact hcap⟩]
+  exact congrArg some hro
 
 end OrthoDFA
 

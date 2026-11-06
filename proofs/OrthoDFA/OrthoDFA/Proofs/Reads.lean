@@ -3,9 +3,7 @@ import OrthoDFA.Code.Level3Harvest
 /-!
 # What level 3 reads
 
-The strings a probe reads (`probeReads`) and a split re-sifts (`splitReads`), and the reads a
-level-3 run makes, counted per step (`runReadCount`): each step's probe and split reads, summed
-over the steps the run takes.
+The strings a probe reads (`probeReads`) and a split re-sifts (`splitReads`).
 -/
 
 namespace OrthoDFA
@@ -95,16 +93,6 @@ noncomputable def splitReads (s : Level3State α) (x : FreeMonoid α) : Finset (
   | _ => ∅
 
 end Eps
-
-/-- The reads a level-3 run from `s` over `xs` makes, each step's probe and split reads, up to the
-step that ends the round. -/
-noncomputable def runReadCount : Level3State α → List (FreeMonoid α) → ℕ
-  | _, [] => 0
-  | s, x :: xs =>
-    (Kappa.probeReads read s.tree s.edges C.walkStart x).card + (Eps.splitReads read C s x).card
-      + match applyProbe read C s x with
-        | .inl s' => runReadCount s' xs
-        | .inr _ => 0
 
 end
 

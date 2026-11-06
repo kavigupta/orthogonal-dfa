@@ -63,6 +63,8 @@ structure Level3Settings where
   probeBudget : ℕ
   /-- The cap on probes the bounded-rejection harvest sampler draws per population draw. -/
   harvestReadCap : ℕ
+  /-- As a program, the round fails once its tree has more leaves than this. -/
+  leafCap : ℕ
 
 /-- The tests' level under the `j`-th hypothesis. -/
 noncomputable def Level3Settings.level (C : Level3Settings) (j : ℕ) : ℝ :=
@@ -173,8 +175,9 @@ noncomputable def indecisiveLStarLevel3 (settings : Level3Settings)
 
 /-! ## As a program
 
-Level 3 as a program asking the read (`level3Q`), step for step the run above. A split retargets
-the edges at the tree's leaves, where every learned edge is. -/
+Level 3 as a program asking the read (`level3Q`), step for step the run above, but `none` once its
+tree has more than `leafCap` leaves. A split retargets the edges at the tree's leaves, where every
+learned edge is. -/
 
 section Query
 
@@ -211,19 +214,23 @@ noncomputable def applyProbeQ (s : Level3State α) (x : FreeMonoid α) :
       | none => .pure (applyTests C (countOutcome s o))
     | _ => .pure (applyTests C (countOutcome s o))
 
-/-- `runProbes` as a program. -/
+/-- `runProbes` as a program, `none` at a state with more than `leafCap` leaves. -/
 noncomputable def runProbesQ :
     Level3State α → List (FreeMonoid α) → Query (FreeMonoid α) ARU
-      (Level3State α × RoundEnd Level3Site)
-  | s, [] => .pure (s, .failed)
-  | s, x :: xs => (applyProbeQ C s x).bind fun
-    | .inl s' => runProbesQ s' xs
-    | .inr e => .pure (s, e)
+      (Option (Level3State α × RoundEnd Level3Site))
+  | s, [] => .pure (if s.tree.leaves.length ≤ C.leafCap then some (s, .failed) else none)
+  | s, x :: xs =>
+    if s.tree.leaves.length ≤ C.leafCap then
+      (applyProbeQ C s x).bind fun
+      | .inl s' => runProbesQ s' xs
+      | .inr e => .pure (some (s, e))
+    else .pure none
 
-/-- `indecisiveLStarLevel3` as a program. -/
+/-- `indecisiveLStarLevel3` as a program, `none` once its tree has more than `leafCap` leaves. -/
 noncomputable def level3Q (settings : Level3Settings) {P : ℕ} (draws : Fin P → FreeMonoid α) :
-    Query (FreeMonoid α) ARU (Level3Result α) :=
-  (runProbesQ settings initialState (List.ofFn draws)).map fun r => ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩
+    Query (FreeMonoid α) ARU (Option (Level3Result α)) :=
+  (runProbesQ settings initialState (List.ofFn draws)).map
+    (Option.map fun r => ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩)
 
 end Query
 

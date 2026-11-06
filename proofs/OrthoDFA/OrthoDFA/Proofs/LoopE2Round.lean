@@ -125,14 +125,14 @@ lemma measurableSet_returns [IsProbabilityMeasure D] (r : ℕ) (hr : r < K) (h :
     measurable_idealRun_at settings D Dsf h ⟨r, hr⟩ (measurableSet_ret O _ none _ _ _ _ B)
 
 lemma measurableSet_stage4 [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap) (r : ℕ)
+    (r : ℕ)
     (hr : r < K)
     (y : Option (List (HarvestCode α) × State × Finset (FreeMonoid α) × Finset (FreeMonoid α))) :
     MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
       stage4 settings O D Dsf r hr p.1 p.2 = y} := by
   classical
-  have hhc := measurableSet_histCodes settings O D Dsf hlen hN r
-  have hok := measurableSet_histOK settings O D Dsf hlen hN r
+  have hhc := measurableSet_histCodes settings O D Dsf hlen r
+  have hok := measurableSet_histOK settings O D Dsf hlen r
   set dec := decodeHist (α := α)
   rcases y with _ | ⟨c, B, F, K₀⟩
   · have hset : {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
@@ -189,7 +189,7 @@ lemma roundKeys_eq_prefsOf (h : SpecHist α) (ω : Ω) (c : ClusterRest α K set
 /-- Where the clustering's state test returned, the answers at the strings the earlier rounds and
 it read fix what reaches level 3. -/
 lemma stage4_stop [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap) (r : ℕ)
+    (r : ℕ)
     (hr : r < K) (c : List (HarvestCode α)) (B : State) (F K₀ : Finset (FreeMonoid α))
     (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) (ω ω' ω₀ : Ω)
     (hs : stage4 settings O D Dsf r hr ω g = some (c, B, F, K₀))
@@ -206,7 +206,7 @@ lemma stage4_stop [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.to
     (stage4_eq_some settings O D Dsf r hr ω g c B F K₀).1 hs
   have hst : stageH settings O D Dsf r ω g = some c := by
     simp only [stageH, if_pos h1, h2]
-  have hst' := stageH_stop settings O D Dsf hlen hN r c g ω ω' ω₀ hst
+  have hst' := stageH_stop settings O D Dsf hlen r c g ω ω' ω₀ hst
     fun w hw => h w (Finset.mem_union_left _ hw)
   have hok' : HistOK settings O D Dsf ω' g r := by
     by_contra hn
@@ -263,7 +263,6 @@ collides, fails its claim with chance at most
 -/
 theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP : ℕ) (m u crossLimit : ℝ)
     (hu : 0 ≤ u)
-    (hN : P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap)
     (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
     (hband : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi ∧ 2 ≤ B.k ∧ ∀ N, N + 1 ≤ B.k →
       ∀ p r : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 →
@@ -358,10 +357,10 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP : ℕ) (m 
     (fun w => rfl) rK (stage4 settings O P.D Dsf r hr)
     (fun ω x x' hxx' h1 => stage4_congr_draws settings O P.D Dsf r hr ω x x'
       (fun i hi => hxx' i hi) h1)
-    (measurableSet_stage4 settings O P.D Dsf P.length_le hN r hr) W G
+    (measurableSet_stage4 settings O P.D Dsf P.length_le r hr) W G
     (fun y x ω ω' hG hs h => by
       obtain ⟨⟨c, B, F, K₀⟩, rfl, -⟩ := hG
-      exact stage4_stop settings O P.D Dsf P.length_le hN r hr c B F K₀ x ω ω' ω₀ hs h)
+      exact stage4_stop settings O P.D Dsf P.length_le r hr c B F K₀ x ω ω' ω₀ hs h)
     Bad (fun y hy => by
       rcases y with _ | t
       · rfl
