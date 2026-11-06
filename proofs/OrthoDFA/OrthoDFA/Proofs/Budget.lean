@@ -589,9 +589,8 @@ theorem prefCount_le_split (populations : Finset J)
   have hB16 : B ≤ 16 * s ^ 2 * mn := by
     have ha0 := gateA_pos hη hηlt
     have ha4 : gateA η ≤ 4 * s := by
-      have hne : (0 : ℝ) < 1 - η := by linarith only [hηlt]
-      rw [gateA, div_le_iff₀ hne, hsval]
-      nlinarith only [sq_nonneg (1 - 2 * η)]
+      rw [gateA, hsval]
+      linarith only [hηlt]
     have h := pow_le_pow_left₀ ha0.le ha4 2
     nlinarith only [hBa, h, hmn0]
   have hB8 : B ^ 2 ≤ 8 * s ^ 2 * B' := by

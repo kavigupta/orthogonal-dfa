@@ -140,7 +140,7 @@ def LearnerLoopDFASimple : Prop :=
   let ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1)))
   let s : ℝ := 1 / 2 - η₀
   -- The clustering gate's rate scale.
-  let τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
+  let τ : ℝ := min ((εcov / 2) * (1 - 2 * η₀) ^ 2) ι
   -- The clustering's populations.
   let J : ℝ := Q + 2
   -- Bounds the hypotheses a round goes through.
@@ -322,7 +322,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1)))
   let s : ℝ := 1 / 2 - η₀
   -- The clustering gate's rate scale.
-  let τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
+  let τ : ℝ := min ((εcov / 2) * (1 - 2 * η₀) ^ 2) ι
   -- The clustering's populations.
   let J : ℝ := Q + 2
   -- Bounds the hypotheses a round goes through.
@@ -513,7 +513,7 @@ def LearnerLoopDFADist : Prop :=
   let ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1)))
   let s : ℝ := 1 / 2 - η₀
   -- The clustering gate's rate scale.
-  let τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
+  let τ : ℝ := min ((εcov / 2) * (1 - 2 * η₀) ^ 2) ι
   -- The clustering's populations.
   let J : ℝ := Q + 2
   -- Bounds the hypotheses a round goes through.
