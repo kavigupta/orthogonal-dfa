@@ -403,12 +403,13 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ}
 omit [IsProbabilityMeasure μ] [IsProbabilityMeasure Dsf] in
 /-- Where every round the filled draws run is good, the loop runs those rounds. -/
 theorem idealRounds_mem_loop (D : Measure (FreeMonoid α))
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
-      settings.level3.probeBudget)
-    (hg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf draws r) →
-      RoundGood settings O D Dsf (histOf (idealRounds settings O D Dsf draws r)) (draws ⟨r, hr⟩)) :
-    indecisiveLStarLoop settings O D Dsf draws = some (idealRounds settings O D Dsf draws K) :=
-  loopRounds_eq_some settings O D Dsf draws hg K
+    (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (hg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf (persistDraws p) r) →
+      RoundGood settings O D Dsf (histOf (idealRounds settings O D Dsf (persistDraws p) r))
+        (persistDraws p ⟨r, hr⟩)) :
+    indecisiveLStarLoop settings O D Dsf p
+      = some (idealRounds settings O D Dsf (persistDraws p) K) :=
+  loopRounds_eq_some settings O D Dsf (persistDraws p) hg K
 
 end Good
 
@@ -452,15 +453,16 @@ lemma loopRounds_roundOf (n : ℕ) : ∀ rounds, loopRounds settings O D Dsf dra
 
 /-- The rounds the loop runs number at most `K`, each reading at most `a` prefixes and `b`
 suffixes where every clustering run does. -/
-theorem loop_reads_le_op (a b : ℕ)
+theorem loop_reads_le_op
+    (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) (a b : ℕ)
     (h : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ a
         ∧ (roundSuffs (settings.schedule pops) x).card ≤ b) :
-    ∀ rounds, indecisiveLStarLoop settings O D Dsf draws = some rounds → rounds.length ≤ K
+    ∀ rounds, indecisiveLStarLoop settings O D Dsf p = some rounds → rounds.length ≤ K
       ∧ (rounds.map fun o => o.prefs.card).sum ≤ K * a
       ∧ (rounds.map fun o => o.suffs.card).sum ≤ K * b := by
   intro rounds hr
-  obtain ⟨hlen, hro⟩ := loopRounds_roundOf settings O D Dsf draws K rounds hr
+  obtain ⟨hlen, hro⟩ := loopRounds_roundOf settings O D Dsf (persistDraws p) K rounds hr
   have hsum : ∀ (f : LoopRound α → ℕ) (c : ℕ), (∀ o ∈ rounds, f o ≤ c) →
       (rounds.map f).sum ≤ K * c := fun f c hf => by
     refine (List.sum_le_card_nsmul _ c fun n hn => ?_).trans ?_

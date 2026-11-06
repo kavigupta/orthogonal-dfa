@@ -199,7 +199,7 @@ def LearnerLoopDFASimple : Prop :=
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
       {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
-            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1) = some rounds ∧
+            (uniformStrings (L₁ + Fintype.card σ + 3)) q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 x
@@ -285,7 +285,7 @@ def LearnerLoopDFA : Prop :=
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
       {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
-            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1) = some rounds ∧
+            (uniformStrings (L₁ + Fintype.card σ + 3)) q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 x
@@ -384,7 +384,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
       {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
-            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1) = some rounds ∧
+            (uniformStrings (L₁ + Fintype.card σ + 3)) q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 x
@@ -477,7 +477,7 @@ def LearnerLoopDFARelative : Prop :=
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
       {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
-            (uniformStrings (L₁ + Fintype.card σ + 3)) (persistDraws q.1) = some rounds ∧
+            (uniformStrings (L₁ + Fintype.card σ + 3)) q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 x
@@ -580,7 +580,7 @@ def LearnerLoopDFADist : Prop :=
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => prefixLaw D L)).real
       {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-            (persistDraws q.1) = some rounds ∧
+            q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 x
