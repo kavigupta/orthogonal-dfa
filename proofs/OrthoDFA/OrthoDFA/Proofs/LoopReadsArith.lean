@@ -2,46 +2,65 @@ import OrthoDFA.Proofs.LoopDFAArith
 import OrthoDFA.Proofs.LoopQuery
 
 /-!
-# The strings the loop asks, as a real bound
+# The strings the learner asks, as a real bound
 
-`loopReads K a b T M N L A` is `roundCallBound` over `K` rounds with `3 + ⌈log₂ L⌉` and
-`probeSifts L` relaxed to `L + 3` and `L + 1` (`reads_le_loopReads`). `loopSC` and `loopHN` bound
-`LearnerLoopDFASimple`'s scan and harvest caps at `ℓ = L₁ + 1`, the prefix count `RB` at
-`loopCount`.
+`learnerReads` is `K` rounds of `roundCallBound` and the start leaf's `n f` reads, split by
+source, `3 + ⌈log₂ L⌉` standing for the sifts of a probe (`reads_le_learnerReads`). `loopSC` and
+`loopHN` bound `LearnerLoopDFASimple`'s scan and harvest caps at `ℓ = L₁ + 1`, the prefix count
+`RB` at `loopCount`.
 -/
 
 noncomputable section
 
 namespace OrthoDFA
 
-/-- The strings `K` rounds ask, each round's clustering reading at most `a` prefixes and `b` suffixes,
-at probe budget `T`, scan cap `M`, harvest cap `N`, probes at most `L` long and `A` letters. -/
-def loopReads (K a b T M N L A : ℝ) : ℝ :=
-  K * (K * (b * (M * (N * ((L + 3) * (T + 1))))) + a * (b + 1)
-    + b * (T * ((L + 1) * (T + 1) + (T + 2) * A * (T + 2))))
+/-- The clusterings' reads: `K` rounds of `a` prefixes against `b` suffixes and the empty one. -/
+def readsCluster (K a b : ℝ) : ℝ := K * (a * (b + 1))
 
-lemma loopReads_mono {K a b T M N L A K' a' b' T' M' N' L' A' : ℝ} (hK0 : 0 ≤ K) (ha0 : 0 ≤ a)
-    (hb0 : 0 ≤ b) (hT0 : 0 ≤ T) (hM0 : 0 ≤ M) (hN0 : 0 ≤ N) (hL0 : 0 ≤ L) (hA0 : 0 ≤ A)
-    (hK : K ≤ K') (ha : a ≤ a') (hb : b ≤ b') (hT : T ≤ T') (hM : M ≤ M') (hN : N ≤ N')
-    (hL : L ≤ L') (hA : A ≤ A') :
-    loopReads K a b T M N L A ≤ loopReads K' a' b' T' M' N' L' A' := by
+/-- Level 3's reads: `K T` probes, each `lg` sifts down at most `T + 1` mids and a retarget over
+`A` letters, a family read of `f` strings at each. -/
+def readsSearch (K f T lg A : ℝ) : ℝ := K * T * (f * (lg * (T + 1) + (T + 2) * A * (T + 2)))
+
+/-- The samplers' reads: `K` rounds of `K` populations' `M` draws, each walking at most `N`
+probes. -/
+def readsHarvest (K f T M N lg : ℝ) : ℝ := K * (K * (f * (M * (N * (lg * (T + 1))))))
+
+/-- The start leaf's reads: `n` held-out strings, a family read each. -/
+def readsStart (n f : ℝ) : ℝ := n * f
+
+def learnerReads (K a b f T M N lg A n : ℝ) : ℝ :=
+  readsCluster K a b + readsSearch K f T lg A + readsHarvest K f T M N lg + readsStart n f
+
+lemma learnerReads_mono {K a b f T M N lg A n K' a' b' f' T' M' N' lg' A' n' : ℝ} (hK0 : 0 ≤ K)
+    (ha0 : 0 ≤ a) (hb0 : 0 ≤ b) (hf0 : 0 ≤ f) (hT0 : 0 ≤ T) (hM0 : 0 ≤ M) (hN0 : 0 ≤ N)
+    (hlg0 : 0 ≤ lg) (hA0 : 0 ≤ A) (hn0 : 0 ≤ n)
+    (hK : K ≤ K') (ha : a ≤ a') (hb : b ≤ b') (hf : f ≤ f') (hT : T ≤ T') (hM : M ≤ M')
+    (hN : N ≤ N') (hlg : lg ≤ lg') (hA : A ≤ A') (hn : n ≤ n') :
+    learnerReads K a b f T M N lg A n ≤ learnerReads K' a' b' f' T' M' N' lg' A' n' := by
+  have : 0 ≤ K' := hK0.trans hK
+  have : 0 ≤ f' := hf0.trans hf
   have : 0 ≤ T' := hT0.trans hT
   have : 0 ≤ A' := hA0.trans hA
-  unfold loopReads
+  have : 0 ≤ lg' := hlg0.trans hlg
+  have : 0 ≤ M' := hM0.trans hM
+  have : 0 ≤ N' := hN0.trans hN
+  unfold learnerReads readsCluster readsSearch readsHarvest readsStart
   gcongr
-  all_goals linarith
+  all_goals first | positivity | linarith
 
-lemma reads_le_loopReads (K a b T M N L A : ℕ) :
-    ((K * roundCallBound K a b T M N L A : ℕ) : ℝ) ≤ loopReads K a b T M N L A := by
-  have hc : 3 + Nat.clog 2 L ≤ L + 3 := by
-    have := Nat.clog_le_of_le_pow (b := 2) (x := L) (y := L) Nat.lt_two_pow_self.le
-    omega
-  have hp : Random.Kappa.probeSifts L ≤ L + 1 := min_le_left _ _
-  have hc' : ((3 + Nat.clog 2 L : ℕ) : ℝ) ≤ (L : ℝ) + 3 := by exact_mod_cast hc
-  have hp' : (Random.Kappa.probeSifts L : ℝ) ≤ (L : ℝ) + 1 := by exact_mod_cast hp
-  unfold roundCallBound loopReads
-  push_cast at hc' hp' ⊢
-  gcongr
+lemma reads_le_learnerReads (K a b f T M N L A n : ℕ) :
+    ((K * roundCallBound K a b f T M N L A + n * f : ℕ) : ℝ)
+      ≤ learnerReads K a b f T M N ((3 + Nat.clog 2 L : ℕ) : ℝ) A n := by
+  have hp : Random.Kappa.probeSifts L ≤ 3 + Nat.clog 2 L := min_le_right _ _
+  have hp' : (Random.Kappa.probeSifts L : ℝ) ≤ ((3 + Nat.clog 2 L : ℕ) : ℝ) := by exact_mod_cast hp
+  unfold roundCallBound learnerReads readsCluster readsSearch readsHarvest readsStart
+  push_cast at hp' ⊢
+  have h : (K : ℝ) * ((f : ℝ) * (T * (Random.Kappa.probeSifts L * (T + 1) + (T + 2) * A * (T + 2))))
+      ≤ K * T * (f * ((3 + Nat.clog 2 L) * (T + 1) + (T + 2) * A * (T + 2))) := by
+    rw [show (K : ℝ) * T * (f * ((3 + Nat.clog 2 L) * (T + 1) + (T + 2) * A * (T + 2)))
+      = K * (f * (T * ((3 + Nat.clog 2 L) * (T + 1) + (T + 2) * A * (T + 2)))) by ring]
+    gcongr
+  linarith [h]
 
 /-- `LearnerLoopDFASimple`'s scan cap, its prefix count at `loopCount ℓ`. -/
 def loopSC (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=

@@ -51,7 +51,8 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
       ∧ (∀ pops, ∀ B ∈ schedule pops,
         B.nsuff = poolCount η₀ pops indecisionLimit εcov (δc / 2) pAP (crossLimit ^ 4)
         ∧ B.npref ≤ prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel pAP
-          (crossLimit ^ 4) 0)
+          (crossLimit ^ 4) 0
+        ∧ B.k = famCount η₀ pops indecisionLimit εcov (δc / 2) (crossLimit ^ 4) + 1)
       ∧ (∀ pops, ∑ B ∈ schedule pops, B.npref
         ≤ 2 * prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel pAP
           (crossLimit ^ 4) 0)
@@ -119,7 +120,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     · simp at hB
     have hs := (Classical.choose_spec (hq pops hp)).2.1 hB
     rw [hH] at hs
-    refine ⟨nsuff_of_mem_schedule hs, ?_⟩
+    refine ⟨nsuff_of_mem_schedule hs, ?_, (band_of_mem_schedule hs).1⟩
     obtain ⟨i, -, hi⟩ := Finset.mem_image.1 hs
     rw [← hi]
     exact Nat.div_le_self _ _
@@ -387,9 +388,9 @@ def RoundsFresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
           (histCodes settings O D Dsf p.1 p.2 i)) (p.1, (p.2 ⟨i, hK⟩).1)
       ∧ NoColl settings D Dsf Ls (histCodes settings O D Dsf p.1 p.2 i) p.2 i hK
 
-/-- The loop's claim at a cap `cap` and level 3's settings `C`, `NS` and `NP` bounding the
-schedule's suffix pool and prefix count, the clustering run at `slack - m` and `pAP - ms`. The
-clustering's band reads the rarer decided side at most `ζ = cross` times as often as undecided,
+/-- The loop's claim at a cap `cap` and level 3's settings `C`, `NS`, `NP` and `NF` bounding the
+schedule's suffix pool, prefix count and family, the clustering run at `slack - m` and
+`pAP - ms`. The clustering's band reads the rarer decided side at most `ζ = cross` times as often as undecided,
 small enough for level 5's premises at `f = 0`. The last round has at most
 `C.disagreementRate + mr` of the probes in `disagreeSet`, and at most half of each `E q`, plus
 `u + mr`, misled, `mr` bounding the mass the round's probes avoid. Every round the filled draws
@@ -399,7 +400,7 @@ def LoopCore : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (E : σ → Set (FreeMonoid α)) (K Ls NS NP : ℕ)
+    (E : σ → Set (FreeMonoid α)) (K Ls NS NP NF : ℕ)
     (η₀ indecisionLimit gateLevel εcov δc slack pAP cap m ms mr u cross Tu : ℝ)
     (C : Random.Level3Settings) (scanCap : ℕ) (y δₘ : ℝ) (Tsc : ℕ),
   let c : ℝ := cross ^ 4
@@ -420,6 +421,8 @@ def LoopCore : Prop :=
   (∀ pops : Finset (Option (Fin K)), none ∈ pops →
     prefCount η₀ pops indecisionLimit εcov (εcov / 512) (δc / 2) gateLevel (pAP - ms) c 0
       ≤ NP) →
+  (∀ pops : Finset (Option (Fin K)), none ∈ pops →
+    famCount η₀ pops indecisionLimit εcov (δc / 2) c ≤ NF) →
   2 ^ 20 * NP * cap ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) indecisionLimit →
   2 ^ 24 * ((K : ℝ) + 4) * NP * cap ≤ min εcov indecisionLimit →
   2 ^ 28 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * cap
@@ -450,6 +453,7 @@ def LoopCore : Prop :=
     (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (K + 1) * NP
         ∧ (roundSuffs (settings.schedule pops) x).card ≤ NS + 1) ∧
+    (∀ pops, ∀ B ∈ settings.schedule pops, B.k ≤ NF + 1) ∧
     ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
       Dsf {v | v.toList.length ≠ Ls} = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -470,10 +474,10 @@ def LoopCore : Prop :=
 
 set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
 theorem loop_core_holds : LoopCore := by
-  intro α _ _ _ σ _ Ω _ μ _ M O P E K Ls NS NP η₀ ι gate εcov δc slack pAP cap m ms mr u cross Tu C
-    scanCap y δₘ Tsc c bsc hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hL1 hK hLs hcap hmsl hm1
-    hmsp hms1 hNSb hNPb hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0 hk1 hu hy0 hmr hmr1 hcr hprem hT
-    hcond hcapC hcapN hyp hyr hyl1 hδₘ hsc hTsc hTM
+  intro α _ _ _ σ _ Ω _ μ _ M O P E K Ls NS NP NF η₀ ι gate εcov δc slack pAP cap m ms mr u cross
+    Tu C scanCap y δₘ Tsc c bsc hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hL1 hK hLs hcap
+    hmsl hm1 hmsp hms1 hNSb hNPb hNFb hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0 hk1 hu hy0 hmr hmr1
+    hcr hprem hT hcond hcapC hcapN hyp hyr hyl1 hδₘ hsc hTsc hTM
   classical
   have hδ : 0 < C.δ := hprem.1
   have hc : cross ^ 4 = c := rfl
@@ -498,7 +502,13 @@ theorem loop_core_holds : LoopCore := by
       (pAP - ms) c ∧ B.npref ≤ NP ∧ none ∈ pops := fun pops B hB => by
     simp only [hset, hschedd] at hB
     split_ifs at hB with hp
-    · exact ⟨(hsize₀ pops B hB).1, (hsize₀ pops B hB).2.trans (hNPb pops hp), hp⟩
+    · exact ⟨(hsize₀ pops B hB).1, (hsize₀ pops B hB).2.1.trans (hNPb pops hp), hp⟩
+    · simp at hB
+  have hks : ∀ pops, ∀ B ∈ settings.schedule pops, B.k ≤ NF + 1 := fun pops B hB => by
+    simp only [hset, hschedd] at hB
+    split_ifs at hB with hp
+    · rw [(hsize₀ pops B hB).2.2]
+      exact Nat.succ_le_succ (hNFb pops hp)
     · simp at hB
   have hNPsum : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP := fun pops => by
     simp only [hset, hschedd]
@@ -522,7 +532,7 @@ theorem loop_core_holds : LoopCore := by
       · have he : settings.schedule pops = ∅ := if_neg hp
         rw [he]
         exact (card_roundSuffs_le (n := 0) ∅ (by simp) x).trans (by omega)
-  refine ⟨settings, rfl, rfl, rfl, rfl, rfl, rfl, hNPsum, hreads, ?_⟩
+  refine ⟨settings, rfl, rfl, rfl, rfl, rfl, rfl, hNPsum, hreads, hks, ?_⟩
   intro Dsf hDsf hDsfLen hpAPDsf hatom
   set k := C.walkStart
   set T := C.probeBudget

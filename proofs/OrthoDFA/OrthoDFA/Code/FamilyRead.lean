@@ -21,6 +21,8 @@ inductive ARU
 
 instance : MeasurableSpace ARU := ⊤
 
+instance : Inhabited ARU := ⟨.undecided⟩
+
 def readOf (kl kh x : ℕ) : ARU :=
   if kh ≤ x then .accept else if x ≤ kl then .reject else .undecided
 
