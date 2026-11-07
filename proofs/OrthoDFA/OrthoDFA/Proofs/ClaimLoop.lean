@@ -24,9 +24,9 @@ namespace OrthoDFA
 open MeasureTheory Asymptotics Filter Real
 
 theorem loopClaim_holds : LoopClaim := by
-  refine ⟨distP₀Tol, distPref, distSuff, distProbes, distReads, distWalk, distHeldOut,
+  refine ⟨distP₀Tol, distPref, distSuff, distProbes, distReads, distHB, distHeldOut,
     distP₀Tol_isBigO,
-    distPref_isBigO, distSuff_isBigO, distProbes_isBigO, distReads_isBigO, distWalk_isBigO,
+    distPref_isBigO, distSuff_isBigO, distProbes_isBigO, distReads_isBigO, distHB_isBigO,
     distHeldOut_isBigO,
     distP₀Tol_pos, ?_⟩
   intro α _ _ _ σ _ Ω _ μ _ x
@@ -78,7 +78,7 @@ theorem loopClaim_holds : LoopClaim := by
     refine ⟨hcalls p xs rounds ((Prod.mk.inj he).1 ▸ hr) hlv hW, fun o ho => ?_⟩
     obtain ⟨e1, e2⟩ := Query.eval_congr _ _ ho
     exact ⟨e1.trans hout, e2⟩
-  replace hprob := hprob _ (Or.inr rfl)
+  replace hprob := hprob _ (Nat.ceil_mono (min_le_right _ _))
   rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
   refine le_trans (measureReal_mono (fun q hq => ?_) (measure_ne_top _ _)) hprob
   simp only [Set.mem_setOf_eq] at hq ⊢

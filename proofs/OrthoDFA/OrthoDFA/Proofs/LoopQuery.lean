@@ -617,9 +617,7 @@ theorem harvestProbesWithin_of (O : Oracle μ (FreeMonoid α)) (settings : LoopS
     (hg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf (persistDraws p) r) →
       RoundGood settings O D Dsf (specHistOf (idealRounds settings O D Dsf (persistDraws p) r))
         (persistDraws p ⟨r, hr⟩))
-    (hw : ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf (persistDraws p) r) →
-      DrawsWithin settings D Dsf (specHistOf (idealRounds settings O D Dsf (persistDraws p) r))
-        (persistDraws p ⟨r, hr⟩) Nh B) :
+    (hw : RoundsWalkWithin settings O D Dsf p Nh B) :
     HarvestProbesWithin settings O D p
       ((idealRounds settings O D Dsf (persistDraws p) K).map SpecRound.data) B := by
   classical

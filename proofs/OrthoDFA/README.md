@@ -60,8 +60,9 @@ Each claim is proved from the explicit theorems below.
   run reads is bounded: `O(|Q|⁷b²(L + |Q|)²R²/(ξ²s₀⁴) · log(|Q| log(X'')/(δ pAP s₀)) + |Q|²(L +
   |Q|)²R²/ξ² · (1/s₀⁴ + |Q|⁴b²) · log(X'))` prefixes, `O(|Q|(log(X'')/(pAP s₀²) + log(|Q|/δ)/pAP))`
   suffixes and `O(|Q|³|Σ|(1/β + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X'' = (L + |Q|)R/(β δ ξ
-  s₀)`. A run that returns a result whose every round's tree has at most `|Q| + 2` leaves also asks
-  the oracle at most `totalReads` strings, a sum of five terms (the clusterings', the counterexample
+  s₀)`. A run that returns a result whose every round's tree has at most `|Q| + 2` leaves and whose
+  harvested draws walk within `⌈totalWalk⌉₊` probes a round (`totalWalk` is `O` of `1/ρ` times the
+  prefix count) also asks the oracle at most `totalReads` strings, a sum of five terms (the clusterings', the counterexample
   search's, its re-sifts', the harvest's and the start leaf's), and its output and questions depend
   only on the answers at the strings it asks (`learnerQ`'s `eval` and `reads`). The prefixes' first
   term is the clustering's populations' group, whose log reads the suffix pool alone, so its log
@@ -126,7 +127,8 @@ accuracy at least
 walked from `k`, stops within `|Q| + 1` rounds at a consistent round, and its re-rooted DFA
 (`rerootedDFA`: the final hypothesis started at the leaf that scores best on `n` held-out strings)
 misclassifies at most `γ + ξ` of the strings of length `L`, and every round's tree has at most
-`|Q| + 2` leaves, but for chance `δ`, once `L ≥ L₀`. A run that reaches an unlearned edge counts as
+`|Q| + 2` leaves, and each round's harvested draws take at most `HB` probes in all, but for chance
+`δ`, once `L ≥ L₀`. A run that reaches an unlearned edge counts as
 wrong. The start leaf (`pickLeaf`) is picked as follows: after
 the loop, `n = ⌈32 log(16(|Q|+2)/δ)/ξ²⌉` strings uniform of length `L` are drawn and read
 by the last round's family; each leaf scores the strings its run classifies as the family decides

@@ -657,13 +657,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
           AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
             RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
               (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))
-        ∧ ∀ r (hr : r < Fintype.card σ + 1),
-          AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
-            harvestWalk P.D settings.level3.walkStart settings.level3.harvestReadCap
-              settings.scanCap
-              (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).pops
-              (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).prefs
-              (persistDraws p ⟨r, hr⟩).2.1.2.1 ≤ ⌈HB⌉₊)} with hBloopd
+        ∧ RoundsWalkWithin settings O P.D Dsf p ⌈HB⌉₊)} with hBloopd
   -- the loop's last round, consistent and fresh, picks well unless its scores stray or a
   -- held-out string collides
   have hsub : {q : (Ω × (Fin (Fintype.card σ + 1)
@@ -994,7 +988,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
             (loopBudget (L + Q + 4) Q A Ae δ c) Q
             ((⌈loopHB (L + Q + 4) Q A Ae δ c ξ pAP η₀⌉₊ : ℕ) : ℝ)
             ((3 + Nat.clog 2 L₁ : ℕ) : ℝ) A n) ∧
-      ∀ B : ℕ, (B = ⌈HB⌉₊ ∨ B = ⌈loopHB (L + Q + 4) Q A Ae δ c ξ pAP η₀⌉₊) →
+      ∀ B : ℕ, ⌈min HB (loopHB (L + Q + 4) Q A Ae δ c ξ pAP η₀)⌉₊ ≤ B →
       ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget).prod
           (Measure.pi fun _ : Fin n => prefixLaw D L)).real
@@ -1221,13 +1215,9 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     show _ ≤ 384 * (4 * (Ae + 1) * ℓ / c)
       * ((Q + 1) * loopSC ℓ Q A Ae δ c ξ pAP η₀ * Real.log 2 + Real.log (1 / δ')) + 1
     linarith only [this]
-  have hBc : ⌈384 / ε * ((Q + 1)
+  have hBt : 384 / ε * ((Q + 1)
       * (8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2) * Real.log 2
-      + Real.log (1 / δ')) + 1⌉₊ ≤ ⌈loopHB ℓ Q A Ae δ c ξ pAP η₀⌉₊ := Nat.ceil_mono hBle
-  have hBt : ⌈384 / ε * ((Q + 1)
-      * (8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2) * Real.log 2
-      + Real.log (1 / δ')) + 1⌉₊ ≤ ⌈HB⌉₊ := by
-    refine Nat.ceil_mono ?_
+      + Real.log (1 / δ')) + 1 ≤ HB := by
     show _ ≤ 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
     have h1 : (Q + 1) * (8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2) * Real.log 2
         ≤ (Q + 1) * SC * Real.log 2 :=
@@ -1280,9 +1270,8 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     simp only [Set.mem_setOf_eq] at hq ⊢
     rintro ⟨rounds, hr, hlen, hlv, hW⟩
     refine hq ⟨rounds, hr, hlen, hlv, harvestProbesWithin_mono hW ?_⟩
-    rcases hB with rfl | rfl
-    · exact hBt
-    · rw [hℓe]; exact hBc
+    rw [hℓe] at hB
+    exact (Nat.ceil_mono (le_min hBt hBle)).trans hB
 
 set_option maxHeartbeats 4000000 in -- matching `LearnerLoopDFA`'s `L₀` against `loopMassInv`
 theorem learner_loop_dfa_holds : LearnerLoopDFA := by
@@ -1329,7 +1318,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
     (by rw [hpS]; exact hpAPu)
     (covered_bridge M O hL L _ hc hξ hA (uniformStrings_long _ |>.mono fun x hx => by omega)
       (fun i _ hi y a => uniformStrings_floor (by omega) y a) (by rw [hpL]; exact hceil)) hp₀
-  replace h4 := h4 _ (Or.inl rfl)
+  replace h4 := h4 _ (Nat.ceil_mono (min_le_left _ _))
   rw [hpL, hpS, hwS] at h4
   exact ⟨settings, h1, h2, h3, h5, h6, h4⟩
 

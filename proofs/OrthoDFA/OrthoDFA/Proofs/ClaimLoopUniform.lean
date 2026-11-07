@@ -116,6 +116,12 @@ lemma loopG_ge_one {x : LoopInputs} (hx : x ∈ loopRegion) : 1 ≤ loopG x := b
     ((le_div_iff₀ hξ).2 (by linarith)) ((le_div_iff₀ hp).2 (by linarith))
     ((le_div_iff₀ hs).2 (by linarith)) le_rfl).1
 
+lemma uniform_rewrite {X R A δ ξ pAP s₀ : ℝ} (hA : 0 < A) (hδ : 0 < δ) (hξ : 0 < ξ)
+    (hp : 0 < pAP) (hs : 0 < s₀) :
+    X * R / (1 / A * δ * ξ * pAP * s₀) = X * A * R / (δ * ξ * pAP * s₀)
+      ∧ X * R / (1 / A * δ * ξ * s₀) = X * A * R / (δ * ξ * s₀) :=
+  ⟨by field_simp, by field_simp⟩
+
 theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUniform.{u, v, w} := by
   obtain ⟨p₀Tol, tp, ts, tpr, tr, tw, ho, hp₀, hpref, hsuff, hprobes, hreads, hwalk, hho, hpos,
     hw⟩ := h
@@ -164,10 +170,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
           * (1 / r.s₀ ^ 4 + r.Q ^ 4 * (r.A + r.Q) ^ 2)
           * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
     simp only [Function.comp, toDistRun, toDist, one_div_one_div]
-    have e : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.pAP * r.s₀)
-        = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀) := by field_simp
-    have e' : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.s₀)
-        = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀) := by field_simp
+    obtain ⟨e, e'⟩ := uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := r.R) hA' hδ hξ hp hs
     rw [e, e']
   · refine (isBigO_comp_on hsuff hmapsR).congr' EventuallyEq.rfl
       (eventually_principal.2 fun r hr => ?_)
@@ -176,9 +179,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     show _ = r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)
     simp only [Function.comp, toDistRun, toDist]
-    have e : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.s₀)
-        = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀) := by field_simp
-    rw [e]
+    rw [(uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := r.R) hA' hδ hξ hp hs).2]
   · refine (isBigO_comp_on hprobes hmapsR).congr' EventuallyEq.rfl
       (eventually_principal.2 fun r hr => ?_)
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
@@ -190,20 +191,14 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
     have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
     simp only [Function.comp, toDistRun, toDist, one_div_one_div]
-    have e : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.pAP * r.s₀)
-        = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀) := by field_simp
-    have e' : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.s₀)
-        = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀) := by field_simp
+    obtain ⟨e, e'⟩ := uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := r.R) hA' hδ hξ hp hs
     rw [e, e']
   · refine (isBigO_comp_on hwalk hmapsR).congr' EventuallyEq.rfl
       (eventually_principal.2 fun r hr => ?_)
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
     have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
     simp only [Function.comp, toDistRun, toDist, one_div_one_div]
-    have e : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.pAP * r.s₀)
-        = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀) := by field_simp
-    have e' : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.s₀)
-        = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀) := by field_simp
+    obtain ⟨e, e'⟩ := uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := r.R) hA' hδ hξ hp hs
     rw [e, e']
   · exact isBigO_comp_on hho hmaps
   -- the run, at `D` uniform

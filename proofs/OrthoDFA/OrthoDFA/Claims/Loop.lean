@@ -24,8 +24,8 @@ so that log grows as `log log L`. The strings asked are five sources' sum: the c
 prefixes against their suffixes; level 3's probes, each a family read of `|V̂|` strings at the
 `log L` mids of a sift at most `|Q| + 1` deep; its splits, at most `|Q|` a round, each
 re-sifting at most `|Q| + 2` leaves' edges over `|Σ|` letters down at most `|Q| + 2` midfixes; the
-harvested draws' walks, a family read at the sifts of each probe, a round's `totalWalk` probes
-`1/ρ` times the draws of its `|Q| + 1` populations' scans; and the start leaf's family read at
+harvested draws' walks, a family read at the sifts of each probe, where `totalWalk` bounds the
+probes each round's harvested draws take in all, about `1/ρ` per draw; and the start leaf's family read at
 each held-out string. Each bound has one constant over all of `loopDistRegion`.
 
 `LoopClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length

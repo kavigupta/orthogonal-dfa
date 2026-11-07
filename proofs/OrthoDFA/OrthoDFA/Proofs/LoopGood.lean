@@ -565,4 +565,18 @@ theorem loop_reads_le_op (a b : ℕ)
 
 end Reads
 
+section Walk
+
+/-- Every round whose harvested draws all land has its harvested populations' first `Nh` filled
+draws hold their samples and walk at most `B` probes in all (`DrawsWithin`). -/
+def RoundsWalkWithin {μ : Measure Ω}
+    (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
+    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
+    (Nh B : ℕ) : Prop :=
+  ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf (persistDraws p) r) →
+    DrawsWithin settings D Dsf (specHistOf (idealRounds settings O D Dsf (persistDraws p) r))
+      (persistDraws p ⟨r, hr⟩) Nh B
+
+end Walk
+
 end OrthoDFA

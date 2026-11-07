@@ -472,10 +472,7 @@ def LoopCore : Prop :=
               ∧ (∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
                 RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
                   (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))
-              ∧ ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
-                DrawsWithin settings P.D Dsf
-                  (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r))
-                  (persistDraws p ⟨r, hr⟩) Nh B)}
+              ∧ RoundsWalkWithin settings O P.D Dsf p Nh B)}
         ≤ (Fintype.card σ + 1) * (δc + gateLevel
           + (C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
             (2 * prefixMax P.D C.walkStart) (2 * (Fintype.card σ + 1) * cross) u) + bsc)
@@ -828,10 +825,7 @@ theorem loop_core_holds : LoopCore := by
         ∧ (∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
           RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
             (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))
-        ∧ ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
-          DrawsWithin settings P.D Dsf
-            (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r))
-            (persistDraws p ⟨r, hr⟩) Nh B)}
+        ∧ RoundsWalkWithin settings O P.D Dsf p Nh B)}
       ⊆ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r := by
     intro p hp
     by_contra hno
