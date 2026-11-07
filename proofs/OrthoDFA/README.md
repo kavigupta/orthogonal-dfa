@@ -65,12 +65,12 @@ Each claim is proved from the explicit theorems below.
   prefix count over `|Q|`: a harvested population draws only until its draws hold its samples, and
   each draw walks about `1/ρ` probes) also asks the oracle at most `totalReads` strings, a sum of
   four terms (the clusterings', the counterexample search's with its re-sifts', the harvest's and
-  the start leaf's), and its output and questions depend
-  only on the answers at the strings it asks (`learnerQ`'s `eval` and `reads`). The prefixes' first
-  term is the clustering's populations' group, whose log reads the suffix pool alone, so its log
-  grows as `log log L`. The totals grow with `L` because the settings the proof picks hold each
-  round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)`
-  lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
+  the start leaf's), and its output and questions depend only on the answers at the strings it asks
+  (`learnerQ`'s `eval` and `reads`). The prefixes' first term is the clustering's populations'
+  group, whose log reads the suffix pool alone, so its log grows as `log log L`. The totals grow
+  with `L` because the settings the proof picks hold each round's disagreement rate at `m/(3(1/β +
+  |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths: the prefixes grow as `(L +
+  |Q|)²` and the suffixes as `log L`.
 - `LoopClaimUniform` (`Claims/Loop.lean`): `LoopClaim` at `D` uniform and `β = 1/|Σ|`
   (`loopClaimUniform_of_loopClaim`, `Proofs/ClaimLoopUniform.lean`), over `LoopInputs`. In place of
   `p₀Tol` it has the length `L₀` past which `|Σ|^-k ≤ p₀Tol`, `O(1 + log(|Q|R/(δ ξ pAP
@@ -245,17 +245,17 @@ mean over the strings, but for chance `4(|Q|+2)e^(−nξ²/32)` (`scoreBad_le`),
 `indecisiveLStarLoop` (`OrthoDFA/Code/LearnerLoop.lean`) clusters a family over the populations so
 far, runs level 3 with it, and adds a harvest's sampler, scaled to a probability, as a population of
 every later round. A harvested population draws one at a time until its draws hold every sample
-the schedule's states take from it (`DrawsHold`), as the Python's `split_draws` does, so only those
-draws walk probes. The whole run, every round's clustering and level 3, reads one noise. Each
-round's clustering draws its prefixes, certification prefixes and suffixes off every one the earlier
-rounds' clusterings read (`offLaw`), so no two rounds read the same string. Level 3 runs at
-disagreement rate `ε` and draws its probes from `D` conditioned on their first `k ≥ 1` letters
-avoiding those of every prefix the round's clustering read. Whatever its two rates, the family's
-read is on its rarer decided side at most `bandKappa` times as often as undecided (`BandKappaBound`,
+the schedule's states take from it (`DrawsHold`), so only those draws walk probes. The whole run,
+every round's clustering and level 3, reads one noise. Each round's clustering draws its prefixes,
+certification prefixes and suffixes off every one the earlier rounds' clusterings read (`offLaw`),
+so no two rounds read the same string. Level 3 runs at disagreement rate `ε` and draws its probes
+from `D` conditioned on their first `k ≥ 1` letters avoiding those of every prefix the round's
+clustering read. Whatever its two rates, the family's read is on its rarer decided side at most
+`bandKappa` times as often as undecided (`BandKappaBound`,
 `OrthoDFA/LowLevelClaims/BandKappa.lean`), and the family's size puts `bandKappa` at most `ζ =
 δ'/(8W)`. So the family is level 5's oracle at `κ = ζ`. With `f = 0` level 5 tolerates one spurious
-leaf, within level 3's `|Q| + 2`. Its race tail at `t = 1/(λ + 2κ)`, `t' = 2t` is at most
-`e²(λ + 2κ)²`, `λ = κ m` (`race_tail_choice`, `Proofs/LoopSimple.lean`), and
+leaf, within level 3's `|Q| + 2`. Its race tail at `t = 1/(λ + 2κ)`, `t' = 2t` is at most `e²(λ +
+2κ)²`, `λ = κ m` (`race_tail_choice`, `Proofs/LoopSimple.lean`), and
 
     W = max(e √δ' W_m / 2, 1),
 
