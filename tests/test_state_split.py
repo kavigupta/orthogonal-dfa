@@ -56,7 +56,9 @@ def _family(p_0, p_1, seed):
     uniform = [
         p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
     ]
-    vs, _ = sample_suffix_family(pst, pst.table.intern_suffix(b""), PoolState(uniform))
+    vs, _, _ = sample_suffix_family(
+        pst, pst.table.intern_suffix(b""), PoolState(uniform, b"key")
+    )
     return tuple(pst.table.suffix(v) for v in vs)
 
 
