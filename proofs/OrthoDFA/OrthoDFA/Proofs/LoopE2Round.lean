@@ -25,7 +25,7 @@ section Stage
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
 
 /-- Some state of the schedule returns. -/
-def Returns (h : LoopHist α) (c : ClusterDraws Ω α K settings.level3.harvestReadCap) : Prop :=
+def Returns (h : SpecHist α) (c : ClusterDraws Ω α K settings.level3.harvestReadCap) : Prop :=
   ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
     idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h c ∈ ret O.mq (loopPopulations K h.pops.length) none
       settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
@@ -107,7 +107,7 @@ lemma stage4_congr_draws (r : ℕ) (hr : r < K) (ω : Ω)
   · exact absurd ⟨hok.2 hb.1, hb.2⟩ ha
   · rfl
 
-lemma measurableSet_returns [IsProbabilityMeasure D] (r : ℕ) (hr : r < K) (h : LoopHist α) :
+lemma measurableSet_returns [IsProbabilityMeasure D] (r : ℕ) (hr : r < K) (h : SpecHist α) :
     MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
       Returns settings O D Dsf h (p.1, (p.2 ⟨r, hr⟩).1)} := by
   classical
@@ -181,7 +181,7 @@ lemma measurableSet_stage4 [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
         (measurableSet_roundKeys settings D Dsf H K₀))))
 
 omit [IsProbabilityMeasure μ] in
-lemma roundKeys_eq_prefsOf (h : LoopHist α) (ω : Ω) (c : ClusterRest α K settings.level3.harvestReadCap) :
+lemma roundKeys_eq_prefsOf (h : SpecHist α) (ω : Ω) (c : ClusterRest α K settings.level3.harvestReadCap) :
     roundKeys settings D Dsf h (ω, c)
       = (prefsOf settings D Dsf h c).image fun p => prefixOf p settings.level3.walkStart :=
   rfl
@@ -237,7 +237,7 @@ lemma stage4_stop [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.to
 end Stage
 
 lemma clusterAt_subset_suffsOf (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) (ω : Ω) (c : ClusterRest α K settings.level3.harvestReadCap) {B : State}
+    (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α) (ω : Ω) (c : ClusterRest α K settings.level3.harvestReadCap) {B : State}
     (hB : B ∈ settings.schedule (loopPopulations K h.pops.length)) :
     clusterAt O.mq (loopPopulations K h.pops.length) (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (ω, c)) B
       ⊆ suffsOf settings D Dsf h c := by

@@ -204,7 +204,7 @@ def LearnerLoopDFASimple : Prop :=
             (uniformStrings (L₁ + Fintype.card σ + 3)) q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
-              o.result.hypothesis.rerootedDFA o.read q.2 x
+              o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
         ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
       ≤ δ
@@ -292,7 +292,7 @@ def LearnerLoopDFA : Prop :=
             (uniformStrings (L₁ + Fintype.card σ + 3)) q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
-              o.result.hypothesis.rerootedDFA o.read q.2 x
+              o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
         ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
       ≤ δ
@@ -393,7 +393,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
             (uniformStrings (L₁ + Fintype.card σ + 3)) q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
-              o.result.hypothesis.rerootedDFA o.read q.2 x
+              o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
         ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
       ≤ δ
@@ -488,7 +488,7 @@ def LearnerLoopDFARelative : Prop :=
             (uniformStrings (L₁ + Fintype.card σ + 3)) q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
-              o.result.hypothesis.rerootedDFA o.read q.2 x
+              o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
         ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
       ≤ δ
@@ -593,7 +593,7 @@ def LearnerLoopDFADist : Prop :=
             q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
-              o.result.hypothesis.rerootedDFA o.read q.2 x
+              o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
         ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
       ≤ δ

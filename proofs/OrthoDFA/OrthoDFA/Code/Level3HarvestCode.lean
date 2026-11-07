@@ -25,6 +25,13 @@ noncomputable def harvestFirst (read : FreeMonoid α → ARU) (k : ℕ) (H : Hyp
     Option (FreeMonoid α) :=
   xs.findSome? fun x => (siteHarvest read k H site x).head?.filter fun z => z ∉ T
 
+open scoped Classical in
+/-- The probes in turn, up to the first that harvests. -/
+noncomputable def harvestFirstQ (k : ℕ) (H : HypothesisDFA α) (site : Level3Site)
+    (T : Set (FreeMonoid α)) (xs : List (FreeMonoid α)) :
+    Query (FreeMonoid α) ARU (Option (FreeMonoid α)) :=
+  Query.findSome (fun x => (siteHarvestQ k H site x).map fun l => l.head?.filter fun z => z ∉ T) xs
+
 /-- The (unnormalised) law of the sampler on the event it hits: draw `N` probes i.i.d. from `D`,
 keep the first string harvested outside `T`. -/
 noncomputable def harvestCodeLaw [Countable α] (read : FreeMonoid α → ARU)

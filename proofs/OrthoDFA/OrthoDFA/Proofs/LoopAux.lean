@@ -1,4 +1,4 @@
-import OrthoDFA.Code.LearnerLoop
+import OrthoDFA.Proofs.LoopSpec
 import OrthoDFA.LowLevelClaims.Clustering
 import OrthoDFA.LowLevelClaims.FamilyRead
 import OrthoDFA.LowLevelClaims.CoveredStart
@@ -28,8 +28,8 @@ def misreadProb (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (kl
 
 /-- The round ended consistent, and its read decides a draw from `D` against the target at most
 `εr` of the time and leaves it undecided at most `εu`. -/
-def LoopRound.Agrees (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
-    (εr εu : ℝ) (o : LoopRound α) : Prop :=
+def SpecRound.Agrees (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
+    (εr εu : ℝ) (o : SpecRound α) : Prop :=
   o.result.ending = .consistent
     ∧ ∫ p, misreadProb O o.family o.state.lo (o.state.hi + 1) p ∂D ≤ εr
     ∧ ∫ p, readProb O o.family o.state.lo (o.state.hi + 1) p .undecided ∂D ≤ εu

@@ -1,6 +1,7 @@
 import OrthoDFA.Claims.Loop
 import OrthoDFA.Proofs.LoopDFASummed
 import OrthoDFA.Proofs.ClaimLoopUniform
+import OrthoDFA.Proofs.ClaimReadsArith
 
 /-!
 # The learner's costs, asymptotically: the proof
@@ -59,7 +60,7 @@ theorem loopClaim_holds : LoopClaim := by
           (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
           (1 / 2 - s₀)) := rfl
     rw [e, max_eq_right hM1]
-  obtain ⟨settings, hw, -, -, -, -, hcnt, hprob⟩ := learner_loop_dfa_dist_tol M O L D
+  obtain ⟨settings, hw, -, -, -, -, hcnt, -, hprob⟩ := learner_loop_dfa_dist_tol M O L D
     (1 / 2 - s₀)
     (ξ / (2 * R)) (γ + 3 * ξ / 4) δ pAP (ξ / 4) (1 / β + Fintype.card σ) _ hL hηle hη₀ hc0 hc1 hδ
     (by linarith) hpAP (by positivity) hA2

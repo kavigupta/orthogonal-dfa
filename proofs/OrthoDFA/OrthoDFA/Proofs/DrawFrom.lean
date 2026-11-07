@@ -1,4 +1,4 @@
-import OrthoDFA.Code.LearnerLoop
+import OrthoDFA.Proofs.LoopSpec
 import Mathlib.MeasureTheory.Constructions.UnitInterval
 
 /-!
@@ -207,7 +207,7 @@ instance (ν : Measure (FreeMonoid α)) (T : Finset (FreeMonoid α)) :
   unfold offLaw; infer_instance
 
 instance {K : ℕ} (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k : ℕ)
-    (pops : List (HarvestSampler α)) (j : Option (Fin K)) :
+    (pops : List (SpecSampler α)) (j : Option (Fin K)) :
     IsProbabilityMeasure (loopDistributions D k pops j) := by
   cases j with
   | none => simp only [loopDistributions]; infer_instance

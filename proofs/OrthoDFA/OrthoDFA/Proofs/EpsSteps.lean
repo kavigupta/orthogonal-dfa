@@ -1,6 +1,7 @@
 import OrthoDFA.LowLevelClaims.Level4Claim
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsTrue
+import OrthoDFA.Proofs.Reads
 
 /-!
 # Level 4's steps
@@ -33,24 +34,6 @@ structure WitInv (s : Level3State α) : Prop where
   wit : ∀ p c t w, s.edges (p, c) = some (t, w) →
     leafOf M side s.tree (M.eval w.toList) = p
       ∧ leafOf M side s.tree (M.eval (w * FreeMonoid.of c).toList) = t
-
-open scoped Classical in
-/-- Each learned edge's witness's successor followed by a midfix of `T'`. -/
-noncomputable def resifts (s : Level3State α) (T' : DTree α) : Finset (FreeMonoid α) :=
-  (s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).biUnion fun e =>
-    match s.edges e with
-    | some (_, w) => (mids T').image ((w * FreeMonoid.of e.2) * ·)
-    | none => ∅
-
-/-- What a step's split re-sifts. -/
-noncomputable def splitReads (s : Level3State α) (x : FreeMonoid α) : Finset (FreeMonoid α) :=
-  match probeOrAgree read s.tree s.edges C.walkStart x with
-  | .wrongEdge p c _ t =>
-    match s.edges (p, c) with
-    | some (t₀, _) =>
-      resifts s (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p)
-    | none => ∅
-  | _ => ∅
 
 /-! ## The invariant -/
 
@@ -101,7 +84,7 @@ theorem wit_retarget {s : Level3State α} (hg : WitInv M side s) {p : List Bool}
     leafOf M side (s.tree.splitAt d p) (M.eval w.toList) = p'
       ∧ leafOf M side (s.tree.splitAt d p) (M.eval (w * FreeMonoid.of c').toList) = t' := by
   classical
-  unfold retarget at h
+  simp only [retarget_eq] at h
   split_ifs at h with hpre
   rcases hE : s.edges (p', c') with _ | ⟨t₁, w₁⟩ <;> rw [hE] at h
   · simp at h
@@ -169,7 +152,7 @@ theorem eps_step_change_of {s s' : Level3State α} (hs : Inv read s) (hg : WitIn
     have ht₀' := DTree.sift_inl_mem read _ _ t₀ (hs.edges p hp c t₀ w₀ hE).2
     have hleaves : (splitLeaf read s p c t t₀).tree.leaves.length
         ≤ (img M side (splitLeaf read s p c t t₀).tree).card + 1 := by
-      simp only [splitLeaf, newHypothesis]
+      simp only [splitLeaf_eq, newHypothesis]
       have := hg.leaves
       omega
     have hR : ∀ z ∈ resifts s
@@ -181,21 +164,26 @@ theorem eps_step_change_of {s s' : Level3State α} (hs : Inv read s) (hg : WitIn
       rw [ho]
       simp only [hE]
       exact hz
-    refine ⟨⟨edgesOK_retarget read hs.edges hp _, ?_,
-      by simp only [splitLeaf, newHypothesis]; rw [hlen]; have := hs.two; omega⟩,
-      ⟨hleaves, fun p' c' t' w h => ?_⟩, rfl, rfl, ?_⟩
-    · simp only [splitLeaf, newHypothesis]
+    refine ⟨⟨by
+        simp only [splitLeaf_eq, newHypothesis]
+        exact (edgesOK_retarget read hs.edges hp _).restrict _ _, ?_,
+      by simp only [splitLeaf_eq, newHypothesis]; rw [hlen]; have := hs.two; omega⟩,
+      ⟨hleaves, fun p' c' t' w h => ?_⟩, by rw [splitLeaf_eq]; rfl, by rw [splitLeaf_eq]; rfl, ?_⟩
+    · simp only [splitLeaf_eq, newHypothesis]
       rw [hlen, show s.tree.leaves.length + 1 - 2 = s.tree.leaves.length - 2 + 1 by
         have := hs.two; omega]
       exact classSet_split hs.cls hp ht' ht₀'
-    · simp only [splitLeaf, newHypothesis] at h ⊢
-      exact wit_retarget M side read hg hp _ hR p' c' t' w h
-    · exact Level2.Ψ_lt_split _ (s := Level2.newHypothesis s.tree s.edges 0) hp
-        (by
-          have := img_card_le M side (splitLeaf read s p c t t₀).tree
-          simp only [splitLeaf, newHypothesis] at this hleaves
-          simp only [Level2.newHypothesis]
-          omega) _ 0
+    · rw [splitLeaf_edges_eq_some] at h
+      rw [splitLeaf_tree]
+      exact wit_retarget M side read hg hp _ hR p' c' t' w h.2
+    · have hsz : (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀))
+          p).leaves.length ≤ Fintype.card σ + 2 := by
+        have := img_card_le M side
+          (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p)
+        rw [splitLeaf_tree] at hleaves
+        omega
+      rw [splitLeaf_eq]
+      exact Level2.Ψ_lt_split _ (s := Level2.newHypothesis s.tree s.edges 0) hp hsz _ 0
   · exact absurd ⟨rfl, rfl⟩ hne
 
 /-! ## Reads that agree on what a step reads -/
@@ -210,7 +198,7 @@ theorem sift_congr {r r' : FreeMonoid α → ARU} :
     have hm := h m (by simp [mids])
     have ha := sift_congr a z fun m' hm' => h m' (by simp [mids, hm'])
     have hb := sift_congr b z fun m' hm' => h m' (by simp [mids, hm'])
-    simp only [DTree.sift, hm, ha, hb]
+    simp only [DTree.sift_node, hm, ha, hb]
 
 omit [DecidableEq α] in
 /-- Reads agreeing on the probe's prefixes followed by midfixes sift every prefix alike. -/
@@ -232,15 +220,15 @@ theorem probeOrAgree_congr {r r' : FreeMonoid α → ARU} {T : DTree α} {E : Ed
   have hs : ∀ i, T.sift r (prefixOf x i) = T.sift r' (prefixOf x i) := prefix_congr h
   have hA : ∀ st, siftAgrees r T x st = siftAgrees r' T x st := fun st => by
     funext p
-    simp only [siftAgrees, hs]
+    simp only [siftAgrees_eq, hs]
   have hO : ∀ st un hi res, searchOutcome r T x st un hi res = searchOutcome r' T x st un hi res :=
-    fun st un hi res => by cases res <;> simp only [searchOutcome, undecidedAt, hs]
-  simp only [probeOrAgree, probe, hs, hA, hO]
+    fun st un hi res => by cases res <;> simp only [searchOutcome_eq, undecidedAt_eq, hs]
+  simp only [probeOrAgree_eq, probe_eq, hs, hA, hO]
 
 omit [DecidableEq α] in
 theorem countProbe_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x : FreeMonoid α}
     (h : ∀ z ∈ pot 0 x s.tree, r z = r' z) : countProbe r C s x = countProbe r' C s x := by
-  simp only [countProbe, probeOrAgree_congr h]
+  simp only [countProbe, countOutcome, probeOrAgree_congr h]
 
 omit [DecidableEq α] in
 theorem splitReads_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x : FreeMonoid α}
@@ -255,17 +243,18 @@ theorem applyProbe_congr_of {r r' : FreeMonoid α → ARU} {s : Level3State α} 
       = probeOrAgree r' s.tree s.edges C.walkStart x)
     (h : ∀ z ∈ splitReads r C s x, r z = r' z) :
     applyProbe r C s x = applyProbe r' C s x := by
-  have hc : countProbe r C s x = countProbe r' C s x := by simp only [countProbe, ho]
-  unfold applyProbe
+  have hc : countProbe r C s x = countProbe r' C s x := by simp only [countProbe, countOutcome, ho]
+  simp only [applyProbe_eq]
   rw [← ho, hc]
   rcases hpo : probeOrAgree r s.tree s.edges C.walkStart x with _ | ⟨p, c, u, t⟩ | _ | _ | _ <;>
     simp only
   rcases hE : s.edges (p, c) with _ | ⟨t₀, w₀⟩
   · rfl
-  simp only [splitLeaf]
+  simp only [splitLeaf_eq]
   congr 2
   funext e
-  unfold retarget
+  refine if_congr Iff.rfl ?_ rfl
+  simp only [retarget_eq]
   split_ifs with hpre
   · rfl
   rcases hEe : s.edges e with _ | ⟨t₁, w₁⟩

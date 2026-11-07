@@ -444,7 +444,7 @@ theorem runMeasure_scanShort_le (L : Option (Fin K) → Measure (FreeMonoid α))
 `runMeasure_scanShort_le`, every string holding at most `ρ` of each population off the earlier
 rounds' prefixes. -/
 theorem clusterLaw_scanShort_le (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (k N : ℕ) (h : LoopHist α) (pops : Finset (Option (Fin K))) {M T A : ℕ} {ρ : ℝ}
+    (k N : ℕ) (h : SpecHist α) (pops : Finset (Option (Fin K))) {M T A : ℕ} {ρ : ℝ}
     (hρ : ∀ j ∈ pops, ∀ s, (offLaw (loopDistributions D k h.pops j) h.prefs).real {s} ≤ ρ)
     (hA : 4 * A ≤ T) (hT : T ≤ M) :
     (clusterLaw μ α K N).real {c | ScanShort pops M T A (idealDraws D Dsf k N h c)}

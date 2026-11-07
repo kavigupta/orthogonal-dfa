@@ -28,7 +28,7 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 /-- Population `j`'s draw by `u`, a harvested population's miss filled by the uniform's draw from
 the population off `T`. -/
-def fillDraw {K : ℕ} (D : Measure (FreeMonoid α)) (k N : ℕ) (pops : List (HarvestSampler α))
+def fillDraw {K : ℕ} (D : Measure (FreeMonoid α)) (k N : ℕ) (pops : List (SpecSampler α))
     (T : Finset (FreeMonoid α)) (j : Option (Fin K)) (u : unitInterval × (Fin N → unitInterval)) :
     FreeMonoid α :=
   match j with
@@ -90,7 +90,7 @@ lemma measurable_getD {β : Type*} [MeasurableSpace β] {f : β → Option (Free
 
 omit [DecidableEq α] in
 lemma measurable_fillSampler (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k N : ℕ)
-    (s : HarvestSampler α) (T : Finset (FreeMonoid α)) (τ : Measure (FreeMonoid α))
+    (s : SpecSampler α) (T : Finset (FreeMonoid α)) (τ : Measure (FreeMonoid α))
     [IsFiniteMeasure τ] :
     Measurable fun u : unitInterval × (Fin N → unitInterval) =>
       (Random.harvestFirst s.read k s.hyp s.site ↑T (List.ofFn fun t => drawFrom D (u.2 t))).getD
@@ -108,7 +108,7 @@ lemma measurable_fillSampler (D : Measure (FreeMonoid α)) [IsProbabilityMeasure
 omit [DecidableEq α] in
 /-- A harvested draw with its miss filled is drawn from the harvested population off `T`. -/
 theorem map_fillSampler (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k N : ℕ)
-    (s : HarvestSampler α) (T : Finset (FreeMonoid α)) :
+    (s : SpecSampler α) (T : Finset (FreeMonoid α)) :
     (drawLaw N).map (fun u : unitInterval × (Fin N → unitInterval) =>
         (Random.harvestFirst s.read k s.hyp s.site ↑T (List.ofFn fun t => drawFrom D (u.2 t))).getD
           (drawFrom (offLaw (popLaw (Random.harvestLaw s.read D k s.hyp s.site)) T) u.1))
@@ -172,7 +172,7 @@ theorem map_fillSampler (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (
 
 /-- A filled draw is drawn from its population off `T`. -/
 theorem measurePreserving_fillDraw {K : ℕ} (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (k N : ℕ) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) (j : Option (Fin K)) :
+    (k N : ℕ) (pops : List (SpecSampler α)) (T : Finset (FreeMonoid α)) (j : Option (Fin K)) :
     MeasurePreserving (fillDraw D k N pops T j) (drawLaw N)
       (offLaw (loopDistributions D k pops j) T) := by
   classical
@@ -229,7 +229,7 @@ variable {Ω : Type*} [MeasurableSpace Ω] {K : ℕ}
 
 /-- The round's draws after the history `h` with every miss filled, the named populations
 certifying on the uniforms of their own. -/
-def idealDraws (D Dsf : Measure (FreeMonoid α)) (k N : ℕ) (h : LoopHist α)
+def idealDraws (D Dsf : Measure (FreeMonoid α)) (k N : ℕ) (h : SpecHist α)
     (c : ClusterDraws Ω α K N) : Draws Ω (FreeMonoid α) (Option (Fin K)) :=
   ((c.1, ((fun n => drawFrom (offLaw Dsf h.suffs) (c.2.1 n),
       fun j n => fillDraw D k N h.pops h.prefs j (c.2.2.1 j n)),
@@ -237,14 +237,14 @@ def idealDraws (D Dsf : Measure (FreeMonoid α)) (k N : ℕ) (h : LoopHist α)
     c.2.2.2.2)
 
 /-- The run the clustering reads off `idealDraws`. -/
-def idealRun (D Dsf : Measure (FreeMonoid α)) (k N : ℕ) (h : LoopHist α)
+def idealRun (D Dsf : Measure (FreeMonoid α)) (k N : ℕ) (h : SpecHist α)
     (c : ClusterDraws Ω α K N) : Run Ω (FreeMonoid α) (Option (Fin K)) :=
   streams (fun _ => ∅) none (idealDraws D Dsf k N h c)
 
 /-- After the history `h`, the filled draws are drawn by `runMeasure` at the populations and
 suffixes off what the earlier rounds read. -/
 theorem measurePreserving_idealDraws {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k N : ℕ) (h : LoopHist α) :
+    (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k N : ℕ) (h : SpecHist α) :
     MeasurePreserving (idealDraws (Ω := Ω) (K := K) D Dsf k N h) (clusterLaw μ α K N)
       (runMeasure μ (fun j => offLaw (loopDistributions D k h.pops j) h.prefs)
         (offLaw Dsf h.suffs)) := by
@@ -272,13 +272,13 @@ theorem measurePreserving_idealDraws {μ : Measure Ω} [IsProbabilityMeasure μ]
       (Measure.pi fun j => Measure.infinitePi fun _ : ℕ => L j)) C).symm.comp hall
 
 lemma measurable_idealDraws (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k N : ℕ)
-    (h : LoopHist α) : Measurable (idealDraws (Ω := Ω) (K := K) D Dsf k N h) := by
+    (h : SpecHist α) : Measurable (idealDraws (Ω := Ω) (K := K) D Dsf k N h) := by
   rcases isEmpty_or_nonempty Ω with hΩ | hΩ
   · exact Subsingleton.measurable
   · exact (measurePreserving_idealDraws (μ := Measure.dirac hΩ.some) D Dsf k N h).measurable
 
 lemma measurable_idealRun (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k N : ℕ)
-    (h : LoopHist α) : Measurable (idealRun (Ω := Ω) (K := K) D Dsf k N h) :=
+    (h : SpecHist α) : Measurable (idealRun (Ω := Ω) (K := K) D Dsf k N h) :=
   (measurable_streams _ none).comp (measurable_idealDraws D Dsf k N h)
 
 /-! ## The round's draws where they hit -/
@@ -290,7 +290,7 @@ def AgreeTo {J : Type*} (uni : J) (M : ℕ) (x y : Draws Ω (FreeMonoid α) J) :
     ∧ (∀ j, ∀ n < M, x.1.2.1.2 j n = y.1.2.1.2 j n) ∧ ∀ n < M, x.1.2.2 uni n = y.1.2.2 uni n
 
 /-- Where a population's `M` draws hit, they are its filled draws. -/
-lemma popDraws_eq_some {D : Measure (FreeMonoid α)} {k N M : ℕ} {pops : List (HarvestSampler α)}
+lemma popDraws_eq_some {D : Measure (FreeMonoid α)} {k N M : ℕ} {pops : List (SpecSampler α)}
     {T : Finset (FreeMonoid α)} {j : Option (Fin K)}
     {u : ℕ → unitInterval × (Fin N → unitInterval)} {f : Fin M → FreeMonoid α}
     (hf : popDraws D k N M pops T j u = some f) (n : Fin M) :
@@ -313,7 +313,7 @@ lemma popDraws_eq_some {D : Measure (FreeMonoid α)} {k N M : ℕ} {pops : List 
     rfl
 
 /-- The round's draws hit where every population's `M` draws hit. -/
-lemma clusterDraws_isSome_iff {D Dsf : Measure (FreeMonoid α)} {k N M : ℕ} {h : LoopHist α}
+lemma clusterDraws_isSome_iff {D Dsf : Measure (FreeMonoid α)} {k N M : ℕ} {h : SpecHist α}
     {c : ClusterDraws Ω α K N} :
     (clusterDraws D Dsf k N M h c).isSome
       ↔ ∀ j, (popDraws D k N M h.pops h.prefs j (c.2.2.1 j)).isSome := by
@@ -325,7 +325,7 @@ lemma clusterDraws_isSome_iff {D Dsf : Measure (FreeMonoid α)} {k N M : ℕ} {h
 
 /-- Where the round's draws hit, they agree with the filled draws on the first `M` of each
 stream. -/
-theorem clusterDraws_agree {D Dsf : Measure (FreeMonoid α)} {k N M : ℕ} {h : LoopHist α}
+theorem clusterDraws_agree {D Dsf : Measure (FreeMonoid α)} {k N M : ℕ} {h : SpecHist α}
     {c : ClusterDraws Ω α K N} {dr : Draws Ω (FreeMonoid α) (Option (Fin K))}
     (hdr : clusterDraws D Dsf k N M h c = some dr) :
     AgreeTo none M dr (idealDraws D Dsf k N h c) := by
@@ -342,7 +342,7 @@ theorem clusterDraws_agree {D Dsf : Measure (FreeMonoid α)} {k N M : ℕ} {h : 
 
 /-- The event that the round's draws hit is measurable. -/
 lemma measurableSet_clusterDraws_isSome (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (k N M : ℕ) (h : LoopHist α) :
+    (k N M : ℕ) (h : SpecHist α) :
     MeasurableSet {c : ClusterDraws Ω α K N | (clusterDraws D Dsf k N M h c).isSome} := by
   have : {c : ClusterDraws Ω α K N | (clusterDraws D Dsf k N M h c).isSome}
       = ⋂ j, (fun c : ClusterDraws Ω α K N => c.2.2.1 j) ⁻¹'

@@ -1,5 +1,5 @@
 import OrthoDFA.Code.Level3HarvestCode
-import OrthoDFA.Code.LearnerLoop
+import OrthoDFA.Proofs.LoopSpec
 import OrthoDFA.Proofs.RandomHarvest
 import OrthoDFA.Proofs.KappaReads
 import OrthoDFA.Proofs.RandomSearch
@@ -9,9 +9,7 @@ import OrthoDFA.Proofs.RandomSearch
 * `harvestCodeLaw_popLaw_eq` — (A1) conditioned on a hit, the sampler's output law off `T` is
   exactly `popLaw ((harvestLaw …).restrict Tᶜ)`.
 * `harvestCodeLaw_miss_le` — (A2) the all-miss mass is `(1 - q) ^ N`, `q` the chance one probe
-  harvests a string off `T`; with `y ≤ q` and `N = harvestN y δₛ`, it is at most `δₛ`.
-* `harvestCode_reads_card_le` — (B) the sampler reads only what its (at most `|xs|`) walked probes
-  read, `≤ |xs|` probe-walks each of `≤ 2 + clog₂ L` reads. -/
+  harvests a string off `T`; with `y ≤ q` and `N = harvestN y δₛ`, it is at most `δₛ`. -/
 
 namespace OrthoDFA
 
@@ -23,13 +21,6 @@ open scoped ENNReal
 variable {α : Type*} [Fintype α]
 variable (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α)
   (site : Level3Site) (T : Set (FreeMonoid α)) (N : ℕ) (xs : List (FreeMonoid α))
-
-open scoped Classical in
-/-- The strings the bounded-rejection sampler reads: the union of `probeReads` over the probes it
-walks (all of `xs` in the worst case). -/
-noncomputable def harvestFirstReads (read : FreeMonoid α → ARU) (T : DTree α)
-    (E : Edges α) (k : ℕ) (xs : List (FreeMonoid α)) : Finset (FreeMonoid α) :=
-  xs.foldr (fun x acc => Kappa.probeReads read T E k x ∪ acc) ∅
 
 /-- `popLaw` ignores a positive finite scaling: rejection sampling's output is a `c`-multiple of the
 harvest law (`c` the geometric first-hit factor), and normalisation divides `c` back out. -/
@@ -347,85 +338,6 @@ theorem harvestCodeLaw_miss_le [IsProbabilityMeasure D] {y δₛ : ℝ}
   calc (D miss) ^ N ≤ (ENNReal.ofReal (1 - y)) ^ N := pow_le_pow_left' hDmiss_le N
     _ = ENNReal.ofReal ((1 - y) ^ N) := (ENNReal.ofReal_pow h1y N).symm
     _ ≤ ENNReal.ofReal δₛ := ENNReal.ofReal_le_ofReal hpow
-
-/-- (B) Cost.  The sampler reads only the strings its walked probes read; when every probe is at
-most `L` long each probe-walk sifts `≤ 3 + clog₂ L` positions, each reading `≤ |mids T|` strings, so
-the total is `≤ |xs| · ((3 + clog₂ L) · |mids T|)`.  (At the loop's `read = familyRead … F`, each
-such read is `|F|` raw oracle queries; that factor is applied where the sampler is wired in.) -/
-theorem harvestCode_reads_card_le {L : ℕ} (hxs : ∀ x ∈ xs, x.toList.length ≤ L) :
-    (harvestFirstReads read H.tree H.edges k xs).card
-      ≤ xs.length * ((3 + Nat.clog 2 L) * (mids H.tree).card) := by
-  classical
-  revert hxs
-  induction xs with
-  | nil => intro _; simp [harvestFirstReads]
-  | cons x rest ih =>
-    intro hxs
-    have hx : x.toList.length ≤ L := hxs x (List.mem_cons.mpr (Or.inl rfl))
-    have hper : (Kappa.probeReads read H.tree H.edges k x).card
-        ≤ (3 + Nat.clog 2 L) * (mids H.tree).card := by
-      obtain ⟨ps, hps, hsub⟩ := Kappa.probeReads_sub (rd := read) (T := H.tree) H.edges k hx
-      calc (Kappa.probeReads read H.tree H.edges k x).card
-          ≤ (Kappa.posReads read H.tree x ps).card := Finset.card_le_card hsub
-        _ ≤ ps.toFinset.card * (mids H.tree).card := Kappa.posReads_card _ _ _ _
-        _ ≤ (3 + Nat.clog 2 L) * (mids H.tree).card := Nat.mul_le_mul_right _ hps
-    have hrest := ih (fun y hy => hxs y (List.mem_cons.mpr (Or.inr hy)))
-    have hfold : harvestFirstReads read H.tree H.edges k (x :: rest)
-        = Kappa.probeReads read H.tree H.edges k x ∪ harvestFirstReads read H.tree H.edges k rest :=
-      rfl
-    rw [hfold, List.length_cons]
-    calc (Kappa.probeReads read H.tree H.edges k x
-            ∪ harvestFirstReads read H.tree H.edges k rest).card
-        ≤ (Kappa.probeReads read H.tree H.edges k x).card
-            + (harvestFirstReads read H.tree H.edges k rest).card := Finset.card_union_le _ _
-      _ ≤ (3 + Nat.clog 2 L) * (mids H.tree).card
-            + rest.length * ((3 + Nat.clog 2 L) * (mids H.tree).card) := Nat.add_le_add hper hrest
-      _ = (rest.length + 1) * ((3 + Nat.clog 2 L) * (mids H.tree).card) := by ring
-
-/-- Per-run locality: with the probe list `xs` fixed, `harvestFirst` depends on the reader only
-through `harvestFirstReads`, so two readers agreeing there return the same string.  This is the
-bounded (per-run) congruence; the per-measure version is false. -/
-theorem harvestFirst_congr {read read' : FreeMonoid α → ARU} (k : ℕ) (H : HypothesisDFA α)
-    (site : Level3Site) (T : Set (FreeMonoid α)) (xs : List (FreeMonoid α))
-    (h : ∀ w ∈ harvestFirstReads read H.tree H.edges k xs, read w = read' w) :
-    harvestFirst read k H site T xs = harvestFirst read' k H site T xs := by
-  classical
-  have hmem : ∀ (l : List (FreeMonoid α)) (x : FreeMonoid α), x ∈ l →
-      ∀ w ∈ Kappa.probeReads read H.tree H.edges k x,
-        w ∈ harvestFirstReads read H.tree H.edges k l := by
-    intro l
-    induction l with
-    | nil => simp
-    | cons a rest ih =>
-      intro x hx w hw
-      have hfold : harvestFirstReads read H.tree H.edges k (a :: rest)
-          = Kappa.probeReads read H.tree H.edges k a
-            ∪ harvestFirstReads read H.tree H.edges k rest := rfl
-      rw [hfold, Finset.mem_union]
-      rcases List.mem_cons.1 hx with rfl | hxrest
-      · exact Or.inl hw
-      · exact Or.inr (ih x hxrest w hw)
-  have hsite : ∀ x ∈ xs, siteHarvest read k H site x = siteHarvest read' k H site x := by
-    intro x hx
-    have hx' : ∀ w ∈ Kappa.probeReads read H.tree H.edges k x, read w = read' w :=
-      fun w hw => h w (hmem xs x hx w hw)
-    have hpo := (Kappa.probeReads_congr (rd := read) (rd' := read') (T := H.tree)
-      (E := H.edges) (k := k) (x := x) hx').1
-    cases site <;> simp only [siteHarvest, hpo]
-  have key : ∀ (l : List (FreeMonoid α)),
-      (∀ x ∈ l, siteHarvest read k H site x = siteHarvest read' k H site x) →
-      l.findSome? (fun x => (siteHarvest read k H site x).head?.filter fun z => z ∉ T)
-        = l.findSome? (fun x => (siteHarvest read' k H site x).head?.filter fun z => z ∉ T) := by
-    intro l
-    induction l with
-    | nil => intro _; rfl
-    | cons a rest ih =>
-      intro hl
-      rw [List.findSome?_cons, List.findSome?_cons, hl a (List.mem_cons.2 (Or.inl rfl))]
-      cases hb : (siteHarvest read' k H site a).head?.filter fun z => z ∉ T with
-      | none => simp only [hb]; exact ih (fun x hx => hl x (List.mem_cons.2 (Or.inr hx)))
-      | some b => simp only [hb]
-  simpa only [harvestFirst] using key xs hsite
 
 end Random
 

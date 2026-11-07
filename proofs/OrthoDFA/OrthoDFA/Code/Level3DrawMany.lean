@@ -28,6 +28,12 @@ noncomputable def drawManyFirst (read : FreeMonoid α → ARU) (k : ℕ) (H : Hy
     some fun i => (harvestFirst read k H site T (List.ofFn (yss i))).getD 1
   else none
 
+noncomputable def drawManyFirstQ (k : ℕ) (H : HypothesisDFA α) (site : Level3Site)
+    (T : Set (FreeMonoid α)) {m N' : ℕ} (yss : Fin m → (Fin N' → FreeMonoid α)) :
+    Query (FreeMonoid α) ARU (Option (Fin m → FreeMonoid α)) :=
+  (Query.pi fun i => harvestFirstQ k H site T (List.ofFn (yss i))).map fun g =>
+    if ∀ i, (g i).isSome = true then some fun i => (g i).getD 1 else none
+
 /-- The law of the `m` draws over i.i.d. probes from `D`, conditioned on all hitting, as a
 probability (a point mass where the hit event has no or infinite mass, as `popLaw`). -/
 noncomputable def drawManyLaw [Countable α] (read : FreeMonoid α → ARU)
