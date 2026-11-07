@@ -11,7 +11,7 @@ import itertools
 import json
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Sequence
+from typing import Any, Callable, Dict, Iterable, List, Sequence
 
 from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH
 from orthogonal_dfa.l_star.preconditions import PreconditionReport
@@ -118,26 +118,22 @@ def describe(cell: Cell) -> str:
     )
 
 
-def finished(out_path: Path, **config: Any) -> bool:
-    """Whether `out_path` is a completed run whose saved config has these values."""
+def cell_key(cell: dict) -> tuple:
+    return (cell["benchmark"], cell["learner"], cell["eta"], cell["seed"])
+
+
+def finished(
+    out_path: Path, key: Callable[[dict], tuple], grid: Iterable[tuple]
+) -> bool:
+    """Whether `out_path` is a completed run holding exactly the cells of `grid`."""
     if not out_path.exists():
         return False
     payload = json.loads(out_path.read_text())
     return (
         payload.get("complete") is True
         and payload.get("schema_version") == SCHEMA_VERSION
-        and all(payload["config"].get(k) == v for k, v in config.items())
+        and {key(c) for c in payload["cells"]} == set(grid)
     )
-
-
-def sweep_finished(experiment: str) -> bool:
-    """Needs no CAPAL checkout, unlike building the benchmarks `run_sweep` takes,
-    so it cannot compare benchmark names."""
-    out_path = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
-    done = finished(out_path, etas=ETAS, seeds=SEEDS, learners=LEARNERS)
-    if done:
-        print(f"{out_path} is complete; nothing to run.", flush=True)
-    return done
 
 
 def reusable_cells(out_path: Path, key: Callable[[dict], tuple]) -> Dict[tuple, dict]:
@@ -165,7 +161,8 @@ def reusable_cells(out_path: Path, key: Callable[[dict], tuple]) -> Dict[tuple, 
 
 
 def run_sweep(
-    benchmarks: Sequence[Benchmark],
+    names: Sequence[str],
+    build_benchmarks: Callable[[], Sequence[Benchmark]],
     *,
     experiment: str,
     description: str,
@@ -175,9 +172,17 @@ def run_sweep(
     `data/capal/<experiment>.json`.
 
     Cells already present in that file are reused rather than re-run, so an
-    interrupted sweep resumes and an unchanged one is nearly free.
+    interrupted sweep resumes. `build_benchmarks`, which needs the CAPAL checkout,
+    is not called if the file is already `finished`.
     """
     out_path = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
+    grid = itertools.product(names, LEARNERS, ETAS, SEEDS)
+    if finished(out_path, cell_key, grid):
+        print(f"{out_path} is complete; nothing to run.", flush=True)
+        return out_path
+
+    benchmarks = build_benchmarks()
+    assert [b.name for b in benchmarks] == list(names)
     config = {
         "etas": list(ETAS),
         "seeds": list(SEEDS),
@@ -185,9 +190,7 @@ def run_sweep(
         "benchmarks": [b.name for b in benchmarks],
     }
 
-    previous = reusable_cells(
-        out_path, lambda c: (c["benchmark"], c["learner"], c["eta"], c["seed"])
-    )
+    previous = reusable_cells(out_path, cell_key)
     if previous:
         print(f"Reusing up to {len(previous)} cells from {out_path}.", flush=True)
 
@@ -238,9 +241,7 @@ def run_sweep(
                 flush=True,
             )
             cached = previous.get((b.name, learner, eta, seed))
-            # An exclusion is free to redo, and reusing one would outlive the
-            # preconditions that produced it.
-            if cached is not None and cached.get("error_type") != "ExcludedOutOfRegime":
+            if cached is not None:
                 cell = Cell(**cached)
                 print(describe(cell) + "  [reused]", flush=True)
             else:

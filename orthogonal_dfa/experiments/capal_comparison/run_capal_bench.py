@@ -10,15 +10,14 @@ experiment on CAPAL's home turf rather than ours.
 
 from __future__ import annotations
 
-from .capal_targets import capal_benchmarks
-from .sweep import run_sweep, sweep_finished
+from .capal_targets import CAPAL_BENCHMARK_NAMES, capal_benchmarks
+from .sweep import run_sweep
 
 
 def main() -> None:
-    if sweep_finished("capal_benchmarks"):
-        return
     run_sweep(
-        capal_benchmarks(),
+        CAPAL_BENCHMARK_NAMES,
+        capal_benchmarks,
         experiment="capal_benchmarks",
         description=(
             "CAPAL and E-L* on CAPAL's own 28 .taf benchmark targets "

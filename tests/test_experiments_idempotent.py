@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import tempfile
 import unittest
@@ -10,11 +11,10 @@ from automata.fa.dfa import DFA
 from orthogonal_dfa.experiments.capal_comparison import (
     LEARNER_CAPAL,
     Cell,
-    run_our_bench,
     run_wall_sweep,
+    sweep,
     write_experiment,
 )
-from orthogonal_dfa.experiments.capal_comparison.sweep import ETAS, LEARNERS, SEEDS
 from orthogonal_dfa.experiments.length_oracles import (
     extract,
     label,
@@ -52,8 +52,12 @@ class TestWallSweep(unittest.TestCase):
             return sweep_cell(b.name, seed)
 
         with mock.patch.object(
+            run_wall_sweep, "OUR_BENCHMARK_NAMES", ["b"]
+        ), mock.patch.object(
             run_wall_sweep, "our_benchmarks", lambda: [benchmark]
-        ), mock.patch.object(run_wall_sweep, "capal_cell", capal_cell), mock.patch(
+        ), mock.patch.object(
+            run_wall_sweep, "capal_cell", capal_cell
+        ), mock.patch(
             "sys.argv", [*ARGV, "--out", str(out)]
         ), mock.patch(
             "builtins.print"
@@ -95,37 +99,132 @@ class TestWallSweep(unittest.TestCase):
             self.assertTrue(payload["complete"])
             self.assertEqual([c["seed"] for c in payload["cells"]], [0, 1])
 
-    def test_complete_file_of_another_grid_is_not_finished(self):
+    def test_cell_deleted_from_a_complete_file_runs(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "sweep.json"
-            self._write(out, seeds=[0, 1], complete=True)
-            payload = json.loads(out.read_text())
-            payload["config"]["seeds"] = [0]
-            out.write_text(json.dumps(payload))
-            # its cells cover the grid, so nothing runs, but it is rewritten
+            self._write(out, seeds=[0], complete=True)
+            self.assertEqual(self._main(out), [1])
+
+    def test_cell_outside_the_grid_is_dropped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "sweep.json"
+            self._write(out, seeds=[0, 1, 2], complete=True)
             self.assertEqual(self._main(out), [])
-            self.assertEqual(json.loads(out.read_text())["config"]["seeds"], [0, 1])
+            payload = json.loads(out.read_text())
+            self.assertEqual([c["seed"] for c in payload["cells"]], [0, 1])
 
-
-class TestHeadToHead(unittest.TestCase):
-    def test_complete_file_skips_building_the_benchmarks(self):
-        with tempfile.TemporaryDirectory() as tmp, mock.patch(
-            "orthogonal_dfa.experiments.capal_comparison.sweep.REPO_ROOT", Path(tmp)
+    def test_matched_budget_expects_no_cell_where_elstar_spent_nothing(self):
+        matched = run_wall_sweep.MATCHED_BUDGET_CONFIGS[0][0]
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
+            run_wall_sweep, "OUR_BENCHMARK_NAMES", ["b", "unspent"]
         ), mock.patch.object(
-            run_our_bench, "our_benchmarks", side_effect=AssertionError
+            run_wall_sweep, "elstar_budgets", lambda: {("b", 0.3): 5}
+        ), mock.patch.object(
+            run_wall_sweep, "our_benchmarks", side_effect=AssertionError
         ), mock.patch(
             "builtins.print"
         ):
+            out = Path(tmp) / "matched.json"
+            cell = sweep_cell("b", 0)
+            cell.learner_config["label"] = matched
             write_experiment(
-                Path(tmp) / "data" / "capal" / "our_benchmarks.json",
-                experiment="our_benchmarks",
+                out,
+                experiment="matched_budget",
                 generated_by="test",
                 description="d",
-                config={"etas": ETAS, "seeds": SEEDS, "learners": LEARNERS},
-                cells=[],
+                config={},
+                cells=[cell],
                 complete=True,
             )
-            run_our_bench.main()
+            argv = ["w", "--matched-budget", "--seeds", "0", "--out", str(out)]
+            with mock.patch("sys.argv", argv):
+                run_wall_sweep.main()
+
+
+@dataclasses.dataclass
+class Regime:
+    satisfied: bool = True
+    reasons: tuple = ()
+
+
+def head_to_head_benchmark(name):
+    return SimpleNamespace(
+        name=name, symbols=2, truth=lambda: None, regime_report=Regime
+    )
+
+
+class TestHeadToHead(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
+        self.addCleanup(tmp.cleanup)
+        self.out = Path(tmp.name) / "data" / "capal" / "e.json"
+        self.ran = []
+        for patcher in (
+            mock.patch.object(sweep, "REPO_ROOT", Path(tmp.name)),
+            mock.patch.object(sweep, "ETAS", [0.3]),
+            mock.patch.object(sweep, "SEEDS", [0]),
+            mock.patch.object(sweep, "LEARNERS", [LEARNER_CAPAL]),
+            mock.patch.object(sweep, "eval_words", lambda _: []),
+            mock.patch.object(sweep, "run_cell", self._run_cell),
+            mock.patch("builtins.print"),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _run_cell(self, b, *, learner, eta, seed, **_):
+        self.ran.append(b.name)
+        return Cell(
+            benchmark=b.name,
+            family="ours",
+            learner=learner,
+            eta=eta,
+            seed=seed,
+            seconds=0.0,
+        )
+
+    def _sweep(self, names, build):
+        sweep.run_sweep(names, build, experiment="e", description="d", generated_by="t")
+
+    def _sweep_all(self, names):
+        self._sweep(names, lambda: [head_to_head_benchmark(n) for n in names])
+
+    def test_saved_grid_neither_builds_nor_writes(self):
+        self._sweep_all(["a"])
+        before = self.out.stat().st_mtime_ns
+        self._sweep(["a"], mock.Mock(side_effect=AssertionError))
+        self.assertEqual(self.out.stat().st_mtime_ns, before)
+
+    def test_added_benchmark_runs_only_its_cells(self):
+        self._sweep_all(["a"])
+        self.ran.clear()
+        self._sweep_all(["a", "b"])
+        self.assertEqual(self.ran, ["b"])
+        self.assertTrue(json.loads(self.out.read_text())["complete"])
+
+    def test_cell_deleted_from_a_complete_file_runs(self):
+        self._sweep_all(["a", "b"])
+        payload = json.loads(self.out.read_text())
+        payload["cells"] = [c for c in payload["cells"] if c["benchmark"] != "a"]
+        self.out.write_text(json.dumps(payload))
+        self.ran.clear()
+        self._sweep_all(["a", "b"])
+        self.assertEqual(self.ran, ["a"])
+
+    def test_saved_exclusion_is_reused_when_another_cell_runs(self):
+        self._sweep_all(["a", "b"])
+        payload = json.loads(self.out.read_text())
+        payload["cells"] = [c for c in payload["cells"] if c["benchmark"] == "a"]
+        payload["cells"][0]["error_type"] = "ExcludedOutOfRegime"
+        self.out.write_text(json.dumps(payload))
+        self.ran.clear()
+        self._sweep_all(["a", "b"])
+        self.assertEqual(self.ran, ["b"])
+        saved = json.loads(self.out.read_text())["cells"]
+        self.assertEqual(saved[0]["error_type"], "ExcludedOutOfRegime")
+
+    def test_names_must_match_what_is_built(self):
+        with self.assertRaises(AssertionError):
+            self._sweep(["a"], lambda: [head_to_head_benchmark("b")])
 
 
 def write_run(run, oracle, seed, marker):

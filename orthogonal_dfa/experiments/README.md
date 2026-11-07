@@ -63,9 +63,9 @@ rm data/capal/wall_sweep.json
 # matched budget
 rm data/capal/matched_budget.json
 
-# only E-L*'s cells (needs jq), after changing E-L*
+# only E-L*'s cells (needs jq), after changing E-L* or its preconditions
 for f in data/capal/capal_benchmarks.json data/capal/our_benchmarks.json; do
-    jq '.cells |= map(select(.learner != "E-L*")) | .complete = false' "$f" > "$f.new"
+    jq '.cells |= map(select(.learner != "E-L*"))' "$f" > "$f.new"
     mv "$f.new" "$f"
 done
 rm data/capal/matched_budget.json

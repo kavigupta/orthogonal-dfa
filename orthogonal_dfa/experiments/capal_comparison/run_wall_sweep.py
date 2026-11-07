@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .core import REPO_ROOT, Cell, eval_words, write_experiment
-from .our_targets import our_benchmarks
+from .our_targets import OUR_BENCHMARK_NAMES, our_benchmarks
 from .sweep import capal_cell, finished, reusable_cells
 
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
@@ -59,6 +59,15 @@ MATCHED_BUDGET_CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
         ),
     ),
 ]
+
+
+def cell_key(cell: dict) -> tuple:
+    return (
+        cell["benchmark"],
+        cell["learner_config"]["label"],
+        cell["eta"],
+        cell["seed"],
+    )
 
 
 def elstar_budgets() -> Dict[Tuple[str, float], int]:
@@ -124,32 +133,26 @@ def main() -> None:  # pylint: disable=too-many-statements
     default_out = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
     out_path = Path(args.out) if args.out else default_out
 
+    names = args.targets or OUR_BENCHMARK_NAMES
+    missing = set(names) - set(OUR_BENCHMARK_NAMES)
+    if missing:
+        raise SystemExit(f"unknown target(s): {sorted(missing)}")
+
     labels = [label for label, _ in sweep_configs]
-    targets = {"benchmarks": args.targets} if args.targets else {}
-    if finished(
-        out_path,
-        etas=etas,
-        seeds=args.seeds,
-        configs=labels,
-        matched_budget=args.matched_budget,
-        **targets,
-    ):
+    budgets = elstar_budgets() if args.matched_budget else {}
+    grid = [
+        (name, label, eta, seed)
+        for name, label, eta, seed in itertools.product(names, labels, etas, args.seeds)
+        if not args.matched_budget or (name, eta) in budgets
+    ]
+    if finished(out_path, cell_key, grid):
         print(f"{out_path} is complete; nothing to run.", flush=True)
         return
 
-    budgets = elstar_budgets() if args.matched_budget else {}
-    benchmarks = our_benchmarks()
-    if args.targets:
-        by = {b.name: b for b in benchmarks}
-        missing = set(args.targets) - by.keys()
-        if missing:
-            raise SystemExit(f"unknown target(s): {sorted(missing)}")
-        benchmarks = [by[n] for n in args.targets]
+    by = {b.name: b for b in our_benchmarks()}
+    benchmarks = [by[n] for n in names]
 
-    previous = reusable_cells(
-        out_path,
-        lambda c: (c["benchmark"], c["learner_config"]["label"], c["eta"], c["seed"]),
-    )
+    previous = reusable_cells(out_path, cell_key)
     cells: List[Cell] = []
     config = {
         "etas": list(etas),
