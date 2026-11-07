@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .core import REPO_ROOT, Cell, eval_words, write_experiment
-from .our_targets import our_benchmarks
+from .our_targets import OUR_BENCHMARK_NAMES, our_benchmarks
 from .sweep import capal_cell, reusable_cells
 
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
@@ -131,24 +131,34 @@ def main() -> None:  # pylint: disable=too-many-statements
     etas = args.etas or ([0.30] if args.matched_budget else DEFAULT_ETAS)
     experiment = "matched_budget" if args.matched_budget else "wall_sweep"
     default_out = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
-
-    budgets = elstar_budgets() if args.matched_budget else {}
-    benchmarks = our_benchmarks()
-    if args.targets:
-        by = {b.name: b for b in benchmarks}
-        missing = set(args.targets) - by.keys()
-        if missing:
-            raise SystemExit(f"unknown target(s): {sorted(missing)}")
-        benchmarks = [by[n] for n in args.targets]
-
     out_path = Path(args.out) if args.out else default_out
+
+    names = args.targets or OUR_BENCHMARK_NAMES
+    missing = set(names) - set(OUR_BENCHMARK_NAMES)
+    if missing:
+        raise SystemExit(f"unknown target(s): {sorted(missing)}")
+
+    labels = [label for label, _ in sweep_configs]
+    budgets = elstar_budgets() if args.matched_budget else {}
+    grid = [
+        (name, label, eta, seed)
+        for name, label, eta, seed in itertools.product(names, labels, etas, args.seeds)
+        if not args.matched_budget or (name, eta) in budgets
+    ]
     previous = reusable_cells(out_path, cell_key)
+    if not set(grid) - previous.keys():
+        print(f"{out_path} has every cell; nothing to run.", flush=True)
+        return
+
+    by = {b.name: b for b in our_benchmarks()}
+    benchmarks = [by[n] for n in names]
+
     cells: List[Cell] = []
     config = {
         "etas": list(etas),
         "seeds": list(args.seeds),
         "benchmarks": [b.name for b in benchmarks],
-        "configs": [label for label, _ in sweep_configs],
+        "configs": labels,
         "matched_budget": args.matched_budget,
     }
 

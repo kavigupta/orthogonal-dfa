@@ -147,7 +147,8 @@ def reusable_cells(out_path: Path, key: Callable[[dict], tuple]) -> Dict[tuple, 
 
 
 def run_sweep(
-    benchmarks: Sequence[Benchmark],
+    names: Sequence[str],
+    build_benchmarks: Callable[[], Sequence[Benchmark]],
     *,
     experiment: str,
     description: str,
@@ -157,9 +158,17 @@ def run_sweep(
     `data/capal/<experiment>.json`.
 
     Cells already present in that file are reused rather than re-run, so an
-    interrupted sweep resumes and an unchanged one is nearly free.
+    interrupted sweep resumes. `build_benchmarks`, which needs the CAPAL checkout,
+    is not called if no cell is missing.
     """
     out_path = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
+    previous = reusable_cells(out_path, cell_key)
+    if not set(itertools.product(names, LEARNERS, ETAS, SEEDS)) - previous.keys():
+        print(f"{out_path} has every cell; nothing to run.", flush=True)
+        return out_path
+
+    benchmarks = build_benchmarks()
+    assert [b.name for b in benchmarks] == list(names)
     config = {
         "etas": list(ETAS),
         "seeds": list(SEEDS),
@@ -167,7 +176,6 @@ def run_sweep(
         "benchmarks": [b.name for b in benchmarks],
     }
 
-    previous = reusable_cells(out_path, cell_key)
     if previous:
         print(f"Reusing up to {len(previous)} cells from {out_path}.", flush=True)
 
