@@ -367,7 +367,7 @@ theorem card_reads_roundQ_le (settings : LoopSettings K) (D Dsf : Measure (FreeM
   split_ifs at hleaf ⊢ with hex
   swap
   · simp
-  simp only [eval_map, eval_subst, eval_level3Q, Option.mem_def, Option.some.injEq, forall_eq,
+  simp only [eval_map, eval_subst, eval_level3Q, Option.mem_def, Option.some.injEq,
     forall_eq'] at hleaf
   set t := (Query.table (clusterReads sched ps x).toList).eval o
   have hBs := (Classical.epsilon_spec (p := fun B => B ∈ sched ∧ x ∈ ret (fun w _ => t w) ps
@@ -450,7 +450,8 @@ theorem card_reads_loopRoundsQ_le (O : Oracle μ (FreeMonoid α)) (ω : Ω)
       simp at hev
     rw [hrs] at hev
     have hsm := loopRounds_small settings O D Dsf _ hk r rs hrs
-    have ih := card_reads_loopRoundsQ_le O ω settings D Dsf rd hD hab hk r (rs.map SpecRound.data)
+    have ih := card_reads_loopRoundsQ_le O ω settings D Dsf rd hD hab hk (n := n) r
+      (rs.map SpecRound.data)
       (by simp [e0, hrs])
     simp only [Option.map_some] at hev ⊢
     refine (Finset.card_union_le _ _).trans (Nat.add_le_add ?_ ?_)
