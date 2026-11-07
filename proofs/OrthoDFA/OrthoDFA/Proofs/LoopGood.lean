@@ -531,6 +531,7 @@ lemma loopRounds_roundOf (n : ℕ) : ∀ rounds, loopRounds settings O D Dsf dra
         subst h1
         unfold loopRound at ho
         obtain ⟨dr, -, hdr⟩ := Option.mem_bind_iff.1 ho
+        dsimp only at hdr
         split_ifs at hdr
         · exact ⟨_, _, _, (Option.mem_some_iff.1 hdr).symm⟩
         · cases hdr
