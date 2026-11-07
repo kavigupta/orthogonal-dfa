@@ -78,17 +78,17 @@ def ReadsWithin {X : Type*} [DecidableEq X] {Y : Type*} (run : Query X ℝ Y) (o
     ∀ o : X → ℝ, (∀ w ∈ run.reads oracle, o w = oracle w) →
       run.eval o = run.eval oracle ∧ run.reads o = run.reads oracle
 
-/-- The learner returns within `|Q| + 1` rounds, every round's tree at most `|Q| + 2` leaves, its
-last round consistent and its re-rooted DFA wrong on at most `ε` of `T`. -/
+/-- Within the round and leaf caps, the loop ends consistent and errs on at most `ε` of `T`. -/
 def RLStarSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype Q] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K)
     (O : Oracle μ (FreeMonoid A)) (D Dsf T : Measure (FreeMonoid A)) (M : _root_.DFA A Q) (ε : ℝ)
     {n : ℕ} (q : LoopDraws Ω A K settings.level3.harvestReadCap settings.level3.probeBudget
       × (Fin n → FreeMonoid A)) : Prop :=
-  ∃ rounds s, indecisiveLStar settings O D Dsf q.1 q.2 = some (rounds, s) ∧
+  ∃ rounds, indecisiveLStarLoop settings O D Dsf q.1 = some rounds ∧
     (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
         o.result.ending = .consistent ∧ T.real {w | ¬
-          o.result.hypothesis.Classifies s w (M.eval w.toList ∈ M.accept)} ≤ ε) ∧
+          o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 w
+            (M.eval w.toList ∈ M.accept)} ≤ ε) ∧
     ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2
 
 /-- On every instance in `rlStarDistRegion`, for strings drawn from `D` whose first `k` letters
@@ -233,8 +233,8 @@ def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
-      {q | ¬ RLStarSucceeds settings O (windowStrings k L₁) (uniformStrings (L₁ + Fintype.card Q + 3))
-        (uniformStrings L) M (γ + x.ξ) q}
+      {q | ¬ RLStarSucceeds settings O (windowStrings k L₁)
+        (uniformStrings (L₁ + Fintype.card Q + 3)) (uniformStrings L) M (γ + x.ξ) q}
       ≤ x.δ
 
 open Real in
