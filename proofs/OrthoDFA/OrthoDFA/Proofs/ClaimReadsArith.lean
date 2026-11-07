@@ -616,11 +616,9 @@ def distBudget (r : LoopDistRun) : ℝ :=
 def distSC (r : LoopDistRun) : ℝ :=
   loopSC (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r) (r.ξ / 4) r.pAP (1 / 2 - r.s₀)
 
+/-- The probes a round's harvested draws walk, at most, at the claim's rates. -/
 def distHB (r : LoopDistRun) : ℝ :=
   loopHB (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r) (r.ξ / 4) r.pAP (1 / 2 - r.s₀)
-
-/-- The probes a round's harvested draws walk, at most, at the claim's rates. -/
-def distWalk (r : LoopDistRun) : ℝ := distHB r
 
 def distLg (r : LoopDistRun) : ℝ := ((3 + Nat.clog 2 (r.L + r.Q + 3) : ℕ) : ℝ)
 
@@ -772,15 +770,11 @@ lemma shapes_nonneg {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     nonneg_of_mul_nonneg_right ((harvest_pw hr).1.trans (harvest_pw hr).2) (by norm_num),
     nonneg_of_mul_nonneg_right ((start_pw hr).1.trans (start_pw hr).2) (by norm_num)⟩
 
-lemma distWalk_isBigO : distWalk =O[𝓟 loopDistRunRegion] (fun r => shRho r * shPref r) :=
+lemma distHB_isBigO : distHB =O[𝓟 loopDistRunRegion] (fun r => shRho r * shPref r) :=
   isBigO_on (2 ^ 108) fun r hr => by
     obtain ⟨h1, h2⟩ := hb_pw hr
-    have h3 : 0 ≤ shRho r * shPref r := by
-      by_contra hneg
-      push Not at hneg
-      have : (2 : ℝ) ^ 108 * (shRho r * shPref r) < 0 := mul_neg_of_pos_of_neg (by norm_num) hneg
-      linarith
-    exact ⟨(by linarith : 0 ≤ distHB r), h3, h2⟩
+    have h0 : 0 ≤ distHB r := by linarith
+    exact ⟨h0, nonneg_of_mul_nonneg_right (h0.trans h2) (by norm_num), h2⟩
 
 /-- Each source of reads within its own shape. -/
 lemma distReads_isBigO : distReads =O[𝓟 loopDistRunRegion]

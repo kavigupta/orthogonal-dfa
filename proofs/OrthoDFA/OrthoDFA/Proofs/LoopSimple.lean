@@ -367,13 +367,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
                   AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
                     RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
                       (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))
-                ∧ ∀ r (hr : r < Fintype.card σ + 1),
-                  AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
-                    harvestWalk P.D settings.level3.walkStart settings.level3.harvestReadCap
-                      settings.scanCap
-                      (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).pops
-                      (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).prefs
-                      (persistDraws p ⟨r, hr⟩).2.1.2.1 ≤ ⌈HB⌉₊)}
+                ∧ RoundsWalkWithin settings O P.D Dsf p ⌈HB⌉₊)}
           ≤ (Q + 1) * (4 * δ') := by
   intro Q A L ι s τ J S B₃ Wm W PB FV RB cap Kc SC HN HB
     hL hη hη₀ hε hε1 hεd hεd12 hδ'0 hδ'1' hpAP hpAP1 hL1 hk0 hLε hk1 hk2 hk3

@@ -583,11 +583,7 @@ theorem harvestProbesWithin_of (O : Oracle μ (FreeMonoid α)) (settings : LoopS
     (hg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf (persistDraws p) r) →
       RoundGood settings O D Dsf (specHistOf (idealRounds settings O D Dsf (persistDraws p) r))
         (persistDraws p ⟨r, hr⟩))
-    (hw : ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf (persistDraws p) r) →
-      harvestWalk D settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap
-        (specHistOf (idealRounds settings O D Dsf (persistDraws p) r)).pops
-        (specHistOf (idealRounds settings O D Dsf (persistDraws p) r)).prefs
-        (persistDraws p ⟨r, hr⟩).2.1.2.1 ≤ B) :
+    (hw : RoundsWalkWithin settings O D Dsf p B) :
     HarvestProbesWithin settings O D p
       ((idealRounds settings O D Dsf (persistDraws p) K).map SpecRound.data) B := by
   intro r hr hlt
@@ -612,6 +608,7 @@ theorem harvestProbesWithin_of (O : Oracle μ (FreeMonoid α)) (settings : LoopS
   set h := histOf ((ir r).map SpecRound.data) with hhd
   set u := (p.2 ⟨r, hr⟩).1.2.1 with hud
   have hwr := hw r hr hall
+  unfold roundWalk at hwr
   rw [hspec] at hwr
   have hc := (hg r hr hall).1
   rw [hspec] at hc

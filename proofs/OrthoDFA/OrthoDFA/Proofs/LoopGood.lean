@@ -501,4 +501,26 @@ theorem loop_reads_le_op (a b : ℕ)
 
 end Reads
 
+section Walk
+
+/-- Round `r`'s harvested draws' probes in all. -/
+def roundWalk {μ : Measure Ω}
+    (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
+    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
+    (r : ℕ) (hr : r < K) : ℕ :=
+  harvestWalk D settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap
+    (specHistOf (idealRounds settings O D Dsf (persistDraws p) r)).pops
+    (specHistOf (idealRounds settings O D Dsf (persistDraws p) r)).prefs
+    (persistDraws p ⟨r, hr⟩).2.1.2.1
+
+/-- Every round whose harvested draws all land walks at most `B` probes in all. -/
+def RoundsWalkWithin {μ : Measure Ω}
+    (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
+    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
+    (B : ℕ) : Prop :=
+  ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf (persistDraws p) r) →
+    roundWalk settings O D Dsf p r hr ≤ B
+
+end Walk
+
 end OrthoDFA

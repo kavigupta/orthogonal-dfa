@@ -112,7 +112,7 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
     (by rw [hpS]; exact hpAPu)
     (summed_bridge M O hL L _ hR hξ hA ((uniformStrings_long _).mono fun x hx => by omega)
       (fun i _ hi y a => uniformStrings_floor (by omega) y a) ⟨q, by rw [hpL]; exact hq⟩) hp₀
-  replace h4 := h4 _ (Or.inl rfl)
+  replace h4 := h4 _ (Nat.ceil_mono (min_le_left _ _))
   have hε : ∀ x : ℝ, ξ / (2 * R) / (4 * (A + Q + 1) * x) = m / (3 * (A + Q + 1) * x) :=
     fun x => by simp only [m]; field_simp; ring
   rw [hε] at h2 h3 h5 h4

@@ -468,12 +468,7 @@ def LoopCore : Prop :=
               ∧ (∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
                 RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
                   (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))
-              ∧ ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
-                harvestWalk P.D settings.level3.walkStart settings.level3.harvestReadCap
-                  settings.scanCap
-                  (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).pops
-                  (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).prefs
-                  (persistDraws p ⟨r, hr⟩).2.1.2.1 ≤ B)}
+              ∧ RoundsWalkWithin settings O P.D Dsf p B)}
         ≤ (Fintype.card σ + 1) * (δc + gateLevel
           + (C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
             (2 * prefixMax P.D C.walkStart) (2 * (Fintype.card σ + 1) * cross) u) + bsc)
@@ -823,12 +818,7 @@ theorem loop_core_holds : LoopCore := by
         ∧ (∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
           RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
             (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))
-        ∧ ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
-          harvestWalk P.D settings.level3.walkStart settings.level3.harvestReadCap
-            settings.scanCap
-            (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).pops
-            (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).prefs
-            (persistDraws p ⟨r, hr⟩).2.1.2.1 ≤ B)}
+        ∧ RoundsWalkWithin settings O P.D Dsf p B)}
       ⊆ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r := by
     intro p hp
     by_contra hno
@@ -845,10 +835,7 @@ theorem loop_core_holds : LoopCore := by
           ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 i) p.2 i hK)
         ∧ RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i))
           (persistDraws p ⟨i, hK⟩)
-        ∧ harvestWalk P.D k settings.level3.harvestReadCap settings.scanCap
-            (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i)).pops
-            (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i)).prefs
-            (persistDraws p ⟨i, hK⟩).2.1.2.1 ≤ B := by
+        ∧ roundWalk settings O P.D Dsf p i hK ≤ B := by
       intro i
       induction i using Nat.strong_induction_on with
       | _ i ih =>
@@ -999,10 +986,8 @@ theorem loop_core_holds : LoopCore := by
             unfold idealRunAt at h3
             rw [← hti] at h3
             exact h3
-        have hwalk : harvestWalk P.D k settings.level3.harvestReadCap settings.scanCap
-            (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i)).pops
-            (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i)).prefs
-            (persistDraws p ⟨i, hK'⟩).2.1.2.1 ≤ B := by
+        have hwalk : roundWalk settings O P.D Dsf p i hK' ≤ B := by
+          unfold roundWalk
           rw [← hti, ← harvestWalk_alike hdec.1 P.D hlenB, ← hdec.2.1]
           exact not_lt.1 hn4'.2.2
         rw [e]
