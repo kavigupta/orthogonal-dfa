@@ -118,7 +118,11 @@ def describe(cell: Cell) -> str:
     )
 
 
-def reusable_cells(out_path: Path) -> Dict[tuple, dict]:
+def cell_key(cell: dict) -> tuple:
+    return (cell["benchmark"], cell["learner"], cell["eta"], cell["seed"])
+
+
+def reusable_cells(out_path: Path, key: Callable[[dict], tuple]) -> Dict[tuple, dict]:
     """Cells from an earlier run of this experiment, keyed by identity.
 
     A cell is written only once it has finished, so a crashed run's cells are
@@ -139,10 +143,7 @@ def reusable_cells(out_path: Path) -> Dict[tuple, dict]:
             flush=True,
         )
         return {}
-    return {
-        (c["benchmark"], c["learner"], c["eta"], c["seed"]): c
-        for c in payload.get("cells", [])
-    }
+    return {key(c): c for c in payload.get("cells", [])}
 
 
 def run_sweep(
@@ -166,7 +167,7 @@ def run_sweep(
         "benchmarks": [b.name for b in benchmarks],
     }
 
-    previous = reusable_cells(out_path)
+    previous = reusable_cells(out_path, cell_key)
     if previous:
         print(f"Reusing up to {len(previous)} cells from {out_path}.", flush=True)
 
