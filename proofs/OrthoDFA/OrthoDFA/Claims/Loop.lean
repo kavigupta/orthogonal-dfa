@@ -17,10 +17,11 @@ shape below, with `s₀ = 1/2 − η₀` the signal. The settings the proof pick
 disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths,
 so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes grow as `(L + |Q|)²` and the
 suffixes as `log L`. The prefix total's populations' group reads its log off the suffix pool alone,
-so that log grows as `log log L`. The strings asked are four sources' sum: the clusterings'
+so that log grows as `log log L`. The strings asked are five sources' sum: the clusterings'
 prefixes against their suffixes; level 3's probes, each a family read of `|V̂|` strings at the
-`log L` mids of a sift at most `|Q| + 1` deep (level 3 fails past `|Q| + 2` leaves) and a
-retarget over `|Σ|` letters; the `|Q| + 1` populations' scans, each walk a family read at the
+`log L` mids of a sift at most `|Q| + 1` deep (level 3 fails past `|Q| + 2` leaves); its splits, at
+most `|Q| + 1` a round, each re-sifting at most `|Q| + 2` leaves' edges over `|Σ|` letters down
+at most `|Q| + 2` midfixes; the `|Q| + 1` populations' scans, each walk a family read at the
 sifts of up to the harvest cap's probes, that cap `1/ρ` times `log X`; and the start leaf's family
 read at each held-out string. Each bound has one constant over all of `loopDistRegion`.
 
@@ -172,8 +173,8 @@ def LoopClaim.{u, v, w} : Prop :=
       let ρInv : ℝ := r.R * (1 / r.β + r.Q) * (r.L + r.Q) / r.ξ
       let lY : ℝ := log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
       let lg : ℝ := log (r.L + r.Q + 1)
-      -- clusterings, counterexample search, harvest, start leaf
-      nPref * nSuff / r.Q + nProbe * nFam * r.Q * (lg + r.A * r.Q)
+      -- clusterings, counterexample search, its re-sifts, harvest, start leaf
+      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
         + r.Q ^ 2 * nPref * nFam * lg * ρInv * lY + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopDistRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     (∀ r, 0 < p₀Tol r) ∧
@@ -262,7 +263,8 @@ def LoopClaimUniform.{u, v, w} : Prop :=
       let ρInv : ℝ := r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
       let lY : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
       let lg : ℝ := log (r.L + r.Q + 1)
-      nPref * nSuff / r.Q + nProbe * nFam * r.Q * (lg + r.A * r.Q)
+      -- clusterings, counterexample search, its re-sifts, harvest, start leaf
+      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
         + r.Q ^ 2 * nPref * nFam * lg * ρInv * lY + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     LoopWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut
@@ -294,7 +296,8 @@ def LoopClaimSimple.{u, v, w} : Prop :=
       let ρInv : ℝ := r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
       let lY : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
       let lg : ℝ := log (r.L + r.Q + 1)
-      nPref * nSuff / r.Q + nProbe * nFam * r.Q * (lg + r.A * r.Q)
+      -- clusterings, counterexample search, its re-sifts, harvest, start leaf
+      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
         + r.Q ^ 2 * nPref * nFam * lg * ρInv * lY + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     LoopWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut

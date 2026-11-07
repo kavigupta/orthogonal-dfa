@@ -17,9 +17,14 @@ namespace OrthoDFA
 /-- The clusterings' reads: `K` rounds of `a` prefixes against `b` suffixes and the empty one. -/
 def readsCluster (K a b : ℝ) : ℝ := K * (a * (b + 1))
 
-/-- Level 3's reads: `K T` probes, each `lg` sifts down a tree of at most `q + 2` leaves and a
-retarget over `A` letters, a family read of `f` strings at each. -/
-def readsSearch (K f T q lg A : ℝ) : ℝ := K * T * (f * (lg * (q + 1) + (q + 2) * A * (q + 2)))
+/-- Level 3's probes: `K T` probes, each `lg` sifts down a tree of at most `q + 2` leaves, a
+family read of `f` strings at each. -/
+def readsSearch (K f T q lg : ℝ) : ℝ := K * T * (f * (lg * (q + 1)))
+
+/-- Level 3's re-sifts: in each of `K` rounds at most `q + 1` splits, each re-sifting at most
+`q + 2` leaves' edges over `A` letters down at most `q + 2` midfixes, a family read of `f` strings
+at each. -/
+def readsResift (K f q A : ℝ) : ℝ := K * (f * ((q + 1) * ((q + 2) * A * (q + 2))))
 
 /-- The samplers' reads: `K` rounds of `K` populations' `M` draws, each walking at most `N`
 probes down a tree of at most `q + 2` leaves. -/
@@ -29,7 +34,8 @@ def readsHarvest (K f q M N lg : ℝ) : ℝ := K * (K * (f * (M * (N * (lg * (q 
 def readsStart (n f : ℝ) : ℝ := n * f
 
 def learnerReads (K a b f T q M N lg A n : ℝ) : ℝ :=
-  readsCluster K a b + readsSearch K f T q lg A + readsHarvest K f q M N lg + readsStart n f
+  readsCluster K a b + readsSearch K f T q lg + readsResift K f q A + readsHarvest K f q M N lg
+    + readsStart n f
 
 lemma learnerReads_mono {K a b f T q M N lg A n K' a' b' f' T' q' M' N' lg' A' n' : ℝ}
     (hK0 : 0 ≤ K) (ha0 : 0 ≤ a) (hb0 : 0 ≤ b) (hf0 : 0 ≤ f) (hT0 : 0 ≤ T) (hq0 : 0 ≤ q)
@@ -45,7 +51,7 @@ lemma learnerReads_mono {K a b f T q M N lg A n K' a' b' f' T' q' M' N' lg' A' n
   have : 0 ≤ lg' := hlg0.trans hlg
   have : 0 ≤ M' := hM0.trans hM
   have : 0 ≤ N' := hN0.trans hN
-  unfold learnerReads readsCluster readsSearch readsHarvest readsStart
+  unfold learnerReads readsCluster readsSearch readsResift readsHarvest readsStart
   gcongr
   all_goals first | positivity | linarith
 
@@ -54,12 +60,12 @@ lemma reads_le_learnerReads (K a b f T M N L A n q : ℕ) :
       ≤ learnerReads K a b f T q M N ((3 + Nat.clog 2 L : ℕ) : ℝ) A n := by
   have hp : Random.Kappa.probeSifts L ≤ 3 + Nat.clog 2 L := min_le_right _ _
   have hp' : (Random.Kappa.probeSifts L : ℝ) ≤ ((3 + Nat.clog 2 L : ℕ) : ℝ) := by exact_mod_cast hp
-  unfold roundCallBound learnerReads readsCluster readsSearch readsHarvest readsStart
+  unfold roundCallBound learnerReads readsCluster readsSearch readsResift readsHarvest readsStart
   push_cast at hp' ⊢
-  have h : (K : ℝ) * ((f : ℝ) * (T * (Random.Kappa.probeSifts L * (q + 1) + (q + 2) * A * (q + 2))))
-      ≤ K * T * (f * ((3 + Nat.clog 2 L) * (q + 1) + (q + 2) * A * (q + 2))) := by
-    rw [show (K : ℝ) * T * (f * ((3 + Nat.clog 2 L) * (q + 1) + (q + 2) * A * (q + 2)))
-      = K * (f * (T * ((3 + Nat.clog 2 L) * (q + 1) + (q + 2) * A * (q + 2)))) by ring]
+  have h : (K : ℝ) * ((f : ℝ) * (T * (Random.Kappa.probeSifts L * (q + 1))))
+      ≤ K * T * (f * ((3 + Nat.clog 2 L) * (q + 1))) := by
+    rw [show (K : ℝ) * T * (f * ((3 + Nat.clog 2 L) * (q + 1)))
+      = K * (f * (T * ((3 + Nat.clog 2 L) * (q + 1)))) by ring]
     gcongr
   linarith [h]
 

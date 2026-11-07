@@ -606,7 +606,9 @@ def shLg (r : LoopDistRun) : ℝ := log (r.L + r.Q + 1)
 
 def shCluster (r : LoopDistRun) : ℝ := shPref r * shSuff r / r.Q
 
-def shSearch (r : LoopDistRun) : ℝ := shProbe r * shFam r * r.Q * (shLg r + r.A * r.Q)
+def shSearch (r : LoopDistRun) : ℝ := shProbe r * shFam r * r.Q * shLg r
+
+def shResift (r : LoopDistRun) : ℝ := r.Q ^ 4 * r.A * shFam r
 
 def shHarvest (r : LoopDistRun) : ℝ := r.Q ^ 2 * shPref r * shFam r * shLg r * shRho r * shLY r
 
@@ -734,20 +736,23 @@ lemma cluster_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
   exact pw_mul (pref_pw hr) (pool_pw hr)
 
 lemma search_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
-    0 ≤ readsSearch (r.Q + 1) (distFam r) (distBudget r) r.Q (distLg r) r.A
-      ∧ readsSearch (r.Q + 1) (distFam r) (distBudget r) r.Q (distLg r) r.A
-        ≤ 2 ^ 20 * (2 ^ 14 * (14 * 2 + 3 * 1 * 3)) * shSearch r := by
-  have hA : 0 ≤ (r.A : ℝ) ∧ (r.A : ℝ) ≤ 1 * r.A := ⟨Nat.cast_nonneg _, by linarith⟩
-  have e : readsSearch (r.Q + 1) (distFam r) (distBudget r) r.Q (distLg r) r.A
-      = distProbes r * (distFam r * (distLg r * (r.Q + 1)
-        + (r.Q + 2) * r.A * (r.Q + 2))) := by
+    0 ≤ readsSearch (r.Q + 1) (distFam r) (distBudget r) r.Q (distLg r)
+      ∧ readsSearch (r.Q + 1) (distFam r) (distBudget r) r.Q (distLg r)
+        ≤ 2 ^ 20 * (2 ^ 14 * (14 * 2)) * shSearch r := by
+  have e : readsSearch (r.Q + 1) (distFam r) (distBudget r) r.Q (distLg r)
+      = distProbes r * (distFam r * (distLg r * (r.Q + 1))) := by
     unfold readsSearch distProbes distBudget; ring
-  have hin := pw_add (by norm_num) (by norm_num) (pw_mul (lg_pw hr) (k_pw hr))
-    (pw_mul (pw_mul (leaves_pw hr) hA) (leaves_pw hr))
-  rw [e, show shSearch r = shProbe r * (shFam r * (shLg r * r.Q
-    + r.Q * r.A * r.Q)) by unfold shSearch; ring]
-  have h := pw_mul (probes_pw hr) (pw_mul (fam_pw hr) hin)
-  exact ⟨h.1, h.2.trans_eq (by ring)⟩
+  rw [e, show shSearch r = shProbe r * (shFam r * (shLg r * r.Q)) by unfold shSearch; ring]
+  exact pw_mul (probes_pw hr) (pw_mul (fam_pw hr) (pw_mul (lg_pw hr) (k_pw hr)))
+
+lemma resift_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
+    0 ≤ readsResift (r.Q + 1) (distFam r) r.Q r.A
+      ∧ readsResift (r.Q + 1) (distFam r) r.Q r.A
+        ≤ 2 * (2 ^ 14 * (2 * (3 * 1 * 3))) * shResift r := by
+  have hA : 0 ≤ (r.A : ℝ) ∧ (r.A : ℝ) ≤ 1 * r.A := ⟨Nat.cast_nonneg _, by linarith⟩
+  rw [show shResift r = r.Q * (shFam r * (r.Q * (r.Q * r.A * r.Q))) by unfold shResift; ring]
+  exact pw_mul (k_pw hr) (pw_mul (fam_pw hr) (pw_mul (k_pw hr)
+    (pw_mul (pw_mul (leaves_pw hr) hA) (leaves_pw hr))))
 
 lemma harvest_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     0 ≤ readsHarvest (r.Q + 1) (distFam r) r.Q (distSC r) (distHN r) (distLg r)
@@ -768,33 +773,38 @@ lemma start_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
   pw_mul (held_pw hr) (fam_pw hr)
 
 lemma shapes_nonneg {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
-    0 ≤ shCluster r ∧ 0 ≤ shSearch r ∧ 0 ≤ shHarvest r ∧ 0 ≤ shStart r :=
+    0 ≤ shCluster r ∧ 0 ≤ shSearch r ∧ 0 ≤ shResift r ∧ 0 ≤ shHarvest r ∧ 0 ≤ shStart r :=
   ⟨nonneg_of_mul_nonneg_right ((cluster_pw hr).1.trans (cluster_pw hr).2) (by norm_num),
     nonneg_of_mul_nonneg_right ((search_pw hr).1.trans (search_pw hr).2) (by norm_num),
+    nonneg_of_mul_nonneg_right ((resift_pw hr).1.trans (resift_pw hr).2) (by norm_num),
     nonneg_of_mul_nonneg_right ((harvest_pw hr).1.trans (harvest_pw hr).2) (by norm_num),
     nonneg_of_mul_nonneg_right ((start_pw hr).1.trans (start_pw hr).2) (by norm_num)⟩
 
 /-- Each source of reads within its own shape. -/
 lemma distReads_isBigO : distReads =O[𝓟 loopDistRunRegion]
-    (fun r => shCluster r + shSearch r + shHarvest r + shStart r) := by
+    (fun r => shCluster r + shSearch r + shResift r + shHarvest r + shStart r) := by
   have hg : ∀ f : LoopDistRun → ℝ, (∀ r ∈ loopDistRunRegion, 0 ≤ f r ∧
-      f r ≤ shCluster r + shSearch r + shHarvest r + shStart r) →
-      f =O[𝓟 loopDistRunRegion] (fun r => shCluster r + shSearch r + shHarvest r + shStart r) :=
+      f r ≤ shCluster r + shSearch r + shResift r + shHarvest r + shStart r) →
+      f =O[𝓟 loopDistRunRegion]
+        (fun r => shCluster r + shSearch r + shResift r + shHarvest r + shStart r) :=
     fun f h => isBigO_on 1 fun r hr => ⟨(h r hr).1, (h r hr).1.trans (h r hr).2,
       (h r hr).2.trans_eq (one_mul _).symm⟩
   have t1 := (bigO_dist _ (by norm_num) fun _ hr => cluster_pw hr).trans
     (hg shCluster fun r hr => by
-      obtain ⟨h1, h2, h3, h4⟩ := shapes_nonneg hr; exact ⟨h1, by linarith⟩)
+      obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr; exact ⟨h1, by linarith⟩)
   have t2 := (bigO_dist _ (by norm_num) fun _ hr => search_pw hr).trans
     (hg shSearch fun r hr => by
-      obtain ⟨h1, h2, h3, h4⟩ := shapes_nonneg hr; exact ⟨h2, by linarith⟩)
-  have t3 := (bigO_dist _ (by norm_num) fun _ hr => harvest_pw hr).trans
+      obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr; exact ⟨h2, by linarith⟩)
+  have t3 := (bigO_dist _ (by norm_num) fun _ hr => resift_pw hr).trans
+    (hg shResift fun r hr => by
+      obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr; exact ⟨h3, by linarith⟩)
+  have t4 := (bigO_dist _ (by norm_num) fun _ hr => harvest_pw hr).trans
     (hg shHarvest fun r hr => by
-      obtain ⟨h1, h2, h3, h4⟩ := shapes_nonneg hr; exact ⟨h3, by linarith⟩)
-  have t4 := (bigO_dist _ (by norm_num) fun _ hr => start_pw hr).trans
+      obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr; exact ⟨h4, by linarith⟩)
+  have t5 := (bigO_dist _ (by norm_num) fun _ hr => start_pw hr).trans
     (hg shStart fun r hr => by
-      obtain ⟨h1, h2, h3, h4⟩ := shapes_nonneg hr; exact ⟨h4, by linarith⟩)
-  exact ((t1.add t2).add t3).add t4
+      obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr; exact ⟨h5, by linarith⟩)
+  exact (((t1.add t2).add t3).add t4).add t5
 
 end OrthoDFA
 

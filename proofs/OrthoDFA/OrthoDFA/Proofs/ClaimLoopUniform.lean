@@ -285,10 +285,10 @@ lemma uniform_factors {r : LoopRun} (hr : r ∈ loopRunRegion) :
 lemma reads_dom {Q P P' S S' F Pr lg A ρ lY Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ P) (hPP : P ≤ 4 * P')
     (hS : 0 ≤ S) (hSS : S ≤ 2 * S') (hF : 0 ≤ F) (hPr : 0 ≤ Pr) (hlg : 0 ≤ lg) (hA : 0 ≤ A)
     (hρ : 0 ≤ ρ) (hlY : 0 ≤ lY) (hHd : 0 ≤ Hd) :
-    0 ≤ P * S / Q + Pr * F * Q * (lg + A * Q) + Q ^ 2 * P * F * lg * ρ * lY + Hd * F
-      ∧ 0 ≤ P' * S' / Q + Pr * F * Q * (lg + A * Q) + Q ^ 2 * P' * F * lg * ρ * lY + Hd * F
-      ∧ P * S / Q + Pr * F * Q * (lg + A * Q) + Q ^ 2 * P * F * lg * ρ * lY + Hd * F
-        ≤ 8 * (P' * S' / Q + Pr * F * Q * (lg + A * Q) + Q ^ 2 * P' * F * lg * ρ * lY
+    0 ≤ P * S / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q ^ 2 * P * F * lg * ρ * lY + Hd * F
+      ∧ 0 ≤ P' * S' / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q ^ 2 * P' * F * lg * ρ * lY + Hd * F
+      ∧ P * S / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q ^ 2 * P * F * lg * ρ * lY + Hd * F
+        ≤ 8 * (P' * S' / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q ^ 2 * P' * F * lg * ρ * lY
           + Hd * F) := by
   have hP' : 0 ≤ P' := by linarith
   have hS' : 0 ≤ S' := by linarith
@@ -298,8 +298,8 @@ lemma reads_dom {Q P P' S S' F Pr lg A ρ lY Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ 
     rw [hG]; ring
   rw [e, e]
   have hG0' : 0 ≤ Q * G := mul_nonneg hQ.le hG0
-  have hT2 : 0 ≤ Pr * F * Q * (lg + A * Q) :=
-    mul_nonneg (mul_nonneg (mul_nonneg hPr hF) hQ.le) (add_nonneg hlg (mul_nonneg hA hQ.le))
+  have hT2 : 0 ≤ Pr * F * Q * lg := mul_nonneg (mul_nonneg (mul_nonneg hPr hF) hQ.le) hlg
+  have hT3 : 0 ≤ Q ^ 4 * A * F := mul_nonneg (mul_nonneg (pow_nonneg hQ.le 4) hA) hF
   have hT4 : 0 ≤ Hd * F := mul_nonneg hHd hF
   have hPS : P * S ≤ 8 * (P' * S') := by
     have := mul_le_mul hPP hSS hS (by linarith)
