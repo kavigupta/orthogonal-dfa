@@ -520,11 +520,10 @@ def counterexample_driven_synthesis(
             print(f"[round {index}] ran the {max_rounds} rounds asked for")
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-        strings = ending.harvest
         provenance = Replay(
             search, harvest_reader(ending, search), UniformSource(pst).draw
         )
-        taken = _accumulate_harvest(strings, provenance, state, target)
+        taken = _accumulate_harvest(ending.harvest, provenance, state, target)
         halved = (
             taken == 0
             and pst.fnr_limit / 2 >= pst.config.fnr_floor * pst.config.fnr_limit
