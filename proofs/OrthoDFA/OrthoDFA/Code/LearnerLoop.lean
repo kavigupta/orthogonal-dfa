@@ -13,9 +13,8 @@ a draw from it walks fresh probes from the probes' distribution `D` under the ro
 hypothesis, at most level 3's `harvestReadCap` of them, and takes the first string undecided
 at the harvest's site, as the round reads them, that no earlier clustering read. The first
 population is `D` itself. Each population's streams are its first `scanCap` draws; the round fails
-if a harvested draw finds no string, the clustering would read past them, no state of the
-schedule returns, or level 3's tree grows past `leafCap` leaves, and the loop fails with it. Draws
-are made from uniforms (`drawFrom`).
+if a harvested draw finds no string, the clustering would read past them, or no state of the
+schedule returns, and the loop fails with it. Draws are made from uniforms (`drawFrom`).
 
 The clustering is the one `ClusteringQualityGuarantee` is about, every population tame and none
 harvested into a table: the family is `clusterAt` at a state of the schedule at which `ret`
@@ -285,8 +284,8 @@ open scoped Classical in
 clustering, which asks `clusterReads` and returns at a state of the schedule where `ret` holds of
 the answers, its family `clusterAt` there; then level 3 over probes drawn by `d.2` from `D`
 avoiding the first `walkStart` letters of the prefixes the clustering read, reading the family.
-`none` if a harvested draw misses, the clustering would read past the `scanCap` draws, no state
-of the schedule returns, or level 3's tree grows past `leafCap` leaves. -/
+`none` if a harvested draw misses, the clustering would read past the `scanCap` draws, or no state
+of the schedule returns. -/
 def roundQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     Query (FreeMonoid α) ℝ (Option (LoopRound α)) :=
@@ -310,7 +309,7 @@ def roundQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α
               drawFrom (avoidLaw D settings.level3.walkStart
                 (clusterKeys sched ps settings.level3.walkStart x)) (d.2 i)).subst
             (familyReadQ F B.lo (B.hi + 1))).map fun res =>
-            res.map fun res => ⟨B, F, res, roundPrefs sched ps x, roundSuffs sched x⟩
+            some ⟨B, F, res, roundPrefs sched ps x, roundSuffs sched x⟩
         else .pure none
     else .pure none
 

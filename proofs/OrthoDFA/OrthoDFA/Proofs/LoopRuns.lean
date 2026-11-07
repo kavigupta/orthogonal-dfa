@@ -148,7 +148,7 @@ theorem runInv_step {X : List (FreeMonoid α)} {s s' : Level3State α} {x : Free
       obtain ⟨-, t₁, he₁⟩ := retarget_some read he
       exact hs.wit e t₁ w he₁
     · simp only [splitLeaf, newHypothesis]; rw [hlen]
-  · exact ⟨⟨⟨hs.inv.edges, hs.inv.cls, hs.inv.two⟩, hs.keys, hs.wit⟩, by simp [countProbe]⟩
+  · exact ⟨⟨⟨hs.inv.edges, hs.inv.cls, hs.inv.two⟩, hs.keys, hs.wit⟩, by simp [countProbe, countOutcome]⟩
 
 theorem leaves_le_step {X : List (FreeMonoid α)} {s s' : Level3State α} {x : FreeMonoid α}
     (hs : RunInv read C X s) (h : applyProbe read C s x = .inl s') :
@@ -160,7 +160,7 @@ theorem leaves_le_step {X : List (FreeMonoid α)} {s s' : Level3State α} {x : F
     rw [DTree.length_leaves_splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀))
       s.tree p hp]
     omega
-  · simp [countProbe]
+  · simp [countProbe, countOutcome]
 
 /-- A run's tree never loses a leaf. -/
 theorem leaves_le_runProbes {X : List (FreeMonoid α)} :

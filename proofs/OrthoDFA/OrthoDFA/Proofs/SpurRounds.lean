@@ -148,7 +148,7 @@ theorem applyProbe_congr6 {r r' : FreeMonoid α → ARU} {s : Level3State α} {x
   have ho : probeOrAgree r s.tree s.edges C.walkStart x
       = probeOrAgree r' s.tree s.edges C.walkStart x :=
     (probeReads_congr s.edges C.walkStart hp).1.symm
-  have hc : countProbe r C s x = countProbe r' C s x := by simp only [countProbe, ho]
+  have hc : countProbe r C s x = countProbe r' C s x := by simp only [countProbe, countOutcome, ho]
   unfold applyProbe
   rw [← ho, hc]
   rcases hO : probeOrAgree r s.tree s.edges C.walkStart x with _ | ⟨p, c, u, t⟩ | _ | _ | _

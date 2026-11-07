@@ -7,7 +7,7 @@ import OrthoDFA.Proofs.LoopReadsArith
 Each factor of `learnerReads` is within a constant of a shape in the claim's coordinates: the
 family size of `|V̂|` (`rel_fam_le`), `K` times the scan cap of `totalPref` (`rel_sc_le`), the
 probes a round's harvested draws walk of `1/ρ` times that (`rel_hb_le`), the sifts of
-`log (L + |Q| + 1)` (`lg_le`), and a sift's depth `|Q| + 1` and leaf cap `|Q| + 2` of `|Q|`. Each
+`log (L + |Q| + 1)` (`lg_le`), and a sift's depth `|Q| + 1` and leaf bound `|Q| + 2` of `|Q|`. Each
 source's reads is the product of its factors' bounds (`pw_mul`), so each is within its shape on its
 own.
 -/
@@ -744,10 +744,11 @@ lemma search_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
 lemma resift_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     0 ≤ readsResift (r.Q + 1) (distFam r) r.Q r.A
       ∧ readsResift (r.Q + 1) (distFam r) r.Q r.A
-        ≤ 2 * (2 ^ 14 * (2 * (3 * 1 * 3))) * shResift r := by
+        ≤ 2 * (2 ^ 14 * (1 * (3 * 1 * 3))) * shResift r := by
   have hA : 0 ≤ (r.A : ℝ) ∧ (r.A : ℝ) ≤ 1 * r.A := ⟨Nat.cast_nonneg _, by linarith⟩
+  have hQ : 0 ≤ (r.Q : ℝ) ∧ (r.Q : ℝ) ≤ 1 * r.Q := ⟨Nat.cast_nonneg _, by linarith⟩
   rw [show shResift r = r.Q * (shFam r * (r.Q * (r.Q * r.A * r.Q))) by unfold shResift; ring]
-  exact pw_mul (k_pw hr) (pw_mul (fam_pw hr) (pw_mul (k_pw hr)
+  exact pw_mul (k_pw hr) (pw_mul (fam_pw hr) (pw_mul hQ
     (pw_mul (pw_mul (leaves_pw hr) hA) (leaves_pw hr))))
 
 lemma harvest_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
@@ -774,8 +775,12 @@ lemma shapes_nonneg {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
 lemma distWalk_isBigO : distWalk =O[𝓟 loopDistRunRegion] (fun r => shRho r * shPref r) :=
   isBigO_on (2 ^ 108) fun r hr => by
     obtain ⟨h1, h2⟩ := hb_pw hr
-    exact ⟨(by linarith : 0 ≤ distHB r), nonneg_of_mul_nonneg_right (by linarith) (by norm_num),
-      h2⟩
+    have h3 : 0 ≤ shRho r * shPref r := by
+      by_contra hneg
+      push Not at hneg
+      have : (2 : ℝ) ^ 108 * (shRho r * shPref r) < 0 := mul_neg_of_pos_of_neg (by norm_num) hneg
+      linarith
+    exact ⟨(by linarith : 0 ≤ distHB r), h3, h2⟩
 
 /-- Each source of reads within its own shape. -/
 lemma distReads_isBigO : distReads =O[𝓟 loopDistRunRegion]

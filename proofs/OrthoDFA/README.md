@@ -54,21 +54,25 @@ Each claim is proved from the explicit theorems below.
                 + (L + |Q|)² log(X') log²(Y) |Q|⁶b²R²/(ξ⁴δ s₀⁴)
                 + (L + |Q|)² log²(Y) |Q|⁵|Σ|²b²R²/(ξ²δ)),
 
-  the terms from `E`, `E₂` and `E₃` below. The learner's DFA is then right but for
-  `γ + ξ`, its start picked on `O(log(|Q|/δ)/ξ²)` held-out strings, and, over `LoopDistRun` (the
-  inputs with `L`), every prefix, suffix and probe the whole run reads is bounded: `O(|Q|⁷b²(L +
-  |Q|)²R²/(ξ²s₀⁴) · log(|Q| log(X'')/(δ pAP s₀)) + |Q|²(L + |Q|)²R²/ξ² · (1/s₀⁴ + |Q|⁴b²) ·
-  log(X'))` prefixes, `O(|Q|(log(X'')/(pAP s₀²) + log(|Q|/δ)/pAP))` suffixes and
-  `O(|Q|³|Σ|(1/β + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X'' = (L + |Q|)R/(β δ ξ s₀)`. The
-  prefixes' first term is the clustering's populations' group, whose log reads the suffix pool
-  alone, so its log grows as `log log L`. The totals grow with `L` because the settings the proof
-  picks hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the
-  window's `N = Θ(L)` lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
+  the terms from `E`, `E₂` and `E₃` below. The learner's DFA is then right but for `γ + ξ` with
+  every round's tree at most `|Q| + 2` leaves, its start picked on `O(log(|Q|/δ)/ξ²)` held-out
+  strings, and, over `LoopDistRun` (the inputs with `L`), every prefix, suffix and probe the whole
+  run reads is bounded: `O(|Q|⁷b²(L + |Q|)²R²/(ξ²s₀⁴) · log(|Q| log(X'')/(δ pAP s₀)) + |Q|²(L +
+  |Q|)²R²/ξ² · (1/s₀⁴ + |Q|⁴b²) · log(X'))` prefixes, `O(|Q|(log(X'')/(pAP s₀²) + log(|Q|/δ)/pAP))`
+  suffixes and `O(|Q|³|Σ|(1/β + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X'' = (L + |Q|)R/(β δ ξ
+  s₀)`. A run that returns a result whose every round's tree has at most `|Q| + 2` leaves also asks
+  the oracle at most `totalReads` strings, a sum of five terms (the clusterings', the counterexample
+  search's, its re-sifts', the harvest's and the start leaf's), and its output and questions depend
+  only on the answers at the strings it asks (`learnerQ`'s `eval` and `reads`). The prefixes' first
+  term is the clustering's populations' group, whose log reads the suffix pool alone, so its log
+  grows as `log log L`. The totals grow with `L` because the settings the proof picks hold each
+  round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)`
+  lengths: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`.
 - `LoopClaimUniform` (`Claims/Loop.lean`): `LoopClaim` at `D` uniform and `β = 1/|Σ|`
   (`loopClaimUniform_of_loopClaim`, `Proofs/ClaimLoopUniform.lean`), over `LoopInputs`. In place of
   `p₀Tol` it has the length `L₀` past which `|Σ|^-k ≤ p₀Tol`, `O(1 + log(|Q|R/(δ ξ pAP
-  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `LoopClaim`'s at
-  `b = |Σ| + |Q|`, `X' = X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)` and `X'' = pAP X`. `LoopClaimSimple`
+  s₀))/log|Σ|)`, and its totals are over `LoopRun` (the inputs with `L`): `LoopClaim`'s, reads
+  included, at `b = |Σ| + |Q|`, `X' = X = (L + |Q|)|Σ|R/(δ ξ pAP s₀)` and `X'' = pAP X`. `LoopClaimSimple`
   bounds the prefixes by `O(|Q|⁷(|Σ| + |Q|)²(L + |Q|)²R² log(X)/(ξ² s₀⁴))` and the suffixes by
   `O(|Q| log(pAP X)/(pAP s₀²))`.
 
@@ -121,8 +125,9 @@ accuracy at least
 `1 − γ`, the loop, its probes uniform over the lengths `k = ⌈L/2⌉` to `L₁ = L + |Q| + 3` and
 walked from `k`, stops within `|Q| + 1` rounds at a consistent round, and its re-rooted DFA
 (`rerootedDFA`: the final hypothesis started at the leaf that scores best on `n` held-out strings)
-misclassifies at most `γ + ξ` of the strings of length `L`, but for chance `δ`, once `L ≥ L₀`. A run
-that reaches an unlearned edge counts as wrong. The start leaf (`pickLeaf`) is picked as follows: after
+misclassifies at most `γ + ξ` of the strings of length `L`, and every round's tree has at most
+`|Q| + 2` leaves, but for chance `δ`, once `L ≥ L₀`. A run that reaches an unlearned edge counts as
+wrong. The start leaf (`pickLeaf`) is picked as follows: after
 the loop, `n = ⌈32 log(16(|Q|+2)/δ)/ξ²⌉` strings uniform of length `L` are drawn and read
 by the last round's family; each leaf scores the strings its run classifies as the family decides
 them, undecided reads scoring none, and the first leaf of highest score is the start. With
@@ -374,6 +379,8 @@ the time. Each level says what a state's chance of reading undecided is.
 - `OrthoDFA/Code/TripartiteSearch.lean` — `tripartiteSearch`, a bisection for where `agrees` turns
   from agreeing to disagreeing that steps past undecided positions.
   `orthogonal_dfa/l_star/tripartite_search.py` is the same function.
+- `OrthoDFA/Code/Query.lean` — `Query`, the free monad whose programs record the strings they ask;
+  the `Q`-suffixed definitions in `Code/` are the algorithm's pieces as such programs.
 - `OrthoDFA/Code/DTree.lean` — the discrimination tree, and `DTree.siftWithPath`, sifting a string
   through it under a three-valued cut. `MidfixTree.sift_with_path` is the same function. It also
   holds `sift`, the same sift under a read, and `splitAt`, which splits a leaf. `MidfixTree.split`

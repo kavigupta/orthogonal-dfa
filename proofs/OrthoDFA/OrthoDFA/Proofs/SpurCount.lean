@@ -539,29 +539,29 @@ theorem claim6_succ (hL : ∀ x ∈ xs, x.toList.length ≤ L)
     have hsc := counted_search r C hI.inv hch
     have hsearch : (countProbe r C s x).searchCount
         = (countProbe r C s x).middleUndecided.length := by
-      simp only [countProbe, List.length_append, hI.search]
+      simp only [countProbe, countOutcome, List.length_append, hI.search]
       omega
     have hcount : cost (countProbe r C s x) - cost s
         = (endsString (probeOrAgree r s.tree s.edges C.walkStart x)).length
           + (middleString (probeOrAgree r s.tree s.edges C.walkStart x)).length := by
-      simp only [cost, countProbe, List.length_append, Nat.cast_add]
+      simp only [cost, countProbe, countOutcome, List.length_append, Nat.cast_add]
       ring
     refine ⟨⟨hsame.1, hsm', ?_, hsearch, ?_⟩, ?_, ?_⟩
     · have := hI.hyp; have := hsame.2.1 n
-      simp only [countProbe] at this ⊢; omega
+      simp only [countProbe, countOutcome] at this ⊢; omega
     · exact quiet_cost C _ hrt hsearch hy0 hyε hε1 (level_le_one hδ0 hδ1 _).1
         (level_le_one hδ0 hδ1 _).2
     · rw [hsu, hsU]
       have e1 : Φu6 C n (countProbe r C s x)
           = Φu6 C n s + (cost (countProbe r C s x) - cost s) := by
-        rw [hphiU]; unfold Φu6; simp only [countProbe]; ring
+        rw [hphiU]; unfold Φu6; simp only [countProbe, countOutcome]; ring
       rw [e1, hcount]
       linarith
     · rw [hsb, hsB]
       have : Φb6 n L (countProbe r C s x) (j + 1)
           = ((probeSifts L * (n + 1) : ℕ) : ℝ) * j + ((probeSifts L * (n + 1) : ℕ) : ℝ)
             + (edgesMax n (Fintype.card α) : ℝ) * (n + 2) * ((s.tree.leaves.length : ℝ) - 2) := by
-        unfold Φb6; simp only [countProbe]; push_cast; ring
+        unfold Φb6; simp only [countProbe, countOutcome]; push_cast; ring
       rw [this]; rw [hphiB] at hb; linarith
 
 /-- While the states are small, the rounds read at most `Mu6` strings undecided and `Mb6` in

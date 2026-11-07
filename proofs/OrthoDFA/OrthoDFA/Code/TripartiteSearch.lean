@@ -69,7 +69,6 @@ section Query
 
 variable {Q R : Type*}
 
-/-- `bisectBoundary` as a program, each position's agreement asked by `agrees`. -/
 def bisectQ (recover : Bool) (agrees : ℕ → Query Q R (Option Bool)) (lo hi : ℕ) :
     Query Q R SearchResult :=
   if _h : hi ≤ lo + 1 then .pure (.edge hi)
@@ -90,7 +89,6 @@ def bisectQ (recover : Bool) (agrees : ℕ → Query Q R (Option Bool)) (lo hi :
 termination_by hi - lo
 decreasing_by all_goals omega
 
-/-- `tripartiteSearch` as a program. -/
 def tripartiteQ (recover : Bool) (agrees : ℕ → Query Q R (Option Bool)) (lo hi : ℕ) :
     Query Q R SearchResult :=
   (agrees lo).bind fun

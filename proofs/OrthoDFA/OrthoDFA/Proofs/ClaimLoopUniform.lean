@@ -245,8 +245,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     prefixLaw_uniformStrings le_rfl
   have hwS : windowLaw (uniformStrings (α := A) m) k L₁ = windowStrings k L₁ :=
     windowLaw_uniformStrings (by omega)
-  obtain ⟨settings, hwk, hlf, hcnt, hcalls, hprob⟩ :=
-    hw (toDist x) M O L γ (uniformStrings m) hxd hQ
+  obtain ⟨settings, hwk, hcnt, hcalls, hprob⟩ := hw (toDist x) M O L γ (uniformStrings m) hxd hQ
     hA hL hη
     (uniformStrings_long m)
     (fun u => (uniformStrings_prefix_le (by omega) u).trans (by rw [hAc]; exact hp₀))
@@ -259,7 +258,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     (by rw [hpS]; exact hpAPu) (by rw [hpL]; exact hdom)
   rw [hwS, hpS] at hcnt hcalls
   rw [hwS, hpS, hpL] at hprob
-  exact ⟨settings, hwk, hlf, hcnt, hcalls, hprob⟩
+  exact ⟨settings, hwk, hcnt, hcalls, hprob⟩
 
 /-- The reads' factors other than the prefix and suffix totals, at uniform strings. -/
 lemma uniform_factors {r : LoopRun} (hr : r ∈ loopRunRegion) :

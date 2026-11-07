@@ -660,11 +660,11 @@ theorem claim_succ (L : ℕ) (hL : ∀ x ∈ xs, x.toList.length ≤ L) {n : ℕ
     have hsc := counted_search r C hI.inv hch
     have hsearch : (countProbe r C s x).searchCount
         = (countProbe r C s x).middleUndecided.length := by
-      simp only [countProbe, List.length_append, hI.search]
+      simp only [countProbe, countOutcome, List.length_append, hI.search]
       omega
     have hcount : cost (countProbe r C s x) - cost s
         = (endsString o).length + (middleString o).length := by
-      simp only [cost, countProbe, List.length_append, Nat.cast_add, ho_def]
+      simp only [cost, countProbe, countOutcome, List.length_append, Nat.cast_add, ho_def]
       ring
     have hU1 := hs0U hs0
     have hB1 := hs0B hs0
@@ -673,7 +673,7 @@ theorem claim_succ (L : ℕ) (hL : ∀ x ∈ xs, x.toList.length ≤ L) {n : ℕ
     simp only [countProbe_tree, sub_self, mul_zero, add_zero] at hpB
     refine ⟨⟨hsame.1, witInv_congr M side hI.wit rfl rfl, ?_, hsearch, ?_⟩, ?_, ?_⟩
     · have := hI.hyp; have := hsame.2.1 (Fintype.card σ)
-      simp only [countProbe] at this ⊢; omega
+      simp only [countProbe, countOutcome] at this ⊢; omega
     · exact quiet_cost C _ hrt hsearch hy0 hyε hε1 (level_le_one hδ0 hδ1 _).1
         (level_le_one hδ0 hδ1 _).2
     · linarith
