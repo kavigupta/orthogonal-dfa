@@ -228,7 +228,6 @@ them, miss or fall short with chance at most
 
 at the cap `harvestN y (δₘ / M)`, `M` the scan cap and `4 (K + 3) NP ≤ T ≤ M`. -/
 theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ}
-    (hN : P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap)
     (hcap : settings.level3.harvestReadCap = Random.harvestN y (δₘ / settings.scanCap))
     (hy0 : 0 < y) (hy1 : y ≤ 1) (hδ : 0 < δₘ) (hM : 0 < settings.scanCap) (hm : m ≤ 1 / 2)
     (hA : 4 * ((K + 3) * NP) ≤ T) (hT : T ≤ settings.scanCap)
@@ -290,10 +289,10 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ}
   have hmain := persist_stage_le O ν (Measure.dirac ()) ν (fun d => ((() : Unit), d)) hσ Prod.snd
     measurable_snd (fun w => Prod.ext rfl rfl) ⟨r, hr⟩ (stageH settings O P.D Dsf r)
     (fun ω x x' hxx' _ => stageH_congr_draws settings O P.D Dsf r ω x x' fun i hi => hxx' i hi)
-    (measurableSet_stageH settings O P.D Dsf P.length_le hN r) W G
+    (measurableSet_stageH settings O P.D Dsf P.length_le r) W G
     (fun y x ω ω' hG hs h => by
       obtain ⟨c, rfl, -⟩ := hG
-      exact stageH_stop settings O P.D Dsf P.length_le hN r c x ω ω' ω₀ hs h)
+      exact stageH_stop settings O P.D Dsf P.length_le r c x ω ω' ω₀ hs h)
     Bad (fun y hy => by
       rcases y with _ | c
       · rfl
