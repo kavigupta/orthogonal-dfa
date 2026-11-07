@@ -17,6 +17,14 @@ from orthogonal_dfa.l_star.structures import NoisyOracle
 
 from .benchmark import FAMILY_OURS, Benchmark
 
+OUR_BENCHMARK_NAMES = [
+    "parity_mod9_allowed_3_6",
+    "regex_subseq_1010101",
+    "regex_two_1111",
+    "regex_alt_1111_or_0000_11_3sym",
+    "regex_alt_111_or_000_3sym",
+]
+
 
 def our_benchmarks() -> List[Benchmark]:
     """The oracles from `tests/e2e/test_basic.py` that the findings doc reports on."""

@@ -9,13 +9,14 @@ The modulo-9 and regex oracles from `tests/e2e/test_basic.py`, ported to upstrea
 
 from __future__ import annotations
 
-from .our_targets import our_benchmarks
+from .our_targets import OUR_BENCHMARK_NAMES, our_benchmarks
 from .sweep import run_sweep
 
 
 def main() -> None:
     run_sweep(
-        our_benchmarks(),
+        OUR_BENCHMARK_NAMES,
+        our_benchmarks,
         experiment="our_benchmarks",
         description=(
             "CAPAL and E-L* on this repo's oracle benchmarks (modulo-9 and the "
