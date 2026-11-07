@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.KappaCount
 import OrthoDFA.Proofs.ProbeKeys
+import OrthoDFA.LowLevelClaims.HypothesisDFA
 
 /-!
 # Level 3's run, whatever it reads
@@ -375,5 +376,8 @@ theorem harvestLaw_congr_zone {r r' : FreeMonoid α → ARU} (D : Measure (FreeM
 end Harvest
 
 end Random
+
+theorem level3EdgesAtLeaves_holds : Level3EdgesAtLeaves :=
+  fun read C xs => Random.edgesAtLeaves_runProbes read C xs
 
 end OrthoDFA

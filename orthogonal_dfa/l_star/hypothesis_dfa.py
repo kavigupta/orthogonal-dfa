@@ -30,7 +30,8 @@ class HypothesisDFA:
 
     def split_leaf(self, leaf: Path, midfix: bytes):
         """HypothesisDFA.split of OrthoDFA/Code/HypothesisDFA.lean, which keeps every learned
-        edge witnessed (SplitAndLearnCorrect)."""
+        edge witnessed (SplitAndLearnCorrect), retargeting every edge (Level3EdgesAtLeaves).
+        """
         self.tree.split(self.tree.leaf_at(leaf), midfix)
         self.leaves = set(self.tree.leaf_paths())
         self._retarget_edges(leaf)
