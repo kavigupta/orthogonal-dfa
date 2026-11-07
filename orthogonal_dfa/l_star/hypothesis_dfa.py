@@ -1,4 +1,4 @@
-"""``HypothesisDFA``: a discrimination tree and the edges learned between its leaves."""
+"""HypothesisDFA: a discrimination tree and the edges learned between its leaves."""
 
 from typing import Callable, Dict, Optional, Tuple
 
@@ -12,7 +12,7 @@ Cut = Callable[[bytes], Optional[bool]]
 
 
 class HypothesisDFA:
-    """A tree it splits in place, read through ``cut``."""
+    """A tree it splits in place, read through cut."""
 
     def __init__(self, cut: Cut, tree: MidfixTree):
         self.cut, self.tree = cut, tree
@@ -30,15 +30,15 @@ class HypothesisDFA:
 
     def split_leaf(self, leaf: Path, midfix: bytes):
         """HypothesisDFA.split of OrthoDFA/Code/HypothesisDFA.lean, which keeps every learned
-        edge witnessed (SplitAndLearnCorrect). Lean's retargets only the edges at the tree's
-        leaves; every edge here is at one (indecisiveLStarLevel3_eq_all)."""
+        edge witnessed (SplitAndLearnCorrect), retargeting every edge (Level3EdgesAtLeaves).
+        """
         self.tree.split(self.tree.leaf_at(leaf), midfix)
         self.leaves = set(self.tree.leaf_paths())
         self._retarget_edges(leaf)
         self.version += 1
 
     def _retarget_edges(self, leaf: Path):
-        """``retarget``: drop the split leaf's out-edges, and re-sift the
+        """retarget: drop the split leaf's out-edges, and re-sift the
         witnesses of the edges into it."""
         edges = {}
         for (source, letter), (target, witness) in self.edges.items():
