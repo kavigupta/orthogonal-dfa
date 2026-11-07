@@ -16,10 +16,10 @@ variable {α : Type*} (read : FreeMonoid α → ARU)
 
 theorem sift_inr_mids : ∀ (T : DTree α) (v z : FreeMonoid α), T.sift read v = .inr z →
     ∃ m ∈ mids T, z = v * m
-  | .leaf, _, _, h => by simp [DTree.sift] at h
+  | .leaf, _, _, h => by simp [DTree.sift_leaf] at h
   | .node m r a, v, z, h => by
     classical
-    simp only [DTree.sift] at h
+    simp only [DTree.sift_node] at h
     split at h
     · rcases hq : a.sift read v with q | q <;> rw [hq] at h <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inr.injEq, reduceCtorEq] at h
@@ -50,32 +50,32 @@ variable (T : DTree α) (x : FreeMonoid α)
 theorem searchOutcome_pt (st : ℕ → List Bool) (un : Option (α × List Bool)) (lo hi : ℕ)
     (hle : lo ≤ hi) :
     ∀ z ∈ middleString (searchOutcome read T x st un hi
-      (tripartiteSearch false (siftAgrees read T x st) lo hi).1),
-      ∃ p ∈ (tripartiteSearch false (siftAgrees read T x st) lo hi).2, lo ≤ p ∧ p ≤ hi ∧
+      (tripartiteSearch false (siftAgrees read T x st) lo hi)),
+      ∃ p ∈ (tripartiteQ false lo hi).reads (siftAgrees read T x st), lo ≤ p ∧ p ≤ hi ∧
       T.sift read (prefixOf x p) = .inr z := by
   have hs := tripartiteSearch_ok (recover := false) (agrees := siftAgrees read T x st) hle
   have hq := tripartiteSearch_undecidedMid_mem (agrees := siftAgrees read T x st) (lo := lo)
     (hi := hi)
-  generalize (tripartiteSearch false (siftAgrees read T x st) lo hi).1 = r at hs hq
+  generalize (tripartiteSearch false (siftAgrees read T x st) lo hi) = r at hs hq
   intro z hz
   have hst : ∀ p, z ∈ undecidedAt read T x p → T.sift read (prefixOf x p) = .inr z := by
     intro p h
-    unfold undecidedAt at h
+    simp only [undecidedAt_eq] at h
     rcases hs : T.sift read (prefixOf x p) with l | z' <;> rw [hs] at h <;> simp_all
   cases r with
   | edge p =>
-    simp only [searchOutcome] at hz
+    simp only [searchOutcome_eq] at hz
     split at hz <;> simp [middleString] at hz
   | allAgree =>
-    simp only [searchOutcome] at hz
+    simp only [searchOutcome_eq] at hz
     split at hz <;> simp [middleString] at hz
   | undecidedMid p =>
-    simp only [searchOutcome, middleString] at hz
+    simp only [searchOutcome_undecidedMid, middleString] at hz
     exact ⟨p, hq p rfl, hs.2.1.le, hs.2.2.1.le, hst p (List.mem_of_mem_take hz)⟩
-  | pair p | triple p => simp [searchOutcome, middleString] at hz
-  | undecidedHi => simp [searchOutcome, middleString] at hz
-  | undecidedLo => simp [searchOutcome, middleString] at hz
-  | disagreeLo => simp [searchOutcome, middleString] at hz
+  | pair p | triple p => simp [searchOutcome_eq, middleString] at hz
+  | undecidedHi => simp [searchOutcome_eq, middleString] at hz
+  | undecidedLo => simp [searchOutcome_eq, middleString] at hz
+  | disagreeLo => simp [searchOutcome_eq, middleString] at hz
 
 theorem searchOutcome_ends (st : ℕ → List Bool) (un : Option (α × List Bool)) (hi : ℕ)
     (r : SearchResult) :
@@ -83,35 +83,34 @@ theorem searchOutcome_ends (st : ℕ → List Bool) (un : Option (α × List Boo
   intro z hz
   cases r with
   | undecidedHi =>
-    simp only [searchOutcome, endsString] at hz
+    simp only [searchOutcome_eq, endsString] at hz
     have hz' := List.mem_of_mem_take hz
-    unfold undecidedAt at hz'
+    simp only [undecidedAt_eq] at hz'
     rcases hs : T.sift read (prefixOf x hi) with l | z' <;> rw [hs] at hz' <;> simp_all
-  | allAgree => simp only [searchOutcome] at hz; split at hz <;> simp [endsString] at hz
-  | edge p => simp only [searchOutcome] at hz; split at hz <;> simp [endsString] at hz
-  | undecidedMid p => simp [searchOutcome, endsString] at hz
-  | pair p | triple p => simp [searchOutcome, endsString] at hz
-  | undecidedLo => simp [searchOutcome, endsString] at hz
-  | disagreeLo => simp [searchOutcome, endsString] at hz
+  | allAgree => simp only [searchOutcome_eq] at hz; split at hz <;> simp [endsString] at hz
+  | edge p => simp only [searchOutcome_eq] at hz; split at hz <;> simp [endsString] at hz
+  | undecidedMid p => simp [searchOutcome_eq, endsString] at hz
+  | pair p | triple p => simp [searchOutcome_eq, endsString] at hz
+  | undecidedLo => simp [searchOutcome_eq, endsString] at hz
+  | disagreeLo => simp [searchOutcome_eq, endsString] at hz
 
 variable (E : Edges α) (k : ℕ)
 
 /-- The positions a probe's search queries. -/
 def probeQueries (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
-    (x : FreeMonoid α) : List ℕ :=
-  if x.toList.length < k then [] else
+    (x : FreeMonoid α) : Finset ℕ :=
+  if x.toList.length < k then ∅ else
     match T.sift read (prefixOf x k) with
-    | .inr _ => []
+    | .inr _ => ∅
     | .inl a =>
-      (tripartiteSearch false
-        (siftAgrees read T x fun p => (walk E a (x.toList.drop k)).getD (p - k) []) k
-        (k + (walk E a (x.toList.drop k)).length - 1)).2
+      (tripartiteQ false k (k + (walk E a (x.toList.drop k)).length - 1)).reads
+        (siftAgrees read T x fun p => (walk E a (x.toList.drop k)).getD (p - k) [])
 
 /-- The undecided middle a probe stops at was read at a position its search queried. -/
 theorem probe_pt (hk : k ≤ x.toList.length) :
     ∀ z ∈ middleString (probe read T E k x), ∃ p ∈ probeQueries read T E k x,
       k ≤ p ∧ p ≤ x.toList.length ∧ T.sift read (prefixOf x p) = .inr z := by
-  unfold probe
+  simp only [probe_eq]
   rw [probeQueries, if_neg (by omega)]
   rcases ha : T.sift read (prefixOf x k) with a | z₀
   · simp only
@@ -141,7 +140,7 @@ and `|x|`. -/
 theorem probe_ends (hk : k ≤ x.toList.length) :
     ∀ z ∈ endsString (probe read T E k x), ∃ p, k ≤ p ∧ p ≤ x.toList.length ∧
       T.sift read (prefixOf x p) = .inr z := by
-  unfold probe
+  simp only [probe_eq]
   rcases ha : T.sift read (prefixOf x k) with a | z₀
   · simp only
     generalize hcs : x.toList.drop k = cs
@@ -188,7 +187,7 @@ theorem probeOrAgree_queried :
     ∀ z ∈ middleString (probeOrAgree read T E k x), ∃ p ∈ probeQueries read T E k x,
       k ≤ p ∧ p ≤ x.toList.length ∧ T.sift read (prefixOf x p) = .inr z := by
   intro z hz
-  unfold probeOrAgree at hz
+  simp only [probeOrAgree_eq] at hz
   split_ifs at hz with hs
   · simp [middleString] at hz
   · exact probe_pt read T x E k (by omega) z hz
@@ -202,7 +201,7 @@ theorem probeOrAgree_pt :
 theorem probeOrAgree_ends :
     ∀ z ∈ endsString (probeOrAgree read T E k x), z ∈ pot k x T ∧ read z = .undecided := by
   intro z hz
-  unfold probeOrAgree at hz
+  simp only [probeOrAgree_eq] at hz
   split_ifs at hz with hs
   · simp [endsString] at hz
   · obtain ⟨p, h1, h2, h3⟩ := probe_ends read T x E k (by omega) z hz

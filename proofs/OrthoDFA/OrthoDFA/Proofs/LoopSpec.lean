@@ -1,3 +1,4 @@
+import OrthoDFA.Proofs.ProgramEqns
 import OrthoDFA.Code.LearnerLoop
 
 /-!

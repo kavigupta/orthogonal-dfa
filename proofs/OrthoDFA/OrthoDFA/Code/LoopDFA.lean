@@ -21,18 +21,18 @@ def leafScore (H : HypothesisDFA α) (read : FreeMonoid α → ARU) {n : ℕ}
     ∧ H.Classifies s (xs i) (read (xs i) = .accept)).card
 
 /-- The leaf of highest `leafScore`, the first of those tied. -/
+def pickLeafQ (H : HypothesisDFA α) {n : ℕ} (xs : Fin n → FreeMonoid α) :
+    Query (FreeMonoid α) ARU (List Bool) :=
+  (Query.table (List.ofFn xs)).map fun r => (H.tree.leaves.argmax (leafScore H r xs)).getD []
+
 def pickLeaf (H : HypothesisDFA α) (read : FreeMonoid α → ARU) {n : ℕ}
     (xs : Fin n → FreeMonoid α) : List Bool :=
-  (H.tree.leaves.argmax (leafScore H read xs)).getD []
+  (pickLeafQ H xs).eval read
 
 /-- The final hypothesis, started at the leaf that scores best on `xs`, classifies `x` as `b`. -/
 def HypothesisDFA.rerootedDFA (H : HypothesisDFA α) (read : FreeMonoid α → ARU) {n : ℕ}
     (xs : Fin n → FreeMonoid α) (x : FreeMonoid α) (b : Prop) : Prop :=
   H.Classifies (pickLeaf H read xs) x b
-
-def pickLeafQ (H : HypothesisDFA α) {n : ℕ} (xs : Fin n → FreeMonoid α) :
-    Query (FreeMonoid α) ARU (List Bool) :=
-  (Query.table (List.ofFn xs)).map fun r => pickLeaf H r xs
 
 /-- The learner: the loop, then the leaf its last round's hypothesis starts at, picked on the
 held-out strings `xs` as that round's family reads them; `none` if the loop fails. -/

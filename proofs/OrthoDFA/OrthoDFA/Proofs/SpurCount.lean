@@ -51,7 +51,7 @@ theorem probeReads_card_mids {T : DTree α} {E : Edges α} {k : ℕ} {x : FreeMo
   have h2 : (probeReads r T E k x).card ≤ (3 + Nat.clog 2 L) * (mids T).card := by
     obtain ⟨ps, hps, hsub⟩ := probeReads_sub (rd := r) (T := T) E k hx
     calc _ ≤ (posReads r T x ps).card := Finset.card_le_card hsub
-      _ ≤ ps.toFinset.card * (mids T).card := posReads_card _ _ _ _
+      _ ≤ ps.card * (mids T).card := posReads_card _ _ _ _
       _ ≤ _ := Nat.mul_le_mul_right _ hps
   unfold probeSifts
   rcases le_total (L + 1) (3 + Nat.clog 2 L) with h | h
@@ -480,14 +480,16 @@ theorem claim6_succ (hL : ∀ x ∈ xs, x.toList.length ≤ L)
         + (middleString (probeOrAgree r s.tree s.edges C.walkStart x)).length = 0 := by
       rw [ho]; simp [endsString, middleString]
     set s₁ := splitLeaf r s p c t t₀
-    have hhs : s₁.tree.leaves.length = s.tree.leaves.length + 1 := hlen
-    have hΨ : Ψr n s₁ < Ψr n s :=
-      Level2.Ψ_lt_split n (s := Level2.newHypothesis s.tree s.edges 0) hp
+    have hs₁ : s₁ = _ := splitLeaf_eq r s p c t t₀
+    have hhs : s₁.tree.leaves.length = s.tree.leaves.length + 1 := by rw [hs₁]; exact hlen
+    have hΨ : Ψr n s₁ < Ψr n s := by
+      rw [hs₁] at hsm' ⊢
+      exact Level2.Ψ_lt_split n (s := Level2.newHypothesis s.tree s.edges 0) hp
         (d := FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) hsm' _ 0
     have hA := costAt_nonneg C (level_le_one hδ0 hδ1 (s.hypotheses + 1)).1
       (level_le_one hδ0 hδ1 (s.hypotheses + 1)).2
-    have hh : s₁.hypotheses = s.hypotheses + 1 := rfl
-    have hc1 : cost s₁ = 0 := by simp [s₁, cost, splitLeaf, newHypothesis]
+    have hh : s₁.hypotheses = s.hypotheses + 1 := by rw [hs₁]; rfl
+    have hc1 : cost s₁ = 0 := by simp [s₁, cost, splitLeaf_eq, newHypothesis]
     have ht := DTree.sift_inl_mem r _ _ t huc
     have ht₀ := DTree.sift_inl_mem r _ _ t₀ (hI.inv.edges p hp c t₀ w₀ hE).2
     have hl : (s₁.tree.leaves.length : ℝ) = s.tree.leaves.length + 1 := by
@@ -496,12 +498,15 @@ theorem claim6_succ (hL : ∀ x ∈ xs, x.toList.length ≤ L)
         + (edgesMax n (Fintype.card α) : ℝ) * ((s₁.tree.leaves.length : ℝ) - 2) := by
       unfold Φu6; rw [hc1, hh]
     rw [Finset.sum_range_succ, hl] at hphiU'
-    refine ⟨⟨⟨edgesOK_retarget r hI.inv.edges hp _, ?_, ?_⟩, hsm', ?_, rfl, ?_⟩, ?_, ?_⟩
-    · show (s.tree.splitAt _ p) ∈ classSet ((s.tree.splitAt _ p).leaves.length - 2)
+    refine ⟨⟨⟨by rw [hs₁]; exact (edgesOK_retarget r hI.inv.edges hp _).restrict _ _, ?_, ?_⟩,
+      hsm', ?_, by rw [hs₁]; rfl, ?_⟩, ?_, ?_⟩
+    · rw [hs₁]
+      change (s.tree.splitAt _ p) ∈ classSet ((s.tree.splitAt _ p).leaves.length - 2)
       rw [hlen, show s.tree.leaves.length + 1 - 2 = s.tree.leaves.length - 2 + 1 by
         have := hI.inv.two; omega]
       exact classSet_split hI.inv.cls hp ht ht₀
-    · show 2 ≤ (s.tree.splitAt _ p).leaves.length
+    · rw [hs₁]
+      change 2 ≤ (s.tree.splitAt _ p).leaves.length
       rw [hlen]; have := hI.inv.two; omega
     · have := hI.hyp; omega
     · rw [hc1, hh]; exact hA

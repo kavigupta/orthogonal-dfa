@@ -92,7 +92,7 @@ theorem finish_inr {t : Level3State α} {e : RoundEnd Level3Site} (h : applyTest
 
 theorem step_inr {s : Level3State α} {x : FreeMonoid α} {e : RoundEnd Level3Site}
     (h : applyProbe read C s x = .inr e) : runTests C (countProbe read C s x) = some e := by
-  unfold applyProbe at h
+  simp only [applyProbe_eq] at h
   split at h
   · simp at h
   · split at h
@@ -115,7 +115,7 @@ theorem step_same_counts {s s' : Level3State α} (hs : Inv read s) {x : FreeMono
     exact absurd this (by simp)
   · exfalso
     have := congrArg List.length (congrArg DTree.leaves hsm.1)
-    simp only [splitLeaf, newHypothesis] at this
+    simp only [splitLeaf_eq, newHypothesis] at this
     rw [DTree.length_leaves_splitAt _ _ _ hp] at this
     omega
   · exact ⟨h1, h2, hinv, h3⟩

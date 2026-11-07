@@ -1,4 +1,4 @@
-"""``tripartiteSearch``, proved by ``TripartiteSearchCorrect`` in ``OrthoDFA/Utils/TripartiteSearch.lean``."""
+"""tripartiteSearch, proved by TripartiteSearchCorrect in OrthoDFA/LowLevelClaims/TripartiteSearch.lean."""
 
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
@@ -15,8 +15,9 @@ UNDECIDED_MID = "undecided_mid"
 
 @dataclass(frozen=True)
 class Found:
-    """``kind`` is one of the constants above; ``position`` is ``None`` for the four
-    endpoint kinds; ``queried`` lists the positions ``agrees`` was called at, in order.
+    """kind is one of the constants above; position is None for the four endpoint kinds;
+    queried lists the positions agrees was called at, in order. Lean's tripartiteSearch
+    returns only kind and position; the set of queried is the reads set of tripartiteQ.
     """
 
     kind: str
@@ -27,7 +28,7 @@ class Found:
 def tripartite_search(
     agrees: Callable[[int], Optional[bool]], lo: int, hi: int, *, recover: bool
 ) -> Found:
-    """Where ``agrees`` turns from ``True`` to ``False`` between ``lo`` and ``hi``."""
+    """Where agrees turns from True to False between lo and hi."""
     queried = []
 
     def ask(i):

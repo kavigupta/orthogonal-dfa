@@ -71,7 +71,7 @@ theorem probeReads_card_clog (read : FreeMonoid α → ARU) (T : DTree α) (E : 
     (probeReads read T E k x).card ≤ (3 + Nat.clog 2 L) * (mids T).card := by
   obtain ⟨ps, hps, hsub⟩ := probeReads_sub (rd := read) (T := T) E k hx
   calc (probeReads read T E k x).card ≤ (posReads read T x ps).card := Finset.card_le_card hsub
-    _ ≤ ps.toFinset.card * (mids T).card := posReads_card _ _ _ _
+    _ ≤ ps.card * (mids T).card := posReads_card _ _ _ _
     _ ≤ (3 + Nat.clog 2 L) * (mids T).card := Nat.mul_le_mul_right _ hps
 
 end Random

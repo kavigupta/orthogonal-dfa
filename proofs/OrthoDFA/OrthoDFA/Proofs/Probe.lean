@@ -41,22 +41,22 @@ variable (read : FreeMonoid α → ARU) (T : DTree α) (x : FreeMonoid α)
 
 theorem agrees_inl {p : ℕ} {l : List Bool} (h : T.sift read (prefixOf x p) = .inl l) :
     siftAgrees read T x st p = some (decide (l = st p)) := by
-  simp only [siftAgrees, h, Sum.elim_inl]
+  simp only [siftAgrees_eq, h, Sum.elim_inl]
 
 theorem agrees_true {p : ℕ} (h : siftAgrees read T x st p = some true) :
     T.sift read (prefixOf x p) = .inl (st p) := by
-  unfold siftAgrees at h
+  simp only [siftAgrees_eq] at h
   rcases hs : T.sift read (prefixOf x p) with l | z <;> rw [hs] at h <;> simp_all
 
 theorem agrees_false {p : ℕ} (h : siftAgrees read T x st p = some false) :
     ∃ l, T.sift read (prefixOf x p) = .inl l ∧ l ≠ st p := by
-  unfold siftAgrees at h
+  simp only [siftAgrees_eq] at h
   rcases hs : T.sift read (prefixOf x p) with l | z <;> rw [hs] at h <;> simp_all
 
 theorem stuckAt_ok {p : ℕ} (h : siftAgrees read T x st p = none) :
     undecidedAt read T x p ≠ [] ∧ ∀ z ∈ undecidedAt read T x p, read z = .undecided := by
-  unfold siftAgrees at h
-  unfold undecidedAt
+  simp only [siftAgrees_eq] at h
+  simp only [undecidedAt_eq]
   rcases hs : T.sift read (prefixOf x p) with l | z <;> rw [hs] at h
   · simp at h
   · simpa using DTree.sift_inr read T _ z hs
@@ -72,13 +72,15 @@ theorem searchOutcome_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
       ∧ T.sift read (prefixOf x (j + 1)) = .inl t ∧ E (st j, c) = none) :
     OutcomeOK read T E
       (searchOutcome read T x st un j
-        (tripartiteSearch false (siftAgrees read T x st) k j).1) := by
+        (tripartiteSearch false (siftAgrees read T x st) k j)) := by
   have hs := tripartiteSearch_ok (recover := false) (agrees := siftAgrees read T x st) hkj
-  generalize (tripartiteSearch false (siftAgrees read T x st) k j).1 = r at hs
+  generalize (tripartiteSearch false (siftAgrees read T x st) k j) = r at hs
   cases r with
   | undecidedLo => exact ⟨by simp, by simp⟩
   | disagreeLo => exact ⟨by simp, by simp⟩
-  | undecidedHi => exact ⟨(fun h => by cases h), (stuckAt_ok read T x st hs.2).2⟩
+  | undecidedHi =>
+    rw [searchOutcome_undecidedHi]
+    exact ⟨(fun h => by cases h), (stuckAt_ok read T x st hs.2).2⟩
   | allAgree =>
     rcases un with _ | ⟨c, t⟩
     · trivial
@@ -90,13 +92,14 @@ theorem searchOutcome_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
     obtain ⟨c, w, hc, hE⟩ := hstep (p - 1) (by omega) (by omega)
     obtain ⟨t, ht, htne⟩ := agrees_false read T x st h4
     have hp : p - 1 + 1 = p := by omega
-    simp only [searchOutcome, hc, ht]
+    simp only [searchOutcome_eq, hc, ht]
     refine ⟨hmem _ (by omega) (by omega), agrees_true read T x st h3, ?_, st (p - 1 + 1), w, hE, ?_⟩
     · rw [← prefixOf_succ hc, hp, ht]
     · rw [hp]; exact fun h => htne h.symm
   | undecidedMid p =>
     obtain ⟨-, -, -, h3⟩ := hs
     obtain ⟨n3, u3⟩ := stuckAt_ok read T x st h3
+    rw [searchOutcome_undecidedMid]
     exact ⟨fun _ => n3, u3⟩
   | pair p | triple p => exact ⟨by simp, by simp⟩
 
@@ -104,17 +107,17 @@ theorem searchOutcome_ok (E : Edges α) (k j : ℕ) (hkj : k ≤ j)
 theorem searchOutcome_clean (un : Option (α × List Bool)) (k j : ℕ) (hkj : k ≤ j)
     (hk : siftAgrees read T x st k = some true) (hj : siftAgrees read T x st j = some false) :
     (searchOutcome read T x st un j
-      (tripartiteSearch false (siftAgrees read T x st) k j).1).clean = false := by
+      (tripartiteSearch false (siftAgrees read T x st) k j)).clean = false := by
   have hs := tripartiteSearch_ok (recover := false) (agrees := siftAgrees read T x st) hkj
   have hn := tripartiteSearch_noRecovery (agrees := siftAgrees read T x st) (lo := k) (hi := j)
-  generalize (tripartiteSearch false (siftAgrees read T x st) k j).1 = r at hs hn
+  generalize (tripartiteSearch false (siftAgrees read T x st) k j) = r at hs hn
   cases r with
   | undecidedLo => simp [SearchOK, hk] at hs
   | disagreeLo => simp [SearchOK, hk] at hs
   | undecidedHi => simp [SearchOK, hj] at hs
   | allAgree => simp [SearchOK, hj] at hs
-  | edge p => simp only [searchOutcome]; split <;> rfl
-  | undecidedMid p => rfl
+  | edge p => simp only [searchOutcome_eq]; split <;> rfl
+  | undecidedMid p => rw [searchOutcome_undecidedMid]; rfl
   | pair p => exact absurd rfl (hn p).1
   | triple p => exact absurd rfl (hn p).2
 
@@ -126,7 +129,7 @@ variable (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
 
 theorem probe_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
     OutcomeOK read T E (probe read T E k x) := by
-  unfold probe
+  simp only [probe_eq]
   rcases ha : T.sift read (prefixOf x k) with a | z
   · simp only
     have hL : ∀ q ∈ T.leaves, ∀ c t w, E (q, c) = some (t, w) → t ∈ T.leaves :=
@@ -175,7 +178,7 @@ theorem probe_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
 
 theorem probeOrAgree_ok (hE : EdgesOK read T E) (x : FreeMonoid α) :
     OutcomeOK read T E (probeOrAgree read T E k x) := by
-  unfold probeOrAgree
+  simp only [probeOrAgree_eq]
   split_ifs
   · trivial
   · exact probe_ok read T E k hE x
@@ -185,7 +188,7 @@ theorem probe_disagrees {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) 
   obtain ⟨a, q, e, ha, hq, he, hne⟩ := h
   dsimp only at ha hq he
   obtain ⟨hlen, hlast⟩ := walkEnd_walk E a _ q hq
-  unfold probe
+  simp only [probe_eq]
   simp only [ha]
   generalize hcs : x.toList.drop k = cs at hlen hlast
   generalize hss : walk E a cs = ss at hlen hlast
@@ -224,7 +227,7 @@ theorem disagrees_long {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) :
 
 theorem probeOrAgree_disagrees {x : FreeMonoid α} (h : Disagrees read ⟨T, E⟩ k x) :
     (probeOrAgree read T E k x).clean = false := by
-  unfold probeOrAgree
+  simp only [probeOrAgree_eq]
   rw [if_neg (by have := disagrees_long read T E k h; omega)]
   exact probe_disagrees read T E k h
 
@@ -243,7 +246,7 @@ def PreFrom (x : FreeMonoid α) (lo : ℕ) (z : FreeMonoid α) : Prop :=
 theorem stuckAt_pre (x : FreeMonoid α) (p : ℕ) :
     ∀ z ∈ undecidedAt read T x p, ∃ m, z = prefixOf x p * m := by
   intro z hz
-  unfold undecidedAt at hz
+  simp only [undecidedAt_eq] at hz
   rcases hs : T.sift read (prefixOf x p) with l | y <;> rw [hs] at hz
   · simp at hz
   · simp only [Sum.elim_inr, List.mem_singleton] at hz
@@ -253,31 +256,31 @@ theorem stuckAt_pre (x : FreeMonoid α) (p : ℕ) :
 theorem searchOutcome_pre (x : FreeMonoid α) (st : ℕ → List Bool) (un : Option (α × List Bool))
     (lo hi : ℕ) (hle : lo ≤ hi) :
     ∀ z ∈ (searchOutcome read T x st un hi
-      (tripartiteSearch false (siftAgrees read T x st) lo hi).1).undecidedStrings,
+      (tripartiteSearch false (siftAgrees read T x st) lo hi)).undecidedStrings,
       PreFrom x lo z := by
   have hs := tripartiteSearch_ok (recover := false) (agrees := siftAgrees read T x st) hle
-  generalize (tripartiteSearch false (siftAgrees read T x st) lo hi).1 = r at hs
+  generalize (tripartiteSearch false (siftAgrees read T x st) lo hi) = r at hs
   intro z hz
   have hat : ∀ p, lo ≤ p → z ∈ undecidedAt read T x p → PreFrom x lo z := fun p hp hz =>
     have ⟨m, hm⟩ := stuckAt_pre read T x p z hz
     ⟨p, hp, m, hm⟩
   cases r with
-  | undecidedHi => exact hat hi hle hz
+  | undecidedHi => rw [searchOutcome_undecidedHi] at hz; exact hat hi hle hz
   | allAgree =>
-    simp only [searchOutcome] at hz
+    simp only [searchOutcome_eq] at hz
     split at hz <;> simp [Outcome.undecidedStrings] at hz
   | edge p =>
-    simp only [searchOutcome] at hz
+    simp only [searchOutcome_eq] at hz
     split at hz <;> simp [Outcome.undecidedStrings] at hz
-  | undecidedMid p => exact hat p hs.2.1.le hz
-  | pair p | triple p => simp [searchOutcome, Outcome.undecidedStrings] at hz
-  | undecidedLo => simp [searchOutcome, Outcome.undecidedStrings] at hz
-  | disagreeLo => simp [searchOutcome, Outcome.undecidedStrings] at hz
+  | undecidedMid p => rw [searchOutcome_undecidedMid] at hz; exact hat p hs.2.1.le hz
+  | pair p | triple p => simp [searchOutcome_eq, Outcome.undecidedStrings] at hz
+  | undecidedLo => simp [searchOutcome_eq, Outcome.undecidedStrings] at hz
+  | disagreeLo => simp [searchOutcome_eq, Outcome.undecidedStrings] at hz
 
 theorem probe_pre (k : ℕ) (x : FreeMonoid α) :
     ∀ z ∈ (probe read T E k x).undecidedStrings, PreFrom x k z := by
   intro z hz
-  unfold probe at hz
+  simp only [probe_eq] at hz
   rcases ha : T.sift read (prefixOf x k) with a | y <;> rw [ha] at hz
   · simp only at hz
     have hpos := length_walk_pos E a (x.toList.drop k)
@@ -303,7 +306,7 @@ theorem preFrom_take {x z : FreeMonoid α} {k : ℕ} (hk : k ≤ x.toList.length
   simp [prefixOf, List.take_take, min_eq_left hp]
 
 theorem undecidedAt_length (x : FreeMonoid α) (p : ℕ) : (undecidedAt read T x p).length ≤ 1 := by
-  unfold undecidedAt
+  simp only [undecidedAt_eq]
   rcases T.sift read (prefixOf x p) with _ | _ <;> simp
 
 theorem searchOutcome_length (x : FreeMonoid α) (st : ℕ → List Bool) (un : Option (α × List Bool))
@@ -311,28 +314,28 @@ theorem searchOutcome_length (x : FreeMonoid α) (st : ℕ → List Bool) (un : 
     (searchOutcome read T x st un hi r).undecidedStrings.length ≤ 1 := by
   have h := undecidedAt_length read T x
   cases r with
-  | undecidedHi => exact h hi
+  | undecidedHi => rw [searchOutcome_undecidedHi]; exact h hi
   | allAgree =>
-    simp only [searchOutcome]
+    simp only [searchOutcome_eq]
     split <;> simp [Outcome.undecidedStrings]
   | edge p =>
-    simp only [searchOutcome]
+    simp only [searchOutcome_eq]
     split <;> simp [Outcome.undecidedStrings]
-  | undecidedMid p => exact h _
-  | pair p | triple p => simp [searchOutcome, Outcome.undecidedStrings]
-  | undecidedLo => simp [searchOutcome, Outcome.undecidedStrings]
-  | disagreeLo => simp [searchOutcome, Outcome.undecidedStrings]
+  | undecidedMid p => rw [searchOutcome_undecidedMid]; exact h _
+  | pair p | triple p => simp [searchOutcome_eq, Outcome.undecidedStrings]
+  | undecidedLo => simp [searchOutcome_eq, Outcome.undecidedStrings]
+  | disagreeLo => simp [searchOutcome_eq, Outcome.undecidedStrings]
 
 theorem probe_length (k : ℕ) (x : FreeMonoid α) :
     (probe read T E k x).undecidedStrings.length ≤ 1 := by
   rcases ha : T.sift read (prefixOf x k) with a | y
-  · simp only [probe, ha]
+  · simp only [probe_eq, ha]
     split
     · split
       · simp [Outcome.undecidedStrings]
       · exact searchOutcome_length read T x _ _ _ _
     · exact searchOutcome_length read T x _ _ _ _
-  · simp [probe, ha, Outcome.undecidedStrings]
+  · simp [probe_eq, ha, Outcome.undecidedStrings]
 
 end Strings
 

@@ -357,7 +357,7 @@ theorem split_count {side : σ → Bool} (hI : ReadsByState read M side) {T : DT
           by_contra h
           simp only [Bool.not_eq_false, List.isPrefixOf_iff_prefix] at h
           exact hne (eq_of_prefix_leaves T hp hqT h).symm
-        simp only [E', retarget, hpq, Bool.false_eq_true, if_false] at hnone
+        simp only [E', retarget_eq, hpq, Bool.false_eq_true, if_false] at hnone
         rcases hEq : E (q, c) with _ | ⟨t, w⟩
         · exact Or.inl (Or.inl ⟨hqT, rfl⟩)
         · rw [hEq] at hnone
@@ -418,15 +418,32 @@ theorem split_count {side : σ → Bool} (hI : ReadsByState read M side) {T : DT
     omega
   omega
 
-omit [DecidableEq α] in
+/-- The split's unlearned edges are those of every edge retargeted. -/
+theorem unlearnedOf_split {H : HypothesisDFA α} {p : List Bool} (hp : p ∈ H.tree.leaves)
+    (d : FreeMonoid α) :
+    unlearnedOf (H.split read d p).tree (H.split read d p).edges
+      = unlearnedOf (H.tree.splitAt d p) (retarget read (H.tree.splitAt d p) p H.edges) := by
+  unfold unlearnedOf
+  rw [HypothesisDFA.split_tree]
+  congr 1
+  refine Finset.filter_congr fun qc hq => ?_
+  rw [split_edges_of_mem read hp d (List.mem_toFinset.1 (Finset.mem_product.1 hq).1)]
+
 /-- A split within `|Q| + 2` leaves lowers `Φ`. -/
 theorem Φ_lt_split {side : σ → Bool} (hI : ReadsByState read M side) {s : State α}
     (hE : EdgesOK read s.tree s.edges) {p : List Bool} (hp : p ∈ s.tree.leaves) (d : FreeMonoid α)
     (hsz : (s.tree.splitAt d p).leaves.length ≤ Fintype.card σ + 2) (j : ℕ) :
-    Φ read M (newHypothesis (s.tree.splitAt d p) (retarget read (s.tree.splitAt d p) p s.edges) j)
-      < Φ read M s := by
+    let H := (HypothesisDFA.mk s.tree s.edges).split read d p
+    Φ read M (newHypothesis H.tree H.edges j) < Φ read M s := by
   have h := split_count read M hI hE hp d
+  have ht : ((HypothesisDFA.mk s.tree s.edges).split read d p).tree = s.tree.splitAt d p :=
+    HypothesisDFA.split_tree read d
+  have hu : unlearnedOf ((HypothesisDFA.mk s.tree s.edges).split read d p).tree
+      ((HypothesisDFA.mk s.tree s.edges).split read d p).edges
+      = unlearnedOf (s.tree.splitAt d p) (retarget read (s.tree.splitAt d p) p s.edges) :=
+    unlearnedOf_split read hp d
   simp only [Φ, unlearned, newHypothesis]
+  rw [hu, ht]
   rw [DTree.length_leaves_splitAt d s.tree p hp] at hsz ⊢
   have h2 : Fintype.card σ + 2 - s.tree.leaves.length
       = Fintype.card σ + 2 - (s.tree.leaves.length + 1) + 1 := by omega
@@ -525,7 +542,8 @@ theorem step_change [Fintype α] (hI : ReadsByState read M side)
       · simpa [mul_assoc] using hpart.2.1
       · simpa [mul_assoc] using hpart.2.2
     simp only [hE]
-    exact ⟨_, _, rfl, inv_fresh read C hn (edgesOK_retarget read hs.edges hp _) hreach,
+    exact ⟨_, _, rfl, inv_fresh read C hn (edgesOK_split read hs.edges hp _)
+      (by rw [HypothesisDFA.split_tree]; exact hreach),
       Φ_lt_split read M hI hs.edges hp _ (leaves_le_of_reached read hI hreach) _⟩
 
 omit [DecidableEq α] in
@@ -567,7 +585,7 @@ theorem inv_counted (hC : TestsOK C) {s : State α} (hs : Inv read C s) {o : Out
 
 /-- A step that keeps the hypothesis counts the probe: the round goes on with neither test firing,
 harvests with the undecided reads' test firing, or ends consistent with the disagreements'. -/
-theorem step_same (hC : TestsOK C) {s : State α} (hs : Inv read C s) {x : FreeMonoid α}
+theorem step_same [Fintype α] (hC : TestsOK C) {s : State α} (hs : Inv read C s) {x : FreeMonoid α}
     (hc : ¬ Changes (probeOrAgree read s.tree s.edges C.walkStart x))
     (hlen : (probeOrAgree read s.tree s.edges C.walkStart x).undecidedStrings.length ≤ 1) :
     let s' := counted s (probeOrAgree read s.tree s.edges C.walkStart x)
