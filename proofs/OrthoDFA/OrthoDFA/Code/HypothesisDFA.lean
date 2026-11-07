@@ -53,7 +53,7 @@ def retarget (read : FreeMonoid α → ARU) (T' : DTree α) (p : List Bool) (E :
     Edges α := fun e =>
   (retargetAtQ T' p E e).eval read
 
-/-- Over the edges `es`, every other edge unlearned. -/
+/-- `retarget` at each edge of the list, every other edge unlearned. -/
 def retargetQ [DecidableEq α] (T' : DTree α) (p : List Bool) (E : Edges α) :
     List (List Bool × α) → Query (FreeMonoid α) ARU (Edges α)
   | [] => .pure fun _ => none

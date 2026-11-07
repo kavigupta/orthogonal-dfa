@@ -296,7 +296,6 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
     let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
-    let FV : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / 4
     let RB : ℝ := 2 ^ 20 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
       + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
     let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
@@ -323,7 +322,6 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin (Fintype.card σ + 1)))),
         (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊
           ∧ (roundSuffs (settings.schedule pops) x).card ≤ ⌊PB⌋₊ + 1) ∧
-      (∀ pops, ∀ B ∈ settings.schedule pops, B.k ≤ ⌊FV⌋₊ + 1) ∧
       ∀ Dsf : Measure (FreeMonoid α), IsProbabilityMeasure Dsf →
         Dsf {v | v.toList.length ≠ P.L + Fintype.card σ + 3} = 0 →
         pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -342,7 +340,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
                     RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
                       (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))}
           ≤ (Q + 1) * (3 * δ') := by
-  intro Q A L ι s τ J S B₃ Wm W PB FV RB cap Kc SC HN
+  intro Q A L ι s τ J S B₃ Wm W PB RB cap Kc SC HN
     hL hη hη₀ hε hε1 hεd hεd12 hδ'0 hδ'1' hpAP hpAP1 hL1 hk0 hLε hk1 hk2 hk3
   have hδ'1 : δ' ≤ 1 := hδ'1'.le
   classical
@@ -424,24 +422,6 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       (by positivity) (by linarith) hcL0
     rw [hPBe, hRBe] at h
     exact h
-  have hfam : ∀ pops : Finset (Option (Fin (Fintype.card σ + 1))),
-      famCount η₀ pops ι (εcov / 2) (δ' / 2) (Real.exp (-cLog)) ≤ ⌊FV⌋₊ := by
-    intro pops
-    have hsig : 0 < sig η₀ := by unfold sig; linarith
-    have h := famCount_succ_le pops η₀ ι (εcov / 2) (δ' / 2) (Real.exp (-cLog)) hsig hη0 hι0
-      (by linarith) (Real.exp_pos _) (Real.exp_le_one_iff.2 (by linarith))
-    have e1 : Real.log (1 / Real.exp (-cLog)) = cLog := by
-      rw [one_div, ← Real.exp_neg, neg_neg, Real.log_exp]
-    have e : 25 * max (4 * Real.log (20 / budgetScale η₀ ι (εcov / 2)))
-        (Real.log (1 / Real.exp (-cLog))) / (8 * sig η₀ ^ 2) + 5 / sig η₀ + 7 = FV := by
-      rw [e1, hτb, hcLog, ← mul_max_of_nonneg _ _ (by norm_num : (0 : ℝ) ≤ 4)]
-      show _ = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / (1 / 2 - η₀) ^ 2
-        + 20 / (1 / 2 - η₀) + 28) / 4
-      unfold sig
-      field_simp
-      ring
-    rw [e] at h
-    exact Nat.le_floor (by linarith)
   obtain ⟨hPB0', hRB0'⟩ := hcounts {none} (Finset.mem_singleton_self _)
   have hPB0 : 0 ≤ PB := (Nat.cast_nonneg _).trans hPB0'
   have hRB0 : 0 ≤ RB := (Nat.cast_nonneg _).trans hRB0'
@@ -773,11 +753,11 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     rw [mul_div_assoc', div_le_div_iff₀ (by positivity) (by norm_num)]
     nlinarith only [this, hδ'0]
   have hcore := loop_core_holds M O P E (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
-    ⌊PB⌋₊ ⌊RB⌋₊ ⌊FV⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / 1536) ε
-    cross Tu C Msc yh δm Tsc
+    ⌊PB⌋₊ ⌊RB⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / 1536) ε cross Tu C
+    Msc yh δm Tsc
   dsimp only at hcore
   rw [hcexp] at hcore
-  obtain ⟨settings, -, -, -, -, hC3, hscan, hnp, hreads, hks, hmain⟩ := hcore hL hη hη₀ hι0
+  obtain ⟨settings, -, -, -, -, hC3, hscan, hnp, hreads, hmain⟩ := hcore hL hη hη₀ hι0
     (by linarith) (by positivity) (by linarith) (by positivity) (by linarith) hδ'0 hδ'1 hι0 hpAP
     hL1 (by omega) (by omega) hcap0 (by linarith) (by linarith) (by linarith) (by linarith)
     (fun pops hpops => by
@@ -786,14 +766,13 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     (fun pops hpops => by
       rw [show pAP - pAP / 2 = pAP / 2 by ring]
       exact Nat.le_floor (hcounts pops hpops).2)
-    (fun pops _ => hfam pops)
     hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
     hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond rfl hyh0
     (by show ε / 192 ≤ ε / 48 / 4; linarith) (by show ε / 192 ≤ 1; linarith) hδm0 (by omega)
     (le_max_left _ _) (by omega)
   refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, by rw [hC3]; exact hHN,
-    by rw [hscan]; exact hMSC, hnp, hreads, hks, ?_⟩
+    by rw [hscan]; exact hMSC, hnp, hreads, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
   refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans ?_)

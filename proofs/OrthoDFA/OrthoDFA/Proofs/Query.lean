@@ -81,13 +81,6 @@ lemma reads_subst (h : Q → Query Q' R' R) (p : Query Q R β) :
   | pure b => rfl
   | ask q k ih => simp [subst, ih, Finset.biUnion_insert]
 
-/-- At most `n` answering questions for each question `p` asks. -/
-lemma card_reads_subst_le (h : Q → Query Q' R' R) (p : Query Q R β) {n : ℕ}
-    (hn : ∀ q ∈ p.reads fun q => (h q).eval o', ((h q).reads o').card ≤ n) :
-    ((p.subst h).reads o').card ≤ (p.reads fun q => (h q).eval o').card * n := by
-  rw [reads_subst]
-  exact Finset.card_biUnion_le_card_mul _ _ _ hn
-
 end Subst
 
 section Pi
@@ -156,36 +149,6 @@ omit instQ in
     rcases (f x).eval o with _ | y
     · exact ih
     · rfl
-
-lemma mem_reads_findSome {xs : List δ} {q : Q} (hq : q ∈ (findSome f xs).reads o) :
-    ∃ x ∈ xs, q ∈ (f x).reads o := by
-  induction xs with
-  | nil => simp [findSome] at hq
-  | cons x xs ih =>
-    simp only [findSome, reads_bind, Finset.mem_union] at hq
-    rcases hq with hq | hq
-    · exact ⟨x, by simp, hq⟩
-    · rcases hx : (f x).eval o with _ | y
-      · rw [hx] at hq
-        obtain ⟨x', hx', hq'⟩ := ih hq
-        exact ⟨x', by simp [hx'], hq'⟩
-      · rw [hx] at hq
-        simp at hq
-
-lemma card_reads_findSome_le (xs : List δ) {n : ℕ} (hn : ∀ x ∈ xs, ((f x).reads o).card ≤ n) :
-    ((findSome f xs).reads o).card ≤ xs.length * n := by
-  induction xs with
-  | nil => simp [findSome]
-  | cons x xs ih =>
-    simp only [findSome, reads_bind, List.length_cons]
-    refine (Finset.card_union_le _ _).trans ?_
-    have h1 := hn x (by simp)
-    have := ih fun y hy => hn y (by simp [hy])
-    rcases hx : (f x).eval o with _ | y
-    · simp only
-      rw [Nat.succ_mul]; omega
-    · simp only [reads_pure, Finset.card_empty]
-      rw [Nat.succ_mul]; omega
 
 end FindSome
 

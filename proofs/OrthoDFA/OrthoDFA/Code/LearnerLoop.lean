@@ -23,12 +23,7 @@ without its seed, at the gate's cut: a string reads accept at `hi + 1` or more o
 votes and reject at `lo` or fewer. Without its seed the family is suffix draws of one length, so
 it is suffix-free.
 
-The whole run reads one noise, fixed per string as the Python's is. The loop is a program
-(`loopQ`) asking the oracle's answers `w ↦ MQ(w)` at that noise, and `indecisiveLStarLoop` is its
-run against them; every read of the oracle is a question of the program. The clustering asks
-every string its tests may read, each prefix it draws followed by each suffix it draws or by
-nothing, and computes its tests from the answers; level 3 and a sampler ask the family read at
-each string they read, and the family read asks that string followed by each of the family.
+The whole run reads one noise, fixed per string as the Python's is.
 
 Known modelling gap. The round draws its probes from `D` conditioned on their first `walkStart`
 letters avoiding those of every prefix the round's clustering read, so that it never reads a string
@@ -241,8 +236,7 @@ def histOf (rounds : List (LoopRound α)) : LoopHist α :=
   ⟨rounds.filterMap fun o => o.sampler,
     rounds.foldr (fun o T => o.prefs ∪ T) ∅, rounds.foldr (fun o T => o.suffs ∪ T) ∅⟩
 
-/-- Every string the clustering asks at the states of `sched`: each prefix it reads followed by
-each suffix it reads or by nothing. -/
+/-- Every string the clustering asks at the states of `sched`. -/
 def clusterReads {K : ℕ} (sched : Finset State) (pops : Finset (Option (Fin K)))
     (x : Run Ω (FreeMonoid α) (Option (Fin K))) : Finset (FreeMonoid α) :=
   (roundPrefs sched pops x ×ˢ insert 1 (roundSuffs sched x)).image fun z => z.1 * z.2

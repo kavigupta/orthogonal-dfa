@@ -262,14 +262,6 @@ lemma pool_le {τ Θ ℓ W W₀ δ' s pAP : ℝ} (hτ0 : 0 < τ) (hinvτ : 1 / �
       linarith
   gcongr
 
-lemma fam_le {τ Θ ℓ W W₀ δ' s : ℝ} (hτ0 : 0 < τ) (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ)
-    (hℓ : 1 ≤ ℓ) (hW1 : 1 ≤ W) (hWW : W ≤ W₀ * ℓ ^ 2) (hδ'0 : 0 < δ') (hs0 : 0 < s) :
-    (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / 4
-      ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2 * Real.log ℓ) / s ^ 2
-          + 20 / s + 28) / 4 := by
-  have h := pool_le (pAP := 4) hτ0 hinvτ hΘ hℓ hW1 hWW hδ'0 hs0 (by norm_num)
-  linarith
-
 lemma count_le {Q ι τ Θι Θ ℓ PB PBf δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hι0 : 0 < ι)
     (hinvι : 1 / ι ≤ Θι * ℓ) (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
     (hinvτ : 1 / τ ≤ Θ * ℓ) (hPB1 : 1 ≤ PB) (hPB : PB ≤ PBf)
@@ -914,13 +906,6 @@ def loopPool (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
   (50 * (max (Real.log (20 * loopΘ Q Ae c ξ η₀)) (Real.log (8 * loopW₀ Q A δ / δ'))
       + 2 * Real.log ℓ) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
-
-/-- Bounds the family size `FV` at `ℓ = L₁ + 1`, edges crossed at rate `Ae`. -/
-def loopFam (ℓ Q A Ae δ c ξ η₀ : ℝ) : ℝ :=
-  let δ' := δ / (8 * (Q + 1))
-  let s := 1 / 2 - η₀
-  (50 * (max (Real.log (20 * loopΘ Q Ae c ξ η₀)) (Real.log (8 * loopW₀ Q A δ / δ'))
-      + 2 * Real.log ℓ) / s ^ 2 + 20 / s + 28) / 4
 
 /-- Bounds `LearnerLoopDFASimple`'s prefix count `RB` at `ℓ = L₁ + 1`. -/
 def loopCount (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=

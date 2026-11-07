@@ -449,7 +449,7 @@ theorem pickLeaf_le (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
   obtain ⟨sh, hsh⟩ : ∃ sh, H.tree.leaves.argmax (leafScore H sc xs) = some sh :=
     Option.ne_none_iff_exists'.1 (by
       rw [Ne, List.argmax_eq_none]; exact DTree.leaves_ne_nil _)
-  have hpick : pickLeaf H sc xs = sh := by simp [pickLeaf_eq, hsh]
+  have hpick : pickLeaf H sc xs = sh := by simp [pickLeaf, hsh]
   have hshm : sh ∈ H.tree.leaves := List.argmax_mem (Option.mem_def.2 hsh)
   obtain ⟨s₀, hs₀, hs₀η⟩ := hs
   have hle : (leafScore H sc xs s₀ : ℝ) ≤ leafScore H sc xs sh := by

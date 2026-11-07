@@ -8,8 +8,7 @@ asks next, and returns a `β`. `eval o p` runs `p` against `o`, and `reads o p` 
 questions that run asks. Every piece of the learner that reads the oracle is written as such a
 program, so the questions a run asks are those of the program itself, and a run against any
 oracle agreeing with `o` on `reads o p` returns `eval o p` and asks `reads o p`
-(`Query.eval_congr`). `bind` asks the first program's questions and then those of the second at
-the first's answer, so its reads are the union of the two runs'.
+(`Query.eval_congr`).
 -/
 
 universe u v w w'
