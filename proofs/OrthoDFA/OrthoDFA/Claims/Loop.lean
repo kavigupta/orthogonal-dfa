@@ -64,8 +64,8 @@ structure LoopDistRun extends LoopDistInputs where
 def loopDistRunRegion : Set LoopDistRun := {r | r.toLoopDistInputs ∈ loopDistRegion}
 
 /-- On every instance in `loopDistRegion`, for strings drawn from `D` whose first `k` letters
-`p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes` and is
-right but for `γ + ξ` on `heldOut` strings. -/
+`p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes`, is
+right but for `γ + ξ` on `heldOut` strings and keeps every round's tree within `|Q| + 2` leaves. -/
 def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : LoopDistRun → ℝ)
     (heldOut : LoopDistInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
@@ -106,7 +106,8 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : LoopDistRun 
         (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {w | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 w
-                (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)}
+                (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ) ∧
+        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2}
       ≤ x.δ
 
 open Real in
@@ -143,7 +144,8 @@ def LoopClaim.{u, v, w} : Prop :=
     LoopWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes heldOut
 
 /-- On every instance in `loopRegion` with `L₀ x ≤ L`, settings whose run reads within
-`totalPref`, `totalSuff` and `totalProbes` and is right but for `γ + ξ` on `heldOut` strings. -/
+`totalPref`, `totalSuff` and `totalProbes`, is right but for `γ + ξ` on `heldOut` strings and keeps
+every round's tree within `|Q| + 2` leaves. -/
 def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
     (totalPref totalSuff totalProbes : LoopRun → ℝ) (heldOut : LoopInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
@@ -177,7 +179,8 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
         (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {w | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 w
-                (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)}
+                (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ) ∧
+        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2}
       ≤ x.δ
 
 open Real in

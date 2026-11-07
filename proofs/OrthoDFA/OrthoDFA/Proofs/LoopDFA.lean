@@ -445,7 +445,8 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
           (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
               o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
                 o.result.hypothesis.rerootedDFA o.read q.2 x
-                  (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                  (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
+          ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
         ≤ δ := by
   intro Q A k L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB cap Kc n SC HN
     hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hlong hpre hpAPu hbridge hk1 hk2 hk3 hk4
@@ -617,6 +618,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96) (shortAt M (L + 1))
             (ε + ε / 96))
+        ∧ (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2)
         ∧ RoundsFresh settings O P.D Dsf Ls p
         ∧ ∀ r (hr : r < Fintype.card σ + 1),
           AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
@@ -632,7 +634,8 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
             o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
-              (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+              (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
+      ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
       ⊆ (Prod.fst ⁻¹' Bloop) ∪ ⋃ r : Fin (Fintype.card σ + 1),
           selFail settings O P.D Dsf (prefixLaw D L) Ls L n (Fintype.card σ + 2) t r r.2 := by
     intro q hq
@@ -640,15 +643,14 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     · exact Or.inl hlp
     right
     have hlp' := not_not.1 hlp
-    obtain ⟨⟨hlen, o, ho, hch⟩, hfr, hrg⟩ := hlp'
+    obtain ⟨⟨hlen, o, ho, hch⟩, hlv, hfr, hrg⟩ := hlp'
     have hcons : o.result.ending = .consistent := hch.1.1
     obtain ⟨r, hr, -, tt, hst, hG, hOk, hB, hF, hread, hhyp⟩ :=
       stageSel_last settings O P Dsf Ls q.1 hfr o ho hcons
     refine Set.mem_iUnion.2 ⟨⟨r, hr⟩, ?_⟩
     by_contra hnot
     apply hq
-    refine ⟨_, idealRounds_mem_loop settings O Dsf P.D q.1 hrg, hlen, o, ho, hcons,
-      ?_⟩
+    refine ⟨_, idealRounds_mem_loop settings O Dsf P.D q.1 hrg, ⟨hlen, o, ho, hcons, ?_⟩, hlv⟩
     have hnot' : (q.1.1, q.2) ∉ SelBad O (prefixLaw D L) n (Fintype.card σ + 2) t
           (some (tt, resCode o.result))
         ∧ (q.1.2, q.2) ∈ SelDk settings P.D L n r hr (some (tt, resCode o.result)) := by
@@ -808,7 +810,8 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
           (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
               o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
                 o.result.hypothesis.rerootedDFA o.read q.2 x
-                  (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                  (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
+          ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
         ≤ δ := by
   intro Q A k L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB cap Kc n SC HN
     hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hAe hlong hfl hpre hpAPu hceil hk1 hk2 hk3 hk4
@@ -918,7 +921,8 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
           (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
               o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
                 o.result.hypothesis.rerootedDFA o.read q.2 x
-                  (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                  (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
+          ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
         ≤ δ := by
   intro Q A k L₁ Ls N ε εcov δ' S B₃ n SC HN hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hlong hpre hpAPu
     hbridge hp₀

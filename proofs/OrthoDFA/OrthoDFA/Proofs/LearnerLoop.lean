@@ -393,7 +393,7 @@ small enough for level 5's premises at `f = 0`. The last round has at most
 `C.disagreementRate + mr` of the probes in `disagreeSet`, and at most half of each `E q`, plus
 `u + mr`, misled, `mr` bounding the mass the round's probes avoid. Every round the filled draws
 run is good but for chance `K δₘ` of a miss at the cap `harvestN y (δₘ / scanCap)` and the scan
-tail at `4 (K + 3) NP ≤ Tsc ≤ scanCap`. -/
+tail at `4 (K + 3) NP ≤ Tsc ≤ scanCap`. Every round's tree has at most `|Q| + 2` leaves. -/
 def LoopCore : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -458,6 +458,7 @@ def LoopCore : Prop :=
             ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                 o.Checks M O P.D C.walkStart (513 / 512 * εcov + 2 * indecisionLimit + 2 * slack)
                   (2 * indecisionLimit + slack) (C.disagreementRate + mr) E (u + mr))
+              ∧ (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2)
               ∧ RoundsFresh settings O P.D Dsf Ls p
               ∧ ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
                 RoundGood settings O P.D Dsf (histOf (idealRounds settings O P.D Dsf
@@ -796,6 +797,7 @@ theorem loop_core_holds : LoopCore := by
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.Checks M O P.D k (513 / 512 * εcov + 2 * ι + 2 * slack) (2 * ι + slack)
             (C.disagreementRate + mr) E (u + mr))
+        ∧ (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2)
         ∧ RoundsFresh settings O P.D Dsf Ls p
         ∧ ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
           RoundGood settings O P.D Dsf (histOf (idealRounds settings O P.D Dsf
@@ -972,7 +974,10 @@ theorem loop_core_holds : LoopCore := by
       ((mul_nonneg (by positivity) hpm0).trans hmr) (by linarith) hcond
       (fun pops B hB => (hband pops B hB).1)
       fun i hi hiK hiσ => (hspec i hiσ hi hiK).1
-    refine hp ⟨hag, fun i hi => ?_, fun r hr hall => ?_⟩
+    refine hp ⟨hag, fun o ho => ?_, fun i hi => ?_, fun r hr hall => ?_⟩
+    · obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ho
+      have hle := hag.1
+      exact Random.classSet_leaves _ _ (hspec i (by omega) hi (by omega)).1.2.2.1
     · have hle := hag.1
       have hK : i < K := by omega
       exact ⟨hK, (hspec i (by omega) hi hK).2.1⟩
