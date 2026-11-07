@@ -150,7 +150,7 @@ def main() -> None:  # pylint: disable=too-many-statements
         if not args.matched_budget or (name, eta) in budgets
     ]
     previous = reusable_cells(out_path, cell_key)
-    if not set(grid) - previous.keys():
+    if all(is_current(previous.get(k), budgets.get((k[0], k[2]))) for k in grid):
         print(f"{out_path} has every cell; nothing to run.", flush=True)
         return
 
