@@ -8,9 +8,10 @@ With `ℓ` the longest probe plus one and `Λ = 1 + log ℓ`, `1/ε` is at most 
 `ℓ Θι`, `1/τ` at most `ℓ Θ` and the atoms' `1/min(εcov s/2, ι)` at most `ℓ Θa`, so the suffix
 pool is at most `ℓ P₀`, the prefix count at most `ℓ² Λ R₀`, the budget at most `ℓ K₁` and `1/cap`
 at most `ℓ³ Λ E₁` (`dfa_rate_bounds`, `rb_le`, `cap_ge`). So
-`ℓ⁴ Λ (E + E₂ + E₃) ≤ |Σ|^k` gives the four inequalities `LearnerLoopDFASimple` asks of the
-probes' prefix mass (`dfa_mass`), and `dfa_pow` gets `ℓ⁵ (E + E₂ + E₃) ≤ |Σ|^k` from `L ≥ L₀`, the
-walk starting at half of `L`.
+`ℓ⁴ Λ (E + E₂ + E₃) ≤ |Σ|^k` gives the four inequalities `LearnerLoopDFARelativeSimple` asks of
+the probes' prefix mass (`dfa_mass`), and `dfa_pow` gets `ℓ⁵ (E + E₂ + E₃) ≤ |Σ|^k` from
+`L ≥ L₀`, the walk starting at half of `L`. The relative claims run these at the coverage
+`c = ξ/(2R)`.
 -/
 
 noncomputable section
@@ -880,26 +881,27 @@ lemma dfa_mass {Ae ℓ Λ ε cap aε E₁ E E₂ E₃ lg Q n J RB R₀ B₃ K₁
   exact ⟨h1, h2, h3,
     dfa_noise_tail hℓ1 hΛ hB₃0 hB₃ hE₃d hδ'0 (by linarith only [hE1]) hE₂0 hpow3 hAk⟩
 
-/-- `LearnerLoopDFA`'s `Θι`, `A` the rate edges are crossed at. -/
+/-- `LearnerLoopDFARelative`'s `Θι`, `A` the rate edges are crossed at. -/
 def loopΘι (Q A c ξ : ℝ) : ℝ :=
   8 * (10 / c + 8 / ξ) + 4608 * Q * (Q + 1) * (4 * (A + 1) / c)
 
-/-- `LearnerLoopDFA`'s `Θ`. -/
+/-- `LearnerLoopDFARelative`'s `Θ`. -/
 def loopΘ (Q A c ξ η₀ : ℝ) : ℝ :=
   (10 / c + 8 / ξ) / (2 * (1 / 2 - η₀) ^ 2) + loopΘι Q A c ξ
 
-/-- `LearnerLoopDFA`'s `Θa`. -/
+/-- `LearnerLoopDFARelative`'s `Θa`. -/
 def loopΘa (Q A c ξ η₀ : ℝ) : ℝ :=
   2 * (10 / c + 8 / ξ) / (1 / 2 - η₀) + loopΘι Q A c ξ
 
-/-- `LearnerLoopDFA`'s `W₀`. -/
+/-- `LearnerLoopDFARelative`'s `W₀`. -/
 def loopW₀ (Q A δ : ℝ) : ℝ :=
   let δ' := δ / (8 * (Q + 1))
   let S := Q * ((Q + 2) * A + 1) + 2 * A + 1
   Real.exp 1 * Real.sqrt δ'
     * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) / 2 + 1
 
-/-- Bounds `LearnerLoopDFASimple`'s suffix pool `PB` at `ℓ = L₁ + 1`, edges crossed at rate `Ae`. -/
+/-- Bounds `LearnerLoopDFARelativeSimple`'s suffix pool `PB` at `ℓ = L₁ + 1`, edges crossed at rate
+`Ae`. -/
 def loopPool (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
   let δ' := δ / (8 * (Q + 1))
   let s := 1 / 2 - η₀
@@ -907,7 +909,7 @@ def loopPool (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
       + 2 * Real.log ℓ) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
 
-/-- Bounds `LearnerLoopDFASimple`'s prefix count `RB` at `ℓ = L₁ + 1`. -/
+/-- Bounds `LearnerLoopDFARelativeSimple`'s prefix count `RB` at `ℓ = L₁ + 1`. -/
 def loopCount (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
   let δ' := δ / (8 * (Q + 1))
   let Θι := loopΘι Q Ae c ξ
@@ -916,7 +918,7 @@ def loopCount (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
   2 ^ 20 * (Q + 2) * Θι ^ 2 * ℓ ^ 2 * Real.log (128 * (P + 1) / δ') / (1 / 2 - η₀) ^ 4
     + 2 ^ 27 * Θ ^ 2 * ℓ ^ 2 * Real.log (16 * (Q + 4) * P * Θ * ℓ / (δ' ^ 2 * pAP))
 
-/-- `LearnerLoopDFA`'s `R₀`, edges crossed at rate `Ae`. -/
+/-- `LearnerLoopDFARelative`'s `R₀`, edges crossed at rate `Ae`. -/
 def loopR₀ (Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
   let δ' := δ / (8 * (Q + 1))
   let s := 1 / 2 - η₀
@@ -932,8 +934,8 @@ def loopBudget (ℓ Q A Ae δ c : ℝ) : ℝ :=
   let S := Q * ((Q + 2) * A + 1) + 2 * A + 1
   (36 * S * (4 * (Ae + 1) / c) * Real.log (16 * S * (S + 1) / (δ / (8 * (Q + 1)))) + S + 1) * ℓ
 
-/-- `LearnerLoopDFA`'s `(E, E₂, E₃)`, edges crossed at rate `Ae`, with `nQ` and `nA` standing for
-`|Q|` and `|Σ|` as exponents. -/
+/-- `LearnerLoopDFARelative`'s `(E, E₂, E₃)`, edges crossed at rate `Ae`, with `nQ` and `nA`
+standing for `|Q|` and `|Σ|` as exponents. -/
 def loopMassTerms (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ × ℝ × ℝ :=
   let δ' : ℝ := δ / (8 * (Q + 1))
   let s : ℝ := 1 / 2 - η₀
@@ -958,13 +960,13 @@ def loopMassTerms (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ �
   let E₃ : ℝ := 16 * K₁ ^ 2 / δ'
   (E, E₂, E₃)
 
-/-- `LearnerLoopDFA`'s `E + E₂ + E₃`. -/
+/-- `LearnerLoopDFARelative`'s `E + E₂ + E₃`. -/
 def loopMassInv (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ :=
   let t := loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀
   t.1 + t.2.1 + t.2.2
 
-/-- A walk start's prefix mass of at most `1/loopTolInv ℓ` meets `LearnerLoopDFASimple`'s four
-conditions at `ℓ = L₁ + 1`. -/
+/-- A walk start's prefix mass of at most `1/loopTolInv ℓ` meets `LearnerLoopDFARelativeSimple`'s
+four conditions at `ℓ = L₁ + 1`. -/
 def loopTolInv (ℓ Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ :=
   let t := loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀
   ℓ ^ 4 * (1 + Real.log ℓ) * t.1 + ℓ ^ 2 * (1 + Real.log ℓ) * t.2.1 + ℓ ^ 2 * t.2.2

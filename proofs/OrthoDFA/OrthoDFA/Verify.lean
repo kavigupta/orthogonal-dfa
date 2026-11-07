@@ -31,7 +31,7 @@ import OrthoDFA.Proofs.TripartiteSearch
 /-!
 # The theorem
 
-The headline: `LearnerLoopDFA`, stated in `OrthoDFA.LowLevelClaims.LoopDFA`, holds: the learner's
+The headline: `LearnerLoopDFARelative`, stated in `OrthoDFA.LowLevelClaims.LoopDFA`, holds: the learner's
 loop outputs a hypothesis that agrees with the target DFA, with every round's tree within `|Q| + 2`
 leaves, but for chance `δ`.
 
@@ -42,9 +42,8 @@ claims, stated in `OrthoDFA.LowLevelClaims.FamilyRead`, `ProbeCorrect`, stated i
 `OrthoDFA.LowLevelClaims.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and
 `Level5RoundCorrect`, stated in `OrthoDFA.LowLevelClaims.Level3Claim`,
 `OrthoDFA.LowLevelClaims.Level4Claim` and `OrthoDFA.LowLevelClaims.Level5Claim`, and
-`FamilyKappaOracle`, stated in `OrthoDFA.LowLevelClaims.FamilyOracle`. `LearnerLoopDFASimple` is the
-same claim with the simpler premises, and `LearnerLoopDFADist` the simpler one over strings drawn
-from an input distribution. Level 3's reads are randomly indecisive; level 4's are rarely
+`FamilyKappaOracle`, stated in `OrthoDFA.LowLevelClaims.FamilyOracle`.
+`LearnerLoopDFARelativeSimple` is the same claim with the simpler premises. Level 3's reads are randomly indecisive; level 4's are rarely
 wrong, and level 5's wrong at most `κ` times as often as undecided, a few wrong reads tolerated at
 both. The loop runs level 5.
 
@@ -124,18 +123,6 @@ theorem sift_and_split_correct : SiftAndSplitCorrect := siftAndSplitCorrect
 theorem walk_correct : WalkCorrect := walkCorrect
 
 #print axioms walk_correct
-
-theorem learner_loop_dfa_simple : LearnerLoopDFASimple := learner_loop_dfa_simple_holds
-
-#print axioms learner_loop_dfa_simple
-
-theorem learner_loop_dfa : LearnerLoopDFA := learner_loop_dfa_holds
-
-#print axioms learner_loop_dfa
-
-theorem learner_loop_dfa_dist : LearnerLoopDFADist := learner_loop_dfa_dist_holds
-
-#print axioms learner_loop_dfa_dist
 
 theorem learner_loop_dfa_relative_simple : LearnerLoopDFARelativeSimple :=
   learner_loop_dfa_relative_simple_holds

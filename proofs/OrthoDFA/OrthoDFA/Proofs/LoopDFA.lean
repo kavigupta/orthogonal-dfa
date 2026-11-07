@@ -9,17 +9,13 @@ import OrthoDFA.Proofs.LoopSelect
 # The learner's DFA: the proof
 
 The proof runs over strings drawn from `D` (`learner_loop_dfa_dist_core`), given that a last round
-passing its checks has a leaf that misjudges at most `γ`; `covered_bridge` gives that under the
-covered rule. The uniform claims take `D` uniform over the strings of length `L + 2|Q| + 6`, whose
-prefixes are uniform (`prefixLaw_uniformStrings`).
+passing its checks has a leaf that misjudges at most `γ`; `summed_bridge` gives that under the
+relative rule.
 
 `loop_simple_checks` at the window's probes leaves a last round with at most `ε + ε/96` of the
 probes disagreeing, searching or stopping undecided at their start or end sift, and at most half
 of each state's strings shorter than `L + 1`, plus `ε + ε/96`, misled: reading, or extended by a
-letter reading, a string on its state's rarer side. From there the bridge is deterministic
-(`dfa_of_checks`): the tree's root reads the string itself, so a covered state's edges are true
-(`edge_of_occupied`), it is read on its true side (`sideOf_eq_of_mass`), and the covered start's
-true leaf misjudges at most what re-rooting does (`classify_start_le`).
+letter reading, a string on its state's rarer side.
 
 The family reads a string of `D`'s first `L` letters wrongly at most `(1025/1024) N εcov` of the
 time and leaves it undecided at most `(3/8) N εcov`, with `N εcov ≤ ξ/8`, so off a stray score the
@@ -104,120 +100,6 @@ theorem familyReadDist_sum (q : σ) (hq : ∃ w : FreeMonoid α, M.eval w.toList
   exact readProb_sum O F kl kh _
 
 end Reads
-
-section Bridge
-
-variable [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
-  [IsProbabilityMeasure μ]
-
-/-- A last round whose disagreeing probes over the window are at most `εB`, and whose misled ones
-are at most half of each state's strings shorter than `L + 1`, plus `εm`, both small enough
-against the coverage `c`, has a leaf from which its hypothesis misjudges at most what re-rooting
-at a covered start does, `D` extending each prefix by each letter at least `1/Ae` of the time. -/
-theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
-    (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (o : LoopRound α)
-    (L : ℕ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (hlong : ∀ᵐ x ∂D, L + Fintype.card σ + 3 ≤ x.toList.length) {Ae c εr εu εB εm γ : ℝ}
-    (hAe : 0 ≤ Ae)
-    (hfl : ∀ i, (L + 1) / 2 ≤ i → i ≤ L → ∀ y a, D.real {w | prefixOf w i = y}
-      ≤ Ae * D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of a})
-    (hch : o.Checks M O (windowLaw D ((L + 1) / 2) (L + Fintype.card σ + 3)) ((L + 1) / 2)
-      εr εu εB (shortAt M (L + 1)) εm) (hεm : 0 ≤ εm)
-    (hεB : 2 * ((Ae + 1)
-      * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) * εB
-      + ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) * εm) < c)
-    (hcov : (2 * εr + εu) * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) < c)
-    (hceil : ∃ q ∈ coveredStatesOn (prefixLaw D L) M L c,
-      1 - γ ≤ rerootAccuracyOn (prefixLaw D L) M L (coveredStatesOn (prefixLaw D L) M L c) q) :
-    ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
-      {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ γ := by
-  classical
-  set k := (L + 1) / 2 with hkd
-  set L₁ := L + Fintype.card σ + 3 with hL₁d
-  have hkL₁ : k ≤ L₁ := by omega
-  set P : Measure (FreeMonoid α) := windowLaw D k L₁ with hPd
-  haveI : IsProbabilityMeasure P := windowLaw_isProbability D hkL₁
-  set H := o.result.hypothesis with hHd
-  set dist := familyReadDist O M o.family o.state.lo (o.state.hi + 1) with hdistd
-  set side : σ → Bool := fun q => readSide (dist q)
-  have hd0 := familyReadDist_nonneg O M o.family o.state.lo (o.state.hi + 1)
-  have hd1 := familyReadDist_le_one O M o.family o.state.lo (o.state.hi + 1)
-  obtain ⟨⟨hcons, hmis, hund⟩, hchk, hcls, hfew⟩ := hch
-  have hroot : ∃ r a, H.tree = .node 1 r a := rootOne_of_classSet _ _ hcls
-  -- the family's reads over the window
-  have hund' : ∫ p, dist (M.eval p.toList) .undecided ∂P ≤ εu := by
-    refine le_trans (le_of_eq ?_) hund
-    congr 1
-    funext p
-    rw [readProb_eq_familyReadDist O M hL]
-  have hmis' : ∫ p, (if M.eval p.toList ∈ M.accept then dist (M.eval p.toList) .reject
-      else dist (M.eval p.toList) .accept) ∂P ≤ εr := by
-    refine le_trans (le_of_eq ?_) hmis
-    congr 1
-    funext p
-    have e := congrFun (readProb_eq_familyReadDist O M hL o.family o.state.lo (o.state.hi + 1) p)
-    unfold misreadProb
-    by_cases hp : M.eval p.toList ∈ M.accept
-    · simp only [if_pos hp, if_pos ((hL p).2 hp)]
-      exact (e .reject).symm
-    · simp only [if_neg hp, if_neg (fun h => hp ((hL p).1 h))]
-      exact (e .accept).symm
-  have hN0 : (0 : ℝ) < (L₁ : ℝ) + 1 - k := by
-    have : (k : ℝ) ≤ L₁ := by exact_mod_cast hkL₁
-    linarith
-  have hεB0 : 0 ≤ εB := measureReal_nonneg.trans hchk
-  -- the covered states
-  set Sc := coveredStatesOn (prefixLaw D L) M L c with hSd
-  have hreach : ∀ q ∈ Sc, ∃ w : FreeMonoid α, M.eval w.toList = q := by
-    intro q hq
-    by_contra hno
-    push Not at hno
-    have hempty : {x : FreeMonoid α | ∃ j, (L + 1) / 2 ≤ j ∧ j ≤ L
-        ∧ M.eval (prefixOf x j).toList = q} = ∅ := by
-      ext x
-      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_exists, not_and]
-      exact fun j _ _ => hno _
-    have h : c ≤ (prefixLaw D L).real {x : FreeMonoid α | ∃ j, (L + 1) / 2 ≤ j ∧ j ≤ L
-        ∧ M.eval (prefixOf x j).toList = q} := hq
-    rw [hempty, measureReal_empty] at h
-    have hc0 : 0 < c := by
-      have : 0 ≤ (Ae + 1) * ((L₁ : ℝ) + 1 - k) * εB := by positivity
-      have : 0 ≤ ((L₁ : ℝ) + 1 - k) * εm := by positivity
-      have e : 2 * ((Ae + 1)
-          * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) * εB
-          + ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ)) * εm)
-          = 2 * ((Ae + 1) * ((L₁ : ℝ) + 1 - k) * εB + ((L₁ : ℝ) + 1 - k) * εm) := rfl
-      linarith
-    linarith
-  have hocc : ∀ q ∈ Sc, c ≤ ∑ i ∈ Finset.Ico k (L + 1),
-      (prefixLaw D i).real {y : FreeMonoid α | M.eval y.toList = q} := by
-    intro q hq
-    have := occupancy_of_covered D M hq
-    rwa [Finset.Ico_add_one_right_eq_Icc]
-  have hE : ∀ q ∈ Sc, ∀ a, ∃ w, H.edges (Random.leafOf M side H.tree q, a)
-      = some (Random.leafOf M side H.tree (M.step q a), w) := fun q hq a =>
-    edge_of_occupied M dist o.read H D (by omega : k < L + 1) (by omega : L + 1 ≤ L₁) hlong q a
-      hAe (fun i hi hi' y => hfl i hi (by omega) y a) hchk (hfew q a) (hocc q hq) hεB
-  have hside : ∀ q ∈ Sc, side q = decide (q ∈ M.accept) := by
-    intro q hq
-    refine sideOf_eq_of_mass M P dist hd0 hd1 q
-      (familyReadDist_sum O M _ _ _ q (hreach q hq)) hmis' hund' (b := c / ((L₁ : ℝ) + 1 - k))
-      ?_ ?_
-    · rw [windowLaw_real D hkL₁, div_le_div_iff_of_pos_right hN0]
-      refine (hocc q hq).trans ?_
-      rw [Finset.Ico_add_one_right_eq_Icc]
-      exact Finset.sum_le_sum_of_subset_of_nonneg (Finset.Icc_subset_Icc le_rfl (by omega))
-        fun _ _ _ => measureReal_nonneg
-    · rw [lt_div_iff₀ hN0]
-      have e : (2 * εr + εu) * ((L + Fintype.card σ + 3 : ℕ) + 1 - ((L + 1) / 2 : ℕ))
-          = (2 * εr + εu) * ((L₁ : ℝ) + 1 - k) := rfl
-      linarith
-  obtain ⟨q₀, -, hacc⟩ := hceil
-  exact ⟨Random.leafOf M side H.tree q₀, Random.leafOf_mem M side _ _,
-    classify_start_le M side H hroot Sc hE hside (prefixLaw D L) L
-      (prefixLaw_length D (hlong.mono fun x hx => le_trans (by omega) hx)) q₀ hacc⟩
-
-end Bridge
 
 section Select
 
@@ -335,43 +217,6 @@ lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A)
       rw [← h3]
       exact mul_le_mul_of_nonneg_left (by linarith) (by positivity)
     nlinarith
-
-/-- `dfa_of_checks` at the rates the coverage `c` sets. -/
-theorem covered_bridge {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*}
-    [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
-    (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (L : ℕ) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] {c γ ξ Ae : ℝ} (hc : 0 < c) (hξ : 0 < ξ) (hAe : 2 ≤ Ae)
-    (hlong : ∀ᵐ x ∂D, L + Fintype.card σ + 3 ≤ x.toList.length)
-    (hfl : ∀ i, (L + 1) / 2 ≤ i → i ≤ L → ∀ y a, D.real {w | prefixOf w i = y}
-      ≤ Ae * D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of a})
-    (hceil : ∃ q ∈ coveredStatesOn (prefixLaw D L) M L c,
-      1 - γ ≤ rerootAccuracyOn (prefixLaw D L) M L (coveredStatesOn (prefixLaw D L) M L c) q) :
-    let k : ℕ := (L + 1) / 2
-    let L₁ : ℕ := L + Fintype.card σ + 3
-    let N : ℝ := L₁ + 1 - k
-    let ε : ℝ := c / (4 * (Ae + 1) * N)
-    let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
-    ∀ o : LoopRound α,
-      o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
-        (shortAt M (L + 1)) (ε + ε / 96) →
-      ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
-        {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ γ := by
-  intro k L₁ N ε εcov o hch
-  have : Nonempty σ := ⟨M.start⟩
-  have hQ1 : (1 : ℝ) ≤ Fintype.card σ := by exact_mod_cast Fintype.card_pos
-  have hN1 : (1 : ℝ) ≤ N := by
-    have : (k : ℝ) ≤ L₁ := by exact_mod_cast (show k ≤ L₁ by omega)
-    show (1 : ℝ) ≤ (L₁ : ℝ) + 1 - k; linarith
-  have hc1 : c ≤ 1 := by
-    obtain ⟨q₀, hq₀, -⟩ := hceil
-    exact (show c ≤ _ from hq₀).trans measureReal_le_one
-  obtain ⟨hε0, -, hεc0, -, -, -, hbad, hcN, -⟩ := dfa_rates (ℓ := 0) hQ1 hAe hN1 le_rfl
-    (by linarith) hc hc1 hξ rfl rfl rfl
-  refine dfa_of_checks M O hL o L D hlong (by linarith) hfl hch (by positivity) hbad ?_ hceil
-  show (2 * (1025 / 1024 * εcov) + 3 / 8 * εcov) * N < c
-  have h0 : 0 < εcov * N := mul_pos hεc0 (zero_lt_one.trans_le hN1)
-  linarith only [hcN, h0]
 
 set_option maxHeartbeats 8000000 in -- the claim's settings meet `loop_simple_checks`'s conditions
 /-- The loop over `D`, given that a last round passing its checks has a leaf misjudging at most `γ`
@@ -742,131 +587,9 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
   refine (measureReal_union_le _ _).trans ?_
   linarith
 
-theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α]
-    {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L : ℕ) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] (η₀ c γ δ pAP ξ Ae p₀ : ℝ) :
-    let Q : ℝ := Fintype.card σ
-    let A : ℝ := Fintype.card α
-    let k : ℕ := (L + 1) / 2
-    let L₁ : ℕ := L + Fintype.card σ + 3
-    let Ls : ℕ := L₁ + Fintype.card σ + 3
-    let N : ℝ := L₁ + 1 - k
-    let ε : ℝ := c / (4 * (Ae + 1) * N)
-    let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
-    let δ' : ℝ := δ / (8 * (Q + 1))
-    let ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1)))
-    let s : ℝ := 1 / 2 - η₀
-    let τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι
-    let J : ℝ := Q + 2
-    let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
-    let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
-    let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-    let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
-    let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
-      + 120 * Real.log (3 / (δ' / 2)) / pAP
-    let RB : ℝ := 2 ^ 20 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
-      + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
-    let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
-          (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
-        (ι / 2 / (8 * J * (RB + 1))))
-      (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
-        (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
-    let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
-      * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
-    let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
-    let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
-    let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
-    (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-    O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
-    A ≤ Ae →
-    (∀ᵐ w ∂D, Ls ≤ w.toList.length) →
-    (∀ i, k ≤ i → i ≤ L → ∀ y a, D.real {w | prefixOf w i = y}
-      ≤ Ae * D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of a}) →
-    (∀ u, D.real {w | prefixOf w k = u} ≤ p₀) →
-    pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-    (∃ q ∈ coveredStatesOn (prefixLaw D L) M L c,
-      1 - γ ≤ rerootAccuracyOn (prefixLaw D L) M L (coveredStatesOn (prefixLaw D L) M L c) q) →
-    p₀ ≤ cap * ε / 1536 →
-    1536 * Real.log (16 * (Q + 1) * Kc / δ') * p₀ ≤ ε →
-    n * (6 * J * RB + B₃ + n) * p₀ ≤ δ / 4 →
-    16 * B₃ ^ 2 * p₀ ≤ δ' →
-    ∃ settings : LoopSettings (Fintype.card σ + 1),
-      settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
-      (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-      (settings.scanCap : ℝ) ≤ SC ∧
-      (∀ p : LoopDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
-            settings.level3.probeBudget,
-        ∀ rounds,
-          indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls) p = some rounds →
-        rounds.length ≤ Fintype.card σ + 1
-          ∧ ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ (Q + 1) * (6 * (Q + 2) * RB)
-          ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1)) ∧
-      ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
-          settings.level3.probeBudget).prod
-          (Measure.pi fun _ : Fin n => prefixLaw D L)).real
-        {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-              q.1 = some rounds ∧
-          (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
-              o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
-                o.result.hypothesis.rerootedDFA o.read q.2 x
-                  (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
-          ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
-        ≤ δ := by
-  intro Q A k L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB cap Kc n SC HN
-    hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hAe hlong hfl hpre hpAPu hceil hk1 hk2 hk3 hk4
-  have hA2' : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
-  have hc1 : c ≤ 1 := by
-    obtain ⟨q₀, hq₀, -⟩ := hceil
-    exact (show c ≤ _ from hq₀).trans measureReal_le_one
-  exact learner_loop_dfa_dist_core M O L D η₀ c γ δ pAP ξ Ae p₀ hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ
-    hA2 hAe hlong hpre hpAPu
-    (covered_bridge M O hL L D hc hξ (hA2'.trans hAe)
-      (hlong.mono fun x hx => le_trans (by omega) hx) hfl hceil) hk1 hk2 hk3 hk4
-
-theorem learner_loop_dfa_dist_holds : LearnerLoopDFADist := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L D _ η₀ c γ δ pAP ξ β p₀ Q A k L₁ Ls N ε εcov δ' ι s τ J S B₃
-    Wm W PB RB cap Kc n SC HN hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hβ hβA hlong hfl hpre hpAPu hceil
-    hk1 hk2 hk3 hk4
-  have hAe : A ≤ 1 / β := by
-    rw [le_div_iff₀ hβ]
-    linarith [mul_comm β A]
-  obtain ⟨settings, h1, h2, h3, h5, h6, -, h4⟩ := learner_loop_dfa_dist_counts M O L D η₀ c γ δ
-    pAP ξ
-    (1 / β) p₀ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hAe hlong
-    (fun i hi hi' y a => by
-      have h := hfl i hi hi' y a
-      have e : 1 / β * D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of a}
-          = D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of a} / β := by ring
-      rw [e, le_div_iff₀ hβ]
-      linarith)
-    hpre hpAPu hceil hk1 hk2 hk3 hk4
-  exact ⟨settings, h1, h2, h3, h5, h6, h4⟩
-
-theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c γ δ pAP ξ Q A k L₁ N ε εcov δ' ι s τ J S B₃ Wm W PB RB
-    cap Kc n SC HN hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hk1 hk2 hk3 hk4
-  have hpL : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3)) L
-      = uniformStrings L := prefixLaw_uniformStrings (by omega)
-  have hpS : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
-      (L + Fintype.card σ + 3 + Fintype.card σ + 3)
-      = uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3) :=
-    prefixLaw_uniformStrings le_rfl
-  have hwS : windowLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
-      ((L + 1) / 2) (L + Fintype.card σ + 3)
-      = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
-  obtain ⟨settings, h1, h2, h3, h5, h6, -, h4⟩ := learner_loop_dfa_dist_counts M O L
-    (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ c γ δ pAP ξ A (A ^ k)⁻¹ hL
-    hη hη₀ hc hδ hδ1 hpAP hξ hA2 le_rfl (uniformStrings_long _)
-    (fun i _ hi y a => uniformStrings_floor (by omega) y a)
-    (fun u => uniformStrings_prefix_le (by omega) u)
-    (by rw [hpS]; exact hpAPu) (by rw [hpL]; exact hceil) hk1 hk2 hk3 hk4
-  rw [hpL, hpS, hwS] at h4
-  exact ⟨settings, h1, h2, h3, h5, h6, h4⟩
-
 set_option maxRecDepth 4000 in
 set_option maxHeartbeats 8000000 in -- unfolding the explicit theorem's settings
-/-- `learner_loop_dfa_dist_counts` where `D` holds at most `1/loopTolInv ℓ` on any first `k`
+/-- `learner_loop_dfa_dist_core` where `D` holds at most `1/loopTolInv ℓ` on any first `k`
 letters, `ℓ = L + |Q| + 4`, with its reads bounded in closed form. -/
 theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α]
     {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -1133,54 +856,6 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     calc (rounds.length * settings.level3.probeBudget : ℝ)
         ≤ (Q + 1) * (K₁ * ℓ) := mul_le_mul hlen' hbud (Nat.cast_nonneg _) hQ1'
       _ = (Q + 1) * loopBudget ℓ Q A Ae δ c := rfl
-
-set_option maxHeartbeats 4000000 in -- matching `LearnerLoopDFA`'s `L₀` against `loopMassInv`
-theorem learner_loop_dfa_holds : LearnerLoopDFA := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c γ δ pAP ξ Q A k L₁ N ε δ' s S B₃ n aε Ce Θι Θ Θa K₁ Wm
-    W₀ P₀ R₀ E₁ Kc E E₂ E₃ T L₀ SC HN hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hpAPu hceil hL₀
-  have : Nonempty σ := ⟨M.start⟩
-  have hQ0 : (0 : ℝ) ≤ Q := Nat.cast_nonneg _
-  have hA : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
-  have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
-  have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
-  have hc1 : c ≤ 1 := by
-    obtain ⟨q₀, hq₀, -⟩ := hceil
-    exact (show c ≤ _ from hq₀).trans measureReal_le_one
-  have hMI : loopMassInv Q A A (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀ = E + E₂ + E₃ :=
-    rfl
-  have hEs1 : 1 ≤ E + E₂ + E₃ := by
-    rw [← hMI]
-    exact loopMassInv_ge_one _ _ hQ0 (by linarith) hA hδ hδ1 hc hc1 hξ hpAP hp1 hη0 hη₀
-  have hpow : ((L : ℝ) + Q + 4) ^ 5 * (E + E₂ + E₃) ≤ A ^ k :=
-    dfa_pow hA rfl hQ0 (Nat.cast_nonneg L) hEs1
-      (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) rfl hL₀
-  have hp₀ : (A ^ k)⁻¹
-      ≤ 1 / loopTolInv ((L : ℝ) + Q + 4) Q A A (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀ := by
-    have hL0 : (0 : ℝ) ≤ L := Nat.cast_nonneg L
-    obtain ⟨hT1, hTle⟩ := loopTolInv_le (ℓ := (L : ℝ) + Q + 4) (Q := Q) (A := A) (Ae := A)
-      (Fintype.card σ) (Fintype.card α) (by linarith) hQ0 (by linarith) hA hδ hδ1 hc hc1 hξ hpAP
-      hp1 hη0 hη₀
-    rw [hMI] at hTle
-    rw [one_div]
-    exact inv_anti₀ (by linarith) (hTle.trans hpow)
-  have hpL : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3)) L
-      = uniformStrings L := prefixLaw_uniformStrings (by omega)
-  have hpS : prefixLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
-      (L + Fintype.card σ + 3 + Fintype.card σ + 3)
-      = uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3) :=
-    prefixLaw_uniformStrings le_rfl
-  have hwS : windowLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
-      ((L + 1) / 2) (L + Fintype.card σ + 3)
-      = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
-  obtain ⟨settings, h1, h2, h3, h5, h6, -, h4⟩ := learner_loop_dfa_dist_tol M O L
-    (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ c γ δ pAP ξ A (A ^ k)⁻¹ hL
-    hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 le_rfl (uniformStrings_long _)
-    (fun u => uniformStrings_prefix_le (by show (L + 1) / 2 ≤ _; omega) u)
-    (by rw [hpS]; exact hpAPu)
-    (covered_bridge M O hL L _ hc hξ hA (uniformStrings_long _ |>.mono fun x hx => by omega)
-      (fun i _ hi y a => uniformStrings_floor (by omega) y a) (by rw [hpL]; exact hceil)) hp₀
-  rw [hpL, hpS, hwS] at h4
-  exact ⟨settings, h1, h2, h3, h5, h6, h4⟩
 
 end OrthoDFA
 

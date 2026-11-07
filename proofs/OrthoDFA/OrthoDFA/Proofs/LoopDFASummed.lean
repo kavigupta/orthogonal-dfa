@@ -208,8 +208,9 @@ section Bridge
 variable [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
   [IsProbabilityMeasure μ]
 
-/-- A last round as in `dfa_of_checks`, whose wrong states together occupy the window's lengths
-`⌈L/2⌉` to `L` less than `c`, has a leaf from which its hypothesis misjudges at most `γ + Cc`,
+/-- A last round whose disagreeing probes over the window are at most `εB`, and whose misled ones
+are at most half of each state's strings shorter than `L + 1`, plus `εm`, so that its wrong states
+together occupy the window's lengths `⌈L/2⌉` to `L` less than `c`, has a leaf from which its hypothesis misjudges at most `γ + Cc`,
 `C = R(L+1)/(L+1−⌈L/2⌉)`, where `q₀` re-roots with accuracy `1 − γ` through its non-start zone. -/
 theorem dfa_of_checks_summed (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
     (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (o : LoopRound α)
