@@ -1828,7 +1828,7 @@ open Asymptotics Filter
 
 set_option maxHeartbeats 1000000 in -- the populations' log against the rest's
 /-- `RLStarClaimUniform`'s prefix shape against `RLStarClaimUniformSimple`'s. -/
-lemma loop_pref_dom {r : LoopRun} (hr : r ∈ loopRunRegion) :
+lemma loop_pref_dom {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
     0 ≤ r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
           * log (r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
         + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
@@ -1931,7 +1931,7 @@ lemma loop_pref_dom {r : LoopRun} (hr : r ∈ loopRunRegion) :
   linarith
 
 /-- `RLStarClaimUniform`'s suffix shape against `RLStarClaimUniformSimple`'s. -/
-lemma loop_suff_dom {r : LoopRun} (hr : r ∈ loopRunRegion) :
+lemma loop_suff_dom {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
     0 ≤ r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)
       ∧ 0 ≤ r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
@@ -1978,29 +1978,29 @@ lemma loop_suff_dom {r : LoopRun} (hr : r ∈ loopRunRegion) :
 
 /-- The `c` the general claim runs `learner_loop_dfa_dist_tol` at, edges crossed at `1/β + |Q|`:
 `ε = m/(3(1/β+|Q|+1)N)` at `m = 3ξ/(8R)`. -/
-def distC (r : LoopDistRun) : ℝ := r.ξ / (2 * r.R)
+def distC (r : RLStarDistRun) : ℝ := r.ξ / (2 * r.R)
 
 /-- The most `D` may hold on any first `k` letters. -/
-def distP₀Tol (r : LoopDistRun) : ℝ :=
+def distP₀Tol (r : RLStarDistRun) : ℝ :=
   1 / max 1 (loopTolInv (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.Q r.A r.δ (distC r) (r.ξ / 4)
     r.pAP (1 / 2 - r.s₀))
 
-def distPref (r : LoopDistRun) : ℝ :=
+def distPref (r : RLStarDistRun) : ℝ :=
   (r.Q + 1) * (6 * (r.Q + 2) * loopCount (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r)
     (r.ξ / 4) r.pAP (1 / 2 - r.s₀))
 
-def distSuff (r : LoopDistRun) : ℝ :=
+def distSuff (r : RLStarDistRun) : ℝ :=
   (r.Q + 1) * (loopPool (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r) (r.ξ / 4) r.pAP
     (1 / 2 - r.s₀) + 1)
 
-def distProbes (r : LoopDistRun) : ℝ :=
+def distProbes (r : RLStarDistRun) : ℝ :=
   (r.Q + 1) * loopBudget (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r)
 
-def distHeldOut (x : LoopDistInputs) : ℕ :=
+def distHeldOut (x : RLStarDistInputs) : ℕ :=
   ⌈32 * log (16 * ((x.Q : ℝ) + 2) / x.δ) / (x.ξ / 4) ^ 2⌉₊
 
-/-- The inverted coordinates of a run in `loopDistRunRegion`. -/
-lemma dist_coords {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
+/-- The inverted coordinates of a run in `rlStarDistRunRegion`. -/
+lemma dist_coords {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion) :
     0 ≤ (r.L : ℝ) ∧ 1 ≤ (r.Q : ℝ) ∧ 2 ≤ (r.A : ℝ) ∧ (r.A : ℝ) ≤ 1 / r.β ∧ 2 ≤ 1 / r.δ
       ∧ 1 ≤ r.R ∧ 1 ≤ 1 / r.ξ ∧ 1 ≤ 1 / r.pAP ∧ 2 ≤ 1 / r.s₀
       ∧ 0 < distC r ∧ distC r ≤ 1 := by
@@ -2015,14 +2015,14 @@ lemma dist_coords {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     rw [div_le_one (by positivity)]
     linarith
 
-lemma bigO_dist {f g : LoopDistRun → ℝ} (K : ℝ) (hK : 0 < K)
-    (h : ∀ r ∈ loopDistRunRegion, 0 ≤ f r ∧ f r ≤ K * g r) :
-    f =O[𝓟 loopDistRunRegion] g :=
+lemma bigO_dist {f g : RLStarDistRun → ℝ} (K : ℝ) (hK : 0 < K)
+    (h : ∀ r ∈ rlStarDistRunRegion, 0 ≤ f r ∧ f r ≤ K * g r) :
+    f =O[𝓟 rlStarDistRunRegion] g :=
   isBigO_on K fun r hr => by
     obtain ⟨h0, h1⟩ := h r hr
     exact ⟨h0, nonneg_of_mul_nonneg_right (h0.trans h1) hK, h1⟩
 
-lemma distPref_isBigO : distPref =O[𝓟 loopDistRunRegion] (fun r =>
+lemma distPref_isBigO : distPref =O[𝓟 rlStarDistRunRegion] (fun r =>
       r.Q ^ 7 * (1 / r.β + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
           * log (r.Q * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
         + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
@@ -2034,7 +2034,7 @@ lemma distPref_isBigO : distPref =O[𝓟 loopDistRunRegion] (fun r =>
   simp only [one_div_one_div, summed_inv, quarter_inv] at h
   exact ⟨h.1, h.2.trans_eq (by ring_nf)⟩
 
-lemma distSuff_isBigO : distSuff =O[𝓟 loopDistRunRegion] (fun r =>
+lemma distSuff_isBigO : distSuff =O[𝓟 rlStarDistRunRegion] (fun r =>
       r.Q * (log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)) := by
   refine bigO_dist (2 ^ 15) (by norm_num) fun r hr => ?_
@@ -2043,7 +2043,7 @@ lemma distSuff_isBigO : distSuff =O[𝓟 loopDistRunRegion] (fun r =>
   simp only [one_div_one_div, summed_inv, quarter_inv] at h
   exact ⟨h.1, h.2.trans_eq (by ring_nf)⟩
 
-lemma distProbes_isBigO : distProbes =O[𝓟 loopDistRunRegion] (fun r =>
+lemma distProbes_isBigO : distProbes =O[𝓟 rlStarDistRunRegion] (fun r =>
       r.Q ^ 3 * r.A * (1 / r.β + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)) := by
   refine bigO_dist (2 ^ 20) (by norm_num) fun r hr => ?_
   obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, -, -, -, -⟩ := dist_coords hr
@@ -2051,7 +2051,7 @@ lemma distProbes_isBigO : distProbes =O[𝓟 loopDistRunRegion] (fun r =>
   simp only [one_div_one_div, summed_inv] at h
   exact ⟨h.1, h.2.trans_eq (by ring_nf)⟩
 
-lemma distP₀Tol_pos (r : LoopDistRun) : 0 < distP₀Tol r := by
+lemma distP₀Tol_pos (r : RLStarDistRun) : 0 < distP₀Tol r := by
   unfold distP₀Tol
   exact one_div_pos.2 (lt_of_lt_of_le one_pos (le_max_left _ _))
 
@@ -2130,7 +2130,7 @@ lemma p₀ShapeInv_le {P Q A b R iδ iξ ip is lL lY : ℝ} (hP : 1 ≤ P) (hQ :
   linarith
 
 /-- `RLStarClaim`'s shape for `1/p₀Tol`. -/
-def p₀Shape (r : LoopDistRun) : ℝ :=
+def p₀Shape (r : RLStarDistRun) : ℝ :=
   (r.L + r.Q) ^ 4 * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
       * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) * r.Q ^ 3 * r.R * (1 / r.β + r.Q)
       / r.ξ
@@ -2144,14 +2144,14 @@ def p₀Shape (r : LoopDistRun) : ℝ :=
     + (r.L + r.Q) ^ 2 * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
       * r.Q ^ 5 * r.A ^ 2 * (1 / r.β + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.δ)
 
-lemma p₀Shape_eq (r : LoopDistRun) :
+lemma p₀Shape_eq (r : RLStarDistRun) :
     p₀Shape r = p₀ShapeInv (r.L + r.Q) r.Q r.A (1 / r.β + r.Q) r.R (1 / r.δ) (1 / r.ξ)
       (1 / r.pAP) (1 / r.s₀) (log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)))
       (log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))) := by
   unfold p₀Shape p₀ShapeInv; ring
 
 set_option maxHeartbeats 1000000 in -- three terms, each matched against its shape
-lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 loopDistRunRegion] p₀Shape := by
+lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 rlStarDistRunRegion] p₀Shape := by
   refine bigO_dist (2 ^ 160) (by norm_num) fun r hr => ?_
   obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, hip, his, hc0, hc1⟩ := dist_coords hr
   obtain ⟨⟨-, -, hδ, hδ2, -, hξ, hξ1, hp, hp1, hs, hs1⟩, hβ, -⟩ := hr
@@ -2260,7 +2260,7 @@ lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 loopDistRunRegio
   ring
 
 /-- `p₀Shape` against its largest monomial. -/
-lemma p₀Shape_le {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
+lemma p₀Shape_le {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion) :
     0 ≤ p₀Shape r ∧ p₀Shape r ≤ 8 * ((r.L + r.Q) ^ 4 * r.Q ^ 9 * (1 / r.β + r.Q) ^ 4 * r.R ^ 4
       * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
       * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
@@ -2298,7 +2298,7 @@ lemma p₀Shape_le {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     (by linarith) hlY hlL (by linarith)).trans (le_of_eq ?_)
   ring
 
-lemma distHeldOut_isBigO : (fun x => (distHeldOut x : ℝ)) =O[𝓟 loopDistRegion]
+lemma distHeldOut_isBigO : (fun x => (distHeldOut x : ℝ)) =O[𝓟 rlStarDistRegion]
     (fun x => log (x.Q / x.δ) / x.ξ ^ 2) := by
   refine isBigO_on (2 ^ 13) fun x hx => ?_
   obtain ⟨⟨hQ, -, hδ, hδ2, -, hξ, hξ1, -, -, -, -⟩, -, -⟩ := hx

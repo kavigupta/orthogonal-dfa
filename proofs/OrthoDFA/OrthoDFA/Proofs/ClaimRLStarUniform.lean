@@ -19,11 +19,12 @@ namespace OrthoDFA
 open MeasureTheory Asymptotics Filter Real
 
 /-- A uniform instance as a general one, at `β = 1/|Σ|`. -/
-def toDist (x : LoopInputs) : LoopDistInputs := { toLoopInputs := x, β := 1 / x.A }
+def toDist (x : RLStarInputs) : RLStarDistInputs := { toRLStarInputs := x, β := 1 / x.A }
 
-def toDistRun (r : LoopRun) : LoopDistRun := { toLoopDistInputs := toDist r.toLoopInputs, L := r.L }
+def toDistRun (r : RLStarRun) : RLStarDistRun :=
+  { toRLStarDistInputs := toDist r.toRLStarInputs, L := r.L }
 
-lemma toDist_mem {x : LoopInputs} (hx : x ∈ loopRegion) : toDist x ∈ loopDistRegion := by
+lemma toDist_mem {x : RLStarInputs} (hx : x ∈ rlStarRegion) : toDist x ∈ rlStarDistRegion := by
   have hA : (2 : ℝ) ≤ x.A := by exact_mod_cast hx.2.1
   refine ⟨hx, ?_, ?_⟩
   · show 0 < 1 / (x.A : ℝ); positivity
@@ -31,12 +32,12 @@ lemma toDist_mem {x : LoopInputs} (hx : x ∈ loopRegion) : toDist x ∈ loopDis
     rw [one_div_mul_cancel (by positivity)]
 
 /-- `1/p₀Tol`'s shape at `β = 1/|Σ|` is at most `2 (L + |Q|)⁵ loopG`. -/
-def loopG (x : LoopInputs) : ℝ :=
+def loopG (x : RLStarInputs) : ℝ :=
   x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
     * log (x.Q * x.R * x.A * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)) ^ 3
     * (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 2 * (1 / x.s₀) ^ 6
 
-lemma shape_toDist_le {x : LoopInputs} (hx : x ∈ loopRegion) (L : ℕ) :
+lemma shape_toDist_le {x : RLStarInputs} (hx : x ∈ rlStarRegion) (L : ℕ) :
     0 ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
         * log (((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
@@ -109,7 +110,7 @@ lemma shape_toDist_le {x : LoopInputs} (hx : x ∈ loopRegion) (L : ℕ) :
     _ ≤ 2 * (((L : ℝ) + x.Q) ^ 6 * (x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K)) := by
       gcongr
 
-lemma loopG_ge_one {x : LoopInputs} (hx : x ∈ loopRegion) : 1 ≤ loopG x := by
+lemma loopG_ge_one {x : RLStarInputs} (hx : x ∈ rlStarRegion) : 1 ≤ loopG x := by
   obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
   exact (loopL0_le (iδ := 1 / x.δ) (iξ := 1 / x.ξ) (ip := 1 / x.pAP) (is := 1 / x.s₀) (C₀ := 1)
     (by exact_mod_cast hQ) (by exact_mod_cast hA) hR ((le_div_iff₀ hδ).2 (by linarith))
@@ -123,8 +124,9 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
   set C₀ := 16 * max 1 C with hC₀d
   have hC₀ : 1 ≤ C₀ := by rw [hC₀d]; linarith [le_max_left 1 C]
   have hCC₀ : C ≤ max 1 C := le_max_right _ _
-  have hmapsR : Set.MapsTo toDistRun loopRunRegion loopDistRunRegion := fun r hr => toDist_mem hr
-  have hmaps : Set.MapsTo toDist loopRegion loopDistRegion := fun x hx => toDist_mem hx
+  have hmapsR : Set.MapsTo toDistRun rlStarRunRegion rlStarDistRunRegion :=
+    fun r hr => toDist_mem hr
+  have hmaps : Set.MapsTo toDist rlStarRegion rlStarDistRegion := fun x hx => toDist_mem hx
   refine ⟨fun x => 1 + 4 * (log (C₀ * loopG x) + 6 * log (x.Q + 4) + 24) / log x.A,
     fun r => tp (toDistRun r), fun r => ts (toDistRun r), fun r => tpr (toDistRun r),
     fun x => ho (toDist x), ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -188,7 +190,7 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
   -- the run, at `D` uniform
   intro A _ _ _ Q _ Ω _ μ _ x M O L γ k L₁ hx hQ hA hL hη hpAPu hdom hL₀
   have hxd := toDist_mem hx
-  have hrd : ({ toDist x with L } : LoopDistRun) ∈ loopDistRunRegion := hxd
+  have hrd : ({ toDist x with L } : RLStarDistRun) ∈ rlStarDistRunRegion := hxd
   obtain ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
   have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ1
   have hA' : (2 : ℝ) ≤ x.A := by exact_mod_cast hA2
