@@ -9,11 +9,11 @@ import OrthoDFA.LowLevelClaims.LoopDFA
 by any one letter, the loop's re-rooted DFA misclassifies at most `γ + ξ` of `D`'s strings cut at
 length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, when the target admits
 a start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
-letters, `1/p₀Tol` growing as `L⁴ log L`; over the whole run its clusterings read at most
-`totalPref` prefixes and `totalSuff` suffixes, its rounds draw at most `totalProbes` probes, and,
-start leaf included, it asks the oracle at most `totalReads` strings whenever every round's tree
-has at most `|Q| + 2` leaves, its output the same against any answers that agree on those strings;
-every round's tree has at most `|Q| + 2` leaves but for chance `δ`. Every one is within the big-O
+letters, `1/p₀Tol` growing as `L⁴ log L`, and every round's tree has at most `|Q| + 2` leaves;
+over the whole run its clusterings read at most `totalPref` prefixes and `totalSuff` suffixes, its
+rounds draw at most `totalProbes` probes, whatever they draw, and, start leaf included, it asks the
+oracle at most `totalReads` strings whenever every round's tree has at most `|Q| + 2` leaves, its
+output the same against any answers that agree on those strings. Every one is within the big-O
 shape below, with `s₀ = 1/2 − η₀` the signal. The settings the proof picks hold each round's
 disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths,
 so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes grow as `(L + |Q|)²` and the
@@ -23,7 +23,8 @@ prefixes against their suffixes; level 3's probes, each a family read of `|V̂|`
 `log L` mids of a sift at most `|Q| + 1` deep; its splits, at most `|Q| + 1` a round, each
 re-sifting at most `|Q| + 2` leaves' edges over `|Σ|` letters down at most `|Q| + 2` midfixes; the
 `|Q| + 1` populations' scans, each walk a family read at the sifts of up to the harvest cap's
-probes, that cap `1/ρ` times `log X`; and the start leaf's family read at each held-out string. Each bound has one constant over all of `loopDistRegion`.
+probes, that cap `1/ρ` times `log X`; and the start leaf's family read at each held-out string.
+Each bound has one constant over all of `loopDistRegion`.
 
 `LoopClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
 `L` is at least `L₀`; the bounds have one constant over all of `loopRegion`. `LoopClaimSimple`

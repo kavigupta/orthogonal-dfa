@@ -121,8 +121,9 @@ accuracy at least
 `1 − γ`, the loop, its probes uniform over the lengths `k = ⌈L/2⌉` to `L₁ = L + |Q| + 3` and
 walked from `k`, stops within `|Q| + 1` rounds at a consistent round, and its re-rooted DFA
 (`rerootedDFA`: the final hypothesis started at the leaf that scores best on `n` held-out strings)
-misclassifies at most `γ + ξ` of the strings of length `L`, but for chance `δ`, once `L ≥ L₀`. A run
-that reaches an unlearned edge counts as wrong. The start leaf (`pickLeaf`) is picked as follows: after
+misclassifies at most `γ + ξ` of the strings of length `L`, and every round's tree has at most
+`|Q| + 2` leaves, but for chance `δ`, once `L ≥ L₀`. A run that reaches an unlearned edge counts as
+wrong. The start leaf (`pickLeaf`) is picked as follows: after
 the loop, `n = ⌈32 log(16(|Q|+2)/δ)/ξ²⌉` strings uniform of length `L` are drawn and read
 by the last round's family; each leaf scores the strings its run classifies as the family decides
 them, undecided reads scoring none, and the first leaf of highest score is the start. With
