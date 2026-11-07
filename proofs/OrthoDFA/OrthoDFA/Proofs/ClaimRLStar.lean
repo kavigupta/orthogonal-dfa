@@ -9,7 +9,8 @@ import OrthoDFA.Proofs.ClaimReadsArith
 `learner_loop_dfa_dist_tol` bounds, for every draw, the loop's reads by `(|Q| + 1)` rounds of
 `6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, its probes by `(|Q| + 1) loopBudget`,
 and the strings the learner asks the oracle by `learnerReads`, all at `ℓ = L + |Q| + 4`, once `D`
-holds at most `1/loopTolInv ℓ` on any first `k` letters.
+holds at most `1/loopTolInv ℓ` on any first `k` letters; `Query.eval_congr` makes the output
+depend only on those strings' answers.
 The claim runs it at `c = ξ/(2R)`, `ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last
 round's leaf from `summed_bridge`; `ClaimRLStarArith` and `ClaimReadsArith` bound those shapes.
 `RLStarClaimUniform` and `RLStarClaimUniformSimple` follow (`ClaimRLStarUniform`).
@@ -71,7 +72,7 @@ theorem rlStarClaim_holds : RLStarClaim := by
   rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
   refine ⟨settings, hw, hcnt, (measureReal_mono fun q hq hs => hq ⟨hs, ?_⟩).trans hprob⟩
   obtain ⟨rounds, hr, _, hlv⟩ := hs
-  exact hcalls q.1 q.2 rounds hr hlv
+  exact ⟨_, hcalls q.1 q.2 rounds hr hlv, fun o ho => (Query.eval_congr _ _ ho).1⟩
 
 theorem rlStarClaimUniform_holds : RLStarClaimUniform :=
   rlStarClaimUniform_of_rlStarClaim rlStarClaim_holds
