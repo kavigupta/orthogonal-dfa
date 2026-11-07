@@ -28,7 +28,7 @@ class Found:
 def tripartite_search(
     agrees: Callable[[int], Optional[bool]], lo: int, hi: int, *, recover: bool
 ) -> Found:
-    """Where ``agrees`` turns from ``True`` to ``False`` between ``lo`` and ``hi``."""
+    """Where agrees turns from True to False between lo and hi."""
     queried = []
 
     def ask(i):
