@@ -63,6 +63,19 @@ structure RLStarDistRun extends RLStarDistInputs where
 
 def rlStarDistRunRegion : Set RLStarDistRun := {r | r.toRLStarDistInputs ∈ rlStarDistRegion}
 
+/-- Within the round and leaf caps, the loop ends consistent and errs on at most `ε` of `T`. -/
+def RLStarSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype Q] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K)
+    (O : Oracle μ (FreeMonoid A)) (D Dsf T : Measure (FreeMonoid A)) (M : _root_.DFA A Q) (ε : ℝ)
+    {n : ℕ} (q : LoopDraws Ω A K settings.level3.harvestReadCap settings.level3.probeBudget
+      × (Fin n → FreeMonoid A)) : Prop :=
+  ∃ rounds, indecisiveLStarLoop settings O D Dsf q.1 = some rounds ∧
+    (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
+        o.result.ending = .consistent ∧ T.real {w | ¬
+          o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 w
+            (M.eval w.toList ∈ M.accept)} ≤ ε) ∧
+    ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2
+
 /-- On every instance in `rlStarDistRegion`, for strings drawn from `D` whose first `k` letters
 `p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes`, is
 right but for `γ + ξ` on `heldOut` strings and keeps every round's tree within `|Q| + 2` leaves. -/
@@ -101,13 +114,8 @@ def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : RLStarDist
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => prefixLaw D L)).real
-      {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowLaw D k L₁) (prefixLaw D Ls)
-            q.1 = some rounds ∧
-        (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
-            o.result.ending = .consistent ∧ (prefixLaw D L).real {w | ¬
-              o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 w
-                (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ) ∧
-        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2}
+      {q | ¬ RLStarSucceeds settings O (windowLaw D k L₁) (prefixLaw D Ls) (prefixLaw D L) M
+        (γ + x.ξ) q}
       ≤ x.δ
 
 open Real in
@@ -174,13 +182,8 @@ def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
-      {q | ¬ ∃ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
-            (uniformStrings (L₁ + Fintype.card Q + 3)) q.1 = some rounds ∧
-        (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
-            o.result.ending = .consistent ∧ (uniformStrings L).real {w | ¬
-              o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 w
-                (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ) ∧
-        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2}
+      {q | ¬ RLStarSucceeds settings O (windowStrings k L₁)
+        (uniformStrings (L₁ + Fintype.card Q + 3)) (uniformStrings L) M (γ + x.ξ) q}
       ≤ x.δ
 
 open Real in
