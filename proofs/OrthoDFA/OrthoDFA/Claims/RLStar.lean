@@ -22,8 +22,8 @@ sum: the clusterings' prefixes against their suffixes; level 3's probes, each a 
 `|V̂|` strings at the `log L` mids of a sift at most `|Q| + 1` deep; its splits, at most `|Q|` a
 round, each re-sifting at most `|Q| + 2` leaves' edges over `|Σ|` letters down at most `|Q| + 2`
 midfixes; the harvested draws' walks, a family read at the sifts of each probe, about `1/ρ` probes
-a draw taken; and the start leaf's family read at each held-out string. Each bound has one constant over
-all of `rlStarDistRegion`.
+a draw taken; and the start leaf's family read at each held-out string. Each bound has one
+constant over all of `rlStarDistRegion`.
 
 `RLStarClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
 `L` is at least `L₀`; the bounds have one constant over all of `rlStarRegion`.
