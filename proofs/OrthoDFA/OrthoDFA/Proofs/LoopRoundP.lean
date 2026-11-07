@@ -71,11 +71,11 @@ lemma measurable_persist :
   measurable_pi_lambda _ fun i => measurable_fst.prodMk ((measurable_pi_apply i).comp measurable_snd)
 
 lemma measurableSet_histCodes [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap) (r : ℕ)
+    (r : ℕ)
     (c : List (HarvestCode α)) :
     MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
       histCodes settings O D Dsf p.1 p.2 r = c} :=
-  measurable_persist settings (measurableSet_codesOf settings O D Dsf hlen (Nat.le_trans (Nat.le_add_right _ 2) hN) r c)
+  measurable_persist settings (measurableSet_codesOf settings O D Dsf (ae_lenBound hlen) (N := codeLen settings D) le_rfl r c)
 
 omit [IsProbabilityMeasure μ] in
 lemma measurable_idealRun_at [IsProbabilityMeasure D] (h : LoopHist α) (i : Fin K) :
@@ -85,14 +85,14 @@ lemma measurable_idealRun_at [IsProbabilityMeasure D] (h : LoopHist α) (i : Fin
     ((measurable_pi_apply i).comp measurable_snd)))
 
 lemma measurableSet_histOK [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap) :
+    :
     ∀ r : ℕ, MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
       HistOK settings O D Dsf p.1 p.2 r}
   | 0 => by simp only [HistOK, Set.setOf_true]; exact MeasurableSet.univ
   | r + 1 => by
     classical
     simp only [HistOK, Set.setOf_and]
-    refine (measurableSet_histOK hlen hN r).inter ?_
+    refine (measurableSet_histOK hlen r).inter ?_
     by_cases hr : r < K
     · have hset : {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
           ∀ h : r < K, (histCodes settings O D Dsf p.1 p.2 r).length = r →
@@ -128,7 +128,7 @@ lemma measurableSet_histOK [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
           exact ⟨B, hB, hrB⟩
       rw [hset]
       refine MeasurableSet.iUnion fun c =>
-        (measurableSet_histCodes settings O D Dsf hlen hN r c).inter ?_
+        (measurableSet_histCodes settings O D Dsf hlen r c).inter ?_
       split_ifs
       · exact Finset.measurableSet_biUnion _ fun B _ =>
           measurable_idealRun_at settings D Dsf _ ⟨r, hr⟩ (measurableSet_ret O _ none _ _ _ _ B)
@@ -149,7 +149,7 @@ lemma measurableSet_histOK [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
       exact MeasurableSet.univ
 
 lemma measurableSet_stageH [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap) (r : ℕ)
+    (r : ℕ)
     (y : Option (List (HarvestCode α))) :
     MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
       stageH settings O D Dsf r p.1 p.2 = y} := by
@@ -161,7 +161,7 @@ lemma measurableSet_stageH [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
       simp only [stageH, Set.mem_setOf_eq, Set.mem_compl_iff]
       split_ifs with h <;> simp [h]
     rw [this]
-    exact (measurableSet_histOK settings O D Dsf hlen hN r).compl
+    exact (measurableSet_histOK settings O D Dsf hlen r).compl
   · have : {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
         stageH settings O D Dsf r p.1 p.2 = some c}
         = {p | HistOK settings O D Dsf p.1 p.2 r}
@@ -170,13 +170,13 @@ lemma measurableSet_stageH [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
       simp only [stageH, Set.mem_setOf_eq, Set.mem_inter_iff]
       split_ifs with h <;> simp [h]
     rw [this]
-    exact (measurableSet_histOK settings O D Dsf hlen hN r).inter
-      (measurableSet_histCodes settings O D Dsf hlen hN r c)
+    exact (measurableSet_histOK settings O D Dsf hlen r).inter
+      (measurableSet_histCodes settings O D Dsf hlen r c)
 
 /-- Where every earlier clustering returned, the answers at the strings the earlier rounds read
 fix the stage. -/
 lemma stageH_stop [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap) (r : ℕ)
+    (r : ℕ)
     (c : List (HarvestCode α)) (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
     (ω ω' ω₀ : Ω) (hs : stageH settings O D Dsf r ω g = some c)
     (h : ∀ w ∈ histReads settings D Dsf c g r ω₀, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
@@ -185,8 +185,7 @@ lemma stageH_stop [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.to
   unfold stageH at hs ⊢
   split_ifs at hs with hok
   obtain rfl := Option.some.inj hs
-  obtain ⟨hok', hc⟩ := hist_congr settings O D Dsf hlen (Nat.le_trans (Nat.le_add_right _ 2) hN)
-    g r ω ω' hok h
+  obtain ⟨hok', hc⟩ := hist_congr settings O D Dsf hlen g r ω ω' hok h
   rw [if_pos hok', hc]
 
 end Stage
