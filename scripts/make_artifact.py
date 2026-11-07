@@ -1,6 +1,6 @@
 """Writes the paper's anonymized artifact from the committed files at HEAD.
 
-    python scripts/make_artifact.py artifact.zip
+python scripts/make_artifact.py artifact.zip
 """
 
 import io

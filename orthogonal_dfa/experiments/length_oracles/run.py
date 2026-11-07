@@ -68,7 +68,9 @@ class RestartRecorder(SynthesisTracker):
 def git(*args):
     """None outside a git checkout, such as the artifact."""
     here = os.path.dirname(os.path.abspath(__file__))
-    result = subprocess.run(["git", *args], capture_output=True, text=True, cwd=here)
+    result = subprocess.run(
+        ["git", *args], capture_output=True, text=True, cwd=here, check=False
+    )
     return result.stdout.strip() if result.returncode == 0 else None
 
 
