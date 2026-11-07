@@ -170,7 +170,7 @@ theorem retarget_some {r : FreeMonoid α → ARU} {T' : DTree α} {p : List Bool
     (h : retarget r T' p E e = some (t', w)) :
     p.isPrefixOf e.1 = false ∧ ∃ t₁, E e = some (t₁, w)
       ∧ ((t₁ ≠ p ∧ t' = t₁) ∨ (t₁ = p ∧ T'.sift r (w * FreeMonoid.of e.2) = .inl t')) := by
-  unfold retarget at h
+  simp only [retarget_eq] at h
   split_ifs at h with hpre
   rcases hE : E e with _ | ⟨t₁, w₁⟩ <;> rw [hE] at h
   · simp at h
@@ -417,8 +417,9 @@ theorem step_account (hd : Distinct xs C.walkStart) {j : ℕ} {s s' : Level3Stat
           ∪ K.filter fun e => ∃ z ∈ resiftOf r C s x e, Wrong M side r z ∧ z ∉ Qd := by
       intro e he
       obtain ⟨-, t', w', he', hbad⟩ := Finset.mem_filter.1 he
-      change retarget r T' p s.edges e = some (t', w') at he'
-      change ¬ Sound M side T' e t' w' ∨ Tainted M side r Qd' e w' at hbad
+      rw [splitLeaf_edges_eq_some] at he'
+      replace he' : retarget r T' p s.edges e = some (t', w') := he'.2
+      rw [splitLeaf_tree] at hbad
       obtain ⟨hpre, t₁, he₁, hcase⟩ := retarget_some he'
       have heK : e ∈ K := mem_K (hk e t₁ w' he₁)
       have hep : e.1 ≠ p := by
@@ -464,9 +465,11 @@ theorem step_account (hd : Distinct xs C.walkStart) {j : ℕ} {s s' : Level3Stat
     have hcard := (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
     have hb' : bad M side r (splitLeaf r s p c t t₀) Qd'
         ≤ ((K.filter (BadE M side r s Qd)).erase (p, c)).card
-          + (K.filter fun e => ∃ z ∈ resiftOf r C s x e, Wrong M side r z ∧ z ∉ Qd).card :=
-      hcard
-    have htree : (splitLeaf r s p c t t₀).tree = T' := rfl
+          + (K.filter fun e => ∃ z ∈ resiftOf r C s x e, Wrong M side r z ∧ z ∉ Qd).card := by
+      unfold bad
+      rw [splitLeaf_tree]
+      exact hcard
+    have htree : (splitLeaf r s p c t t₀).tree = T' := splitLeaf_tree r s p c t t₀
     rw [htree, hlen]
     have hbad0 : bad M side r s Qd = (K.filter (BadE M side r s Qd)).card := rfl
     by_cases hb0 : BadE M side r s Qd (p, c)
@@ -567,12 +570,10 @@ theorem owned_step (hd : Distinct xs C.walkStart) {j : ℕ} {s s' : Level3State 
       · exact absurd htk (hnew e t₁ w₁ h₁)
       · exact hown.inj e e' t₁ w₁ t₂ w₂ h₁ h₂ htk
   · refine ⟨fun e t' w he => ?_, fun e e' t₁ w₁ t₂ w₂ h₁ h₂ htk => ?_, hread⟩
-    · obtain ⟨-, t₁, he₁, -⟩ := retarget_some (show retarget r _ p s.edges e = some (t', w) from he)
+    · obtain ⟨-, t₁, he₁, -⟩ := retarget_some ((splitLeaf_edges_eq_some ..).1 he).2
       obtain ⟨i, hi, hb⟩ := hown.wit e t₁ w he₁; exact ⟨i, by omega, hb⟩
-    · obtain ⟨-, t₃, he₁, -⟩ :=
-        retarget_some (show retarget r _ p s.edges e = some (t₁, w₁) from h₁)
-      obtain ⟨-, t₄, he₂, -⟩ :=
-        retarget_some (show retarget r _ p s.edges e' = some (t₂, w₂) from h₂)
+    · obtain ⟨-, t₃, he₁, -⟩ := retarget_some ((splitLeaf_edges_eq_some ..).1 h₁).2
+      obtain ⟨-, t₄, he₂, -⟩ := retarget_some ((splitLeaf_edges_eq_some ..).1 h₂).2
       exact hown.inj e e' t₃ w₁ t₄ w₂ he₁ he₂ htk
   · exact ⟨fun e t' w he => by
       obtain ⟨i, hi, hb⟩ := hown.wit e t' w he; exact ⟨i, by omega, hb⟩, hown.inj, hread⟩

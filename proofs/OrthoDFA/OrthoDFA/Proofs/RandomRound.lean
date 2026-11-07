@@ -113,7 +113,7 @@ theorem ends_of_not_anyB {side : σ → Bool} (hW : NoWrong M side read)
     simp only [AnyB, not_or, not_exists, not_and] at hb
     obtain ⟨hb1, hb2⟩ := hb
     rcases hst : applyProbe read C s x with s' | e
-    · simp only [runProbes, hst]
+    · simp only [runProbes_nil, runProbes_cons, hst]
       by_cases hsm : Same s s'
       · obtain ⟨hs', hΨ, hn', -⟩ := step_same read C hs.1 hst hsm.1 hsm.2
         replace hs' : RInv read s' := ⟨hs', hsm.1 ▸ hs.2⟩
@@ -133,7 +133,7 @@ theorem ends_of_not_anyB {side : σ → Bool} (hW : NoWrong M side read)
           Nat.mul_le_mul_right _ hΨ
         rw [Nat.add_mul, one_mul] at this
         omega
-    · simp only [runProbes, hst]
+    · simp only [runProbes_nil, runProbes_cons, hst]
       by_contra hne
       exact hb1 (Or.inl ⟨hn, Or.inl ⟨e, hst, hne⟩⟩)
 
@@ -435,7 +435,7 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
     stretchRisk C (C.level j) Ns N₁ θr εd' θe' θpt')
   set B := toMeasurable μ (W ∪ N)
   have hpt : ∀ ω, (Measure.pi fun _ : Fin P => D)
-      {xs | let r := runProbes (read · ω) C initialState (List.ofFn xs)
+      {draws | let result := indecisiveLStarLevel3 C (read · ω) draws
         ¬ EndsWell
           { target := M,
             undecided := U,
@@ -443,14 +443,15 @@ theorem round_le_at {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Boo
             harvestSlack := sl,
             probes := D,
             disagreeRate := ε,
-            disagree := searchSet (read · ω) C.walkStart ⟨r.1.tree, r.1.edges⟩
-              ∪ endsSet (read · ω) C.walkStart ⟨r.1.tree, r.1.edges⟩,
+            disagree := searchSet (read · ω) C.walkStart result.hypothesis
+              ∪ endsSet (read · ω) C.walkStart result.hypothesis,
             walkStart := C.walkStart,
-            harvestLaw := harvestLaw (read · ω) D C.walkStart ⟨r.1.tree, r.1.edges⟩,
+            harvestLaw := harvestLaw (read · ω) D C.walkStart result.hypothesis,
             yield := y,
-            ending := r.2 }}
+            ending := result.ending }}
         ≤ c + B.indicator 1 ω := by
     intro ω
+    simp only [indecisiveLStarLevel3_eq]
     by_cases hω : ω ∈ B
     · rw [Set.indicator_of_mem hω, Pi.one_apply]
       exact prob_le_one.trans le_add_self

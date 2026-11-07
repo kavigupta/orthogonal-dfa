@@ -65,7 +65,6 @@ theorem small_run (C : Level3Settings) (r : FreeMonoid α → ARU) {T : ℕ}
 
 /-! ## Reads agreeing on the operational reads give the same run -/
 
-omit [Fintype α] in
 /-- A run is fixed by the reads its steps make: if `r` and `r'` agree on every step's probe along
 the `r`-walk, the runs coincide. -/
 theorem runProbes_congr_of_steps (C : Level3Settings) {r r' : FreeMonoid α → ARU} :
@@ -77,7 +76,7 @@ theorem runProbes_congr_of_steps (C : Level3Settings) {r r' : FreeMonoid α → 
   | x₀ :: ys, s, hstep => by
     have h0 : applyProbe r C s x₀ = applyProbe r' C s x₀ :=
       hstep 0 s x₀ (by simp [stateAt]) (by simp)
-    simp only [runProbes]
+    simp only [runProbes_nil, runProbes_cons]
     rw [← h0]
     rcases ha : applyProbe r C s x₀ with s' | e
     · refine runProbes_congr_of_steps C ys s' (fun j t x hjt hjx => ?_)
@@ -134,7 +133,7 @@ theorem level3_congr_levelReads {T : ℕ} (C : Level3Settings) (xs : Fin T → F
       simp only [stepRound, Nat.add_sub_cancel, if_neg (Nat.succ_ne_zero i),
         List.getElem?_eq_getElem hi, hie]
       exact hz
-  simp only [indecisiveLStarLevel3, hrun]
+  simp only [indecisiveLStarLevel3_eq, hrun]
 
 /-! ## The operational read-set is polynomial -/
 

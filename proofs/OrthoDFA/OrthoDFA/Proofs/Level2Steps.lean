@@ -357,7 +357,7 @@ theorem split_count {side : σ → Bool} (hI : ReadsByState read M side) {T : DT
           by_contra h
           simp only [Bool.not_eq_false, List.isPrefixOf_iff_prefix] at h
           exact hne (eq_of_prefix_leaves T hp hqT h).symm
-        simp only [E', retarget, hpq, Bool.false_eq_true, if_false] at hnone
+        simp only [E', retarget_eq, hpq, Bool.false_eq_true, if_false] at hnone
         rcases hEq : E (q, c) with _ | ⟨t, w⟩
         · exact Or.inl (Or.inl ⟨hqT, rfl⟩)
         · rw [hEq] at hnone

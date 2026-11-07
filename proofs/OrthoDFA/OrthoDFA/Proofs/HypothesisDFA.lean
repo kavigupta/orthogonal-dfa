@@ -149,11 +149,20 @@ variable (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α)
 
 variable {T E}
 
+theorem EdgesOK.restrict (hE : EdgesOK read T E) (P : List Bool × α → Prop) [DecidablePred P] :
+    EdgesOK read T fun e => if P e then E e else none := fun q hq c t w h => by
+  dsimp only at h
+  by_cases hP : P (q, c)
+  · rw [if_pos hP] at h
+    exact hE q hq c t w h
+  · rw [if_neg hP] at h
+    cases h
+
 theorem edgesOK_retarget (hE : EdgesOK read T E) {p : List Bool}
     (hp : p ∈ T.leaves) (d : FreeMonoid α) :
     EdgesOK read (T.splitAt d p) (retarget read (T.splitAt d p) p E) := by
   intro q hq c t w h
-  unfold retarget at h
+  simp only [retarget_eq] at h
   cases hpq : p.isPrefixOf q
   · obtain ⟨hq', hne⟩ := DTree.prefix_of_mem_leaves_splitAt hp hq hpq
     simp only [hpq, Bool.false_eq_true, if_false] at h

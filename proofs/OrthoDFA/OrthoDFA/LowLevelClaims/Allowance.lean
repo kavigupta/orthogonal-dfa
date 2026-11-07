@@ -14,7 +14,7 @@ namespace OrthoDFA
 
 namespace Random
 
-variable {α : Type*} [DecidableEq α]
+variable {α : Type*} [DecidableEq α] [Fintype α]
 
 /-- The step changes the hypothesis to a tree of more than `n + 2` leaves. -/
 def Grows (read : FreeMonoid α → ARU) (C : Level3Settings) (n : ℕ) (s : Level3State α)

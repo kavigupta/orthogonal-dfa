@@ -1,14 +1,13 @@
 import OrthoDFA.Code.Level3
+import OrthoDFA.Code.LoopDFA
 import OrthoDFA.Proofs.Query
-import Mathlib.Tactic.Eqns
 
 /-!
 # The functions' equations
 
 Each function of `Code/` that reads the oracle is its program's run. Here each gets back the
-equations it would have as a function of the read, which `rw` and `simp` use in its place
-(`eqns`). A split keeps only the edges at the old tree's leaves (`splitLeaf_eq`), every learned
-edge where they all are (`splitLeaf_eq_of`).
+equations it would have as a function of the read. A split keeps only the edges at the old tree's
+leaves (`splitLeaf_eq`), where every learned edge is along a run (`splitLeaf_eq_of`).
 -/
 
 namespace OrthoDFA
@@ -37,7 +36,6 @@ theorem familyRead_eq {Ω : Type*} [MeasurableSpace Ω] (mq : S → Ω → ℝ) 
     familyRead mq F kl kh w ω = readOf kl kh (voteCount mq F w ω) :=
   eval_familyReadQ F kl kh w _
 
-attribute [eqns familyRead_eq] familyRead
 
 theorem eval_familyReadQ_mq {Ω : Type*} [MeasurableSpace Ω] (mq : S → Ω → ℝ) (ω : Ω)
     (F : Finset S) (kl kh : ℕ) (w : S) :
@@ -66,7 +64,6 @@ theorem sift_node (m : FreeMonoid α) (r a : DTree α) (z : FreeMonoid α) :
   rw [siftQ, eval_ask]
   rcases read (z * m) with _ | _ | _ <;> simp only [eval_map, eval_pure] <;> rfl
 
-attribute [eqns sift_leaf sift_node] sift
 
 theorem eval_siftQ (T : DTree α) (z : FreeMonoid α) : (T.siftQ z).eval read = T.sift read z :=
   rfl
@@ -100,7 +97,6 @@ theorem retarget_eq (T' : DTree α) (p : List Bool) (E : Edges α) (e : List Boo
     · simp only [eval_map]; rfl
     · rfl
 
-attribute [eqns retarget_eq] retarget
 
 theorem eval_retargetAtQ (T' : DTree α) (p : List Bool) (E : Edges α) (e : List Bool × α) :
     (retargetAtQ T' p E e).eval read = retarget read T' p E e := rfl
@@ -138,8 +134,6 @@ theorem undecidedAt_eq (p : ℕ) :
   simp only [undecidedAtQ, eval_map]
   rfl
 
-attribute [eqns siftAgrees_eq] siftAgrees
-attribute [eqns undecidedAt_eq] undecidedAt
 
 variable (un : Option (α × List Bool)) (hi : ℕ)
 
@@ -187,9 +181,26 @@ theorem searchOutcome_pair (p : ℕ) :
 theorem searchOutcome_triple (p : ℕ) :
     searchOutcome read T x st un hi (.triple p) = .undecided [] true := rfl
 
-attribute [eqns searchOutcome_undecidedHi searchOutcome_allAgree searchOutcome_edge
-  searchOutcome_undecidedMid searchOutcome_undecidedLo searchOutcome_disagreeLo searchOutcome_pair
-  searchOutcome_triple] searchOutcome
+theorem searchOutcome_eq (r : SearchResult) :
+    searchOutcome read T x st un hi r =
+      match r with
+      | .undecidedHi => .undecided (undecidedAt read T x hi) true
+      | .allAgree =>
+        match un with
+        | some (c, t) => .unlearnedEdge (st hi) c (prefixOf x hi) t
+        | none => .agree
+      | .edge p =>
+        match x.toList[p - 1]?, T.sift read (prefixOf x p) with
+        | some c, .inl t => .wrongEdge (st (p - 1)) c (prefixOf x (p - 1)) t
+        | _, _ => .undecided [] false
+      | .undecidedMid p => .undecided (undecidedAt read T x p) false
+      | _ => .undecided [] true := by
+  cases r with
+  | undecidedHi => exact searchOutcome_undecidedHi read T x st un hi
+  | allAgree => exact searchOutcome_allAgree read T x st un hi
+  | edge p => exact searchOutcome_edge read T x st un hi p
+  | undecidedMid p => exact searchOutcome_undecidedMid read T x st un hi p
+  | _ => rfl
 
 variable (E : Edges α) (k : ℕ)
 
@@ -223,7 +234,6 @@ theorem probe_eq : probe read T E k x =
       · rfl
   · rfl
 
-attribute [eqns probe_eq] probe
 
 theorem probeOrAgree_eq :
     probeOrAgree read T E k x = if x.toList.length < k then .agree else probe read T E k x := by
@@ -231,7 +241,6 @@ theorem probeOrAgree_eq :
   unfold probeOrAgreeQ
   split_ifs <;> rfl
 
-attribute [eqns probeOrAgree_eq] probeOrAgree
 
 theorem eval_probeOrAgreeQ : (probeOrAgreeQ T E k x).eval read = probeOrAgree read T E k x := rfl
 
@@ -259,7 +268,19 @@ theorem splitLeaf_eq (s : Level3State α) (p : List Bool) (c : α) (t t₀ : Lis
   simp only [splitLeafQ, eval_map, eval_retargetQ, Finset.mem_toList, Finset.mem_product,
     List.mem_toFinset, Finset.mem_univ, and_true]
 
-attribute [eqns splitLeaf_eq] splitLeaf
+theorem splitLeaf_tree (s : Level3State α) (p : List Bool) (c : α) (t t₀ : List Bool) :
+    (splitLeaf read s p c t t₀).tree
+      = s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p := by
+  rw [splitLeaf_eq]; rfl
+
+theorem splitLeaf_edges_eq_some (s : Level3State α) (p : List Bool) (c : α) (t t₀ : List Bool)
+    (e : List Bool × α) (v : List Bool × FreeMonoid α) :
+    (splitLeaf read s p c t t₀).edges e = some v ↔ e.1 ∈ s.tree.leaves ∧
+      retarget read (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p)
+        p s.edges e = some v := by
+  rw [splitLeaf_eq]
+  simp only [newHypothesis]
+  split_ifs with he <;> simp [he]
 
 theorem splitLeaf_eq_of {s : Level3State α} (hs : EdgesAtLeaves s) (p : List Bool) (c : α)
     (t t₀ : List Bool) :
@@ -301,7 +322,6 @@ theorem applyProbe_eq (s : Level3State α) (x : FreeMonoid α) :
   · simp only [eval_map]
     rfl
 
-attribute [eqns applyProbe_eq] applyProbe
 
 theorem runProbes_nil (s : Level3State α) : runProbes read C s [] = (s, .failed) := rfl
 
@@ -317,7 +337,6 @@ theorem runProbes_cons (s : Level3State α) (x : FreeMonoid α) (xs : List (Free
     | .inr e => (s, e)
   rcases (applyProbeQ C s x).eval read with s' | e <;> rfl
 
-attribute [eqns runProbes_nil runProbes_cons] runProbes
 
 theorem indecisiveLStarLevel3_eq (settings : Level3Settings) {P : ℕ}
     (draws : Fin P → FreeMonoid α) :
@@ -328,7 +347,23 @@ theorem indecisiveLStarLevel3_eq (settings : Level3Settings) {P : ℕ}
   simp only [level3Q, eval_map]
   rfl
 
-attribute [eqns indecisiveLStarLevel3_eq] indecisiveLStarLevel3
+theorem indecisiveLStarLevel3_tree (settings : Level3Settings) {P : ℕ}
+    (draws : Fin P → FreeMonoid α) :
+    (indecisiveLStarLevel3 settings read draws).hypothesis.tree
+      = (runProbes read settings initialState (List.ofFn draws)).1.tree := by
+  rw [indecisiveLStarLevel3_eq]
+
+theorem indecisiveLStarLevel3_edges (settings : Level3Settings) {P : ℕ}
+    (draws : Fin P → FreeMonoid α) :
+    (indecisiveLStarLevel3 settings read draws).hypothesis.edges
+      = (runProbes read settings initialState (List.ofFn draws)).1.edges := by
+  rw [indecisiveLStarLevel3_eq]
+
+theorem indecisiveLStarLevel3_ending (settings : Level3Settings) {P : ℕ}
+    (draws : Fin P → FreeMonoid α) :
+    (indecisiveLStarLevel3 settings read draws).ending
+      = (runProbes read settings initialState (List.ofFn draws)).2 := by
+  rw [indecisiveLStarLevel3_eq]
 
 theorem eval_applyProbeQ (s : Level3State α) (x : FreeMonoid α) :
     (applyProbeQ C s x).eval read = applyProbe read C s x := rfl
@@ -340,5 +375,25 @@ theorem eval_level3Q {T : ℕ} (xs : Fin T → FreeMonoid α) :
     (level3Q C xs).eval read = indecisiveLStarLevel3 C read xs := rfl
 
 end Random
+
+section PickLeaf
+
+variable [Fintype α] [DecidableEq α]
+
+theorem pickLeaf_eq (H : HypothesisDFA α) (read : FreeMonoid α → ARU) {n : ℕ}
+    (xs : Fin n → FreeMonoid α) :
+    pickLeaf H read xs = (H.tree.leaves.argmax (leafScore H read xs)).getD [] := by
+  change (pickLeafQ H xs).eval read = _
+  unfold pickLeafQ
+  rw [eval_map]
+  have : leafScore H ((Query.table (List.ofFn xs)).eval read) xs = leafScore H read xs := by
+    funext s
+    unfold leafScore
+    congr 2
+    funext i
+    rw [eval_table_of_mem _ (List.mem_ofFn.2 ⟨i, rfl⟩)]
+  rw [this]
+
+end PickLeaf
 
 end OrthoDFA

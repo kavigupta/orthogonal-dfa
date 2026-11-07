@@ -67,8 +67,9 @@ theorem readProb_sum (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)
     (w : FreeMonoid α) :
     readProb O F kl kh w .accept + readProb O F kl kh w .reject
       + readProb O F kl kh w .undecided = 1 := by
-  have hm : ∀ v : ARU, MeasurableSet {ω | familyRead O.mq F kl kh w ω = v} := fun v =>
-    (measurable_voteCount O F w) ((Set.to_countable {j | readOf kl kh j = v}).measurableSet)
+  have hm : ∀ v : ARU, MeasurableSet {ω | familyRead O.mq F kl kh w ω = v} := fun v => by
+    simp only [familyRead_eq]
+    exact (measurable_voteCount O F w) ((Set.to_countable {j | readOf kl kh j = v}).measurableSet)
   unfold readProb
   rw [← measureReal_union (Set.disjoint_left.2 fun ω h1 h2 => by
       simp only [Set.mem_setOf_eq] at h1 h2; rw [h1] at h2; cases h2) (hm _),

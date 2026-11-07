@@ -221,13 +221,13 @@ theorem splitReads_eq_empty_or {X : List (FreeMonoid α)} {s : Level3State α}
     splitReads read C s x = ∅ ∨ ∃ s', applyProbe read C s x = .inl s'
       ∧ s'.tree.leaves.length = s.tree.leaves.length + 1 := by
   have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.inv.edges x
-  unfold splitReads applyProbe
+  (unfold splitReads; simp only [applyProbe_eq])
   generalize probeOrAgree read s.tree s.edges C.walkStart x = o at hOK ⊢
   cases o with
   | wrongEdge p c u t =>
     obtain ⟨hp, -, -, t₀, w₀, hE, -⟩ := hOK
     simp only [hE]
-    exact Or.inr ⟨_, rfl, DTree.length_leaves_splitAt _ _ _ hp⟩
+    exact Or.inr ⟨_, rfl, by rw [splitLeaf_tree]; exact DTree.length_leaves_splitAt _ _ _ hp⟩
   | _ => exact Or.inl rfl
 
 /-- A run from `s` over probes at most `L` long, its final tree at most `n + 2` leaves, asks at most
@@ -258,7 +258,7 @@ theorem card_reads_runProbesQ_le {L : ℕ} (n : ℕ) (X : List (FreeMonoid α)) 
     have hL' : ∀ y ∈ xs, y.toList.length ≤ L := fun y hy => hL y (by simp [hy])
     have hfin' : ∀ s', applyProbe read C s x = .inl s' →
         (runProbes read C s' xs).1.tree.leaves.length ≤ n + 2 := fun s' hap => by
-      have e : runProbes read C s (x :: xs) = runProbes read C s' xs := by simp [runProbes, hap]
+      have e : runProbes read C s (x :: xs) = runProbes read C s' xs := by simp [runProbes_nil, runProbes_cons, hap]
       rwa [e] at hfin
     simp only [runProbesQ, reads_bind, eval_applyProbeQ read C s x, List.length_cons]
     refine (Finset.card_union_le _ _).trans ?_
@@ -310,7 +310,7 @@ theorem card_reads_level3Q_le {L T : ℕ} (n : ℕ) (xs : Fin T → FreeMonoid �
   have h := card_reads_runProbesQ_le read C n (List.ofFn xs) (List.ofFn xs) initialState
     (fun _ h => h) (fun y hy => by
       obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hy
-      exact hL i) (runInv_start read C _) hn
+      exact hL i) (runInv_start read C _) (by rwa [indecisiveLStarLevel3_tree] at hn)
   have h0 : (initialState : Level3State α).tree.leaves.length = 2 := by
     simp [initialState, newHypothesis, DTree.leaves]
   rwa [List.length_ofFn, h0, show n + 2 - 2 = n by omega] at h

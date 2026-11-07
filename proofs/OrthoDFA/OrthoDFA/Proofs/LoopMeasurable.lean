@@ -63,7 +63,7 @@ omit [IsProbabilityMeasure μ] in
 theorem familyRead_congr (O : Oracle μ (FreeMonoid α)) {Z F : Finset (FreeMonoid α)} {kl kh : ℕ}
     {ω ω' : Ω} (h : ∀ p ∈ readStrings Z F, (O.mq p ω = 1 ↔ O.mq p ω' = 1)) {z : FreeMonoid α}
     (hz : z ∈ Z) : familyRead O.mq F kl kh z ω = familyRead O.mq F kl kh z ω' := by
-  unfold familyRead voteCount
+  (simp only [familyRead_eq]; unfold voteCount)
   congr 2
   exact Finset.filter_congr fun v hv =>
     h _ (Finset.mem_image.2 ⟨(z, v), Finset.mem_product.2 ⟨hz, hv⟩, rfl⟩)

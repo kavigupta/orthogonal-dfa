@@ -87,7 +87,7 @@ theorem runInv_start (X : List (FreeMonoid α)) : RunInv read C X initialState w
 theorem retarget_some {T' : DTree α} {p : List Bool} {E : Edges α} {e : List Bool × α}
     {t : List Bool} {w : FreeMonoid α} (h : retarget read T' p E e = some (t, w)) :
     ¬ p.isPrefixOf e.1 = true ∧ ∃ t₀, E e = some (t₀, w) := by
-  unfold retarget at h
+  simp only [retarget_eq] at h
   split_ifs at h with hp
   rcases he : E e with _ | ⟨t₀, w₀⟩ <;> rw [he] at h
   · cases h
@@ -130,24 +130,27 @@ theorem runInv_step {X : List (FreeMonoid α)} {s s' : Level3State α} {x : Free
     have ht := DTree.sift_inl_mem read _ _ t huc
     obtain ⟨hw₀, hw₀c⟩ := hs.inv.edges p hp c t₀ w₀ hE
     have ht₀ := DTree.sift_inl_mem read _ _ t₀ hw₀c
-    refine ⟨⟨⟨edgesOK_retarget read hs.inv.edges hp _, ?_, ?_⟩, ?_, ?_⟩, ?_⟩
-    · simp only [splitLeaf, newHypothesis]
+    refine ⟨⟨⟨by
+      simp only [splitLeaf_eq, newHypothesis]
+      exact (edgesOK_retarget read hs.inv.edges hp _).restrict _ _, ?_, ?_⟩, ?_, ?_⟩, ?_⟩
+    · simp only [splitLeaf_eq, newHypothesis]
       rw [hlen, show s.tree.leaves.length + 1 - 2 = s.tree.leaves.length - 2 + 1 by
         have := hs.inv.two; omega]
       exact classSet_split hs.inv.cls hp ht ht₀
-    · simp only [splitLeaf, newHypothesis]; rw [hlen]; have := hs.inv.two; omega
+    · simp only [splitLeaf_eq, newHypothesis]; rw [hlen]; have := hs.inv.two; omega
     · intro e t' w he
-      simp only [splitLeaf, newHypothesis] at he ⊢
-      obtain ⟨hpe, t₁, he₁⟩ := retarget_some read he
+      rw [splitLeaf_edges_eq_some] at he
+      rw [splitLeaf_tree]
+      obtain ⟨hpe, t₁, he₁⟩ := retarget_some read he.2
       have hq := hs.keys e t₁ w he₁
       refine DTree.mem_leaves_splitAt_of_ne _ s.tree p e.1 hq fun hpq => hpe ?_
       rw [hpq]
       exact List.isPrefixOf_iff_prefix.2 (List.prefix_refl _)
     · intro e t' w he
-      simp only [splitLeaf, newHypothesis] at he
-      obtain ⟨-, t₁, he₁⟩ := retarget_some read he
+      rw [splitLeaf_edges_eq_some] at he
+      obtain ⟨-, t₁, he₁⟩ := retarget_some read he.2
       exact hs.wit e t₁ w he₁
-    · simp only [splitLeaf, newHypothesis]; rw [hlen]
+    · simp only [splitLeaf_eq, newHypothesis]; rw [hlen]
   · exact ⟨⟨⟨hs.inv.edges, hs.inv.cls, hs.inv.two⟩, hs.keys, hs.wit⟩, by simp [countProbe, countOutcome]⟩
 
 theorem leaves_le_step {X : List (FreeMonoid α)} {s s' : Level3State α} {x : FreeMonoid α}
@@ -156,7 +159,7 @@ theorem leaves_le_step {X : List (FreeMonoid α)} {s s' : Level3State α} {x : F
   rcases step_cases read C hs.inv h with
     ⟨p, c, u, t, -, -, -, -, -, rfl⟩ | ⟨p, c, u, t, t₀, w₀, -, -, -, hp, -, -, rfl⟩ | ⟨rfl, -, -⟩
   · simp [newHypothesis]
-  · simp only [splitLeaf, newHypothesis]
+  · simp only [splitLeaf_eq, newHypothesis]
     rw [DTree.length_leaves_splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀))
       s.tree p hp]
     omega
@@ -166,9 +169,9 @@ theorem leaves_le_step {X : List (FreeMonoid α)} {s s' : Level3State α} {x : F
 theorem leaves_le_runProbes {X : List (FreeMonoid α)} :
     ∀ (xs : List (FreeMonoid α)) (s : Level3State α), (∀ x ∈ xs, x ∈ X) → RunInv read C X s →
       s.tree.leaves.length ≤ (runProbes read C s xs).1.tree.leaves.length
-  | [], s, _, _ => by simp [runProbes]
+  | [], s, _, _ => by simp [runProbes_nil, runProbes_cons]
   | x :: xs, s, hX, hs => by
-    simp only [runProbes]
+    simp only [runProbes_nil, runProbes_cons]
     rcases ha : applyProbe read C s x with s' | e
     · exact (leaves_le_step read C hs ha).trans (leaves_le_runProbes xs s'
         (fun y hy => hX y (by simp [hy])) (runInv_step read C (hX x (by simp)) hs ha).1)
@@ -178,9 +181,9 @@ theorem runInv_runProbes {X : List (FreeMonoid α)} :
     ∀ (xs : List (FreeMonoid α)) (s : Level3State α), (∀ x ∈ xs, x ∈ X) → RunInv read C X s →
       RunInv read C X (runProbes read C s xs).1
         ∧ (runProbes read C s xs).1.tree.leaves.length ≤ s.tree.leaves.length + xs.length
-  | [], s, _, hs => ⟨hs, by simp [runProbes]⟩
+  | [], s, _, hs => ⟨hs, by simp [runProbes_nil, runProbes_cons]⟩
   | x :: xs, s, hX, hs => by
-    simp only [runProbes]
+    simp only [runProbes_nil, runProbes_cons]
     rcases ha : applyProbe read C s x with s' | e
     · obtain ⟨hs', hl⟩ := runInv_step read C (hX x (by simp)) hs ha
       obtain ⟨h1, h2⟩ := runInv_runProbes xs s' (fun y hy => hX y (by simp [hy])) hs'
@@ -258,7 +261,7 @@ theorem runProbes_congr_zone {r r' : FreeMonoid α → ARU} {X : List (FreeMonoi
     have hstep : applyProbe r C s x = applyProbe r' C s x :=
       Kappa.applyProbe_congr' C (fun e t w he => hs.keys e t w he)
         (step_reads_agree C h hxX hs (by omega))
-    simp only [runProbes]
+    simp only [runProbes_nil, runProbes_cons]
     rw [← hstep]
     rcases ha : applyProbe r C s x with s' | e
     · obtain ⟨hs', hl⟩ := runInv_step r C hxX hs ha
@@ -277,7 +280,7 @@ theorem level3_congr_zone {r r' : FreeMonoid α → ARU} {T : ℕ} (xs : Fin T �
       exact h i j hj hjx m hm)
     (List.ofFn xs) initialState (fun _ h => h) (runInv_start r C _) (by
       simp [initialState, newHypothesis, DTree.leaves])
-  simp only [indecisiveLStarLevel3, hrun]
+  simp only [indecisiveLStarLevel3_eq, hrun]
 
 /-- A probe reads only a prefix past its first `k` letters followed by a midfix. -/
 theorem probeOrAgree_congr_zone {r r' : FreeMonoid α → ARU} {T : DTree α} (E : Edges α) (k : ℕ)

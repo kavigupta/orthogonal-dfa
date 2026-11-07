@@ -104,7 +104,7 @@ theorem eps_ends_of_not_anyB (J : Level3State α → Prop) (hJ : HypInv J)
     simp only [AnyB, not_or, not_exists, not_and] at hb
     obtain ⟨hb1, hb2⟩ := hb
     rcases hst : applyProbe read C s x with s' | e
-    · simp only [runProbes, hst]
+    · simp only [runProbes_nil, runProbes_cons, hst]
       by_cases hsm : Same s s'
       · obtain ⟨hs', hΨ, hn', -⟩ := step_same read C hs hst hsm.1 hsm.2
         have hlt : s'.probeCount < Ns := by
@@ -125,7 +125,7 @@ theorem eps_ends_of_not_anyB (J : Level3State α → Prop) (hJ : HypInv J)
           Nat.mul_le_mul_right _ hΨ
         rw [Nat.add_mul, one_mul] at this
         omega
-    · simp only [runProbes, hst]
+    · simp only [runProbes_nil, runProbes_cons, hst]
       by_contra hne
       exact hb1 (Or.inl ⟨hn, Or.inl ⟨e, hst, hne⟩⟩)
 
@@ -322,7 +322,7 @@ theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
   set g : Ω → ENNReal := fun ω => (Measure.pi fun _ : Fin C.probeBudget => P.D)
     {d | AnyB (applyProbe (read · ω) C) (W (read · ω)) initialState (List.ofFn d)}
   have hpt : ∀ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
-      {xs | let r := runProbes (read · ω) C initialState (List.ofFn xs)
+      {draws | let result := indecisiveLStarLevel3 C (read · ω) draws
         ¬ EndsWell
           { target := M,
             undecided := U,
@@ -330,15 +330,16 @@ theorem eps_round_le_of {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) [IsP
             harvestSlack := sl,
             probes := P.D,
             disagreeRate := ε,
-            disagree := searchSet (read · ω) C.walkStart ⟨r.1.tree, r.1.edges⟩
-              ∪ endsSet (read · ω) C.walkStart ⟨r.1.tree, r.1.edges⟩,
+            disagree := searchSet (read · ω) C.walkStart result.hypothesis
+              ∪ endsSet (read · ω) C.walkStart result.hypothesis,
             walkStart := C.walkStart,
-            harvestLaw := harvestLaw (read · ω) P.D C.walkStart ⟨r.1.tree, r.1.edges⟩,
+            harvestLaw := harvestLaw (read · ω) P.D C.walkStart result.hypothesis,
             yield := y,
-            ending := r.2 }
-          ∨ AnyB (applyProbe (read · ω) C) (W (read · ω)) initialState (List.ofFn xs)}
+            ending := result.ending }
+          ∨ AnyB (applyProbe (read · ω) C) (W (read · ω)) initialState (List.ofFn draws)}
         ≤ (c + N.indicator 1 ω) + g ω := by
     intro ω
+    simp only [indecisiveLStarLevel3_eq]
     by_cases hω : ω ∈ N
     · rw [Set.indicator_of_mem hω, Pi.one_apply]
       exact prob_le_one.trans (le_add_self.trans le_self_add)
