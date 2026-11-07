@@ -1,6 +1,4 @@
-"""Deletes E-L*'s cells from the comparison to CAPAL, so the next run reruns them.
-
-    python -m orthogonal_dfa.experiments.capal_comparison.delete_elstar"""
+"""Deletes E-L*'s cells from the comparison to CAPAL, so the next run reruns them."""
 
 import json
 
