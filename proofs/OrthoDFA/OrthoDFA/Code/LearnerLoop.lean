@@ -12,10 +12,12 @@ that does not end in a harvest. A harvest's sampler becomes a population of ever
 a draw from it walks fresh probes from the probes' distribution `D` under the round's last
 hypothesis, at most level 3's `harvestReadCap` of them, and takes the first string undecided
 at the harvest's site, as the round reads them, that no earlier clustering read. The first
-population is `D` itself. Each population's streams are its first `scanCap` draws; the round fails
-if a harvested draw finds no string, the clustering would read past them, no state of the
-schedule returns, or level 3's tree grows past `leafCap` leaves, and the loop fails with it. Draws
-are made from uniforms (`drawFrom`).
+population is `D` itself. The probes' population's streams are its first `scanCap` draws. A
+harvested population draws one at a time, as `split_draws` and `prefixes_for_split` do, until its
+draws hold every sample a state of the schedule takes from it (`DrawsHold`), at most `scanCap`;
+only the draws it makes run the sampler. The round fails if a harvested draw finds no string, the
+clustering would read past the draws, no state of the schedule returns, or level 3's tree grows
+past `leafCap` leaves, and the loop fails with it. Draws are made from uniforms (`drawFrom`).
 
 The clustering is the one `ClusteringQualityGuarantee` is about, every population tame and none
 harvested into a table: the family is `clusterAt` at a state of the schedule at which `ret`
@@ -248,33 +250,61 @@ def clusterReads {K : ℕ} (sched : Finset State) (pops : Finset (Option (Fin K)
     (x : Run Ω (FreeMonoid α) (Option (Fin K))) : Finset (FreeMonoid α) :=
   (roundPrefs sched pops x ×ˢ insert 1 (roundSuffs sched x)).image fun z => z.1 * z.2
 
-/-- Population `j`'s first `M` draws off `T`, draw `n` by `u n`: for the probes' population from
-`D` conditioned off `T` by the uniform, for a harvested one by its sampler at cap `N` over the
-probes the block draws from `D`, its family read asked of the oracle.  `none` if a harvested draw
-misses. -/
+/-- Finite draws as a stream, `1` past them. -/
+def padList (l : List (FreeMonoid α)) (n : ℕ) : FreeMonoid α := l.getD n 1
+
+/-- The probes' population's first `M` draws off `T`, draw `n` by `u n`. -/
+def uniDraws (D : Measure (FreeMonoid α)) (M : ℕ) (T : Finset (FreeMonoid α))
+    (u : ℕ → unitInterval × (Fin N → unitInterval)) : List (FreeMonoid α) :=
+  List.ofFn fun n : Fin M => drawFrom (offLaw D T) (u n).1
+
+/-- A harvested population's first draws `l` hold every sample a state of `sched` takes from it:
+`npref` distinct on the table side of the hash `g`, and `2 npref` distinct on its reserve side
+outside `U npref`, the probes' population's table at that count; every other table lies on the
+table side. -/
+def DrawsHold (sched : Finset State) (g : FreeMonoid α → Bool) (U : ℕ → Finset (FreeMonoid α))
+    (l : List (FreeMonoid α)) : Prop :=
+  ∀ B ∈ sched, B.npref ≤ (l.filter g).toFinset.card
+    ∧ 2 * B.npref ≤ ((l.filter fun s => !g s).toFinset \ U B.npref).card
+
+open scoped Classical in
+/-- Population `j`'s draws off `T`, draw `n` by `u n`: the probes' population's first `M`
+(`uniDraws`); a harvested one's by its sampler at cap `N` over the probes the block draws from
+`D`, its family read asked of the oracle, one at a time until `stop` holds of them, at most `M`.
+`none` if a harvested draw misses. -/
 def popDrawsQ {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ) (pops : List (HarvestSampler α))
-    (T : Finset (FreeMonoid α)) (j : Option (Fin K))
+    (T : Finset (FreeMonoid α)) (stop : List (FreeMonoid α) → Prop) (j : Option (Fin K))
     (u : ℕ → unitInterval × (Fin N → unitInterval)) :
-    Query (FreeMonoid α) ℝ (Option (Fin M → FreeMonoid α)) :=
+    Query (FreeMonoid α) ℝ (Option (List (FreeMonoid α))) :=
   match j with
-  | none => .pure (some fun n => drawFrom (offLaw D T) (u n).1)
+  | none => .pure (some (uniDraws D M T u))
   | some i =>
     match pops[i.val]? with
-    | some s => (Random.drawManyFirstQ k s.hyp s.site ↑T
-        fun (n : Fin M) (t : Fin N) => drawFrom D ((u n).2 t)).subst
+    | some s => (Query.extendUntil (fun n => Random.harvestFirstQ k s.hyp s.site ↑T
+        (List.ofFn fun t : Fin N => drawFrom D ((u n).2 t))) stop M []).subst
           (familyReadQ s.family s.kl s.kh)
-    | none => .pure (some fun _ => 1)
+    | none => .pure (some [])
+
+/-- Each population's draws after the history `h` (`popDrawsQ`) off the earlier rounds' prefixes,
+a harvested one's until they hold every sample a state of `sched` takes (`DrawsHold`). `none` if a
+draw misses. -/
+def drawListsQ {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ) (sched : Finset State)
+    (h : LoopHist α) (c : ClusterRest α K N) :
+    Query (FreeMonoid α) ℝ (Option (Option (Fin K) → List (FreeMonoid α))) :=
+  (Query.pi fun j => popDrawsQ D k N M h.pops h.prefs
+      (DrawsHold sched c.2.2.2 fun m => freshDraws ∅ (padList (uniDraws D M h.prefs (c.2.1 none))) m)
+      j (c.2.1 j)).map allSome
 
 /-- The clustering's draws after the history `h`: suffixes from `Dsf` off what the earlier rounds
-read, each population's first `M` draws (`popDrawsQ`) as its stream, the probes' population a
-second `M` off the earlier rounds' prefixes as its certification stream, and the hash's sides.
-`none` if a draw misses. -/
-def clusterDrawsQ {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (k N M : ℕ) (h : LoopHist α)
-    (c : ClusterRest α K N) :
+read, each population's draws (`drawListsQ`) as its stream, the probes' population a second `M`
+off the earlier rounds' prefixes as its certification stream, and the hash's sides. `none` if a
+draw misses. -/
+def clusterDrawsQ {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (k N M : ℕ) (sched : Finset State)
+    (h : LoopHist α) (c : ClusterRest α K N) :
     Query (FreeMonoid α) ℝ (Option (Draws Unit (FreeMonoid α) (Option (Fin K)))) :=
-  (Query.pi fun j => popDrawsQ D k N M h.pops h.prefs j (c.2.1 j)).map fun tabs =>
-    (allSome tabs).map fun tab =>
-      (((), ((fun n => drawFrom (offLaw Dsf h.suffs) (c.1 n), fun j => padDraws (tab j)),
+  (drawListsQ D k N M sched h c).map fun tabs =>
+    tabs.map fun tab =>
+      (((), ((fun n => drawFrom (offLaw Dsf h.suffs) (c.1 n), fun j => padList (tab j)),
         fun j => match j with
           | none => padDraws fun n : Fin M => drawFrom (offLaw D h.prefs) (c.2.2.1 none n)
           | some _ => fun _ => 1)),
