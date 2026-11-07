@@ -20,13 +20,14 @@ with `s₀ = 1/2 − η₀` the signal. The settings the proof picks hold each r
 disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths,
 so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes grow as `(L + |Q|)²` and the
 suffixes as `log L`. The prefix total's populations' group reads its log off the suffix pool alone,
-so that log grows as `log log L`. The strings asked are five sources' sum: the clusterings'
+so that log grows as `log log L`. The strings asked are four sources' sum: the clusterings'
 prefixes against their suffixes; level 3's probes, each a family read of `|V̂|` strings at the
-`log L` mids of a sift at most `|Q| + 1` deep; its splits, at most `|Q|` a round, each
-re-sifting at most `|Q| + 2` leaves' edges over `|Σ|` letters down at most `|Q| + 2` midfixes; the
-harvested draws' walks, a family read at the sifts of each probe, where `totalWalk` bounds the
-probes each round's harvested draws take in all, about `1/ρ` per draw; and the start leaf's family read at
-each held-out string. Each bound has one constant over all of `loopDistRegion`.
+`log L` mids of a sift at most `|Q| + 1` deep, with its splits' re-sifts (at most `|Q|` a round,
+each over at most `|Q| + 2` leaves' edges, `|Σ|` letters and `|Q| + 2` midfixes) within that
+term; the harvested draws' walks, a family read at the sifts of each probe, where `totalWalk`
+bounds the probes each round's harvested draws take in all, about `1/ρ` per draw; and the start
+leaf's family read at each held-out string. Each bound has one constant over all of
+`loopDistRegion`.
 
 `LoopClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
 `L` is at least `L₀`; the bounds have one constant over all of `loopRegion`. `LoopClaimSimple`
@@ -185,9 +186,9 @@ def LoopClaim.{u, v, w} : Prop :=
       let nFam : ℝ := log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (1 / r.β + r.Q) * (r.L + r.Q) / r.ξ
       let lg : ℝ := log (r.L + r.Q + 1)
-      -- clusterings, counterexample search, its re-sifts, harvest, start leaf
-      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
+      -- clusterings, counterexample search (with its re-sifts), harvest, start leaf
+      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q * nPref * nFam * lg * ρInv
+        + nHeld * nFam) ∧
     totalWalk =O[𝓟 loopDistRunRegion] (fun r =>
       r.R * (1 / r.β + r.Q) * (r.L + r.Q) / r.ξ
         * (r.Q ^ 7 * (1 / r.β + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
@@ -289,9 +290,9 @@ def LoopClaimUniform.{u, v, w} : Prop :=
       let nFam : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
       let lg : ℝ := log (r.L + r.Q + 1)
-      -- clusterings, counterexample search, its re-sifts, harvest, start leaf
-      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
+      -- clusterings, counterexample search (with its re-sifts), harvest, start leaf
+      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q * nPref * nFam * lg * ρInv
+        + nHeld * nFam) ∧
     totalWalk =O[𝓟 loopRunRegion] (fun r =>
       r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
         * (r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
@@ -329,9 +330,9 @@ def LoopClaimSimple.{u, v, w} : Prop :=
       let nFam : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
       let lg : ℝ := log (r.L + r.Q + 1)
-      -- clusterings, counterexample search, its re-sifts, harvest, start leaf
-      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
+      -- clusterings, counterexample search (with its re-sifts), harvest, start leaf
+      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q * nPref * nFam * lg * ρInv
+        + nHeld * nFam) ∧
     totalWalk =O[𝓟 loopRunRegion] (fun r =>
       r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
         * (r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2

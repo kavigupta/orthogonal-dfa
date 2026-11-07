@@ -885,6 +885,38 @@ lemma shapes_nonneg {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     nonneg_of_mul_nonneg_right ((harvest_pw hr).1.trans (harvest_pw hr).2) (by norm_num),
     nonneg_of_mul_nonneg_right ((start_pw hr).1.trans (start_pw hr).2) (by norm_num)⟩
 
+/-- The re-sifts are within the search: `nProbe * |Q| * log(L + |Q| + 1)` is at least `1/4`. -/
+lemma resift_le_search {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
+    shResift r ≤ 4 * shSearch r := by
+  obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, -, -, -, -⟩ := dist_coords hr
+  have hRes := (shapes_nonneg hr).2.2.1
+  have hP : 1 ≤ (1 / r.β + r.Q) * (r.L + r.Q) * r.R / r.ξ := by
+    rw [div_eq_mul_one_div]
+    exact one_le_mul_of_one_le_of_one_le
+      (one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by linarith) (by linarith))
+        hR) hiξ
+  have hq : log 2 ≤ log ((r.Q : ℝ) * r.A / r.δ) := by
+    refine Real.log_le_log (by norm_num) ?_
+    rw [div_eq_mul_one_div]
+    have hQA : 2 ≤ (r.Q : ℝ) * r.A := by nlinarith
+    have := mul_le_mul hQA (by linarith : 1 ≤ 1 / r.δ) zero_le_one (by linarith)
+    linarith
+  have hl : log 2 ≤ log ((r.L : ℝ) + r.Q + 1) :=
+    Real.log_le_log (by norm_num) (by linarith)
+  have hl2 := Real.log_two_gt_d9
+  have hX : 1 / 4 ≤ ((1 / r.β + r.Q) * (r.L + r.Q) * r.R / r.ξ) * log ((r.Q : ℝ) * r.A / r.δ)
+      * log ((r.L : ℝ) + r.Q + 1) := by
+    have h1 : 1 * log 2
+        ≤ ((1 / r.β + r.Q) * (r.L + r.Q) * r.R / r.ξ) * log ((r.Q : ℝ) * r.A / r.δ) :=
+      mul_le_mul hP hq (by linarith) (by linarith)
+    nlinarith
+  have e : shSearch r = shResift r
+      * (((1 / r.β + r.Q) * (r.L + r.Q) * r.R / r.ξ) * log ((r.Q : ℝ) * r.A / r.δ)
+        * log ((r.L : ℝ) + r.Q + 1)) := by
+    unfold shSearch shResift shProbe shLg; ring
+  rw [e]
+  nlinarith
+
 lemma distHB_isBigO : distHB =O[𝓟 loopDistRunRegion] (fun r => shRho r * shPref r / r.Q) :=
   isBigO_on (2 ^ 109) fun r hr => by
     obtain ⟨h1, h2⟩ := hb_pw hr
@@ -898,13 +930,13 @@ lemma distHB_isBigO : distHB =O[𝓟 loopDistRunRegion] (fun r => shRho r * shPr
     rw [mul_div_assoc', le_div_iff₀ hQ]
     linarith
 
-/-- Each source of reads within its own shape. -/
+/-- Each source of reads within its own shape, the re-sifts within the search's. -/
 lemma distReads_isBigO : distReads =O[𝓟 loopDistRunRegion]
-    (fun r => shCluster r + shSearch r + shResift r + shHarvest r + shStart r) := by
+    (fun r => shCluster r + shSearch r + shHarvest r + shStart r) := by
   have hg : ∀ f : LoopDistRun → ℝ, (∀ r ∈ loopDistRunRegion, 0 ≤ f r ∧
-      f r ≤ shCluster r + shSearch r + shResift r + shHarvest r + shStart r) →
+      f r ≤ shCluster r + shSearch r + shHarvest r + shStart r) →
       f =O[𝓟 loopDistRunRegion]
-        (fun r => shCluster r + shSearch r + shResift r + shHarvest r + shStart r) :=
+        (fun r => shCluster r + shSearch r + shHarvest r + shStart r) :=
     fun f h => isBigO_on 1 fun r hr => ⟨(h r hr).1, (h r hr).1.trans (h r hr).2,
       (h r hr).2.trans_eq (one_mul _).symm⟩
   have t1 := (bigO_dist _ (by norm_num) fun _ hr => cluster_pw hr).trans
@@ -913,9 +945,13 @@ lemma distReads_isBigO : distReads =O[𝓟 loopDistRunRegion]
   have t2 := (bigO_dist _ (by norm_num) fun _ hr => search_pw hr).trans
     (hg shSearch fun r hr => by
       obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr; exact ⟨h2, by linarith⟩)
-  have t3 := (bigO_dist _ (by norm_num) fun _ hr => resift_pw hr).trans
-    (hg shResift fun r hr => by
-      obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr; exact ⟨h3, by linarith⟩)
+  have hres : shResift =O[𝓟 loopDistRunRegion]
+      (fun r => shCluster r + shSearch r + shHarvest r + shStart r) :=
+    isBigO_on 4 fun r hr => by
+      obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr
+      have := resift_le_search hr
+      exact ⟨h3, by linarith, by linarith⟩
+  have t3 := (bigO_dist _ (by norm_num) fun _ hr => resift_pw hr).trans hres
   have t4 := (bigO_dist _ (by norm_num) fun _ hr => harvest_pw hr).trans
     (hg shHarvest fun r hr => by
       obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr; exact ⟨h4, by linarith⟩)
