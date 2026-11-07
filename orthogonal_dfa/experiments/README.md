@@ -101,36 +101,24 @@ rm data/luhn/results/luhn_len16_eta0.30_seed0.json
 
 ### Neural
 
-Run these in one shell, so that `D`, `R` and `drop_runs` carry through. `R` holds each run's own files
-until they are added to `runs.json`, and a run with files there is not rerun.
-
 The residual runs start from the flat runs' DFAs, and `residual_products.json` is computed
 from the residual runs and the labels, so each command below also deletes what depends on
 what it deletes.
 
 ```bash
 D=data/neural/length_oracles
-R=scratchpad/length_oracle_runs
-drop_runs() {  # drop_runs ORACLE...: removes those oracles' rows from runs.json (needs jq)
-    jq -c --args '$ARGS.positional as $o
-        | (.runs, .restarts) |= map(select(.oracle | IN($o[]) | not))' \
-        "$@" < "$D/runs.json" > "$D/runs.json.new" && mv "$D/runs.json.new" "$D/runs.json"
-}
 
 # all the runs
-rm -rf $D/runs.json $D/residual_products.json $R
+rm -rf $D/runs $D/residual_products.json
 
 # the improperly calibrated runs
-drop_runs saw
-rm -rf $R/saw_s*
+rm -rf $D/runs/saw_s*
 
 # the correctly calibrated runs, and the residual runs after them
-drop_runs flat residual
-rm -rf $R/flat_s* $R/residual_s* $D/residual_products.json
+rm -rf $D/runs/flat_s* $D/runs/residual_s* $D/residual_products.json
 
 # the residual runs
-drop_runs residual
-rm -rf $R/residual_s* $D/residual_products.json
+rm -rf $D/runs/residual_s* $D/residual_products.json
 
 # the products of the residual runs
 rm $D/residual_products.json

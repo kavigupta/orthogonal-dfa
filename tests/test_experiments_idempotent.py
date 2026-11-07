@@ -1,4 +1,5 @@
 import hashlib
+import tempfile
 import unittest
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
@@ -28,7 +29,7 @@ ENTRY_POINTS = [
     (random_run, ["_ensure_target", "_run_result"], PROCESSES),
     (capal_random, ["_run_result"], PROCESSES),
     (luhn_run, ["_run_result"], PROCESSES),
-    (reproduce, ["launch"], ["/nonexistent/out"]),
+    (reproduce, [], [tempfile.gettempdir()]),
 ]
 
 

@@ -26,8 +26,8 @@ from .dfa_structure import counts_wildcards, dfa_accepts, tracks_phase
 from .label import saved_labels
 from .oracles import SYMBOLS, VOCAB
 from .render_dfa import dfa_tikz
+from .residual import SEEDS, run_restarts
 
-RUNS = REPO_ROOT / "data" / "neural" / "length_oracles" / "runs.json"
 RANDOM_STRINGS = (
     REPO_ROOT / "data" / "neural" / "length_oracles" / "random_strings.json"
 )
@@ -325,12 +325,12 @@ def main():
     strings, labels = saved_labels()
     data = Strings(np.array(strings, dtype=np.int64))
     y = {kind: labels[kind].astype(float) for kind in PAPER_NAMES}
-    with open(RUNS) as f:
-        restarts = {
-            (r["oracle"], r["seed"], r["restart"]): r
-            for r in json.load(f)["restarts"]
-            if r["oracle"] in PAPER_NAMES
-        }
+    restarts = {
+        (kind, seed, r["restart"]): dict(r, oracle=kind, seed=seed)
+        for kind in PAPER_NAMES
+        for seed in SEEDS
+        for r in run_restarts(kind, seed)
+    }
     described = describe_all(restarts, y, data)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
