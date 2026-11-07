@@ -564,8 +564,7 @@ theorem card_reads_loopRoundsQ_le (O : Oracle μ (FreeMonoid α)) (ω : Ω)
         (hlv _ (hpre.subset (List.mem_append_left _ ho)))), hsm o' ho'⟩
     · have h1 := ht i s hs m
       rwa [show (fun z => (familyReadQ s.family s.kl s.kh z).eval fun w => O.mq w ω)
-        = fun z => familyRead O.mq s.family s.kl s.kh z ω from
-          funext fun z => eval_familyReadQ_mq O.mq ω _ _ _ z]
+        = fun z => familyRead O.mq s.family s.kl s.kh z ω from rfl]
     · rw [Option.mem_def, hoo, Option.some.injEq] at hx
       subst hx
       exact hlv _ (hpre.subset (List.mem_append_right _ (List.mem_singleton_self _)))
