@@ -29,7 +29,7 @@ class HypothesisDFA:
         self.version += 1
 
     def split_leaf(self, leaf: Path, midfix: bytes):
-        """``HypothesisDFA.split`` of ``OrthoDFA/HypothesisDFA.lean``, which keeps every learned
+        """``HypothesisDFA.split`` of OrthoDFA/Code/HypothesisDFA.lean, which keeps every learned
         edge witnessed (``SplitAndLearnCorrect``)."""
         self.tree.split(self.tree.leaf_at(leaf), midfix)
         self.leaves = set(self.tree.leaf_paths())
