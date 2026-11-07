@@ -187,7 +187,7 @@ def LoopClaim.{u, v, w} : Prop :=
       let lg : ℝ := log (r.L + r.Q + 1)
       -- clusterings, counterexample search, its re-sifts, harvest, start leaf
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q ^ 2 * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
+        + r.Q * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
     totalWalk =O[𝓟 loopDistRunRegion] (fun r =>
       r.R * (1 / r.β + r.Q) * (r.L + r.Q) / r.ξ
         * (r.Q ^ 7 * (1 / r.β + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
@@ -195,7 +195,7 @@ def LoopClaim.{u, v, w} : Prop :=
                 / (r.δ * r.pAP * r.s₀))
             + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
               * (1 / r.s₀ ^ 4 + r.Q ^ 4 * (1 / r.β + r.Q) ^ 2)
-              * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)))) ∧
+              * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))) / r.Q) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopDistRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     (∀ r, 0 < p₀Tol r) ∧
     LoopWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes totalReads totalWalk heldOut
@@ -291,7 +291,7 @@ def LoopClaimUniform.{u, v, w} : Prop :=
       let lg : ℝ := log (r.L + r.Q + 1)
       -- clusterings, counterexample search, its re-sifts, harvest, start leaf
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q ^ 2 * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
+        + r.Q * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
     totalWalk =O[𝓟 loopRunRegion] (fun r =>
       r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
         * (r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
@@ -299,7 +299,7 @@ def LoopClaimUniform.{u, v, w} : Prop :=
                 / (r.δ * r.pAP * r.s₀))
             + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
               * (1 / r.s₀ ^ 4 + r.Q ^ 4 * (r.A + r.Q) ^ 2)
-              * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)))) ∧
+              * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))) / r.Q) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     LoopWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads totalWalk heldOut
 
@@ -331,12 +331,12 @@ def LoopClaimSimple.{u, v, w} : Prop :=
       let lg : ℝ := log (r.L + r.Q + 1)
       -- clusterings, counterexample search, its re-sifts, harvest, start leaf
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q ^ 2 * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
+        + r.Q * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
     totalWalk =O[𝓟 loopRunRegion] (fun r =>
       r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
         * (r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
           * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
-          / (r.ξ ^ 2 * r.s₀ ^ 4))) ∧
+          / (r.ξ ^ 2 * r.s₀ ^ 4)) / r.Q) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     LoopWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads totalWalk heldOut
 

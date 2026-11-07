@@ -283,11 +283,11 @@ lemma measurable_idealRun (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasur
 
 /-! ## The round's draws where they hit -/
 
-/-- Two round's draws agree on the noise, the suffixes, the hash, and the first `M` draws of
-each population's stream and of the probes' certification stream. -/
-def AgreeTo {J : Type*} (uni : J) (M : ℕ) (x y : Draws Ω (FreeMonoid α) J) : Prop :=
+/-- Two round's draws agree on the noise, the suffixes, the hash, the first `n j` draws of each
+population `j`'s stream and the first `n uni` of the probes' certification stream. -/
+def AgreeTo {J : Type*} (uni : J) (n : J → ℕ) (x y : Draws Ω (FreeMonoid α) J) : Prop :=
   x.1.1 = y.1.1 ∧ x.1.2.1.1 = y.1.2.1.1 ∧ x.2 = y.2
-    ∧ (∀ j, ∀ n < M, x.1.2.1.2 j n = y.1.2.1.2 j n) ∧ ∀ n < M, x.1.2.2 uni n = y.1.2.2 uni n
+    ∧ (∀ j, ∀ m < n j, x.1.2.1.2 j m = y.1.2.1.2 j m) ∧ ∀ m < n uni, x.1.2.2 uni m = y.1.2.2 uni m
 
 /-- Where a population's `M` draws hit, they are its filled draws. -/
 lemma popDraws_eq_some {D : Measure (FreeMonoid α)} {k N M : ℕ} {pops : List (SpecSampler α)}
@@ -323,22 +323,95 @@ lemma clusterDraws_isSome_iff {D Dsf : Measure (FreeMonoid α)} {k N M : ℕ} {h
   · simp only [Option.map_some, Option.isSome_some, true_iff]; exact hall
   · simp only [Option.map_none, Option.isSome_none, Bool.false_eq_true, false_iff]; exact hall
 
-/-- Where the round's draws hit, they agree with the filled draws on the first `M` of each
-stream. -/
-theorem clusterDraws_agree {D Dsf : Measure (FreeMonoid α)} {k N M : ℕ} {h : SpecHist α}
-    {c : ClusterDraws Ω α K N} {dr : Draws Ω (FreeMonoid α) (Option (Fin K))}
-    (hdr : clusterDraws D Dsf k N M h c = some dr) :
-    AgreeTo none M dr (idealDraws D Dsf k N h c) := by
+/-- Where population `i`'s first `M` draws hit, its draws are the first of its filled draws,
+stopped where `stop` first holds or at `M`. -/
+lemma popDrawList_of_hit {D : Measure (FreeMonoid α)} {k N M : ℕ} {pops : List (SpecSampler α)}
+    {T : Finset (FreeMonoid α)} (stop : List (FreeMonoid α) → Prop) {i : Fin K}
+    {s : SpecSampler α} (hs : pops[i.val]? = some s)
+    {u : ℕ → unitInterval × (Fin N → unitInterval)}
+    (hhit : (popDraws D k N M pops T (some i) u).isSome) :
+    ∃ l, popDrawList D k N M pops T stop (some i) u = some l ∧ l.length ≤ M
+      ∧ (∀ n (hn : n < l.length), l[n] = fillDraw D k N pops T (some i) (u n))
+      ∧ (stop l ∨ l.length = M) ∧ ∀ m < l.length, ¬ stop (l.take m) := by
   classical
-  unfold clusterDraws allSome at hdr
-  split_ifs at hdr with hall
-  · simp only [Option.map_some, Option.some.injEq] at hdr
-    subst hdr
-    refine ⟨rfl, rfl, rfl, fun j n hn => ?_, fun n hn => ?_⟩
-    · simp only [idealDraws, padDraws, dif_pos hn]
-      exact popDraws_eq_some (Option.some_get (hall j)).symm ⟨n, hn⟩
-    · simp only [idealDraws, padDraws, dif_pos hn, loopDistributions]
-  · simp at hdr
+  have hstep : ∀ n < M, (Random.harvestFirst s.read k s.hyp s.site ↑T
+      (List.ofFn fun t : Fin N => drawFrom D ((u n).2 t))).isSome := by
+    intro n hn
+    simp only [popDraws, hs] at hhit
+    unfold Random.drawManyFirst at hhit
+    split_ifs at hhit with hall
+    · exact hall ⟨n, hn⟩
+    · simp at hhit
+  have hsome : (popDrawList D k N M pops T stop (some i) u).isSome := by
+    simp only [popDrawList, hs]
+    exact growList_isSome fun m hm => by simpa using hstep m hm
+  obtain ⟨l, hl⟩ := Option.isSome_iff_exists.1 hsome
+  refine ⟨l, hl, ?_⟩
+  simp only [popDrawList, hs] at hl
+  obtain ⟨e, rfl, hlen, hfe, hstop, hmin⟩ := growList_eq_some hl
+  simp only [List.nil_append, List.length_nil, Nat.zero_add] at hfe hstop hmin ⊢
+  refine ⟨hlen, fun n hn => ?_, hstop, hmin⟩
+  simp only [fillDraw, hs, hfe n hn, Option.getD_some]
+
+/-- Where every population's first `M` draws hit, the round's draws are the first of its filled
+draws: all `M` of the probes' population's, and a harvested population's stopped where they first
+hold every scheduled state's samples, or at `M`. -/
+theorem drawLists_of_hit {D Dsf : Measure (FreeMonoid α)} {k N M : ℕ} {sched : Finset State}
+    {h : SpecHist α} {c : ClusterDraws Ω α K N} (hhit : (clusterDraws D Dsf k N M h c).isSome) :
+    ∃ tabs, drawLists D k N M sched h c.2 = some tabs
+      ∧ AgreeTo none (fun j => (tabs j).length) (drawsOf c.1 D Dsf M h.prefs h.suffs c.2 tabs)
+        (idealDraws D Dsf k N h c)
+      ∧ tabs none = uniDraws D M h.prefs (c.2.2.1 none)
+      ∧ ∀ i s, h.pops[i.val]? = some s → (tabs (some i)).length ≤ M
+        ∧ (DrawsHold sched c.2.2.2.2 (uniTable D M h.prefs (c.2.2.1 none)) (tabs (some i))
+          ∨ (tabs (some i)).length = M)
+        ∧ ∀ m < (tabs (some i)).length,
+          ¬ DrawsHold sched c.2.2.2.2 (uniTable D M h.prefs (c.2.2.1 none)) ((tabs (some i)).take m) := by
+  classical
+  set stop := DrawsHold sched c.2.2.2.2 (uniTable D M h.prefs (c.2.2.1 none))
+  have hhit' := clusterDraws_isSome_iff.1 hhit
+  have hall : ∀ j, (popDrawList D k N M h.pops h.prefs stop j (c.2.2.1 j)).isSome := by
+    intro j
+    rcases j with _ | i
+    · rfl
+    rcases hs : h.pops[i.val]? with _ | s
+    · simp [popDrawList, hs]
+    · obtain ⟨l, hl, -⟩ := popDrawList_of_hit stop hs (hhit' (some i))
+      rw [hl]; rfl
+  set tabs : Option (Fin K) → List (FreeMonoid α) := fun j => (popDrawList D k N M h.pops h.prefs
+    stop j (c.2.2.1 j)).get (hall j) with htabs
+  have hj : ∀ j, popDrawList D k N M h.pops h.prefs stop j (c.2.2.1 j) = some (tabs j) :=
+    fun j => (Option.some_get (hall j)).symm
+  have hdl : drawLists D k N M sched h c.2 = some tabs := by
+    unfold drawLists allSome
+    rw [dif_pos hall]
+  have hnone : tabs none = uniDraws D M h.prefs (c.2.2.1 none) := by
+    have := hj none
+    simp only [popDrawList, Option.some.injEq] at this
+    exact this.symm
+  refine ⟨tabs, hdl, ⟨rfl, rfl, rfl, fun j n hn => ?_, fun n hn => ?_⟩, hnone, fun i s hs => ?_⟩
+  · simp only [drawsOf, idealDraws, padList]
+    rcases j with _ | i
+    · have hn' : n < (uniDraws D M h.prefs (c.2.2.1 none)).length := by rw [← hnone]; exact hn
+      simp only [hnone]
+      rw [List.getD_eq_getElem _ _ hn']
+      simp only [uniDraws, List.getElem_ofFn, fillDraw]
+    rw [List.getD_eq_getElem _ _ hn]
+    rcases hs : h.pops[i.val]? with _ | s
+    · have := hj (some i)
+      simp only [popDrawList, hs, Option.some.injEq] at this
+      simp [← this] at hn
+    · obtain ⟨l, hl, -, hle, -⟩ := popDrawList_of_hit stop hs (hhit' (some i))
+      have e : l = tabs (some i) := Option.some.inj (hl.symm.trans (hj (some i)))
+      subst e
+      exact hle n hn
+  · simp only at hn
+    rw [hnone, uniDraws, List.length_ofFn] at hn
+    simp only [drawsOf, idealDraws, padDraws, dif_pos hn, loopDistributions]
+  · obtain ⟨l, hl, hlen, -, hstop, hmin⟩ := popDrawList_of_hit stop hs (hhit' (some i))
+    have e : l = tabs (some i) := Option.some.inj (hl.symm.trans (hj (some i)))
+    subst e
+    exact ⟨hlen, hstop, hmin⟩
 
 /-- The event that the round's draws hit is measurable. -/
 lemma measurableSet_clusterDraws_isSome (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]

@@ -9,7 +9,8 @@ questions that run asks. Every piece of the learner that reads the oracle is wri
 program, so the questions a run asks are those of the program itself, and a run against any
 oracle agreeing with `o` on `reads o p` returns `eval o p` and asks `reads o p`
 (`Query.eval_congr`). `bind` asks the first program's questions and then those of the second at
-the first's answer, so its reads are the union of the two runs'.
+the first's answer, so its reads are the union of the two runs'; a program that stops early, as
+`extendUntil` does, asks nothing of the steps it never takes.
 -/
 
 universe u v w w'
@@ -75,6 +76,16 @@ def findSome {δ : Type*} {ε : Type w'} (f : δ → Query Q R (Option ε)) :
   | x :: xs => (f x).bind fun
     | some y => pure (some y)
     | none => findSome f xs
+
+/-- `l` extended by `f l.length`, then `f (l.length + 1)`, and so on, until `stop` holds of it or
+`n` have been added; `none` at the first `none`. -/
+def extendUntil (f : ℕ → Query Q R (Option β)) (stop : List β → Prop) [DecidablePred stop] :
+    ℕ → List β → Query Q R (Option (List β))
+  | 0, l => pure (some l)
+  | n + 1, l => if stop l then pure (some l) else
+    (f l.length).bind fun
+      | some z => extendUntil f stop n (l ++ [z])
+      | none => pure none
 
 end Query
 
