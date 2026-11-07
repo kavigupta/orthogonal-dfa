@@ -48,14 +48,6 @@ def learnerQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid 
         (familyReadQ o.family o.state.lo (o.state.hi + 1))).map fun s => some (rounds, s)
     | none => .pure none
 
-variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
-
-def indecisiveLStar {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α))
-    (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) {n : ℕ}
-    (xs : Fin n → FreeMonoid α) : Option (List (LoopRound α) × List Bool) :=
-  (learnerQ settings D Dsf p.2 xs).eval fun w => O.mq w p.1
-
 end OrthoDFA
 
 end

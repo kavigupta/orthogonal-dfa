@@ -10,8 +10,8 @@ import OrthoDFA.Proofs.ClaimReadsArith
 `6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, its probes by `(|Q| + 1) loopBudget`,
 and the strings the learner asks the oracle by `learnerReads` where the loop's harvested draws
 walk at most `⌈loopHB⌉₊` probes a round, all at `ℓ = L + |Q| + 4`, once `D` holds at most
-`1/loopTolInv ℓ` on any first `k` letters; `Query.eval_congr` is the rest of the reads conjunct,
-and `indecisiveLStar_eq` turns its error event into the learner's. The claim runs
+`1/loopTolInv ℓ` on any first `k` letters; `Query.eval_congr` is the rest of the reads conjunct.
+The claim runs
 it at `c = ξ/(2R)`, `ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last round's leaf from
 `summed_bridge`; `ClaimRLStarArith` and `ClaimReadsArith` bound those shapes. `RLStarClaimUniform`
 and `RLStarClaimUniformSimple` follow (`ClaimRLStarUniform`).
@@ -70,23 +70,11 @@ theorem rlStarClaim_holds : RLStarClaim := by
     (by have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _; linarith) hlong hpre hpAPu
     (summed_bridge M O hL L D (by linarith) hξ hAe (hlong.mono fun x hx => le_trans (by omega) hx)
       hfl' ⟨q, hq⟩) hp₀
-  refine ⟨settings, hw, hcnt, fun q ⟨rounds, s, hout, _, hlv, hW⟩ => ?_, ?_⟩
-  · obtain ⟨r, hr, he⟩ :=
-      Option.bind_eq_some_iff.1 ((indecisiveLStar_eq O settings _ _ q.1 q.2).symm.trans hout)
-    obtain ⟨-, -, he⟩ := Option.map_eq_some_iff.1 he
-    exact ⟨hcalls q.1 q.2 rounds ((Prod.mk.inj he).1 ▸ hr) hlv hW,
-      fun o ho => Query.eval_congr _ _ ho⟩
+  refine ⟨settings, hw, hcnt, fun q ⟨rounds, hr, _, hlv, hW⟩ =>
+    ⟨hcalls q.1 q.2 rounds hr hlv hW, fun o ho => Query.eval_congr _ _ ho⟩, ?_⟩
   replace hprob := hprob _ (Nat.ceil_mono (min_le_right _ _))
   rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
-  refine le_trans (measureReal_mono (fun q hq => ?_) (measure_ne_top _ _)) hprob
-  simp only [Set.mem_setOf_eq, RLStarSucceeds] at hq ⊢
-  rintro ⟨rounds, hr, ⟨hlen, o, ho, hend, herr⟩, hlv, hW⟩
-  have ho' : rounds.getLast? = some o := ho
-  refine hq ⟨rounds, startLeaf O q.1.1 rounds q.2, ?_, ⟨hlen, o, ho, hend, ?_⟩, hlv, hW⟩
-  · rw [indecisiveLStar_eq, hr]
-    simp only [Option.bind_some, ho', Option.map_some]
-  · simp only [startLeaf, ho']
-    exact herr
+  exact hprob
 
 theorem rlStarClaimUniform_holds : RLStarClaimUniform :=
   rlStarClaimUniform_of_rlStarClaim rlStarClaim_holds
