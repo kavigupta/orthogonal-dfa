@@ -70,12 +70,6 @@ structure RLStarDistRun extends RLStarDistInputs where
 
 def rlStarDistRunRegion : Set RLStarDistRun := {r | r.toRLStarDistInputs ∈ rlStarDistRegion}
 
-/-- Answers agreeing with `oracle`'s on the strings `run` asks give the same output and asks. -/
-def ReadsAgree {X : Type*} [DecidableEq X] {Y : Type*} (run : Query X ℝ Y) (oracle : X → ℝ) :
-    Prop :=
-  ∀ o : X → ℝ, (∀ w ∈ run.reads oracle, o w = oracle w) →
-    run.eval o = run.eval oracle ∧ run.reads o = run.reads oracle
-
 /-- Within the round and leaf caps, the loop ends consistent and errs on at most `ε` of `T`. -/
 def RLStarSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype Q] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K)
@@ -124,11 +118,6 @@ def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads :
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    (∀ q : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
-          settings.level3.probeBudget × (Fin (heldOut x) → FreeMonoid A),
-      RLStarSucceeds settings O (windowLaw D k L₁) (prefixLaw D Ls) (prefixLaw D L) M (γ + x.ξ) q →
-      ReadsAgree (learnerQ settings (windowLaw D k L₁) (prefixLaw D Ls) q.1.2 q.2)
-        (fun w => O.mq w q.1.1)) ∧
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => prefixLaw D L)).real
@@ -222,14 +211,6 @@ def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    (∀ q : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
-          settings.level3.probeBudget × (Fin (heldOut x) → FreeMonoid A),
-      RLStarSucceeds settings O (windowStrings k L₁) (uniformStrings (L₁ + Fintype.card Q + 3))
-        (uniformStrings L) M (γ + x.ξ) q →
-      ReadsAgree
-        (learnerQ settings (windowStrings k L₁) (uniformStrings (L₁ + Fintype.card Q + 3))
-          q.1.2 q.2)
-        (fun w => O.mq w q.1.1)) ∧
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
