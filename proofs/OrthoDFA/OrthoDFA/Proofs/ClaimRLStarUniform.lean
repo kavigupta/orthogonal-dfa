@@ -247,8 +247,8 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
       rw [one_div_mul_eq_div, div_le_iff₀ (by positivity), mul_comm]
       exact h)
     (by rw [hpS]; exact hpAPu) (by rw [hpL]; exact hdom)
-  rw [hwS, hpS] at hcnt hcalls
-  rw [hwS, hpS, hpL] at hprob
+  rw [hwS, hpS] at hcnt
+  rw [hwS, hpS, hpL] at hcalls hprob
   exact ⟨settings, hwk, hcnt, hcalls, hprob⟩
 
 /-- The reads' factors other than the prefix and suffix totals, at uniform strings. -/

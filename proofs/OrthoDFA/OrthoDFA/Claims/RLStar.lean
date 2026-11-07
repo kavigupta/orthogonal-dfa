@@ -72,10 +72,10 @@ def rlStarDistRunRegion : Set RLStarDistRun := {r | r.toRLStarDistInputs ∈ rlS
 
 /-- `run` asks `oracle` at most `n` strings, and any answers agreeing with `oracle`'s on them give
 the same output and ask the same strings. -/
-def ReadsWithin {A : Type*} [DecidableEq A] {β : Type*} (run : Query (FreeMonoid A) ℝ β)
-    (oracle : FreeMonoid A → ℝ) (n : ℝ) : Prop :=
+def ReadsWithin {X : Type*} [DecidableEq X] {β : Type*} (run : Query X ℝ β) (oracle : X → ℝ)
+    (n : ℝ) : Prop :=
   ((run.reads oracle).card : ℝ) ≤ n ∧
-    ∀ o : FreeMonoid A → ℝ, (∀ w ∈ run.reads oracle, o w = oracle w) →
+    ∀ o : X → ℝ, (∀ w ∈ run.reads oracle, o w = oracle w) →
       run.eval o = run.eval oracle ∧ run.reads o = run.reads oracle
 
 /-- The learner returns within `|Q| + 1` rounds, every round's tree at most `|Q| + 2` leaves, its

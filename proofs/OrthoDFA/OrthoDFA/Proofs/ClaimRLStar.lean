@@ -69,7 +69,7 @@ theorem rlStarClaim_holds : RLStarClaim := by
     (by have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _; linarith) hlong hpre hpAPu
     (summed_bridge M O hL L D (by linarith) hξ hAe (hlong.mono fun x hx => le_trans (by omega) hx)
       hfl' ⟨q, hq⟩) hp₀
-  refine ⟨settings, hw, hcnt, fun q ⟨rounds, s, hout, -, hlv⟩ => ?_, ?_⟩
+  refine ⟨settings, hw, hcnt, fun q ⟨rounds, s, hout, _, hlv⟩ => ?_, ?_⟩
   · obtain ⟨r, hr, he⟩ :=
       Option.map_eq_some_iff.1 ((indecisiveLStar_eq O settings _ _ q.1 q.2).symm.trans hout)
     exact ⟨hcalls q.1 q.2 rounds ((Prod.mk.inj he).1 ▸ hr) hlv,
