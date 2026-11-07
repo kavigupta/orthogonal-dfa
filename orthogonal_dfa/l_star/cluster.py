@@ -13,7 +13,6 @@ from .prefix_populations import (
     prefixes_for_split,
 )
 from .statistics import (
-    cross_limit_for_coverage_error,
     evidence_margin_for_population_size,
     population_size_and_evidence_margin,
 )
@@ -123,22 +122,24 @@ def round_rates(pst):
     return pst.decision_boundary - signal, pst.decision_boundary + signal
 
 
-def read_rates(pst, decision_boundary):
-    """The rates a family is read at.
+def read_rates(pst):
+    """(cross limit, undecided rate, least margin) a family is read at.
 
-    A caller may ask for any crispness it likes; how far the split then sits from
-    accept preservation is bounded by the band those rates buy, so the rate asked
-    for is used only where it already holds ``max_coverage_error``.
+    A side of the cut keeps its class while the share of it belonging to the other
+    stays under
+
+        (1 - eps / signal) / 2,
+
+    since a prefix on the wrong side reads 2 signal from where the side is held,
+    so the margin holds max_coverage_error at
+
+        eps >= signal (1 - 2 max_coverage_error).
     """
+    signal = pst.config.min_signal_strength
     return (
-        cross_limit_for_coverage_error(
-            pst.config.min_signal_strength,
-            pst.acceptable_fnr,
-            pst.config.max_coverage_error,
-            center=decision_boundary,
-            at_most=pst.config.cross_limit,
-        ),
+        pst.config.cross_limit,
         pst.acceptable_fnr,
+        signal * (1 - 2 * pst.config.max_coverage_error),
     )
 
 
@@ -148,9 +149,13 @@ def smallest_readable_family(min_signal_strength, decision_boundary, rates):
     How many it needs depends on where the boundary sits: the two classes draw
     from binomials whose variance differs once it leaves 0.5.
     """
-    cross_limit, acceptable_fnr = rates
+    cross_limit, acceptable_fnr, min_margin = rates
     size, _ = population_size_and_evidence_margin(
-        min_signal_strength, cross_limit, acceptable_fnr, center=decision_boundary
+        min_signal_strength,
+        cross_limit,
+        acceptable_fnr,
+        center=decision_boundary,
+        min_margin=min_margin,
     )
     return size
 
@@ -166,7 +171,7 @@ def readable_size_and_margin(
     a family that is large enough undersized. ``smallest`` always admits one, so
     the walk cannot run off the end.
     """
-    cross_limit, acceptable_fnr = rates
+    cross_limit, acceptable_fnr, min_margin = rates
     for size in range(have, smallest - 1, -1):
         found = evidence_margin_for_population_size(
             min_signal_strength,
@@ -174,6 +179,7 @@ def readable_size_and_margin(
             acceptable_fnr,
             size,
             center=decision_boundary,
+            min_margin=min_margin,
         )
         if found is not None:
             return size, found[1]
@@ -521,7 +527,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
         pst.decision_boundary,
         len(vs),
         family_size,
-        read_rates(pst, pst.decision_boundary),
+        read_rates(pst),
     )
     vs = vs[:size]
     decision = pst.compute_decision(vs, pst.table.representative)
@@ -554,7 +560,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float, float]:
     family_size = smallest_readable_family(
         pst.config.min_signal_strength,
         decision_boundary,
-        read_rates(pst, decision_boundary),
+        read_rates(pst),
     )
     gate = AcceptPreservingGate(pst.config, state)
     anchored = {}
@@ -576,7 +582,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float, float]:
             family_size = smallest_readable_family(
                 pst.config.min_signal_strength,
                 decision_boundary,
-                read_rates(pst, decision_boundary),
+                read_rates(pst),
             )
             if len(vs) >= family_size:
                 break
