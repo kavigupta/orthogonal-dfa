@@ -40,12 +40,12 @@ theorem siftReads_congr {rd rd' : FreeMonoid α → ARU} : ∀ (T : DTree α) (z
       simp only [siftReads]; exact Finset.mem_insert_of_mem hw)
     rcases hc : rd (z * m) with _ | _ | _ <;> rw [hc] at hsub <;> rw [hc] at hm
     · obtain ⟨h1, h2⟩ := siftReads_congr a z hsub
-      simp only [DTree.sift, siftReads, ← hm, hc, h1, h2]
+      simp only [DTree.sift_node, siftReads, ← hm, hc, h1, h2]
       exact ⟨trivial, trivial⟩
     · obtain ⟨h1, h2⟩ := siftReads_congr r z hsub
-      simp only [DTree.sift, siftReads, ← hm, hc, h1, h2]
+      simp only [DTree.sift_node, siftReads, ← hm, hc, h1, h2]
       exact ⟨trivial, trivial⟩
-    · simp only [DTree.sift, siftReads, ← hm, hc]
+    · simp only [DTree.sift_node, siftReads, ← hm, hc]
       exact ⟨trivial, trivial⟩
 
 /-- A sift reads a string undecided only where it stops. -/
@@ -56,10 +56,10 @@ theorem siftReads_undecided {rd : FreeMonoid α → ARU} : ∀ (T : DTree α) (z
     classical
     simp only [siftReads, Finset.mem_insert] at h
     rcases h with rfl | h
-    · simp [DTree.sift, hw]
+    · simp [DTree.sift_node, hw]
     · rcases hc : rd (z * m) with _ | _ | _ <;> rw [hc] at h
-      · simp [DTree.sift, hc, siftReads_undecided a z w h hw]
-      · simp [DTree.sift, hc, siftReads_undecided r z w h hw]
+      · simp [DTree.sift_node, hc, siftReads_undecided a z w h hw]
+      · simp [DTree.sift_node, hc, siftReads_undecided r z w h hw]
       · simp at h
 
 /-- A sift reads its string followed by midfixes. -/
@@ -85,11 +85,11 @@ theorem sift_true_reads (rd : FreeMonoid α → ARU) : ∀ (T : DTree α) (z : F
     (p : List Bool), T.sift rd z = .inl p →
     (∀ w ∈ siftReads rd T z, rd w ≠ if side (M.eval w.toList) then .reject else .accept) →
     p = leafOf M side T (M.eval z.toList)
-  | .leaf, z, p, h, _ => by simp only [DTree.sift, Sum.inl.injEq] at h; simp [leafOf, ← h]
+  | .leaf, z, p, h, _ => by simp only [DTree.sift_leaf, Sum.inl.injEq] at h; simp [leafOf, ← h]
   | .node m r a, z, p, h, hw => by
     classical
     have hm := hw (z * m) (by simp [siftReads])
-    simp only [DTree.sift] at h
+    simp only [DTree.sift_node] at h
     unfold leafOf
     rw [← eval_mul]
     rcases hc : rd (z * m) with _ | _ | _ <;> rw [hc] at h hm
@@ -118,123 +118,62 @@ end Sift
 
 section Search
 
-theorem bisectBoundary_unf (g : ℕ → Option Bool) {lo hi : ℕ} (hlt : ¬ hi ≤ lo + 1) :
-    bisectBoundary false g lo hi = match g ((lo + hi) / 2) with
-      | some true => ((bisectBoundary false g ((lo + hi) / 2) hi).1,
-          (lo + hi) / 2 :: (bisectBoundary false g ((lo + hi) / 2) hi).2)
-      | some false => ((bisectBoundary false g lo ((lo + hi) / 2)).1,
-          (lo + hi) / 2 :: (bisectBoundary false g lo ((lo + hi) / 2)).2)
-      | none => (.undecidedMid ((lo + hi) / 2), [(lo + hi) / 2]) := by
-  rw [bisectBoundary.eq_1]
-  simp only [hlt, dite_false]
-  rcases g ((lo + hi) / 2) with _ | _ | _ <;> rfl
+open Query
 
-/-- Agreeing on what the bisection queries gives the same bisection. -/
-theorem bisectBoundary_congrQ {ag ag' : ℕ → Option Bool} :
-    ∀ (n lo hi : ℕ), hi - lo = n → (∀ i ∈ (bisectBoundary false ag lo hi).2, ag i = ag' i) →
-      bisectBoundary false ag' lo hi = bisectBoundary false ag lo hi := by
-  intro n
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-  intro lo hi hn h
-  by_cases hlt : hi ≤ lo + 1
-  · rw [bisectBoundary.eq_1 false ag lo hi, bisectBoundary.eq_1 false ag' lo hi]
-    simp [hlt]
-  rw [bisectBoundary_unf ag hlt] at h
-  rw [bisectBoundary_unf ag hlt, bisectBoundary_unf ag' hlt]
-  have hmid : ag ((lo + hi) / 2) = ag' ((lo + hi) / 2) := by
-    apply h
-    rcases ag ((lo + hi) / 2) with _ | _ | _ <;> simp
-  rw [← hmid]
-  rcases hc : ag ((lo + hi) / 2) with _ | _ | _
-  · rfl
-  · rw [hc] at h
-    dsimp only at h ⊢
-    rw [ih _ (by omega) lo _ rfl fun i hi => h i (List.mem_cons_of_mem _ hi)]
-  · rw [hc] at h
-    dsimp only at h ⊢
-    rw [ih _ (by omega) _ hi rfl fun i hi => h i (List.mem_cons_of_mem _ hi)]
-
-/-- Agreeing on what the search queries gives the same search. -/
-theorem tripartiteSearch_congrQ {ag ag' : ℕ → Option Bool} {lo hi : ℕ}
-    (h : ∀ i ∈ (tripartiteSearch false ag lo hi).2, ag i = ag' i) :
-    tripartiteSearch false ag' lo hi = tripartiteSearch false ag lo hi := by
-  unfold tripartiteSearch at h ⊢
-  have hlo : ag lo = ag' lo := by
-    apply h
-    rcases ag lo with _ | _ | _
-    · simp
-    · simp
-    · dsimp only; rcases ag hi with _ | _ | _ <;> simp
-  rw [← hlo]
-  rcases hc : ag lo with _ | _ | _
-  · rfl
-  · rfl
-  rw [hc] at h
-  dsimp only at h ⊢
-  have hhi : ag hi = ag' hi := by
-    apply h
-    rcases ag hi with _ | _ | _ <;> simp
-  rw [← hhi]
-  rcases hd : ag hi with _ | _ | _
-  · rfl
-  · rw [hd] at h
-    dsimp only at h ⊢
-    rw [bisectBoundary_congrQ _ lo hi rfl fun i hi =>
-      h i (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ hi))]
-  · rfl
-
-/-- A position the bisection queries undecided is where it stops. -/
-theorem bisectBoundary_undecided {ag : ℕ → Option Bool} :
-    ∀ (n lo hi : ℕ), hi - lo = n → ∀ p ∈ (bisectBoundary false ag lo hi).2, ag p = none →
-      (bisectBoundary false ag lo hi).1 = .undecidedMid p := by
+/-- A position the bisection asks undecided is where it stops. -/
+theorem bisectQ_undecided {ag : ℕ → Option Bool} :
+    ∀ (n lo hi : ℕ), hi - lo = n → ∀ p ∈ (bisectQ false lo hi).reads ag, ag p = none →
+      (bisectQ false lo hi).eval ag = .undecidedMid p := by
   intro n
   induction n using Nat.strong_induction_on with
   | _ n ih =>
   intro lo hi hn p hp hnone
-  rw [bisectBoundary.eq_1 false ag lo hi] at hp ⊢
+  rw [bisectQ_reads] at hp
+  rw [bisectQ_eval]
   by_cases hlt : hi ≤ lo + 1
   · simp [hlt] at hp
-  simp only [hlt, dite_false] at hp ⊢
+  simp only [hlt, if_false] at hp ⊢
   rcases hc : ag ((lo + hi) / 2) with _ | b
-  · simp only [hc, Bool.false_eq_true, if_false, List.mem_singleton] at hp ⊢
+  · simp only [hc, Bool.false_eq_true, if_false, Finset.mem_insert, Finset.notMem_empty,
+      or_false] at hp ⊢
     rw [hp]
   · cases b
-    · simp only [hc, List.mem_cons] at hp ⊢
+    · simp only [hc, Finset.mem_insert] at hp ⊢
       rcases hp with rfl | hp
       · rw [hc] at hnone; simp at hnone
       · exact ih _ (by omega) _ _ rfl p hp hnone
-    · simp only [hc, List.mem_cons] at hp ⊢
+    · simp only [hc, Finset.mem_insert] at hp ⊢
       rcases hp with rfl | hp
       · rw [hc] at hnone; simp at hnone
       · exact ih _ (by omega) _ _ rfl p hp hnone
 
-/-- A position the search queries undecided is where it stops. -/
+/-- A position the search asks undecided is where it stops. -/
 theorem tripartiteSearch_undecided {ag : ℕ → Option Bool} {lo hi p : ℕ}
-    (hp : p ∈ (tripartiteSearch false ag lo hi).2) (hnone : ag p = none) :
-    ((tripartiteSearch false ag lo hi).1 = .undecidedLo ∧ p = lo)
-      ∨ ((tripartiteSearch false ag lo hi).1 = .undecidedHi ∧ p = hi)
-      ∨ (tripartiteSearch false ag lo hi).1 = .undecidedMid p := by
-  unfold tripartiteSearch at hp ⊢
+    (hp : p ∈ (tripartiteQ false lo hi).reads ag) (hnone : ag p = none) :
+    (tripartiteSearch false ag lo hi = .undecidedLo ∧ p = lo)
+      ∨ (tripartiteSearch false ag lo hi = .undecidedHi ∧ p = hi)
+      ∨ tripartiteSearch false ag lo hi = .undecidedMid p := by
+  rw [tripartiteQ_reads] at hp
+  rw [tripartiteSearch_eq]
   rcases hlo : ag lo with _ | b
-  · simp only [hlo, List.mem_singleton] at hp ⊢
+  · simp only [hlo, Finset.mem_insert, Finset.notMem_empty, or_false] at hp ⊢
     exact Or.inl ⟨trivial, hp⟩
   cases b
-  · simp only [hlo, List.mem_singleton] at hp ⊢
+  · simp only [hlo, Finset.mem_insert, Finset.notMem_empty, or_false] at hp ⊢
     subst hp; rw [hlo] at hnone; simp at hnone
-  simp only [hlo] at hp ⊢
+  simp only [hlo, Finset.mem_insert] at hp ⊢
   rcases hhi : ag hi with _ | b
-  · simp only [hhi, List.mem_cons, List.not_mem_nil, or_false] at hp ⊢
+  · simp only [hhi, Finset.notMem_empty, or_false] at hp ⊢
     rcases hp with rfl | rfl
     · rw [hlo] at hnone; simp at hnone
     · exact Or.inr (Or.inl ⟨trivial, rfl⟩)
   cases b
-  · simp only [hhi, List.mem_cons] at hp ⊢
+  · simp only [hhi] at hp ⊢
     rcases hp with rfl | rfl | hp
     · rw [hlo] at hnone; simp at hnone
     · rw [hhi] at hnone; simp at hnone
-    · exact Or.inr (Or.inr (bisectBoundary_undecided _ lo hi rfl p hp hnone))
-  · simp only [hhi, List.mem_cons, List.not_mem_nil, or_false] at hp ⊢
+    · exact Or.inr (Or.inr (bisectQ_undecided _ lo hi rfl p hp hnone))
+  · simp only [hhi, Finset.notMem_empty, or_false] at hp ⊢
     rcases hp with rfl | rfl
     · rw [hlo] at hnone; simp at hnone
     · rw [hhi] at hnone; simp at hnone
@@ -246,12 +185,12 @@ end Search
 section Probe
 
 theorem mem_posReads {rd : FreeMonoid α → ARU} {T : DTree α} {x w : FreeMonoid α}
-    {ps : List ℕ} : w ∈ posReads rd T x ps ↔ ∃ p ∈ ps, w ∈ siftReads rd T (prefixOf x p) := by
+    {ps : Finset ℕ} : w ∈ posReads rd T x ps ↔ ∃ p ∈ ps, w ∈ siftReads rd T (prefixOf x p) := by
   classical
   simp [posReads]
 
 theorem posReads_congr {rd rd' : FreeMonoid α → ARU} {T : DTree α} {x : FreeMonoid α}
-    {ps : List ℕ} (h : ∀ w ∈ posReads rd T x ps, rd w = rd' w) :
+    {ps : Finset ℕ} (h : ∀ w ∈ posReads rd T x ps, rd w = rd' w) :
     (∀ p ∈ ps, T.sift rd' (prefixOf x p) = T.sift rd (prefixOf x p))
       ∧ posReads rd' T x ps = posReads rd T x ps := by
   classical
@@ -260,48 +199,46 @@ theorem posReads_congr {rd rd' : FreeMonoid α → ARU} {T : DTree α} {x : Free
     siftReads_congr T _ fun w hw => h w (mem_posReads.2 ⟨p, hp, hw⟩)
   refine ⟨fun p hp' => (hp p hp').1, ?_⟩
   unfold posReads
-  exact Finset.biUnion_congr rfl fun p hp' => (hp p (List.mem_toFinset.1 hp')).2
+  exact Finset.biUnion_congr rfl fun p hp' => (hp p hp').2
 
 variable {rd rd' : FreeMonoid α → ARU} {T : DTree α} {x : FreeMonoid α}
 
 /-- Agreeing on what a search reads gives the same search, outcome and reads. -/
 theorem search_congr (st : ℕ → List Bool) (lo hi : ℕ)
-    (h : ∀ w ∈ posReads rd T x (searchPos (tripartiteSearch false (siftAgrees rd T x st) lo hi)
-      hi), rd w = rd' w) :
+    (h : ∀ w ∈ posReads rd T x (searchPos (siftAgrees rd T x st) lo hi), rd w = rd' w) :
     tripartiteSearch false (siftAgrees rd' T x st) lo hi
         = tripartiteSearch false (siftAgrees rd T x st) lo hi
-      ∧ posReads rd' T x (searchPos (tripartiteSearch false (siftAgrees rd' T x st) lo hi) hi)
-        = posReads rd T x (searchPos (tripartiteSearch false (siftAgrees rd T x st) lo hi) hi)
-      ∧ ∀ un, searchOutcome rd' T x st un hi
-          (tripartiteSearch false (siftAgrees rd' T x st) lo hi).1
-        = searchOutcome rd T x st un hi
-          (tripartiteSearch false (siftAgrees rd T x st) lo hi).1 := by
+      ∧ posReads rd' T x (searchPos (siftAgrees rd' T x st) lo hi)
+        = posReads rd T x (searchPos (siftAgrees rd T x st) lo hi)
+      ∧ ∀ un, searchOutcome rd' T x st un hi (tripartiteSearch false (siftAgrees rd' T x st) lo hi)
+        = searchOutcome rd T x st un hi (tripartiteSearch false (siftAgrees rd T x st) lo hi) := by
   obtain ⟨hs, hp⟩ := posReads_congr h
-  have hts : tripartiteSearch false (siftAgrees rd' T x st) lo hi
-      = tripartiteSearch false (siftAgrees rd T x st) lo hi :=
-    tripartiteSearch_congrQ fun i hi' => by
-      unfold siftAgrees
-      rw [hs i (List.mem_append_left _ hi')]
-  rw [hts]
+  obtain ⟨hts, hrs⟩ := Query.eval_congr (siftAgrees rd T x st) (tripartiteQ false lo hi)
+    (o' := siftAgrees rd' T x st) fun i hi' => by
+      rw [siftAgrees_eq, siftAgrees_eq, hs i (Finset.mem_union_left _ hi')]
+  have hsp : searchPos (siftAgrees rd' T x st) lo hi = searchPos (siftAgrees rd T x st) lo hi := by
+    unfold searchPos
+    rw [hrs]
+    exact congrArg _ (congrArg (resultPos · hi) hts)
+  change tripartiteSearch false (siftAgrees rd' T x st) lo hi
+    = tripartiteSearch false (siftAgrees rd T x st) lo hi at hts
+  rw [hts, hsp]
   refine ⟨rfl, hp, fun un => ?_⟩
-  generalize hres : tripartiteSearch false (siftAgrees rd T x st) lo hi = res at hs
-  obtain ⟨r1, r2⟩ := res
-  have hx : ∀ p ∈ (match r1 with
-      | .edge p => [p - 1, p]
-      | .undecidedMid p => [p]
-      | .undecidedHi => [hi]
-      | _ => []), T.sift rd' (prefixOf x p) = T.sift rd (prefixOf x p) :=
-    fun p hp' => hs p (List.mem_append_right _ hp')
-  cases r1 with
+  have hx : ∀ p ∈ resultPos (tripartiteSearch false (siftAgrees rd T x st) lo hi) hi,
+      T.sift rd' (prefixOf x p) = T.sift rd (prefixOf x p) :=
+    fun p hp' => hs p (Finset.mem_union_right _ hp')
+  generalize tripartiteSearch false (siftAgrees rd T x st) lo hi = r at hx
+  cases r with
   | edge p =>
-    simp only [List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq] at hx
-    simp only [searchOutcome, hx.2]
+    simp only [resultPos, Finset.mem_insert, Finset.mem_singleton, forall_eq_or_imp,
+      forall_eq] at hx
+    simp only [searchOutcome_eq, hx.2]
   | undecidedMid p =>
-    simp only [List.mem_singleton, forall_eq] at hx
-    simp only [searchOutcome, undecidedAt, hx]
+    simp only [resultPos, Finset.mem_singleton, forall_eq] at hx
+    simp only [searchOutcome_eq, undecidedAt_eq, hx]
   | undecidedHi =>
-    simp only [List.mem_singleton, forall_eq] at hx
-    simp only [searchOutcome, undecidedAt, hx]
+    simp only [resultPos, Finset.mem_singleton, forall_eq] at hx
+    simp only [searchOutcome_eq, undecidedAt_eq, hx]
   | _ => rfl
 
 variable (E : Edges α) (k : ℕ)
@@ -311,14 +248,15 @@ theorem probeReads_congr (h : ∀ w ∈ probeReads rd T E k x, rd w = rd' w) :
     probeOrAgree rd' T E k x = probeOrAgree rd T E k x
       ∧ probeReads rd' T E k x = probeReads rd T E k x := by
   classical
-  unfold probeOrAgree probeReads at *
+  rw [probeOrAgree_eq, probeOrAgree_eq]
+  unfold probeReads at *
   by_cases hk : x.toList.length < k
   · simp [hk]
   simp only [hk, if_false] at h ⊢
   have h0 : ∀ w ∈ siftReads rd T (prefixOf x k), rd w = rd' w :=
     fun w hw => h w (Finset.mem_union_left _ hw)
   obtain ⟨hs0, hr0⟩ := siftReads_congr T _ h0
-  unfold probe
+  rw [probe_eq, probe_eq]
   rw [hs0, hr0]
   rcases ha : T.sift rd (prefixOf x k) with a | z
   · rw [ha] at h
@@ -349,92 +287,91 @@ theorem probeReads_congr (h : ∀ w ∈ probeReads rd T E k x, rd w = rd' w) :
 
 /-- The positions a search reads lie between its ends. -/
 theorem searchPos_mem (ag : ℕ → Option Bool) {lo hi : ℕ} (hle : lo ≤ hi) :
-    ∀ p ∈ searchPos (tripartiteSearch false ag lo hi) hi, lo ≤ p ∧ p ≤ hi := by
+    ∀ p ∈ searchPos ag lo hi, lo ≤ p ∧ p ≤ hi := by
   intro p hp
   have hok := tripartiteSearch_ok (recover := false) (agrees := ag) hle
-  rcases List.mem_append.1 hp with hp | hp
-  · exact tripartiteSearch_mem false ag lo hi hle p hp
-  generalize (tripartiteSearch false ag lo hi).1 = r at hp hok
+  rcases Finset.mem_union.1 hp with hp | hp
+  · exact tripartiteQ_mem false ag lo hi hle p hp
+  generalize tripartiteSearch false ag lo hi = r at hp hok
   cases r with
   | edge q =>
     obtain ⟨h1, h2, -⟩ := hok
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    simp only [resultPos, Finset.mem_insert, Finset.mem_singleton] at hp
     omega
   | undecidedMid q =>
     obtain ⟨-, h1, h2, -⟩ := hok
-    simp only [List.mem_singleton] at hp
+    simp only [resultPos, Finset.mem_singleton] at hp
     omega
   | undecidedHi =>
-    simp only [List.mem_singleton] at hp
+    simp only [resultPos, Finset.mem_singleton] at hp
     omega
-  | _ => simp at hp
+  | _ => simp [resultPos] at hp
 
 /-- A string a search reads undecided is the one its outcome carries. -/
 theorem search_undecided (st : ℕ → List Bool) (un : Option (α × List Bool)) {lo hi : ℕ}
     (hle : lo ≤ hi) (hlo : T.sift rd (prefixOf x lo) = .inl (st lo)) {w : FreeMonoid α}
-    (hw : w ∈ posReads rd T x (searchPos (tripartiteSearch false (siftAgrees rd T x st) lo hi)
-      hi)) (hu : rd w = .undecided) :
+    (hw : w ∈ posReads rd T x (searchPos (siftAgrees rd T x st) lo hi))
+    (hu : rd w = .undecided) :
     w ∈ endsString (searchOutcome rd T x st un hi
-        (tripartiteSearch false (siftAgrees rd T x st) lo hi).1)
+        (tripartiteSearch false (siftAgrees rd T x st) lo hi))
       ∨ w ∈ middleString (searchOutcome rd T x st un hi
-        (tripartiteSearch false (siftAgrees rd T x st) lo hi).1) := by
+        (tripartiteSearch false (siftAgrees rd T x st) lo hi)) := by
   obtain ⟨p, hp, hwp⟩ := mem_posReads.1 hw
   have hsp := siftReads_undecided T _ w hwp hu
-  have hag : siftAgrees rd T x st p = none := by simp [siftAgrees, hsp]
-  have hag0 : siftAgrees rd T x st lo = some true := by simp [siftAgrees, hlo]
+  have hag : siftAgrees rd T x st p = none := by simp [siftAgrees_eq, hsp]
+  have hag0 : siftAgrees rd T x st lo = some true := by simp [siftAgrees_eq, hlo]
   have hok := tripartiteSearch_ok (recover := false) (agrees := siftAgrees rd T x st) hle
-  rcases List.mem_append.1 hp with hq | hx
+  rcases Finset.mem_union.1 hp with hq | hx
   · rcases tripartiteSearch_undecided hq hag with ⟨-, rfl⟩ | ⟨h1, rfl⟩ | h1
     · rw [hag0] at hag; simp at hag
-    · rw [h1]; left; simp [searchOutcome, undecidedAt, hsp, endsString]
-    · rw [h1]; right; simp [searchOutcome, undecidedAt, hsp, middleString]
-  generalize (tripartiteSearch false (siftAgrees rd T x st) lo hi).1 = r at hx hok ⊢
+    · rw [h1]; left; simp [searchOutcome_eq, undecidedAt_eq, hsp, endsString]
+    · rw [h1]; right; simp [searchOutcome_eq, undecidedAt_eq, hsp, middleString]
+  generalize tripartiteSearch false (siftAgrees rd T x st) lo hi = r at hx hok ⊢
   cases r with
   | edge q =>
     obtain ⟨-, -, h3, h4⟩ := hok
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
+    simp only [resultPos, Finset.mem_insert, Finset.mem_singleton] at hx
     rcases hx with rfl | rfl
     · rw [h3] at hag; simp at hag
     · rw [h4] at hag; simp at hag
   | undecidedMid q =>
-    simp only [List.mem_singleton] at hx
+    simp only [resultPos, Finset.mem_singleton] at hx
     subst hx
-    right; simp [searchOutcome, undecidedAt, hsp, middleString]
+    right; simp [searchOutcome_eq, undecidedAt_eq, hsp, middleString]
   | undecidedHi =>
-    simp only [List.mem_singleton] at hx
+    simp only [resultPos, Finset.mem_singleton] at hx
     subst hx
-    left; simp [searchOutcome, undecidedAt, hsp, endsString]
-  | _ => simp at hx
+    left; simp [searchOutcome_eq, undecidedAt_eq, hsp, endsString]
+  | _ => simp [resultPos] at hx
 
 open scoped Classical in
 /-- An edge a search's outcome names sifts its two strings with reads the search makes. -/
 theorem search_edge (st : ℕ → List Bool) (un : Option (α × List Bool)) {lo hi : ℕ}
     (hle : lo ≤ hi) {p : List Bool} {c : α} {u : FreeMonoid α} {t : List Bool} :
-    (searchOutcome rd T x st un hi (tripartiteSearch false (siftAgrees rd T x st) lo hi).1
+    (searchOutcome rd T x st un hi (tripartiteSearch false (siftAgrees rd T x st) lo hi)
         = .wrongEdge p c u t →
       ∀ w ∈ siftReads rd T u ∪ siftReads rd T (u * FreeMonoid.of c),
-        w ∈ posReads rd T x (searchPos (tripartiteSearch false (siftAgrees rd T x st) lo hi) hi))
-    ∧ (searchOutcome rd T x st un hi (tripartiteSearch false (siftAgrees rd T x st) lo hi).1
+        w ∈ posReads rd T x (searchPos (siftAgrees rd T x st) lo hi))
+    ∧ (searchOutcome rd T x st un hi (tripartiteSearch false (siftAgrees rd T x st) lo hi)
         = .unlearnedEdge p c u t → un = some (c, t) ∧ u = prefixOf x hi
       ∧ ∀ w ∈ siftReads rd T u,
-        w ∈ posReads rd T x (searchPos (tripartiteSearch false (siftAgrees rd T x st) lo hi)
-          hi)) := by
+        w ∈ posReads rd T x (searchPos (siftAgrees rd T x st) lo hi)) := by
   have hok := tripartiteSearch_ok (recover := false) (agrees := siftAgrees rd T x st) hle
-  have hall : (tripartiteSearch false (siftAgrees rd T x st) lo hi).1 = .allAgree →
-      hi ∈ (tripartiteSearch false (siftAgrees rd T x st) lo hi).2 := by
+  have hall : tripartiteSearch false (siftAgrees rd T x st) lo hi = .allAgree →
+      hi ∈ (tripartiteQ false lo hi).reads (siftAgrees rd T x st) := by
     intro h
     rw [h] at hok
     obtain ⟨h1, h2⟩ := hok
-    simp [tripartiteSearch, h1, h2]
+    rw [tripartiteQ_reads]
+    simp [h1, h2]
   unfold searchPos
-  generalize (tripartiteSearch false (siftAgrees rd T x st) lo hi) = res at hok hall ⊢
-  obtain ⟨r1, r2⟩ := res
-  dsimp only at hok hall ⊢
+  generalize (tripartiteQ false lo hi).reads (siftAgrees rd T x st) = R at hall ⊢
+  generalize tripartiteSearch false (siftAgrees rd T x st) lo hi = r1 at hok hall ⊢
   cases r1 with
   | edge q =>
     obtain ⟨h1, -, -, -⟩ := hok
     refine ⟨fun h w hw => ?_, fun h => ?_⟩
-    · simp only [searchOutcome] at h
+    · simp only [searchOutcome_eq] at h
       split at h
       · rename_i c' t' hc ht
         simp only [Outcome.wrongEdge.injEq] at h
@@ -444,23 +381,23 @@ theorem search_edge (st : ℕ → List Bool) (un : Option (α × List Bool)) {lo
         rw [hq] at hw
         refine mem_posReads.2 ?_
         rcases Finset.mem_union.1 hw with hw | hw
-        · exact ⟨q - 1, List.mem_append_right _ (by simp), hw⟩
-        · exact ⟨q, List.mem_append_right _ (by simp), hw⟩
+        · exact ⟨q - 1, Finset.mem_union_right _ (by simp [resultPos]), hw⟩
+        · exact ⟨q, Finset.mem_union_right _ (by simp [resultPos]), hw⟩
       · simp at h
-    · simp only [searchOutcome] at h
+    · simp only [searchOutcome_eq] at h
       split at h <;> simp at h
   | allAgree =>
     refine ⟨fun h => ?_, fun h => ?_⟩
-    · simp only [searchOutcome] at h
+    · simp only [searchOutcome_eq] at h
       split at h <;> simp at h
-    · simp only [searchOutcome] at h
+    · simp only [searchOutcome_eq] at h
       split at h
       · rename_i c' t'
         simp only [Outcome.unlearnedEdge.injEq] at h
         obtain ⟨-, rfl, rfl, rfl⟩ := h
-        exact ⟨rfl, rfl, fun w hw => mem_posReads.2 ⟨hi, List.mem_append_left _ (hall rfl), hw⟩⟩
+        exact ⟨rfl, rfl, fun w hw => mem_posReads.2 ⟨hi, Finset.mem_union_left _ (hall rfl), hw⟩⟩
       · simp at h
-  | _ => exact ⟨fun h => by simp [searchOutcome] at h, fun h => by simp [searchOutcome] at h⟩
+  | _ => exact ⟨fun h => by simp [searchOutcome_eq] at h, fun h => by simp [searchOutcome_eq] at h⟩
 
 /-- A string a probe reads undecided is the one it stops at, at its start or end or a middle. -/
 theorem probeReads_undecided {w : FreeMonoid α} (hw : w ∈ probeReads rd T E k x)
@@ -468,11 +405,11 @@ theorem probeReads_undecided {w : FreeMonoid α} (hw : w ∈ probeReads rd T E k
     w ∈ endsString (probeOrAgree rd T E k x) ∨ w ∈ middleString (probeOrAgree rd T E k x) := by
   classical
   unfold probeReads at hw
-  unfold probeOrAgree
+  rw [probeOrAgree_eq]
   by_cases hk : x.toList.length < k
   · simp [hk] at hw
   rw [if_neg hk] at hw ⊢
-  unfold probe
+  rw [probe_eq]
   rcases Finset.mem_union.1 hw with hw | hw
   · rw [siftReads_undecided T _ w hw hu]
     left; simp [endsString]
@@ -507,12 +444,12 @@ theorem probeReads_edge {p : List Bool} {c : α} {u : FreeMonoid α} {t : List B
       ∨ probeOrAgree rd T E k x = .unlearnedEdge p c u t) :
     ∀ w ∈ siftReads rd T u ∪ siftReads rd T (u * FreeMonoid.of c), w ∈ probeReads rd T E k x := by
   classical
-  unfold probeOrAgree at h
+  rw [probeOrAgree_eq] at h
   unfold probeReads
   by_cases hk : x.toList.length < k
   · simp [hk] at h
   rw [if_neg hk] at h ⊢
-  unfold probe at h
+  rw [probe_eq] at h
   intro w hw
   refine Finset.mem_union_right _ ?_
   rcases ha : T.sift rd (prefixOf x k) with a | z
@@ -558,7 +495,7 @@ theorem probeReads_pot : probeReads rd T E k x ⊆ pot k x T := by
     obtain ⟨m, hm, rfl⟩ := siftReads_mids T _ w hwp
     exact mem_pot h1 h2 hm
   have hpos : ∀ (st : ℕ → List Bool) (hi : ℕ), k ≤ hi → hi ≤ x.toList.length →
-      w ∈ posReads rd T x (searchPos (tripartiteSearch false (siftAgrees rd T x st) k hi) hi) →
+      w ∈ posReads rd T x (searchPos (siftAgrees rd T x st) k hi) →
       w ∈ pot k x T := fun st hi h1 h2 hwp => by
     obtain ⟨p, hp, hwp⟩ := mem_posReads.1 hwp
     obtain ⟨h3, h4⟩ := searchPos_mem _ h1 p hp
@@ -589,32 +526,31 @@ theorem probeReads_pot : probeReads rd T E k x ⊆ pot k x T := by
   · rw [ha] at hw; simp at hw
 
 
-/-- A search reads the sifts only of the positions it queries. -/
+/-- A search reads the sifts only of the positions it asks. -/
 theorem searchPos_sub (ag : ℕ → Option Bool) {lo hi : ℕ} (hle : lo ≤ hi) :
-    ∀ p ∈ searchPos (tripartiteSearch false ag lo hi) hi,
-      p ∈ (tripartiteSearch false ag lo hi).2 := by
+    searchPos ag lo hi ⊆ (tripartiteQ false lo hi).reads ag := by
   intro p hp
-  rcases List.mem_append.1 hp with hp | hp
+  rcases Finset.mem_union.1 hp with hp | hp
   · exact hp
   have he := tripartiteSearch_edge_mem ag lo hi hle
   have hm := tripartiteSearch_undecidedMid_mem ag lo hi
   have hh := tripartiteSearch_undecidedHi_mem ag lo hi
-  generalize (tripartiteSearch false ag lo hi).1 = r at hp he hm hh
+  generalize tripartiteSearch false ag lo hi = r at hp he hm hh
   cases r with
   | edge q =>
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    simp only [resultPos, Finset.mem_insert, Finset.mem_singleton] at hp
     rcases hp with rfl | rfl
     · exact (he _ rfl).2
     · exact (he _ rfl).1
   | undecidedMid q =>
-    simp only [List.mem_singleton] at hp
+    simp only [resultPos, Finset.mem_singleton] at hp
     subst hp
     exact hm _ rfl
   | undecidedHi =>
-    simp only [List.mem_singleton] at hp
+    simp only [resultPos, Finset.mem_singleton] at hp
     subst hp
     exact hh rfl
-  | _ => simp at hp
+  | _ => simp [resultPos] at hp
 
 theorem siftReads_card (rd : FreeMonoid α → ARU) (T : DTree α) (z : FreeMonoid α) :
     (siftReads rd T z).card ≤ (mids T).card := by
@@ -625,61 +561,59 @@ theorem siftReads_card (rd : FreeMonoid α → ARU) (T : DTree α) (z : FreeMono
   exact (Finset.card_le_card this).trans Finset.card_image_le
 
 theorem posReads_card (rd : FreeMonoid α → ARU) (T : DTree α) (x : FreeMonoid α)
-    (ps : List ℕ) : (posReads rd T x ps).card ≤ ps.toFinset.card * (mids T).card := by
+    (ps : Finset ℕ) : (posReads rd T x ps).card ≤ ps.card * (mids T).card := by
   classical
   unfold posReads
   refine Finset.card_biUnion_le.trans ?_
-  calc _ ≤ ∑ _p ∈ ps.toFinset, (mids T).card :=
+  calc _ ≤ ∑ _p ∈ ps, (mids T).card :=
         Finset.sum_le_sum fun p _ => siftReads_card rd T _
     _ = _ := by rw [Finset.sum_const, smul_eq_mul]
 
 /-- A probe at most `L` long reads the sifts of at most `3 + ⌈log₂ L⌉` of its prefixes: its
-search's queries, the first its start, and the successor of the walk's end. -/
+search's, the first its start, and the successor of the walk's end. -/
 theorem probeReads_sub {L : ℕ} (hx : x.toList.length ≤ L) :
-    ∃ ps : List ℕ, ps.toFinset.card ≤ 3 + Nat.clog 2 L
+    ∃ ps : Finset ℕ, ps.card ≤ 3 + Nat.clog 2 L
       ∧ probeReads rd T E k x ⊆ posReads rd T x ps := by
   classical
   unfold probeReads
   by_cases hk : x.toList.length < k
-  · exact ⟨[], by simp, by simp [hk]⟩
+  · exact ⟨∅, by simp, by simp [hk]⟩
   rw [if_neg hk]
   rcases ha : T.sift rd (prefixOf x k) with a | z
   · dsimp only
     obtain ⟨hpos, hhix, -⟩ := walk_facts E k x (p₀ := a) (by omega)
     generalize walk E a (x.toList.drop k) = ss at hpos hhix ⊢
-    refine ⟨(k + ss.length - 1 + 1) :: (tripartiteSearch false
-      (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1)).2, ?_, ?_⟩
-    · have h1 := tripartiteSearch_length_noRecovery
+    refine ⟨insert (k + ss.length - 1 + 1) ((tripartiteQ false k (k + ss.length - 1)).reads
+      (siftAgrees rd T x fun p => ss.getD (p - k) [])), ?_, ?_⟩
+    · have h1 := tripartiteQ_card_noRecovery
         (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1)
       have h2 := Nat.clog_mono_right 2 (show k + ss.length - 1 - k ≤ L by omega)
-      rw [List.toFinset_cons]
-      have h3 := List.toFinset_card_le (tripartiteSearch false
-        (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1)).2
-      have h4 := Finset.card_insert_le (k + ss.length - 1 + 1) (tripartiteSearch false
-        (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1)).2.toFinset
+      have h4 := Finset.card_insert_le (k + ss.length - 1 + 1) ((tripartiteQ false k
+        (k + ss.length - 1)).reads (siftAgrees rd T x fun p => ss.getD (p - k) []))
       omega
-    · have hsr : posReads rd T x (searchPos (tripartiteSearch false
-          (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1))
+    · have hsr : posReads rd T x (searchPos (siftAgrees rd T x fun p => ss.getD (p - k) []) k
           (k + ss.length - 1)) ⊆ posReads rd T x
-          ((k + ss.length - 1 + 1) :: (tripartiteSearch false
-            (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1)).2) :=
+          (insert (k + ss.length - 1 + 1) ((tripartiteQ false k (k + ss.length - 1)).reads
+            (siftAgrees rd T x fun p => ss.getD (p - k) []))) :=
         fun w hw => by
           obtain ⟨p, hp, hwp⟩ := mem_posReads.1 hw
-          exact mem_posReads.2 ⟨p, List.mem_cons_of_mem _ (searchPos_sub _ (by omega) p hp),
+          exact mem_posReads.2 ⟨p, Finset.mem_insert_of_mem (searchPos_sub _ (by omega) hp),
             hwp⟩
       have hst : ∀ w ∈ siftReads rd T (prefixOf x k), w ∈ posReads rd T x
-          ((k + ss.length - 1 + 1) :: (tripartiteSearch false
-            (siftAgrees rd T x fun p => ss.getD (p - k) []) k (k + ss.length - 1)).2) :=
-        fun w hw => mem_posReads.2 ⟨k, List.mem_cons_of_mem _ (tripartiteSearch_lo_mem _ _ _), hw⟩
+          (insert (k + ss.length - 1 + 1) ((tripartiteQ false k (k + ss.length - 1)).reads
+            (siftAgrees rd T x fun p => ss.getD (p - k) []))) :=
+        fun w hw => mem_posReads.2
+          ⟨k, Finset.mem_insert_of_mem (tripartiteSearch_lo_mem _ _ _), hw⟩
       refine Finset.union_subset hst ?_
       split
-      · refine Finset.union_subset (fun w hw => mem_posReads.2 ⟨_, List.mem_cons_self, hw⟩) ?_
+      · refine Finset.union_subset
+          (fun w hw => mem_posReads.2 ⟨_, Finset.mem_insert_self _ _, hw⟩) ?_
         split
         · exact Finset.empty_subset _
         · exact hsr
       · exact hsr
-  · exact ⟨[k], by simp; omega, Finset.union_subset (fun w hw =>
-      mem_posReads.2 ⟨k, List.mem_singleton_self _, hw⟩) (Finset.empty_subset _)⟩
+  · exact ⟨{k}, by simp; omega, Finset.union_subset (fun w hw =>
+      mem_posReads.2 ⟨k, Finset.mem_singleton_self _, hw⟩) (Finset.empty_subset _)⟩
 
 end Probe
 

@@ -194,7 +194,7 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit : ℝ)
         (probesLen (probesOf settings P.D K₀ v) + 1 + T + 2) →
         fam'.read (ω, ω₀) z = fam'.read (ω', ω₀) z := by
       intro z hz
-      unfold SuffixFamily.read familyRead voteCount
+      (unfold SuffixFamily.read; simp only [familyRead_eq]; unfold voteCount)
       congr 2
       refine Finset.filter_congr fun v' hv => ?_
       by_cases hzv : z * v' ∈ R

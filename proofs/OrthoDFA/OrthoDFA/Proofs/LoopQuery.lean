@@ -83,8 +83,6 @@ lemma eval_popDrawsQ (D : Measure (FreeMonoid α)) (k N M : ℕ) (pops : List (H
   simp only [Option.map_some, eval_subst]
   rw [← eval_drawManyFirstQ]
   congr 1
-  funext z
-  exact eval_familyReadQ_mq O.mq ω _ _ _ z
 
 /-- A draw's noise folded away. -/
 def Draws.flat {S J : Type*} (dr : Draws Ω S J) : Draws Unit S J := (((), dr.1.2), dr.2)
@@ -176,13 +174,12 @@ lemma eval_roundQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) 
         xs.1 := by
     funext z
     rw [hxs1]
-    exact eval_familyReadQ_mq O.mq ω _ _ _ z
-  rw [hF, eval_map, eval_subst, hread, eval_level3Q]
+    rfl
+  rw [hF, eval_map, eval_subst, hread]
   have hres : (roundOf settings O D (h.spec O ω) xs d.2).result
-      = Random.indecisiveLStarLevel3 settings.level3
-        (fun z => familyRead O.mq (clusterAt O.mq ps xs B) B.lo (B.hi + 1) z xs.1)
-        (fun i => drawFrom (avoidLaw D settings.level3.walkStart
-          (clusterKeys sched ps settings.level3.walkStart xc)) (d.2 i)) := by
+      = (Random.level3Q settings.level3 (fun i => drawFrom (avoidLaw D settings.level3.walkStart
+          (clusterKeys sched ps settings.level3.walkStart xc)) (d.2 i))).eval
+        (fun z => familyRead O.mq (clusterAt O.mq ps xs B) B.lo (B.hi + 1) z xs.1) := by
     simp only [roundOf, hlen]; rfl
   rw [← hres]
   refine ⟨?_, fun o ho => ?_⟩
@@ -386,8 +383,7 @@ theorem card_reads_roundQ_le (settings : LoopSettings K) (D Dsf : Measure (FreeM
   split_ifs at hleaf ⊢ with hex
   swap
   · simp
-  simp only [eval_map, eval_subst, eval_level3Q, Option.mem_def, Option.some.injEq,
-    forall_eq'] at hleaf
+  simp only [eval_map, eval_subst, Option.mem_def, Option.some.injEq, forall_eq'] at hleaf
   set t := (Query.table (clusterReads sched ps x).toList).eval o
   have hBs := (Classical.epsilon_spec (p := fun B => B ∈ sched ∧ x ∈ ret (fun w _ => t w) ps
     none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
@@ -642,7 +638,7 @@ end Reads
 
 section Learner
 
-omit [Fintype α] [DecidableEq α] in
+omit [DecidableEq α] in
 /-- The leaf picked depends on the read only at the held-out strings. -/
 lemma pickLeaf_congr (H : HypothesisDFA α) {read read' : FreeMonoid α → ARU} {n : ℕ}
     (xs : Fin n → FreeMonoid α) (h : ∀ i, read (xs i) = read' (xs i)) :
@@ -653,14 +649,7 @@ lemma pickLeaf_congr (H : HypothesisDFA α) {read read' : FreeMonoid α → ARU}
     congr 2
     funext i
     rw [h i]
-  simp only [pickLeaf, this]
-
-omit [DecidableEq α] in
-lemma eval_pickLeafQ (H : HypothesisDFA α) {n : ℕ} (xs : Fin n → FreeMonoid α)
-    (read : FreeMonoid α → ARU) : (pickLeafQ H xs).eval read = pickLeaf H read xs := by
-  unfold pickLeafQ
-  rw [eval_map]
-  exact pickLeaf_congr H xs fun i => eval_table_of_mem _ (List.mem_ofFn.2 ⟨i, rfl⟩)
+  simp only [pickLeaf_eq, this]
 
 omit [DecidableEq α] in
 lemma card_reads_pickLeafQ_le (H : HypothesisDFA α) {n : ℕ} (xs : Fin n → FreeMonoid α)
@@ -687,7 +676,6 @@ theorem indecisiveLStar_eq (settings : LoopSettings K) (D Dsf : Measure (FreeMon
         (rounds, startLeaf O p.1 rounds xs) := by
   unfold indecisiveLStar learnerQ
   rw [eval_bind]
-  change _ = (indecisiveLStarLoop settings O D Dsf p).map _
   unfold indecisiveLStarLoop
   rcases (loopQ settings D Dsf p.2).eval (fun w => O.mq w p.1) with _ | rounds
   · rfl
@@ -697,10 +685,6 @@ theorem indecisiveLStar_eq (settings : LoopSettings K) (D Dsf : Measure (FreeMon
   simp only
   rw [eval_map, eval_subst]
   congr 2
-  rw [show (fun q => (familyReadQ o.family o.state.lo (o.state.hi + 1) q).eval
-      (fun w => O.mq w p.1)) = o.read O p.1 from funext fun z =>
-    eval_familyReadQ_mq O.mq p.1 _ _ _ z]
-  exact eval_pickLeafQ _ _ _
 
 /-- The learner, where the loop returns `rounds` whose trees have at most `q + 2` leaves and whose
 harvested draws walk at most `W` probes a round, asks the loop's strings and, at the last round's

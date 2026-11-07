@@ -24,7 +24,7 @@ variable [DecidableEq α] [Countable α] (D : Measure (FreeMonoid α)) (H : Hypo
 
 theorem stuckString_fresh (x : FreeMonoid α) : (stuckString read H k x).Nodup
     ∧ ∀ z ∈ stuckString read H k x, z.toList.take k = x.toList.take k := by
-  unfold stuckString probeOrAgree
+  (unfold stuckString; simp only [probeOrAgree_eq])
   split_ifs with hkx
   · simp [Outcome.undecidedStrings]
   · refine ⟨?_, fun z hz => preFrom_take (by omega) (probe_pre read H.tree H.edges k x z hz)⟩
@@ -35,7 +35,7 @@ theorem stuckString_fresh (x : FreeMonoid α) : (stuckString read H k x).Nodup
     · rw [h] at this; simp at this
 
 theorem stuckString_length (x : FreeMonoid α) : (stuckString read H k x).length ≤ 1 := by
-  unfold stuckString probeOrAgree
+  (unfold stuckString; simp only [probeOrAgree_eq])
   split_ifs
   · simp [Outcome.undecidedStrings]
   · exact probe_length read H.tree H.edges k x

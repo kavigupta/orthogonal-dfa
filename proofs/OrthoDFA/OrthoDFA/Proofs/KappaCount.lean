@@ -273,7 +273,7 @@ theorem probeReads_card {s : Level3State α} (hW : WitInv M side s) {x : FreeMon
       ≤ (3 + Nat.clog 2 L) * Fintype.card σ := by
     obtain ⟨ps, hps, hsub⟩ := probeReads_sub (rd := read) (T := s.tree) s.edges C.walkStart hx
     calc _ ≤ (posReads read s.tree x ps).card := Finset.card_le_card hsub
-      _ ≤ ps.toFinset.card * (mids s.tree).card := posReads_card _ _ _ _
+      _ ≤ ps.card * (mids s.tree).card := posReads_card _ _ _ _
       _ ≤ _ := Nat.mul_le_mul hps hmid
   unfold probeSifts
   rcases le_total (L + 1) (3 + Nat.clog 2 L) with h | h
@@ -635,22 +635,22 @@ theorem claim_succ (L : ℕ) (hL : ∀ x ∈ xs, x.toList.length ≤ L) {n : ℕ
         ∧ (splitLeaf r s p c t t₀).edges = s.edges) := by
       rintro ⟨ht, -⟩
       have := congrArg (fun T => T.leaves.length) ht
-      simp only [splitLeaf, newHypothesis] at this
+      simp only [splitLeaf_eq, newHypothesis] at this
       omega
-    obtain ⟨hI1, hW1, -, -, hΨ⟩ := kappa_step_change M side r C hI.inv hI.wit hnw hap hne
+    obtain ⟨hI1, hW1, -, hhy, hΨ⟩ := kappa_step_change M side r C hI.inv hI.wit hnw hap hne
     rw [ho_def] at ho
     subst ho
     have hU0 : U0 ≤ 0 := by simpa [endsString, middleString] using hu0r
     have hl : ((splitLeaf r s p c t t₀).tree.leaves.length : ℝ) - s.tree.leaves.length = 1 := by
-      simp only [splitLeaf, newHypothesis]; rw [hlen]; push_cast; ring
+      simp only [splitLeaf_eq, newHypothesis]; rw [hlen]; push_cast; ring
     have hA := costAt_nonneg C (level_le_one hδ0 hδ1 (s.hypotheses + 1)).1
       (level_le_one hδ0 hδ1 (s.hypotheses + 1)).2
     have hph := phiU_fresh (C := C) (Fintype.card σ) (Fintype.card α)
-      (s' := splitLeaf r s p c t t₀) rfl (by simp [cost, splitLeaf, newHypothesis]) hcost
+      (s' := splitLeaf r s p c t t₀) hhy (by simp [cost, splitLeaf_eq, newHypothesis]) hcost
     rw [hl] at hph hpB
-    refine ⟨⟨hI1, hW1, ?_, rfl, ?_⟩, ?_, ?_⟩
-    · have := hI.hyp; simp only [splitLeaf, newHypothesis] at hΨ ⊢; omega
-    · simp [cost, splitLeaf, newHypothesis, hA]
+    refine ⟨⟨hI1, hW1, ?_, by rw [splitLeaf_eq]; rfl, ?_⟩, ?_, ?_⟩
+    · have := hI.hyp; simp only [splitLeaf_eq, newHypothesis] at hΨ ⊢; omega
+    · simp [cost, splitLeaf_eq, newHypothesis, hA]
     · linarith
     · linarith
   · -- counted
