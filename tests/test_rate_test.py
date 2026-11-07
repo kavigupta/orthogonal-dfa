@@ -26,7 +26,7 @@ def chance_of(verdict, theta, a, n0, n, *, p):
 
 
 def lean_rate_side(theta, a, n0, n, h):
-    """``rateSide θ a n₀ n h`` of ``OrthoDFA/RateTest.lean``, in exact arithmetic."""
+    """``rateSide θ a n₀ n h`` of OrthoDFA/Code/RateTest.lean, in exact arithmetic."""
 
     def sf_ge(j):
         return sum(

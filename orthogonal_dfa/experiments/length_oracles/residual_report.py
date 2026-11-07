@@ -13,7 +13,15 @@ import numpy as np
 from orthogonal_dfa.l_star.dfa_utils import phi_maximizing_states
 
 from . import label
-from .residual import RUNS, end_states, first_stage, offsets, saved_centred_scores
+from .residual import (
+    RUNS,
+    SEEDS,
+    end_states,
+    first_stage,
+    offsets,
+    run_restarts,
+    saved_centred_scores,
+)
 
 PRODUCTS = RUNS.parent / "residual_products.json"
 
@@ -87,16 +95,12 @@ def main():
     strings, labels = label.saved_labels()
     flat = labels["flat"].astype(bool)
     scores = saved_centred_scores(0, label.COUNT)
-    with open(RUNS) as f:
-        restarts = [r for r in json.load(f)["restarts"] if r["oracle"] == "residual"]
     out = []
-    for seed in sorted({r["seed"] for r in restarts}):
+    for seed in SEEDS:
         stage = first_stage(seed)
         q1 = end_states(stage, strings)
         residual = scores > offsets(stage)[q1]
-        kept = max(
-            (r for r in restarts if r["seed"] == seed), key=lambda r: r["pick_score"]
-        )
+        kept = max(run_restarts("residual", seed), key=lambda r: r["pick_score"])
         pairs = product(stage, kept["dfa"])
         cells = end_states(pairs, strings)
         dfa = minimize(pairs, accepting(cells, flat))
