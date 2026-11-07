@@ -226,34 +226,17 @@ class BestRound:
 
 def _certified(pst, dfa, vs, state, *, index, tracker):
     """denoise_accept_labels(dfa) if the certificate passes it, else None, with
-    the state it blames split into the next round's populations; and the state
-    it blames."""
+    the state it blames split into the next round's populations."""
     output = denoise_accept_labels(pst, dfa)
     # Spread over the rounds, whichever of them reach the certificate.
     verdict = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
     tracker.on_certificate_decided(verdict.certified, index)
     if verdict.certified:
         print(f"[round {index}] certified; stopping synthesis")
-        return output, None
+        return output
     print(f"[round {index}] at target, not certified; splitting {verdict.blamed}")
     _split_blamed(pst, output, vs, state, verdict, index=index)
-    return None, verdict.blamed
-
-
-def _next_harvest(pst, search, ending, blamed):
-    """The strings the next family search is shown, and what draws more of them:
-    a success the certificate refused shows the blamed state's undecided reads."""
-    draw = UniformSource(pst).draw
-    if blamed is None or ending.harvest:
-        return ending.harvest, Replay(search, harvest_reader(ending, search), draw)
-    leaf = search.hypothesis.tree.path_of(blamed)
-
-    def at_leaf(by_edge):
-        return [z for c in range(pst.alphabet_size) for z in by_edge.get((leaf, c), [])]
-
-    return at_leaf(search.counts.edge_harvest), Replay(
-        search, lambda charged: at_leaf(charged.undecided_by_edge), draw
-    )
+    return None
 
 
 def _uncertified_too_long(index, uncertified_since) -> bool:
@@ -513,11 +496,9 @@ def counterexample_driven_synthesis(
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
         # Only a round that would otherwise return is worth the certificate's reads.
-        output, blamed = None, None
+        output = None
         if true_acc >= acc_threshold:
-            output, blamed = _certified(
-                pst, dfa, vs, state, index=index, tracker=tracker
-            )
+            output = _certified(pst, dfa, vs, state, index=index, tracker=tracker)
             uncertified_since = (
                 index if uncertified_since is None else uncertified_since
             )
@@ -539,7 +520,10 @@ def counterexample_driven_synthesis(
             print(f"[round {index}] ran the {max_rounds} rounds asked for")
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-        strings, provenance = _next_harvest(pst, search, ending, blamed)
+        strings = ending.harvest
+        provenance = Replay(
+            search, harvest_reader(ending, search), UniformSource(pst).draw
+        )
         taken = _accumulate_harvest(strings, provenance, state, target)
         halved = (
             taken == 0
