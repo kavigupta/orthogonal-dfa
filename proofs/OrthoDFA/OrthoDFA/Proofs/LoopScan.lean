@@ -261,7 +261,7 @@ variable {μ : Measure Ω}
 /-- Runs with the same samples at every scheduled state, one of which returns, make the same
 round. -/
 theorem roundOf_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D : Measure (FreeMonoid α)) (h : LoopHist α) {r r' : Run Ω (FreeMonoid α) (Option (Fin K))}
+    (D : Measure (FreeMonoid α)) (h : SpecHist α) {r r' : Run Ω (FreeMonoid α) (Option (Fin K))}
     (hr : SameReads (settings.schedule (loopPopulations K h.pops.length))
       (loopPopulations K h.pops.length) r r')
     (hret : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
@@ -287,7 +287,7 @@ theorem roundOf_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
 /-- Where the filled draws after the history `h` hit, scan within `scanCap` and return at a
 scheduled state, the round is the one on the filled draws. -/
 theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
+    (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
     (hhit : (clusterDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap
       settings.scanCap h (d.1, d.2.1)).isSome)

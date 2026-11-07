@@ -1,6 +1,7 @@
 import OrthoDFA.LowLevelClaims.Level4Claim
 import OrthoDFA.Proofs.RandomCorrect
 import OrthoDFA.Proofs.EpsTrue
+import OrthoDFA.Proofs.Reads
 
 /-!
 # Level 4's steps
@@ -33,24 +34,6 @@ structure WitInv (s : Level3State α) : Prop where
   wit : ∀ p c t w, s.edges (p, c) = some (t, w) →
     leafOf M side s.tree (M.eval w.toList) = p
       ∧ leafOf M side s.tree (M.eval (w * FreeMonoid.of c).toList) = t
-
-open scoped Classical in
-/-- Each learned edge's witness's successor followed by a midfix of `T'`. -/
-noncomputable def resifts (s : Level3State α) (T' : DTree α) : Finset (FreeMonoid α) :=
-  (s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).biUnion fun e =>
-    match s.edges e with
-    | some (_, w) => (mids T').image ((w * FreeMonoid.of e.2) * ·)
-    | none => ∅
-
-/-- What a step's split re-sifts. -/
-noncomputable def splitReads (s : Level3State α) (x : FreeMonoid α) : Finset (FreeMonoid α) :=
-  match probeOrAgree read s.tree s.edges C.walkStart x with
-  | .wrongEdge p c _ t =>
-    match s.edges (p, c) with
-    | some (t₀, _) =>
-      resifts s (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p)
-    | none => ∅
-  | _ => ∅
 
 /-! ## The invariant -/
 
@@ -240,7 +223,7 @@ theorem probeOrAgree_congr {r r' : FreeMonoid α → ARU} {T : DTree α} {E : Ed
 omit [DecidableEq α] in
 theorem countProbe_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x : FreeMonoid α}
     (h : ∀ z ∈ pot 0 x s.tree, r z = r' z) : countProbe r C s x = countProbe r' C s x := by
-  simp only [countProbe, probeOrAgree_congr h]
+  simp only [countProbe, countOutcome, probeOrAgree_congr h]
 
 omit [DecidableEq α] in
 theorem splitReads_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x : FreeMonoid α}
@@ -255,7 +238,7 @@ theorem applyProbe_congr_of {r r' : FreeMonoid α → ARU} {s : Level3State α} 
       = probeOrAgree r' s.tree s.edges C.walkStart x)
     (h : ∀ z ∈ splitReads r C s x, r z = r' z) :
     applyProbe r C s x = applyProbe r' C s x := by
-  have hc : countProbe r C s x = countProbe r' C s x := by simp only [countProbe, ho]
+  have hc : countProbe r C s x = countProbe r' C s x := by simp only [countProbe, countOutcome, ho]
   unfold applyProbe
   rw [← ho, hc]
   rcases hpo : probeOrAgree r s.tree s.edges C.walkStart x with _ | ⟨p, c, u, t⟩ | _ | _ | _ <;>

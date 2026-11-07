@@ -117,7 +117,7 @@ lemma loopG_ge_one {x : LoopInputs} (hx : x ∈ loopRegion) : 1 ≤ loopG x := b
     ((le_div_iff₀ hs).2 (by linarith)) le_rfl).1
 
 theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUniform.{u, v, w} := by
-  obtain ⟨p₀Tol, tp, ts, tpr, ho, hp₀, hpref, hsuff, hprobes, hho, hpos, hw⟩ := h
+  obtain ⟨p₀Tol, tp, ts, tpr, tr, ho, hp₀, hpref, hsuff, hprobes, hreads, hho, hpos, hw⟩ := h
   obtain ⟨C, hC⟩ := isBigO_principal.1 hp₀
   set C₀ := 16 * max 1 C with hC₀d
   have hC₀ : 1 ≤ C₀ := by rw [hC₀d]; linarith [le_max_left 1 C]
@@ -126,7 +126,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
   have hmaps : Set.MapsTo toDist loopRegion loopDistRegion := fun x hx => toDist_mem hx
   refine ⟨fun x => 1 + 4 * (log (C₀ * loopG x) + 6 * log (x.Q + 4) + 24) / log x.A,
     fun r => tp (toDistRun r), fun r => ts (toDistRun r), fun r => tpr (toDistRun r),
-    fun x => ho (toDist x), ?_, ?_, ?_, ?_, ?_, ?_⟩
+    fun r => tr (toDistRun r), fun x => ho (toDist x), ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · refine isBigO_on (263 + 6 * log C₀) fun x hx => ?_
     obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
     have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ
@@ -183,6 +183,16 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
     show _ = r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
     simp only [Function.comp, toDistRun, toDist, one_div_one_div]
+  · refine (isBigO_comp_on hreads hmapsR).congr' EventuallyEq.rfl
+      (eventually_principal.2 fun r hr => ?_)
+    obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
+    have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
+    simp only [Function.comp, toDistRun, toDist, one_div_one_div]
+    have e : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.pAP * r.s₀)
+        = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀) := by field_simp
+    have e' : ((r.L : ℝ) + r.Q) * r.R / (1 / r.A * r.δ * r.ξ * r.s₀)
+        = (r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀) := by field_simp
+    rw [e, e']
   · exact isBigO_comp_on hho hmaps
   -- the run, at `D` uniform
   intro A _ _ _ Q _ Ω _ μ _ x M O L γ k L₁ hx hQ hA hL hη hpAPu hdom hL₀
@@ -223,7 +233,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     prefixLaw_uniformStrings le_rfl
   have hwS : windowLaw (uniformStrings (α := A) m) k L₁ = windowStrings k L₁ :=
     windowLaw_uniformStrings (by omega)
-  obtain ⟨settings, hwk, hcnt, hprob⟩ := hw (toDist x) M O L γ (uniformStrings m) hxd hQ
+  obtain ⟨settings, hwk, hcnt, hcalls, hprob⟩ := hw (toDist x) M O L γ (uniformStrings m) hxd hQ
     hA hL hη
     (uniformStrings_long m)
     (fun u => (uniformStrings_prefix_le (by omega) u).trans (by rw [hAc]; exact hp₀))
@@ -234,15 +244,89 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
       rw [one_div_mul_eq_div, div_le_iff₀ (by positivity), mul_comm]
       exact h)
     (by rw [hpS]; exact hpAPu) (by rw [hpL]; exact hdom)
-  rw [hwS, hpS] at hcnt
+  rw [hwS, hpS] at hcnt hcalls
   rw [hwS, hpS, hpL] at hprob
-  exact ⟨settings, hwk, hcnt, hprob⟩
+  exact ⟨settings, hwk, hcnt, hcalls, hprob⟩
+
+/-- The reads' factors other than the prefix and suffix totals, at uniform strings. -/
+lemma uniform_factors {r : LoopRun} (hr : r ∈ loopRunRegion) :
+    0 < (r.Q : ℝ) ∧ 0 ≤ (r.A : ℝ)
+      ∧ 0 ≤ log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
+      ∧ 0 ≤ r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
+      ∧ 0 ≤ log (r.L + r.Q + 1)
+      ∧ 0 ≤ r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
+      ∧ 0 ≤ log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
+      ∧ 0 ≤ log (r.Q / r.δ) / r.ξ ^ 2 := by
+  obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hr
+  have hQ' : (1 : ℝ) ≤ r.Q := by exact_mod_cast hQ
+  have hA' : (2 : ℝ) ≤ r.A := by exact_mod_cast hA
+  have hL : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _
+  have hN : 1 ≤ ((r.L : ℝ) + r.Q) * r.A * r.R :=
+    one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by linarith) (by linarith)) hR
+  have d1 : r.δ * r.ξ * r.s₀ ≤ 1 :=
+    mul_le_one₀ (mul_le_one₀ (by linarith) hξ.le hξ1) hs.le (by linarith)
+  have d2 : r.δ * r.ξ * r.pAP * r.s₀ ≤ 1 :=
+    mul_le_one₀ (mul_le_one₀ (mul_le_one₀ (by linarith) hξ.le hξ1) hp.le hp1) hs.le (by linarith)
+  have l1 : 0 ≤ log (((r.L : ℝ) + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) :=
+    Real.log_nonneg ((one_le_div (mul_pos (mul_pos hδ hξ) hs)).2 (d1.trans hN))
+  have l2 : 0 ≤ log (((r.L : ℝ) + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) :=
+    Real.log_nonneg ((one_le_div (mul_pos (mul_pos (mul_pos hδ hξ) hp) hs)).2 (d2.trans hN))
+  have hQA : (1 : ℝ) ≤ r.Q * r.A := one_le_mul_of_one_le_of_one_le hQ' (by linarith)
+  have l3 : 0 ≤ log ((r.Q : ℝ) * r.A / r.δ) :=
+    Real.log_nonneg ((one_le_div hδ).2 (by linarith))
+  have l4 : 0 ≤ log ((r.Q : ℝ) / r.δ) := Real.log_nonneg ((one_le_div hδ).2 (by linarith))
+  refine ⟨by linarith, Nat.cast_nonneg _, div_nonneg l1 (sq_nonneg _),
+    mul_nonneg (div_nonneg (mul_nonneg (by positivity) (by linarith)) hξ.le) l3,
+    Real.log_nonneg (by linarith),
+    div_nonneg (mul_nonneg (mul_nonneg (by linarith) (by positivity)) (by positivity)) hξ.le, l2,
+    div_nonneg l4 (sq_nonneg _)⟩
+
+/-- The reads' shape is monotone in its prefix and suffix totals. -/
+lemma reads_dom {Q P P' S S' F Pr lg A ρ lY Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ P) (hPP : P ≤ 4 * P')
+    (hS : 0 ≤ S) (hSS : S ≤ 2 * S') (hF : 0 ≤ F) (hPr : 0 ≤ Pr) (hlg : 0 ≤ lg) (hA : 0 ≤ A)
+    (hρ : 0 ≤ ρ) (hlY : 0 ≤ lY) (hHd : 0 ≤ Hd) :
+    0 ≤ P * S / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q ^ 2 * P * F * lg * ρ * lY + Hd * F
+      ∧ 0 ≤ P' * S' / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q ^ 2 * P' * F * lg * ρ * lY + Hd * F
+      ∧ P * S / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q ^ 2 * P * F * lg * ρ * lY + Hd * F
+        ≤ 8 * (P' * S' / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q ^ 2 * P' * F * lg * ρ * lY
+          + Hd * F) := by
+  have hP' : 0 ≤ P' := by linarith
+  have hS' : 0 ≤ S' := by linarith
+  set G := F * lg * ρ * lY with hG
+  have hG0 : 0 ≤ G := mul_nonneg (mul_nonneg (mul_nonneg hF hlg) hρ) hlY
+  have e : ∀ P, Q ^ 2 * P * F * lg * ρ * lY = Q * P * (Q * G) := fun P => by
+    rw [hG]; ring
+  rw [e, e]
+  have hG0' : 0 ≤ Q * G := mul_nonneg hQ.le hG0
+  have hT2 : 0 ≤ Pr * F * Q * lg := mul_nonneg (mul_nonneg (mul_nonneg hPr hF) hQ.le) hlg
+  have hT3 : 0 ≤ Q ^ 4 * A * F := mul_nonneg (mul_nonneg (pow_nonneg hQ.le 4) hA) hF
+  have hT4 : 0 ≤ Hd * F := mul_nonneg hHd hF
+  have hPS : P * S ≤ 8 * (P' * S') := by
+    have := mul_le_mul hPP hSS hS (by linarith)
+    linarith
+  have hPS' : P * S / Q ≤ 8 * (P' * S' / Q) := by
+    rw [← mul_div_assoc]
+    exact div_le_div_of_nonneg_right hPS hQ.le
+  have hQPG : Q * P * (Q * G) ≤ 4 * (Q * P' * (Q * G)) := by
+    have := mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hPP hQ.le) hG0'
+    linarith
+  have n1 : 0 ≤ P * S / Q := div_nonneg (mul_nonneg hP hS) hQ.le
+  have n2 : 0 ≤ P' * S' / Q := div_nonneg (mul_nonneg hP' hS') hQ.le
+  have n3 : 0 ≤ Q * P * (Q * G) := mul_nonneg (mul_nonneg hQ.le hP) hG0'
+  have n4 : 0 ≤ Q * P' * (Q * G) := mul_nonneg (mul_nonneg hQ.le hP') hG0'
+  refine ⟨by linarith, by linarith, by linarith⟩
 
 theorem loopClaimSimple_of_claim (h : LoopClaimUniform.{u, v, w}) : LoopClaimSimple.{u, v, w} := by
-  obtain ⟨L₀, pref, suff, probes, heldOut, hL₀, hp, hs, hpr, hh, hw⟩ := h
-  exact ⟨L₀, pref, suff, probes, heldOut, hL₀,
+  obtain ⟨L₀, pref, suff, probes, reads, heldOut, hL₀, hp, hs, hpr, hrd, hh, hw⟩ := h
+  refine ⟨L₀, pref, suff, probes, reads, heldOut, hL₀,
     hp.trans (isBigO_on 4 fun r hr => loop_pref_dom hr),
-    hs.trans (isBigO_on 2 fun r hr => loop_suff_dom hr), hpr, hh, hw⟩
+    hs.trans (isBigO_on 2 fun r hr => loop_suff_dom hr), hpr,
+    hrd.trans (isBigO_on 8 fun r hr => ?_), hh, hw⟩
+  obtain ⟨hp0, -, hp1⟩ := loop_pref_dom hr
+  obtain ⟨hs0, -, hs1⟩ := loop_suff_dom hr
+  obtain ⟨hQ, hA, hF, hPr, hlg, hρ, hlY, hHd⟩ := uniform_factors hr
+  dsimp only
+  exact reads_dom hQ hp0 hp1 hs0 hs1 hF hPr hlg hA hρ hlY hHd
 
 end OrthoDFA
 

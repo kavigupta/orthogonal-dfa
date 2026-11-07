@@ -18,7 +18,7 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpac
   {μ : Measure Ω} [IsProbabilityMeasure μ] {K : ℕ}
 
 theorem measurableSet_clusterSpec (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D' : Measure (FreeMonoid α)) (k : ℕ) (εcov slack : ℝ) (samplers : List (HarvestSampler α)) :
+    (D' : Measure (FreeMonoid α)) (k : ℕ) (εcov slack : ℝ) (samplers : List (SpecSampler α)) :
     MeasurableSet {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
       ClusterSpec settings O D' k εcov slack samplers x} := by
   classical
@@ -87,13 +87,13 @@ section Draws
 variable (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
 
 omit [IsProbabilityMeasure μ] in
-lemma measurableSet_prefsOf [IsProbabilityMeasure D] (h : LoopHist α) (Q : Finset (FreeMonoid α)) :
+lemma measurableSet_prefsOf [IsProbabilityMeasure D] (h : SpecHist α) (Q : Finset (FreeMonoid α)) :
     MeasurableSet {c : ClusterRest α K settings.level3.harvestReadCap | prefsOf settings D Dsf h c = Q} :=
   ((measurable_idealRun (Ω := Unit) (K := K) D Dsf settings.level3.walkStart settings.level3.harvestReadCap h).comp
     (measurable_const.prodMk measurable_id)) (measurableSet_roundPrefs (Ω := Unit) _ _ Q)
 
 omit [IsProbabilityMeasure μ] in
-lemma measurableSet_suffsOf [IsProbabilityMeasure D] (h : LoopHist α) (Q : Finset (FreeMonoid α)) :
+lemma measurableSet_suffsOf [IsProbabilityMeasure D] (h : SpecHist α) (Q : Finset (FreeMonoid α)) :
     MeasurableSet {c : ClusterRest α K settings.level3.harvestReadCap | suffsOf settings D Dsf h c = Q} := by
   classical
   have hm : ∀ Q', MeasurableSet {c : ClusterRest α K settings.level3.harvestReadCap |
@@ -166,7 +166,7 @@ most `m` of each population and `ms` of the suffixes, and nothing collides, fail
 chance at most `δc`: off what the earlier rounds read it fails its claim at `slack - m` with that
 chance, and a population's average moves by at most `m` off them. -/
 theorem loop_cluster_round_le_persist (Ls : ℕ) (εcov δc slack cap capSf m ms pAP : ℝ)
-    (hδc : 0 ≤ δc) 
+    (hδc : 0 ≤ δc)
     (hm : m ≤ 1 / 2) (hms : ms ≤ 1 / 2)
     (hclust : ∀ pops : Finset (Option (Fin K)), none ∈ pops →
       ∀ (L : Option (Fin K) → Measure (FreeMonoid α)) (Lsf : Measure (FreeMonoid α)),

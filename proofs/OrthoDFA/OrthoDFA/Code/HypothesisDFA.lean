@@ -48,6 +48,25 @@ def retarget (read : FreeMonoid α → ARU) (T' : DTree α) (p : List Bool) (E :
       else some (t, w)
     | none => none
 
+def retargetAtQ (T' : DTree α) (p : List Bool) (E : Edges α) (e : List Bool × α) :
+    Query (FreeMonoid α) ARU (Option (List Bool × FreeMonoid α)) :=
+  if p.isPrefixOf e.1 then .pure none
+  else
+    match E e with
+    | some (t, w) =>
+      if t = p then
+        (T'.siftQ (w * FreeMonoid.of e.2)).map fun r =>
+          r.elim (fun t' => some (t', w)) fun _ => none
+      else .pure (some (t, w))
+    | none => .pure none
+
+/-- Over the edges `es`, every other edge unlearned. -/
+def retargetQ [DecidableEq α] (T' : DTree α) (p : List Bool) (E : Edges α) :
+    List (List Bool × α) → Query (FreeMonoid α) ARU (Edges α)
+  | [] => .pure fun _ => none
+  | e :: es => (retargetAtQ T' p E e).bind fun v =>
+    (retargetQ T' p E es).map fun E' => Function.update E' e v
+
 /-- The leaf `p` split into a node reading at `d`, and the edges retargeted. -/
 def HypothesisDFA.split (read : FreeMonoid α → ARU) (H : HypothesisDFA α) (d : FreeMonoid α)
     (p : List Bool) : HypothesisDFA α :=

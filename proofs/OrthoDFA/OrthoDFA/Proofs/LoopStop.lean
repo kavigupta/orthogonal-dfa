@@ -170,7 +170,7 @@ lemma shortStrings_mono {N N' : ℕ} (h : N ≤ N') :
   mem_shortStrings.2 ((mem_shortStrings.1 hz).trans h)
 
 /-- The draws a round's clustering makes after the history `h`, its noise aside. -/
-def runOf (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
+def runOf (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
     (c : ClusterRest α K settings.level3.harvestReadCap) :
     ((ℕ → FreeMonoid α) × (Option (Fin K) → ℕ → FreeMonoid α))
       × (Option (Fin K) → ℕ → FreeMonoid α) :=
@@ -181,7 +181,7 @@ def runOf (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : Loo
 suffixes the strings at most `max N (probes + 1 + T + 2)` long, which its level 3 over its
 probes and the data it hands on read. -/
 def roundReads (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (N : ℕ)
-    (h : LoopHist α) (ω : Ω) (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
+    (h : SpecHist α) (ω : Ω) (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     Finset (FreeMonoid α) :=
   schedReads (settings.schedule (loopPopulations K h.pops.length))
       (loopPopulations K h.pops.length) ((ω, runOf settings D Dsf h d.1) :
@@ -195,7 +195,7 @@ def roundReads (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (N 
         ((ω, runOf settings D Dsf h d.1) : Run Ω (FreeMonoid α) (Option (Fin K)))).erase 1)
 
 theorem clusterSpec_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D' D Dsf : Measure (FreeMonoid α)) (εcov slack : ℝ) (h : LoopHist α)
+    (D' D Dsf : Measure (FreeMonoid α)) (εcov slack : ℝ) (h : SpecHist α)
     (k : ℕ)
     {ω ω' : Ω} (c : ClusterRest α K settings.level3.harvestReadCap)
     (hr : ∀ w ∈ schedReads (settings.schedule (loopPopulations K h.pops.length))
@@ -223,7 +223,7 @@ theorem clusterSpec_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
     rw [hret B hB, hfam B hB]
 
 theorem roundState_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α) {ω ω' : Ω} (c : ClusterRest α K settings.level3.harvestReadCap)
+    (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α) {ω ω' : Ω} (c : ClusterRest α K settings.level3.harvestReadCap)
     (hr : ∀ w ∈ schedReads (settings.schedule (loopPopulations K h.pops.length))
       (loopPopulations K h.pops.length) (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (ω, c)),
       (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
@@ -241,7 +241,7 @@ theorem roundState_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid 
 
 theorem popCode_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (N : ℕ)
-    (h : LoopHist α) {ω ω' : Ω} (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (h : SpecHist α) {ω ω' : Ω} (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
     (hret : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
       idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (ω, d.1) ∈ ret O.mq (loopPopulations K h.pops.length) none
         settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
@@ -321,7 +321,7 @@ def histCodes (ω : Ω) (g : Fin K → RoundDraws α K settings.level3.harvestRe
   codesOf (codeLen settings D) (idealRounds settings O D Dsf (fun i => (ω, g i)) r)
 
 /-- The history the first `i` of the harvest data `c` hand on. -/
-abbrev histAt (c : List (HarvestCode α)) (i : ℕ) : LoopHist α :=
+abbrev histAt (c : List (HarvestCode α)) (i : ℕ) : SpecHist α :=
   decodeHist (c.take i)
 
 /-- Every earlier round's clustering, at the noise `ω`, returns at a state of its schedule. -/

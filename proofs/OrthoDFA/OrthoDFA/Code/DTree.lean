@@ -47,6 +47,13 @@ def sift (read : FreeMonoid α → ARU) : DTree α → FreeMonoid α → List Bo
     | .reject => (r.sift read z).map (false :: ·) id
     | .undecided => .inr (z * m)
 
+def siftQ : DTree α → FreeMonoid α → Query (FreeMonoid α) ARU (List Bool ⊕ FreeMonoid α)
+  | leaf, _ => .pure (.inl [])
+  | node m r a, z => .ask (z * m) fun
+    | .accept => (a.siftQ z).map fun s => s.map (true :: ·) id
+    | .reject => (r.siftQ z).map fun s => s.map (false :: ·) id
+    | .undecided => .pure (.inr (z * m))
+
 /-- The leaf at `p` replaced by a node reading at `d`; `MidfixTree.split` names the leaf by its
 state rather than its path. -/
 def splitAt (d : FreeMonoid α) : DTree α → List Bool → DTree α

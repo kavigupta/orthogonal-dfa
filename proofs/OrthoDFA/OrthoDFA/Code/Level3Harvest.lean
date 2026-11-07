@@ -17,6 +17,11 @@ noncomputable def siteHarvest (read : FreeMonoid α → ARU) (k : ℕ) (H : Hypo
   | .ends, x => endsString (probeOrAgree read H.tree H.edges k x)
   | .middles, x => middleString (probeOrAgree read H.tree H.edges k x)
 
+def siteHarvestQ (k : ℕ) (H : HypothesisDFA α) :
+    Level3Site → FreeMonoid α → Query (FreeMonoid α) ARU (List (FreeMonoid α))
+  | .ends, x => (probeOrAgreeQ H.tree H.edges k x).map endsString
+  | .middles, x => (probeOrAgreeQ H.tree H.edges k x).map middleString
+
 /-- The law of what the harvest's sampler finds, each string as often as a probe drawn from `D`
 and walked under `H` finds it at the site. -/
 noncomputable def harvestLaw [Countable α] (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α))

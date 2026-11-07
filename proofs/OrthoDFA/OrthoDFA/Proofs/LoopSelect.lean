@@ -465,7 +465,7 @@ variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (P : Prefix
 theorem stageSel_last (Ls : ℕ)
     (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
     (hfr : RoundsFresh settings O P.D Dsf Ls p)
-    (o : LoopRound α)
+    (o : SpecRound α)
     (ho : o ∈ (idealRounds settings O P.D Dsf (persistDraws p) K).getLast?)
     (hcons : o.result.ending = .consistent) :
     ∃ r, ∃ hr : r < K, r + 1 = (idealRounds settings O P.D Dsf (persistDraws p) K).length

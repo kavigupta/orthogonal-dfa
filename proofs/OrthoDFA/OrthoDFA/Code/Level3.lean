@@ -104,14 +104,17 @@ section
 
 variable (read : FreeMonoid α → ARU) (C : Level3Settings)
 
-/-- A probe counted into the stretch. -/
-def countProbe (s : Level3State α) (x : FreeMonoid α) : Level3State α :=
-  let o := probeOrAgree read s.tree s.edges C.walkStart x
+/-- The probe with outcome `o` counted into the stretch. -/
+def countOutcome (s : Level3State α) (o : Outcome α) : Level3State α :=
   { s with
     probeCount := s.probeCount + 1
     searchCount := s.searchCount + if searches o then 1 else 0
     endsUndecided := s.endsUndecided ++ endsString o
     middleUndecided := s.middleUndecided ++ middleString o }
+
+/-- A probe counted into the stretch. -/
+def countProbe (s : Level3State α) (x : FreeMonoid α) : Level3State α :=
+  countOutcome s (probeOrAgree read s.tree s.edges C.walkStart x)
 
 open scoped Classical in
 /-- The tests, in turn: the probes stopping undecided at their start or end sift, the undecided
@@ -170,6 +173,51 @@ noncomputable def indecisiveLStarLevel3 (settings : Level3Settings)
     (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α) : Level3Result α :=
   let r := runProbes read settings initialState (List.ofFn draws)
   ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩
+
+/-! ## As a program
+
+Level 3 as a program asking the read (`level3Q`), step for step the run above. A split retargets
+the edges at the tree's leaves, where every learned edge is. -/
+
+section Query
+
+variable (C : Level3Settings)
+
+variable [Fintype α]
+
+noncomputable def splitLeafQ (s : Level3State α) (p : List Bool) (c : α) (t t₀ : List Bool) :
+    Query (FreeMonoid α) ARU (Level3State α) :=
+  let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
+  (retargetQ T' p s.edges (s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).toList).map
+    fun E' => newHypothesis T' E' (s.hypotheses + 1)
+
+noncomputable def applyProbeQ (s : Level3State α) (x : FreeMonoid α) :
+    Query (FreeMonoid α) ARU (Level3State α ⊕ RoundEnd Level3Site) :=
+  (probeOrAgreeQ s.tree s.edges C.walkStart x).bind fun o =>
+    match o with
+    | .unlearnedEdge p c u t =>
+      .pure (.inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
+        (s.hypotheses + 1)))
+    | .wrongEdge p c _ t =>
+      match s.edges (p, c) with
+      | some (t₀, _) => (splitLeafQ s p c t t₀).map .inl
+      | none => .pure (applyTests C (countOutcome s o))
+    | _ => .pure (applyTests C (countOutcome s o))
+
+noncomputable def runProbesQ :
+    Level3State α → List (FreeMonoid α) → Query (FreeMonoid α) ARU
+      (Level3State α × RoundEnd Level3Site)
+  | s, [] => .pure (s, .failed)
+  | s, x :: xs =>
+    (applyProbeQ C s x).bind fun
+    | .inl s' => runProbesQ s' xs
+    | .inr e => .pure (s, e)
+
+noncomputable def level3Q (settings : Level3Settings) {P : ℕ} (draws : Fin P → FreeMonoid α) :
+    Query (FreeMonoid α) ARU (Level3Result α) :=
+  (runProbesQ settings initialState (List.ofFn draws)).map fun r => ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩
+
+end Query
 
 end Random
 
