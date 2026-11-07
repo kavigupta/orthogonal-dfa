@@ -105,13 +105,21 @@ class TestWallSweep(unittest.TestCase):
             self._write(out, seeds=[0], complete=True)
             self.assertEqual(self._main(out), [1])
 
-    def test_cell_outside_the_grid_is_dropped(self):
+    def test_narrower_grid_with_no_missing_cell_leaves_the_file_alone(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "sweep.json"
             self._write(out, seeds=[0, 1, 2], complete=True)
+            before = out.read_bytes()
             self.assertEqual(self._main(out), [])
-            payload = json.loads(out.read_text())
-            self.assertEqual([c["seed"] for c in payload["cells"]], [0, 1])
+            self.assertEqual(out.read_bytes(), before)
+
+    def test_file_with_every_cell_needs_no_complete_flag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "sweep.json"
+            self._write(out, seeds=[0, 1], complete=False)
+            before = out.read_bytes()
+            self.assertEqual(self._main(out), [])
+            self.assertEqual(out.read_bytes(), before)
 
     def test_matched_budget_expects_no_cell_where_elstar_spent_nothing(self):
         matched = run_wall_sweep.MATCHED_BUDGET_CONFIGS[0][0]

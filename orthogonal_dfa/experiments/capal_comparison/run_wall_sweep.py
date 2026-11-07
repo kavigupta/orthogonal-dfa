@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .core import REPO_ROOT, Cell, eval_words, write_experiment
 from .our_targets import OUR_BENCHMARK_NAMES, our_benchmarks
-from .sweep import capal_cell, finished, reusable_cells
+from .sweep import capal_cell, reusable_cells
 
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
 DEFAULT_SEEDS = [0, 1, 2]
@@ -145,14 +145,14 @@ def main() -> None:  # pylint: disable=too-many-statements
         for name, label, eta, seed in itertools.product(names, labels, etas, args.seeds)
         if not args.matched_budget or (name, eta) in budgets
     ]
-    if finished(out_path, cell_key, grid):
-        print(f"{out_path} is complete; nothing to run.", flush=True)
+    previous = reusable_cells(out_path, cell_key)
+    if not set(grid) - previous.keys():
+        print(f"{out_path} has every cell; nothing to run.", flush=True)
         return
 
     by = {b.name: b for b in our_benchmarks()}
     benchmarks = [by[n] for n in names]
 
-    previous = reusable_cells(out_path, cell_key)
     cells: List[Cell] = []
     config = {
         "etas": list(etas),

@@ -11,7 +11,7 @@ import itertools
 import json
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Sequence
+from typing import Any, Callable, Dict, List, Sequence
 
 from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH
 from orthogonal_dfa.l_star.preconditions import PreconditionReport
@@ -122,20 +122,6 @@ def cell_key(cell: dict) -> tuple:
     return (cell["benchmark"], cell["learner"], cell["eta"], cell["seed"])
 
 
-def finished(
-    out_path: Path, key: Callable[[dict], tuple], grid: Iterable[tuple]
-) -> bool:
-    """Whether `out_path` is a completed run holding exactly the cells of `grid`."""
-    if not out_path.exists():
-        return False
-    payload = json.loads(out_path.read_text())
-    return (
-        payload.get("complete") is True
-        and payload.get("schema_version") == SCHEMA_VERSION
-        and {key(c) for c in payload["cells"]} == set(grid)
-    )
-
-
 def reusable_cells(out_path: Path, key: Callable[[dict], tuple]) -> Dict[tuple, dict]:
     """Cells from an earlier run of this experiment, keyed by identity.
 
@@ -173,12 +159,12 @@ def run_sweep(
 
     Cells already present in that file are reused rather than re-run, so an
     interrupted sweep resumes. `build_benchmarks`, which needs the CAPAL checkout,
-    is not called if the file is already `finished`.
+    is not called if no cell is missing.
     """
     out_path = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
-    grid = itertools.product(names, LEARNERS, ETAS, SEEDS)
-    if finished(out_path, cell_key, grid):
-        print(f"{out_path} is complete; nothing to run.", flush=True)
+    previous = reusable_cells(out_path, cell_key)
+    if not set(itertools.product(names, LEARNERS, ETAS, SEEDS)) - previous.keys():
+        print(f"{out_path} has every cell; nothing to run.", flush=True)
         return out_path
 
     benchmarks = build_benchmarks()
@@ -190,7 +176,6 @@ def run_sweep(
         "benchmarks": [b.name for b in benchmarks],
     }
 
-    previous = reusable_cells(out_path, cell_key)
     if previous:
         print(f"Reusing up to {len(previous)} cells from {out_path}.", flush=True)
 
