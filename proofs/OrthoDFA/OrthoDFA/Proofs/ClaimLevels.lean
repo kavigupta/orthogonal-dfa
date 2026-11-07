@@ -646,10 +646,11 @@ private lemma κ_shift :
         div_le_div_of_nonneg_right (by gcongr) hR
     _ = _ := by ring
 
-private def toVec (x : LevelInputs) : LevelVec := (x.Q, x.A, 1 / x.ε, 1 / x.δ, x.L)
+private def toVec (x : CounterexSynthInputs) : LevelVec := (x.Q, x.A, 1 / x.ε, 1 / x.δ, x.L)
 
-private lemma transfer {f g : LevelVec → ℝ} {g' : LevelInputs → ℝ} (h : f =O[𝓟 vecRegion] g)
-    (hg : ∀ x, g (toVec x) = g' x) : (fun x => f (toVec x)) =O[𝓟 levelRegion] g' := by
+private lemma transfer {f g : LevelVec → ℝ} {g' : CounterexSynthInputs → ℝ}
+    (h : f =O[𝓟 vecRegion] g) (hg : ∀ x, g (toVec x) = g' x) :
+    (fun x => f (toVec x)) =O[𝓟 counterexSynthRegion] g' := by
   refine (isBigO_comp_on h fun x hx => ?_).congr_right hg
   obtain ⟨hQ, hA, hδ, hδ2, hε0, hε, hL⟩ := hx
   simp only [toVec, vecRegion, Set.mem_Ici, Prod.mk_le_mk]
@@ -670,7 +671,7 @@ theorem counterexSynthClaim_holds : CounterexSynthClaim := by
   intro α _ _ σ _ M side U κ Ω _ μ _ R P C p₀
   dsimp only
   intro hx hP hpre hp₀ hκ0 hκ
-  simp only [levelRegion, Set.mem_ofPred_eq] at hx
+  simp only [counterexSynthRegion, Set.mem_ofPred_eq] at hx
   obtain ⟨-, -, hδ, hδ2, hε0, hε, hL⟩ := hx
   have hyε : C.harvestRate = C.disagreementRate / 48 := rfl
   have hy : 0 < C.harvestRate := by rw [hyε]; positivity

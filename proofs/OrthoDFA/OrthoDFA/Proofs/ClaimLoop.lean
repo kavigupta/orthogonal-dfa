@@ -26,8 +26,8 @@ theorem rlStarClaim_holds : RLStarClaim := by
   intro α _ _ _ σ _ Ω _ μ _ x
   obtain ⟨⟨Q, A, δ, R, ξ, pAP, s₀⟩, β⟩ := x
   intro M O L γ D _ k L₁ Ls hx hQ hA hL hηle hlong hpre hfl hpAPu hdom
-  have hr : ({ toLoopDistInputs := ⟨⟨Q, A, δ, R, ξ, pAP, s₀⟩, β⟩, L } : LoopDistRun)
-      ∈ loopDistRunRegion := hx
+  have hr : ({ toRLStarDistInputs := ⟨⟨Q, A, δ, R, ξ, pAP, s₀⟩, β⟩, L } : RLStarDistRun)
+      ∈ rlStarDistRunRegion := hx
   obtain ⟨-, -, -, hAAe, -, -, -, -, -, hc0, hc1⟩ := dist_coords hr
   obtain ⟨⟨-, hA2, hδ, hδ2, hR, hξ, hξ1, hpAP, hpAP1, hs, hs1⟩, hβ, -⟩ := hx
   subst hQ hA
