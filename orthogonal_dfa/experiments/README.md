@@ -35,102 +35,28 @@ All other paper figures are illustrations not arising from experiments.
 
 ## Rerunning experiments
 
-### CAPAL comparison
-
-The matched budget is the queries E-L* spent in `our_benchmarks.json`, so its cells rerun
-on their own when that spend changes.
+Run these in bash from the repository root, then rerun the experiment command from above.
 
 ```bash
-# everything
-scripts/capal_delete_results.sh
-
-# CAPAL's benchmarks, both learners
-rm data/capal/capal_benchmarks.json
-
-# our benchmarks, both learners
-rm data/capal/our_benchmarks.json
-
-# hyperparameter sweep
-rm data/capal/wall_sweep.json
-
-# matched budget
-rm data/capal/matched_budget.json
-
-# only E-L*'s cells (needs jq), after changing E-L* or its preconditions
-for f in data/capal/capal_benchmarks.json data/capal/our_benchmarks.json; do
-    jq '.cells |= map(select(.learner != "E-L*"))' "$f" > "$f.new"
-    mv "$f.new" "$f"
-done
+# all results
+rm -rf data/capal data/random_minimal data/luhn data/neural
 ```
 
-### Random suite
+To rerun part of an experiment, delete just those results, for example:
 
 ```bash
-# E-L*
-rm -r data/random_minimal/results
+# E-L* in the comparison to CAPAL; the matched budget reruns on its own when E-L*'s spend changes
+python -m orthogonal_dfa.experiments.capal_comparison.delete_elstar
 
-# E-L* at one noise level
-rm data/random_minimal/results/*_eta0.30_seed0.json
+# random suite at eta = 0.3, |Q| = 12
+rm data/random_minimal/results/n12_*_eta0.30_seed0.json
 
-# E-L* on one size of target
-rm data/random_minimal/results/n18_*
-
-# CAPAL
-rm -r data/random_minimal/capal_results
-
-# new targets, after changing the sampler: both learners' results are on the old ones
-rm -r data/random_minimal/targets data/random_minimal/results data/random_minimal/capal_results
-```
-
-### Luhn
-
-```bash
-# every seed
+# Luhn
 rm -r data/luhn/results
-
-# one seed
-rm data/luhn/results/luhn_len16_eta0.30_seed0.json
 ```
 
-### Neural
-
-The residual runs start from the flat runs' DFAs, and `residual_products.json` is computed
-from the residual runs and the labels, so each command below also deletes what depends on
-what it deletes.
+The neural results depend on each other, so delete them together:
 
 ```bash
-D=data/neural/length_oracles
-
-# all the runs
-rm -rf $D/runs $D/residual_products.json
-
-# the improperly calibrated runs
-rm -rf $D/runs/saw_s*
-
-# the correctly calibrated runs, and the residual runs after them
-rm -rf $D/runs/flat_s* $D/runs/residual_s* $D/residual_products.json
-
-# the residual runs
-rm -rf $D/runs/residual_s* $D/residual_products.json
-
-# the products of the residual runs
-rm $D/residual_products.json
-
-# the labels, and the products scored on them
-rm $D/labels.npz $D/residual_products.json
-rm -r ~/.cache/permacache/orthogonal_dfa/experiments/length_oracles/label
-
-# accept rates on random strings
-rm $D/random_strings.json
-```
-
-The neural steps also keep intermediate values in permacache, keyed on their arguments and
-the model rather than on the code. After changing how the oracles are fit or how centred
-scores are computed, also delete these, which takes the oracles' fits with them:
-
-```bash
-# every neural cache
-rm -r ~/.cache/permacache/orthogonal_dfa/l_star/examples/gate_composition_residual \
-    ~/.cache/permacache/orthogonal_dfa/l_star/examples/spliceai_oracle \
-    ~/.cache/permacache/orthogonal_dfa/experiments/length_oracles
+rm -rf data/neural
 ```
