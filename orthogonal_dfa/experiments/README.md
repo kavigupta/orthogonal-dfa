@@ -19,17 +19,18 @@ Rerunning the neural experiments needs a GPU.
 
 ## What produces what
 
-Times are the saved runs' totals, before dividing by `PROCESSES` or GPUs.
+Times are roughly what the saved runs took, before dividing by `PROCESSES` or GPUs. They
+leave out setup, such as fitting the neural oracles, and drawing the tables and figures.
 
 | Paper | Results | Tables and figures | Time |
 |---|---|---|---|
-| Comparison to CAPAL | `data/capal/{capal_benchmarks,our_benchmarks}.json` | `figures/capal-comparison/{benchmark_grid,query_cost,success_rates}.tex` | 1.5 h |
-| CAPAL hyperparameter sweep | `data/capal/wall_sweep.json` | `figures/capal-comparison/hyperparameter_sweep.tex` | 21 h |
-| CAPAL with matched query budget | `data/capal/matched_budget.json` | `figures/capal-comparison/matched_budget.tex` | 1 h |
-| Random suite | `data/random_minimal/{targets,results}/` | `figures/random-minimal/{summary.tex,queries_vs_*.pdf}` | 28 h |
-| Random suite difficulty check, CAPAL | `data/random_minimal/capal_results/` | `figures/random-minimal/capal_successes.tex` | 43 h |
-| Luhn | `data/luhn/results/` | `figures/luhn/{summary.tex,examples.tex,luhn_dfa.pdf}` | 15 min |
-| Neural | `data/neural/length_oracles/` | `figures/length-oracles/` | 51 GPU-h |
+| Comparison to CAPAL | `data/capal/{capal_benchmarks,our_benchmarks}.json` | `figures/capal-comparison/{benchmark_grid,query_cost,success_rates}.tex` | ~1 h |
+| CAPAL hyperparameter sweep | `data/capal/wall_sweep.json` | `figures/capal-comparison/hyperparameter_sweep.tex` | ~20 h |
+| CAPAL with matched query budget | `data/capal/matched_budget.json` | `figures/capal-comparison/matched_budget.tex` | ~1 h |
+| Random suite | `data/random_minimal/{targets,results}/` | `figures/random-minimal/{summary.tex,queries_vs_*.pdf}` | ~30 h |
+| Random suite difficulty check, CAPAL | `data/random_minimal/capal_results/` | `figures/random-minimal/capal_successes.tex` | ~40 h |
+| Luhn | `data/luhn/results/` | `figures/luhn/{summary.tex,examples.tex,luhn_dfa.pdf}` | ~15 min |
+| Neural | `data/neural/length_oracles/` | `figures/length-oracles/` | ~50 GPU-h |
 
 All other paper figures are illustrations not arising from experiments.
 
