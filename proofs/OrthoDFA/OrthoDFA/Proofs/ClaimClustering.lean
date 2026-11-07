@@ -9,8 +9,8 @@ import OrthoDFA.Proofs.BigO
 The witnesses are `ClusteringGuarantee`'s bounds at its `δ = α = δ/2`, the prefix count's log
 taken at the pool's ceiling; the tolerances are its per-state atom and collision conditions at the
 ceilings, and `1` off the parameters' range. They are stated and bounded on `toVec x`, the counts
-and the rates' reciprocals, and carried back to `ClusterInputs`. `ClusteringClaimSimple` follows
-from `ClusteringClaim`, each tight shape bounded by its product.
+and the rates' reciprocals, and carried back to `ClusterInputs`. `TrainFamilyClaimSimple` follows
+from `TrainFamilyClaim`, each tight shape bounded by its product.
 -/
 
 noncomputable section
@@ -1005,7 +1005,7 @@ private lemma dominate {f g : ClusterVec → ℝ} {f' g' : ClusterInputs → ℝ
 private lemma half_eq (a : ℝ) : 1 / (2 * (1 / a)) = a / 2 := by
   rw [one_div, one_div, mul_inv, inv_inv, mul_comm, div_eq_mul_inv]
 
-theorem clusteringClaim_holds : ClusteringClaim := by
+theorem trainFamilyClaim_holds : TrainFamilyClaim := by
   refine ⟨fun x => kW (toVec x), fun x => nsuffW (toVec x), fun x => nprefW (toVec x),
     fun x => atomTolW (toVec x), fun x => collTolW (toVec x),
     transfer kW_isBigO fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf,
@@ -1145,9 +1145,9 @@ theorem clusteringClaim_holds : ClusteringClaim := by
           gcongr; exact (hks B hB).2.trans (le_max_right _ _)
       _ ≤ _ := by linarith
 
-theorem clusteringClaimSimple_holds : ClusteringClaimSimple := by
+theorem trainFamilyClaimSimple_holds : TrainFamilyClaimSimple := by
   obtain ⟨k, nsuff, npref, atomTol, collTol, hk, hs, hp, ha, hc, hw⟩ :=
-    clusteringClaim_holds
+    trainFamilyClaim_holds
   exact ⟨k, nsuff, npref, atomTol, collTol, hk,
     hs.trans (dominate nsuff_dom (fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf)
       fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf),

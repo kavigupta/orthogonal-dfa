@@ -31,7 +31,7 @@ import OrthoDFA.Proofs.TripartiteSearch
 /-!
 # The theorem
 
-The headline: `LearnerLoopDFARelative`, stated in `OrthoDFA.LowLevelClaims.LoopDFA`, holds: the learner's
+The headline: `LearnerLoopDFA`, stated in `OrthoDFA.LowLevelClaims.LoopDFA`, holds: the learner's
 loop outputs a hypothesis that agrees with the target DFA, with every round's tree within `|Q| + 2`
 leaves, but for chance `δ`.
 
@@ -42,8 +42,9 @@ claims, stated in `OrthoDFA.LowLevelClaims.FamilyRead`, `ProbeCorrect`, stated i
 `OrthoDFA.LowLevelClaims.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and
 `Level5RoundCorrect`, stated in `OrthoDFA.LowLevelClaims.Level3Claim`,
 `OrthoDFA.LowLevelClaims.Level4Claim` and `OrthoDFA.LowLevelClaims.Level5Claim`, and
-`FamilyKappaOracle`, stated in `OrthoDFA.LowLevelClaims.FamilyOracle`.
-`LearnerLoopDFARelativeSimple` is the same claim with the simpler premises. Level 3's reads are randomly indecisive; level 4's are rarely
+`FamilyKappaOracle`, stated in `OrthoDFA.LowLevelClaims.FamilyOracle`. `LearnerLoopDFASimple` is the
+same claim with the simpler premises, and `LearnerLoopDFADist` the simpler one over strings drawn
+from an input distribution. Level 3's reads are randomly indecisive; level 4's are rarely
 wrong, and level 5's wrong at most `κ` times as often as undecided, a few wrong reads tolerated at
 both. The loop runs level 5.
 
@@ -53,47 +54,35 @@ The supporting claims are stated under `OrthoDFA.LowLevelClaims`: `AdaptiveReads
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `OrthoDFA.Claims`:
-`ClusteringClaim`, `ClusteringClaimSimple`, `Level2Claim` to `Level5Claim`, `LoopClaim`,
-`LoopClaimUniform` and `LoopClaimSimple`.
+`TrainFamilyClaim`, `TrainFamilyClaimSimple`, `CounterexSynthClaim`, `RLStarClaim`,
+`RLStarClaimUniform` and `RLStarClaimUniformSimple`.
 -/
 
 namespace OrthoDFA
 
-theorem clustering_claim : ClusteringClaim := clusteringClaim_holds
+theorem train_family_claim : TrainFamilyClaim := trainFamilyClaim_holds
 
-#print axioms clustering_claim
+#print axioms train_family_claim
 
-theorem clustering_claim_simple : ClusteringClaimSimple := clusteringClaimSimple_holds
+theorem train_family_claim_simple : TrainFamilyClaimSimple := trainFamilyClaimSimple_holds
 
-#print axioms clustering_claim_simple
+#print axioms train_family_claim_simple
 
-theorem level2_claim : Level2Claim := level2Claim_holds
+theorem counterex_synth_claim : CounterexSynthClaim := counterexSynthClaim_holds
 
-#print axioms level2_claim
+#print axioms counterex_synth_claim
 
-theorem level3_claim : Level3Claim := level3Claim_holds
+theorem rl_star_claim : RLStarClaim := rlStarClaim_holds
 
-#print axioms level3_claim
+#print axioms rl_star_claim
 
-theorem level4_claim : Level4Claim := level4Claim_holds
+theorem rl_star_claim_uniform : RLStarClaimUniform := rlStarClaimUniform_holds
 
-#print axioms level4_claim
+#print axioms rl_star_claim_uniform
 
-theorem level5_claim : Level5Claim := level5Claim_holds
+theorem rl_star_claim_uniform_simple : RLStarClaimUniformSimple := rlStarClaimUniformSimple_holds
 
-#print axioms level5_claim
-
-theorem loop_claim : LoopClaim := loopClaim_holds
-
-#print axioms loop_claim
-
-theorem loop_claim_uniform : LoopClaimUniform := loopClaimUniform_holds
-
-#print axioms loop_claim_uniform
-
-theorem loop_claim_simple : LoopClaimSimple := loopClaimSimple_holds
-
-#print axioms loop_claim_simple
+#print axioms rl_star_claim_uniform_simple
 
 theorem clustering_guarantee : ClusteringGuarantee := clustering_guarantee_of_correct
 
@@ -123,6 +112,18 @@ theorem sift_and_split_correct : SiftAndSplitCorrect := siftAndSplitCorrect
 theorem walk_correct : WalkCorrect := walkCorrect
 
 #print axioms walk_correct
+
+theorem learner_loop_dfa_simple : LearnerLoopDFASimple := learner_loop_dfa_simple_holds
+
+#print axioms learner_loop_dfa_simple
+
+theorem learner_loop_dfa : LearnerLoopDFA := learner_loop_dfa_holds
+
+#print axioms learner_loop_dfa
+
+theorem learner_loop_dfa_dist : LearnerLoopDFADist := learner_loop_dfa_dist_holds
+
+#print axioms learner_loop_dfa_dist
 
 theorem learner_loop_dfa_relative_simple : LearnerLoopDFARelativeSimple :=
   learner_loop_dfa_relative_simple_holds

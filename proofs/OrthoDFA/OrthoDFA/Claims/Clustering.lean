@@ -5,12 +5,12 @@ import OrthoDFA.LowLevelClaims.Clustering
 /-!
 # The clustering's costs, asymptotically
 
-`ClusteringClaim`: with no strings harvested, the clustering stops at a state whose band width
+`TrainFamilyClaim`: with no strings harvested, the clustering stops at a state whose band width
 `k`, suffix pool `nsuff` and prefix count `npref` are within the big-O shapes below, and returns a
 family as `ClusteringGuarantee` says but for chance `δ`, wherever the tame populations' atoms are
 under `atomTol` and the suffix measure's collision mass under `collTol`; how small those must be is
 bounded below the same way. Each bound has one constant over all of `clusterRegion`.
-`ClusteringClaimSimple` states the same with each shape a single product. The algorithm runs at
+`TrainFamilyClaimSimple` states the same with each shape a single product. The algorithm runs at
 `η₀ = 1/2 − s₀`, `s₀` the signal, at `α = δ/2` and at cross limit `κ⁴`; `ε_s` is the share of the
 cut its redraws and hash may cost, `ε_u` the indecision limit, and every state's band reads its
 rarer decided side at most `κ` times as often as undecided.
@@ -96,7 +96,7 @@ def ClusteringWithin.{u, v, w} (k nsuff npref atomTol collTol : ClusterInputs �
       ClusteringOutcome O populations tame uni Pre Suf x (atomTol x) (collTol x) states
 
 open Real in
-def ClusteringClaim.{u, v, w} : Prop :=
+def TrainFamilyClaim.{u, v, w} : Prop :=
   ∃ k nsuff npref atomTol collTol : ClusterInputs → ℝ,
     k =O[𝓟 clusterRegion] (fun x => x.ℓ_conf / x.s₀ ^ 2) ∧
     nsuff =O[𝓟 clusterRegion] (fun x =>
@@ -119,8 +119,8 @@ def ClusteringClaim.{u, v, w} : Prop :=
     ClusteringWithin.{u, v, w} k nsuff npref atomTol collTol
 
 open Real in
-/-- `ClusteringClaim` with each shape a single product. -/
-def ClusteringClaimSimple.{u, v, w} : Prop :=
+/-- `TrainFamilyClaim` with each shape a single product. -/
+def TrainFamilyClaimSimple.{u, v, w} : Prop :=
   ∃ k nsuff npref atomTol collTol : ClusterInputs → ℝ,
     k =O[𝓟 clusterRegion] (fun x => x.ℓ_conf / x.s₀ ^ 2) ∧
     nsuff =O[𝓟 clusterRegion] (fun x =>

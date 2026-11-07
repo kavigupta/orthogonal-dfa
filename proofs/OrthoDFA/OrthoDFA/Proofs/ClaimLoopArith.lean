@@ -1827,7 +1827,7 @@ lemma loopL0_le {Q A R iδ iξ ip is C₀ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (
 open Asymptotics Filter
 
 set_option maxHeartbeats 1000000 in -- the populations' log against the rest's
-/-- `LoopClaimUniform`'s prefix shape against `LoopClaimSimple`'s. -/
+/-- `RLStarClaimUniform`'s prefix shape against `RLStarClaimUniformSimple`'s. -/
 lemma loop_pref_dom {r : LoopRun} (hr : r ∈ loopRunRegion) :
     0 ≤ r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
           * log (r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
@@ -1930,7 +1930,7 @@ lemma loop_pref_dom {r : LoopRun} (hr : r ∈ loopRunRegion) :
         / (r.ξ ^ 2 * r.s₀ ^ 4)) := by ring
   linarith
 
-/-- `LoopClaimUniform`'s suffix shape against `LoopClaimSimple`'s. -/
+/-- `RLStarClaimUniform`'s suffix shape against `RLStarClaimUniformSimple`'s. -/
 lemma loop_suff_dom {r : LoopRun} (hr : r ∈ loopRunRegion) :
     0 ≤ r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)
@@ -2055,7 +2055,7 @@ lemma distP₀Tol_pos (r : LoopDistRun) : 0 < distP₀Tol r := by
   unfold distP₀Tol
   exact one_div_pos.2 (lt_of_lt_of_le one_pos (le_max_left _ _))
 
-/-- `LoopClaim`'s `1/p₀Tol` shape, `P = L + |Q|`, `b = 1/β + |Q|`, `lL = log (P Y/|Q|)` and
+/-- `RLStarClaim`'s `1/p₀Tol` shape, `P = L + |Q|`, `b = 1/β + |Q|`, `lL = log (P Y/|Q|)` and
 `lY = log Y`, in the inverted coordinates. -/
 def p₀ShapeInv (P Q A b R iδ iξ ip is lL lY : ℝ) : ℝ :=
   P ^ 4 * lL * lY * (b * R * Q ^ 3 * iξ
@@ -2129,7 +2129,7 @@ lemma p₀ShapeInv_le {P Q A b R iδ iξ ip is lL lY : ℝ} (hP : 1 ≤ P) (hQ :
   have hM0 : 0 ≤ M := by positivity
   linarith
 
-/-- `LoopClaim`'s shape for `1/p₀Tol`. -/
+/-- `RLStarClaim`'s shape for `1/p₀Tol`. -/
 def p₀Shape (r : LoopDistRun) : ℝ :=
   (r.L + r.Q) ^ 4 * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
       * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) * r.Q ^ 3 * r.R * (1 / r.β + r.Q)

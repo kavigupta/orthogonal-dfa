@@ -5,7 +5,7 @@ import OrthoDFA.LowLevelClaims.LoopDFA
 /-!
 # The learner's costs, asymptotically
 
-`LoopClaim`: over an input distribution `D`, with `β` the least rate at which `D` extends a prefix
+`RLStarClaim`: over an input distribution `D`, with `β` the least rate at which `D` extends a prefix
 by any one letter, the loop's re-rooted DFA misclassifies at most `γ + ξ` of `D`'s strings cut at
 length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, when the target admits
 a start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
@@ -18,9 +18,9 @@ so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes grow as `(
 suffixes as `log L`. The prefix total's populations' group reads its log off the suffix pool alone,
 so that log grows as `log log L`. Each bound has one constant over all of `loopDistRegion`.
 
-`LoopClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
-`L` is at least `L₀`; the bounds have one constant over all of `loopRegion`. `LoopClaimSimple`
-states the same with the prefix and suffix totals each a single product.
+`RLStarClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
+`L` is at least `L₀`; the bounds have one constant over all of `loopRegion`.
+`RLStarClaimUniformSimple` states the same with the prefix and suffix totals each a single product.
 -/
 
 namespace OrthoDFA
@@ -113,7 +113,7 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : LoopDistRun 
 open Real in
 /-- The learner's costs over an input distribution `D`: `p₀Tol` bounds the most `D` may hold on any
 first `k` letters, and `β` is the rate edges are crossed at. -/
-def LoopClaim.{u, v, w} : Prop :=
+def RLStarClaim.{u, v, w} : Prop :=
   ∃ (p₀Tol totalPref totalSuff totalProbes : LoopDistRun → ℝ) (heldOut : LoopDistInputs → ℕ),
     (fun r => 1 / p₀Tol r) =O[𝓟 loopDistRunRegion] (fun r =>
       (r.L + r.Q) ^ 4 * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
@@ -184,8 +184,8 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
       ≤ x.δ
 
 open Real in
-/-- `LoopClaim` at uniform strings: `L₀` gives way to `p₀Tol`, and `1/|Σ|` to `β`. -/
-def LoopClaimUniform.{u, v, w} : Prop :=
+/-- `RLStarClaim` at uniform strings: `L₀` gives way to `p₀Tol`, and `1/|Σ|` to `β`. -/
+def RLStarClaimUniform.{u, v, w} : Prop :=
   ∃ (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
     (heldOut : LoopInputs → ℕ),
     L₀ =O[𝓟 loopRegion] (fun x =>
@@ -206,7 +206,7 @@ def LoopClaimUniform.{u, v, w} : Prop :=
 
 open Real in
 /-- The uniform claim with the prefix and suffix totals each a single product. -/
-def LoopClaimSimple.{u, v, w} : Prop :=
+def RLStarClaimUniformSimple.{u, v, w} : Prop :=
   ∃ (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
     (heldOut : LoopInputs → ℕ),
     L₀ =O[𝓟 loopRegion] (fun x =>
