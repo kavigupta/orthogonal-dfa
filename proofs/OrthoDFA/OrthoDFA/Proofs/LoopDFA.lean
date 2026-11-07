@@ -674,7 +674,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       apply FreeMonoid.toList.injective
       exact hsuf.eq_of_length ((hlenF v hv).trans (hlenF v' hv').symm)
     have hleaves : o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2 :=
-      (Random.classSet_props _ _ hch.2.2.1).2
+      hlv o (List.mem_of_getLast? ho)
     have hgood : (q.1.1, q.2) ∉ scoreBad O o.result.hypothesis o.family o.state.lo
         (o.state.hi + 1) (prefixLaw D L) n t := by
       intro h

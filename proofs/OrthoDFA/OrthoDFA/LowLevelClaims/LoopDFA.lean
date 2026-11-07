@@ -18,17 +18,18 @@ quantities, as probabilities rather than shares of a sample.
 strings of length `L` visit at some position from `⌈L/2⌉` to `L` (`coveredStates`) re-roots it with
 accuracy at least `1 − γ` through the covered states. Then the loop, its probes uniform over the
 lengths `⌈L/2⌉` to `L + |Q| + 3` and walked from `⌈L/2⌉`, stops within `|Q| + 1` rounds at a
-consistent round, its re-rooted DFA (`rerootedDFA`) misclassifies at most `γ + ξ` of the
-strings of length `L`, and every round's tree has at most `|Q| + 2` leaves, but for chance `δ`. The final hypothesis is started at the leaf that scores
-best on `n` held-out strings of length `L`, drawn after the loop: each leaf is scored by how many
-of them its run classifies as the last round's family reads them, the undecided ones counting for
-none. A run that reaches an unlearned edge counts as wrong. A covered state is visited `c` of the
-time across the window of `N` lengths, so a wrong edge out of it is crossed `c/((|Σ|+1)N)` of the
-time at some length by probes that disagree in a consistent round, searching or stopping undecided
-at their start or end sift, unless the probe or its extension reads a string on its state's rarer
-side. Level 3's own success test bounds the disagreeing probes at its disagreement rate. Which
-probes cross the edge is fixed by the target before any read, and a misread is rare and independent
-of it, so but for chance at most half of them, and a little more, are misled.
+consistent round, its re-rooted DFA (`rerootedDFA`) misclassifies at most `γ + ξ` of the strings of
+length `L`, and every round's tree has at most `|Q| + 2` leaves, but for chance `δ`. The final
+hypothesis is started at the leaf that scores best on `n` held-out strings of length `L`, drawn
+after the loop: each leaf is scored by how many of them its run classifies as the last round's
+family reads them, the undecided ones counting for none. A run that reaches an unlearned edge counts
+as wrong. A covered state is visited `c` of the time across the window of `N` lengths, so a wrong
+edge out of it is crossed `c/((|Σ|+1)N)` of the time at some length by probes that disagree in a
+consistent round, searching or stopping undecided at their start or end sift, unless the probe or
+its extension reads a string on its state's rarer side. Level 3's own success test bounds the
+disagreeing probes at its disagreement rate. Which probes cross the edge is fixed by the target
+before any read, and a misread is rare and independent of it, so but for chance at most half of
+them, and a little more, are misled.
 
 `LearnerLoopDFARelative` admits the target by the relative rule, and no state need be covered. A
 state is wrong when an edge out of its true leaf is wrong or unlearned, or it is read on its wrong
