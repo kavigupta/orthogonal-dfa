@@ -34,10 +34,8 @@ instance : Monad (Query.{u, v, w} Q R) where
   pure := pure
   bind := bind
 
-/-- The question `q`, returning its answer. -/
 def query (q : Q) : Query Q R R := ask q pure
 
-/-- What `p` returns against the oracle `o`. -/
 def eval (o : Q → R) : Query Q R β → β
   | pure b => b
   | ask q k => (k (o q)).eval o
@@ -59,7 +57,6 @@ def piList {ι : Type*} [DecidableEq ι] [Inhabited γ] (f : ι → Query Q R γ
   | [] => pure fun _ => default
   | i :: l => (f i).bind fun r => (piList f l).map fun g => Function.update g i r
 
-/-- `f i` for every `i`. -/
 noncomputable def pi {ι : Type*} [Fintype ι] [DecidableEq ι] [Inhabited γ]
     (f : ι → Query Q R γ) : Query Q R (ι → γ) :=
   piList f Finset.univ.toList

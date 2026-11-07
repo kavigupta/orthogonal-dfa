@@ -6,8 +6,7 @@ import Mathlib.Algebra.Order.BigOperators.Group.Finset
 # What a query program's run depends on
 
 `eval_congr`: a run against an oracle agreeing with `o` on `reads o p` returns what the run
-against `o` returns and asks what it asks. The rest computes `eval` and `reads` of each
-combinator.
+against `o` returns and asks what it asks. The rest computes `eval` of each combinator.
 -/
 
 namespace OrthoDFA
@@ -40,18 +39,6 @@ variable [instQ : DecidableEq Q]
 @[simp] lemma reads_ask (q : Q) (k : R → Query Q R β) :
     (ask q k).reads o = insert q ((k (o q)).reads o) := rfl
 
-@[simp] lemma reads_bind (p : Query Q R β) (f : β → Query Q R γ) :
-    (p.bind f).reads o = p.reads o ∪ (f (p.eval o)).reads o := by
-  induction p with
-  | pure b => simp [bind]
-  | ask q k ih =>
-    simp only [bind, reads_ask, eval_ask, ih (o q), Finset.insert_union]
-
-@[simp] lemma reads_map (f : β → γ) (p : Query Q R β) : (p.map f).reads o = p.reads o := by
-  simp [map]
-
-@[simp] lemma reads_query (q : Q) : (query q : Query Q R R).reads o = {q} := rfl
-
 /-- The certificate: a run against `o'` agreeing with `o` where the run against `o` asks returns
 the same and asks the same. -/
 theorem eval_congr {o' : Q → R} (p : Query Q R β) (h : ∀ q ∈ p.reads o, o' q = o q) :
@@ -75,12 +62,6 @@ omit instQ [DecidableEq Q'] in
   | pure b => rfl
   | ask q k ih => simp [subst, ih]
 
-lemma reads_subst (h : Q → Query Q' R' R) (p : Query Q R β) :
-    (p.subst h).reads o' = (p.reads fun q => (h q).eval o').biUnion fun q => (h q).reads o' := by
-  induction p with
-  | pure b => rfl
-  | ask q k ih => simp [subst, ih, Finset.biUnion_insert]
-
 end Subst
 
 section Pi
@@ -99,20 +80,10 @@ lemma eval_piList (f : ι → Query Q R γ) (l : List ι) :
     · subst hj; simp
     · simp [hj]
 
-lemma reads_piList (f : ι → Query Q R γ) (l : List ι) :
-    (piList f l).reads o = l.toFinset.biUnion fun i => (f i).reads o := by
-  induction l with
-  | nil => simp [piList]
-  | cons i l ih => simp [piList, ih, Finset.biUnion_insert]
-
 omit instQ in
 @[simp] lemma eval_pi [Fintype ι] (f : ι → Query Q R γ) :
     (pi f).eval o = fun j => (f j).eval o := by
   simp [pi, eval_piList]
-
-lemma reads_pi [Fintype ι] (f : ι → Query Q R γ) :
-    (pi f).reads o = Finset.univ.biUnion fun i => (f i).reads o := by
-  simp [pi, reads_piList]
 
 end Pi
 
@@ -127,11 +98,6 @@ lemma eval_table {i : DecidableEq Q} (l : List Q) :
 lemma eval_table_of_mem {i : DecidableEq Q} {l : List Q} {q : Q} (hq : q ∈ l) :
     (@table Q R i _ l).eval o q = o q := by
   simp [eval_table, hq]
-
-@[simp] lemma reads_table {i : DecidableEq Q} (l : List Q) :
-    @reads Q R _ instQ o (@table Q R i _ l) = @List.toFinset Q instQ l := by
-  ext q
-  simp [table, reads_piList]
 
 end Table
 
