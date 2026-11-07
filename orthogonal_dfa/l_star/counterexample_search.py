@@ -1,4 +1,4 @@
-"""``indecisiveLStarLevel5`` of ``OrthoDFA/Level5.lean``, read through the round's suffix family."""
+"""indecisiveLStarLevel3 of OrthoDFA/Code/Level3.lean, read through the round's suffix family."""
 
 from itertools import islice
 from typing import Callable, Iterable, Optional, Tuple

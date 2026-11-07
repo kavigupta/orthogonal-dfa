@@ -1,4 +1,4 @@
-"""``tripartiteSearch``, proved by ``TripartiteSearchCorrect`` in ``OrthoDFA/Utils/TripartiteSearch.lean``."""
+"""``tripartiteSearch``, proved by ``TripartiteSearchCorrect`` in OrthoDFA/LowLevelClaims/TripartiteSearch.lean."""
 
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple

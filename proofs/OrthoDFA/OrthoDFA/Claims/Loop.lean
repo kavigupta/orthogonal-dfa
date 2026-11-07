@@ -9,14 +9,14 @@ import OrthoDFA.LowLevelClaims.LoopDFA
 by any one letter, the loop's re-rooted DFA misclassifies at most `γ + ξ` of `D`'s strings cut at
 length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, when the target admits
 a start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
-letters, `1/p₀Tol` growing as `L⁴ log L`; over the whole run its clusterings read at most
-`totalPref` prefixes and `totalSuff` suffixes, and its rounds draw at most `totalProbes` probes,
-whatever they draw. Every one is within the big-O shape below, with `s₀ = 1/2 − η₀` the signal. The
-settings the proof picks hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`,
-`m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths, so its inverse enters the shapes as
-`R(1/β + |Q|)N/ξ`: the prefixes grow as `(L + |Q|)²` and the suffixes as `log L`. The prefix
-total's populations' group reads its log off the suffix pool alone, so that log grows as
-`log log L`. Each bound has one constant over all of `loopDistRegion`.
+letters, `1/p₀Tol` growing as `L⁴ log L`, and every round's tree has at most `|Q| + 2` leaves;
+over the whole run its clusterings read at most `totalPref` prefixes and `totalSuff` suffixes, and
+its rounds draw at most `totalProbes` probes, whatever they draw. Every one is within the big-O
+shape below, with `s₀ = 1/2 − η₀` the signal. The settings the proof picks hold each round's
+disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths,
+so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes grow as `(L + |Q|)²` and the
+suffixes as `log L`. The prefix total's populations' group reads its log off the suffix pool alone,
+so that log grows as `log log L`. Each bound has one constant over all of `loopDistRegion`.
 
 `LoopClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
 `L` is at least `L₀`; the bounds have one constant over all of `loopRegion`. `LoopClaimSimple`
@@ -64,8 +64,8 @@ structure LoopDistRun extends LoopDistInputs where
 def loopDistRunRegion : Set LoopDistRun := {r | r.toLoopDistInputs ∈ loopDistRegion}
 
 /-- On every instance in `loopDistRegion`, for strings drawn from `D` whose first `k` letters
-`p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes` and is
-right but for `γ + ξ` on `heldOut` strings. -/
+`p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes`, is
+right but for `γ + ξ` on `heldOut` strings and keeps every round's tree within `|Q| + 2` leaves. -/
 def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : LoopDistRun → ℝ)
     (heldOut : LoopDistInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
@@ -106,7 +106,8 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : LoopDistRun 
         (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {w | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 w
-                (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)}
+                (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ) ∧
+        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2}
       ≤ x.δ
 
 open Real in
@@ -143,7 +144,8 @@ def LoopClaim.{u, v, w} : Prop :=
     LoopWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes heldOut
 
 /-- On every instance in `loopRegion` with `L₀ x ≤ L`, settings whose run reads within
-`totalPref`, `totalSuff` and `totalProbes` and is right but for `γ + ξ` on `heldOut` strings. -/
+`totalPref`, `totalSuff` and `totalProbes`, is right but for `γ + ξ` on `heldOut` strings and keeps
+every round's tree within `|Q| + 2` leaves. -/
 def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
     (totalPref totalSuff totalProbes : LoopRun → ℝ) (heldOut : LoopInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
@@ -177,7 +179,8 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
         (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {w | ¬
               o.result.hypothesis.rerootedDFA o.read q.2 w
-                (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)}
+                (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ) ∧
+        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2}
       ≤ x.δ
 
 open Real in

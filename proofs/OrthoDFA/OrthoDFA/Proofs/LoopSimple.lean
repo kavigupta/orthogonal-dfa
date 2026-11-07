@@ -277,7 +277,8 @@ set_option maxHeartbeats 8000000 in -- the settings and the cap meet `LoopCore`'
 /-- The loop's claim with each round's failure `δ'` free and the last round's disagreeing probes
 at most `ε + ε/96`, level 3 running at disagreement rate `ε`, and at most half of each `E q`, plus
 `ε + ε/96`, misled; its family misreads at most `(1025/1024) εcov` and leaves undecided at most
-`(3/8) εcov` of `P.D`. Every round the filled draws run is good. -/
+`(3/8) εcov` of `P.D`. Every round the filled draws run is good, and every round's tree has at
+most `|Q| + 2` leaves. -/
 theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*}
     [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
@@ -331,6 +332,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
               ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                   o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96) E
                     (ε + ε / 96))
+                ∧ (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2)
                 ∧ RoundsFresh settings O P.D Dsf
                   (P.L + Fintype.card σ + 3) p
                 ∧ ∀ r (hr : r < Fintype.card σ + 1),
@@ -776,9 +778,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans ?_)
   · intro draws hd hgood
     apply hd
-    obtain ⟨⟨h1, o, ho, hag⟩, hfr, hrg⟩ := hgood
+    obtain ⟨⟨h1, o, ho, hag⟩, hlv, hfr, hrg⟩ := hgood
     exact ⟨⟨h1, o, ho, checks_mono (by linarith) (by linarith) (by linarith) (by linarith) hag⟩,
-      hfr, hrg⟩
+      hlv, hfr, hrg⟩
   · have hδ8 := hshort
     have hQ0 : (0 : ℝ) ≤ (Fintype.card σ : ℝ) + 1 := by positivity
     have hb : ((Fintype.card σ + 1 : ℕ) : ℝ) * δm + (((Fintype.card σ + 1 : ℕ) : ℝ) + 1)
