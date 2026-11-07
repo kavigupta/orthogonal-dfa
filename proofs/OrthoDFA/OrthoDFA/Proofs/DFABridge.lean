@@ -440,7 +440,7 @@ theorem agree_of_unchecked (H : HypothesisDFA α) {k : ℕ} {x : FreeMonoid α}
   swap
   · exfalso
     have : probeOrAgree rd H.tree H.edges k x = .undecidedStart z := by
-      simp [probeOrAgree, probe, hp, show ¬ x.toList.length < k by omega]
+      simp [probeOrAgree_eq, probe_eq, hp, show ¬ x.toList.length < k by omega]
     rw [this] at hu
     simp [Random.endsString] at hu
   obtain ⟨hpos, hhi, hst0, -, hnone⟩ := walk_facts_full H.edges k x (p₀ := p) hk
@@ -459,7 +459,7 @@ theorem agree_of_unchecked (H : HypothesisDFA α) {k : ℕ} {x : FreeMonoid α}
   · rw [h''] at hx; simp at hx
   rcases un with _ | ⟨c, t⟩
   swap
-  · simp only [searchOutcome] at h''
+  · simp only [searchOutcome_eq] at h''
     rw [h''] at hx; simp at hx
   have hend := hnone (hu2 rfl)
   have hlen : (walk H.edges p (x.toList.drop k)).length = (x.toList.drop k).length + 1 := by

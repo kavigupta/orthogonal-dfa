@@ -101,7 +101,8 @@ theorem result_fin (C : Random.Level3Settings) (read : FreeMonoid α → ARU) {T
     ×ˢ (Finset.univ : Finset α)).finite_toSet.subset fun qc hqc => ?_
   rcases he : (Random.runProbes read C Random.initialState (List.ofFn draws)).1.edges qc with
     _ | ⟨t, w⟩
-  · exact absurd he hqc
+  · rw [Set.mem_ofPred_eq, Random.indecisiveLStarLevel3_edges] at hqc
+    exact absurd he hqc
   · simp only [Finset.coe_product, Finset.coe_univ, Set.prod_univ, Set.mem_preimage,
       Finset.mem_coe, List.mem_toFinset]
     exact hk qc t w he
@@ -225,7 +226,7 @@ theorem decodePop_alike {L N : ℕ} (C : Random.Level3Settings) (hN : L + C.prob
   have hmT : m.toList.length ≤ C.probeBudget := by
     have : o.result.hypothesis.tree
         = (Random.runProbes o.read C Random.initialState (List.ofFn xs)).1.tree := by
-      rw [ho]; rfl
+      rw [ho, Random.indecisiveLStarLevel3_tree]
     simp only [decodePop] at hm
     rw [this] at hm
     exact hmid m hm

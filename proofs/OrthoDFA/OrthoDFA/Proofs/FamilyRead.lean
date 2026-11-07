@@ -1,3 +1,4 @@
+import OrthoDFA.Proofs.ProgramEqns
 import OrthoDFA.LowLevelClaims.FamilyRead
 import OrthoDFA.Proofs.Adaptive
 
@@ -98,8 +99,11 @@ theorem vote_iIndep {α : Type*} [Countable α] (O : Oracle μ (FreeMonoid α))
 
 theorem read_iIndep {α : Type*} [Countable α] (O : Oracle μ (FreeMonoid α))
     {F : Finset (FreeMonoid α)} (hF : SuffixFree F) (kl kh : ℕ) :
-    iIndepFun (fun w => familyRead O.mq F kl kh w) μ :=
-  (vote_iIndep O hF).comp (fun _ => readOf kl kh) (fun _ => measurable_from_nat)
+    iIndepFun (fun w => familyRead O.mq F kl kh w) μ := by
+  have : familyRead O.mq F kl kh = fun w ω => readOf kl kh (voteCount O.mq F w ω) :=
+    funext fun w => funext fun ω => familyRead_eq ..
+  rw [this]
+  exact (vote_iIndep O hF).comp (fun _ => readOf kl kh) (fun _ => measurable_from_nat)
 
 /-! ## The vote's law
 
@@ -310,7 +314,7 @@ theorem readProb_eq_readLaw (O : Oracle μ S) (F : Finset S) (kl kh : ℕ) (w : 
       = ⋃ j ∈ (Finset.range (F.card + 1)).filter (fun j => readOf kl kh j = rd),
           {ω | voteCount O.mq F w ω = j} := by
     ext ω
-    simp only [familyRead, Set.mem_ofPred_eq, Set.mem_iUnion, Finset.mem_filter,
+    simp only [familyRead_eq, Set.mem_ofPred_eq, Set.mem_iUnion, Finset.mem_filter,
       Finset.mem_range, exists_prop]
     constructor
     · intro h

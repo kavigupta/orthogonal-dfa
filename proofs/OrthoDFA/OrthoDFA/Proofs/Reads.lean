@@ -1,3 +1,4 @@
+import OrthoDFA.Proofs.ProgramEqns
 import OrthoDFA.Code.Level3Harvest
 
 /-!
@@ -30,19 +31,23 @@ noncomputable def siftReads (read : FreeMonoid α → ARU) :
     | .reject => siftReads read r z
     | .undecided => ∅)
 
-/-- The positions whose sifts a search reads: those it queries, and those its result names. -/
-def searchPos (res : SearchResult × List ℕ) (hi : ℕ) : List ℕ :=
-  res.2 ++ match res.1 with
-    | .edge p => [p - 1, p]
-    | .undecidedMid p => [p]
-    | .undecidedHi => [hi]
-    | _ => []
+/-- The positions whose sifts a search's outcome reads, past those the search asks. -/
+def resultPos (res : SearchResult) (hi : ℕ) : Finset ℕ :=
+  match res with
+  | .edge p => {p - 1, p}
+  | .undecidedMid p => {p}
+  | .undecidedHi => {hi}
+  | _ => ∅
+
+/-- The positions whose sifts a search reads: those it asks, and those its result names. -/
+def searchPos (ag : ℕ → Option Bool) (lo hi : ℕ) : Finset ℕ :=
+  (tripartiteQ false lo hi).reads ag ∪ resultPos (tripartiteSearch false ag lo hi) hi
 
 open scoped Classical in
 /-- The strings the sifts of the prefixes of `x` at the positions `ps` read. -/
 noncomputable def posReads (read : FreeMonoid α → ARU) (T : DTree α) (x : FreeMonoid α)
-    (ps : List ℕ) : Finset (FreeMonoid α) :=
-  ps.toFinset.biUnion fun p => siftReads read T (prefixOf x p)
+    (ps : Finset ℕ) : Finset (FreeMonoid α) :=
+  ps.biUnion fun p => siftReads read T (prefixOf x p)
 
 open scoped Classical in
 /-- The strings a probe reads. -/
@@ -54,8 +59,8 @@ noncomputable def probeReads (read : FreeMonoid α → ARU) (T : DTree α) (E : 
     | .inr _ => ∅
     | .inl a =>
       let hi := k + (walk E a (x.toList.drop k)).length - 1
-      let sr := posReads read T x (searchPos (tripartiteSearch false
-        (siftAgrees read T x fun p => (walk E a (x.toList.drop k)).getD (p - k) []) k hi) hi)
+      let sr := posReads read T x (searchPos
+        (siftAgrees read T x fun p => (walk E a (x.toList.drop k)).getD (p - k) []) k hi)
       match x.toList[hi]? with
       | some _ => siftReads read T (prefixOf x (hi + 1)) ∪
         match T.sift read (prefixOf x (hi + 1)) with

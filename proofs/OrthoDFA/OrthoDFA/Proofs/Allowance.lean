@@ -53,16 +53,16 @@ theorem keepsInv_grows {σ : Type*} [Fintype σ] :
       (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) s.tree p hp
     have ht := DTree.sift_inl_mem read _ _ t huc
     have ht₀ := DTree.sift_inl_mem read _ _ t₀ (hs.edges p hp c t₀ w₀ hE).2
-    refine ⟨⟨edgesOK_retarget read hs.edges hp _, ?_, ?_⟩, hJ', rfl, rfl, ?_⟩
-    · simp only [splitLeaf, newHypothesis]
+    rw [splitLeaf_eq] at hJ' ⊢
+    refine ⟨⟨(edgesOK_retarget read hs.edges hp _).restrict _ _, ?_, ?_⟩, hJ', rfl, rfl, ?_⟩
+    · simp only [newHypothesis]
       rw [hlen, show s.tree.leaves.length + 1 - 2 = s.tree.leaves.length - 2 + 1 by
         have := hs.two; omega]
       exact classSet_split hs.cls hp ht ht₀
-    · simp only [splitLeaf, newHypothesis]; rw [hlen]; have := hs.two; omega
+    · simp only [newHypothesis]; rw [hlen]; have := hs.two; omega
     · exact Level2.Ψ_lt_split _ (s := Level2.newHypothesis s.tree s.edges 0) hp hJ' _ 0
   · exact absurd ⟨rfl, rfl⟩ hne
 
-omit [Fintype α] in
 theorem anyB_grows (n : ℕ) :
     ∀ (s : Level3State α) (xs : List (FreeMonoid α)),
       AnyB (applyProbe read C) (Grows read C n) s xs ↔ GrowsRun read C n s xs

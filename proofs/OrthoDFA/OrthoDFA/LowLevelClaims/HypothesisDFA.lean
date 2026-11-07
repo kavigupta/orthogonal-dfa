@@ -27,7 +27,7 @@ def WalkCorrect : Prop :=
       ∧ (x.toList.length ≤ i → prefixOf x i = x))
 
 def SplitAndLearnCorrect : Prop :=
-  ∀ {α : Type*} [DecidableEq α] (read : FreeMonoid α → ARU) (H : HypothesisDFA α),
+  ∀ {α : Type*} [DecidableEq α] [Fintype α] (read : FreeMonoid α → ARU) (H : HypothesisDFA α),
     EdgesOK read H.tree H.edges →
     -- Splitting a leaf re-sifts the witnesses of the edges into it, so every learned edge stays
     -- witnessed,

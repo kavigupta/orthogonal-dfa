@@ -24,7 +24,7 @@ theorem reached_splitAt {T : DTree α} (hr : Reached read T) {p : List Bool} (hp
         (T.splitAt d p).sift read w = .inl (p ++ [decide (read (w * d) = .accept)]) := by
       intro w hw hu
       rw [DTree.sift_splitAt_eq read hw]
-      cases hrd : read (w * d) <;> simp_all [DTree.sift]
+      cases hrd : read (w * d) <;> simp_all [DTree.sift_leaf, DTree.sift_node]
     intro b
     cases hb : decide (read (w₁ * d) = .accept) with
     | true =>
