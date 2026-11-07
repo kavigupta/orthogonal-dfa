@@ -722,35 +722,9 @@ lemma card_reads_pickLeafQ_le (H : HypothesisDFA α) {n : ℕ} (xs : Fin n → F
 
 variable (O : Oracle μ (FreeMonoid α))
 
-/-- The leaf the last of `rounds` starts at, picked on `xs` as its family reads them at `ω`. -/
-def startLeaf (ω : Ω) (rounds : List (LoopRound α)) {n : ℕ} (xs : Fin n → FreeMonoid α) :
-    List Bool :=
-  match rounds.getLast? with
-  | some o => pickLeaf o.result.hypothesis (o.read O ω) xs
-  | none => []
-
-/-- The learner returns the loop's rounds and the leaf its last round starts at, if it has any. -/
-theorem indecisiveLStar_eq (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
-    (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) {n : ℕ}
-    (xs : Fin n → FreeMonoid α) :
-    indecisiveLStar settings O D Dsf p xs
-      = (indecisiveLStarLoop settings O D Dsf p).bind fun rounds =>
-        rounds.getLast?.map fun _ => (rounds, startLeaf O p.1 rounds xs) := by
-  unfold indecisiveLStar learnerQ
-  rw [eval_bind]
-  unfold indecisiveLStarLoop
-  rcases (loopQ settings D Dsf p.2).eval (fun w => O.mq w p.1) with _ | rounds
-  · rfl
-  simp only [Option.bind_some, startLeaf]
-  rcases rounds.getLast? with _ | o
-  · rfl
-  simp only [Option.map_some]
-  rw [eval_map, eval_subst]
-  congr 2
-
-/-- The learner, where the loop returns `rounds` whose trees have at most `q + 2` leaves and whose
-harvested draws walk at most `W` probes a round, asks the loop's strings and, at the last round's
-family, `|F|` strings for each held-out string. -/
+/-- The learner, its rounds' trees at most `q + 2` leaves and their harvested draws walking at most
+`W` probes a round, asks the loop's strings and, at the last round's family, `|F|` strings for each
+held-out string. -/
 theorem card_reads_learnerQ_le (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
     [IsProbabilityMeasure D]
     (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
