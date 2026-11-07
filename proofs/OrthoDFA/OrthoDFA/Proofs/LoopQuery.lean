@@ -638,19 +638,6 @@ end Reads
 section Learner
 
 omit [DecidableEq α] in
-/-- The leaf picked depends on the read only at the held-out strings. -/
-lemma pickLeaf_congr (H : HypothesisDFA α) {read read' : FreeMonoid α → ARU} {n : ℕ}
-    (xs : Fin n → FreeMonoid α) (h : ∀ i, read (xs i) = read' (xs i)) :
-    pickLeaf H read xs = pickLeaf H read' xs := by
-  have : leafScore H read xs = leafScore H read' xs := by
-    funext s
-    unfold leafScore
-    congr 2
-    funext i
-    rw [h i]
-  simp only [pickLeaf_eq, this]
-
-omit [DecidableEq α] in
 lemma card_reads_pickLeafQ_le (H : HypothesisDFA α) {n : ℕ} (xs : Fin n → FreeMonoid α)
     (read : FreeMonoid α → ARU) : ((pickLeafQ H xs).reads read).card ≤ n := by
   unfold pickLeafQ
@@ -666,22 +653,22 @@ def startLeaf (ω : Ω) (rounds : List (LoopRound α)) {n : ℕ} (xs : Fin n →
   | some o => pickLeaf o.result.hypothesis (o.read O ω) xs
   | none => []
 
-/-- The learner returns the loop's rounds and the leaf its last round starts at. -/
+/-- The learner returns the loop's rounds and the leaf its last round starts at, if it has any. -/
 theorem indecisiveLStar_eq (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
     (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) {n : ℕ}
     (xs : Fin n → FreeMonoid α) :
     indecisiveLStar settings O D Dsf p xs
-      = (indecisiveLStarLoop settings O D Dsf p).map fun rounds =>
-        (rounds, startLeaf O p.1 rounds xs) := by
+      = (indecisiveLStarLoop settings O D Dsf p).bind fun rounds =>
+        rounds.getLast?.map fun _ => (rounds, startLeaf O p.1 rounds xs) := by
   unfold indecisiveLStar learnerQ
   rw [eval_bind]
   unfold indecisiveLStarLoop
   rcases (loopQ settings D Dsf p.2).eval (fun w => O.mq w p.1) with _ | rounds
   · rfl
-  simp only [Option.map_some, startLeaf]
+  simp only [Option.bind_some, startLeaf]
   rcases rounds.getLast? with _ | o
   · rfl
-  simp only
+  simp only [Option.map_some]
   rw [eval_map, eval_subst]
   congr 2
 

@@ -10,20 +10,21 @@ by any one letter, the loop's re-rooted DFA misclassifies at most `γ + ξ` of `
 length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, when the target admits a
 start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
 letters, `1/p₀Tol` growing as `L⁴ log L`, every round's tree has at most `|Q| + 2` leaves and each
-round's harvested draws find their strings within `totalWalk` probes in all (`LoopSucceeds`); over the whole run its clusterings read at most `totalPref` prefixes and
-`totalSuff` suffixes, its rounds draw at most `totalProbes` probes, whatever they draw, and a run
-that succeeds asks the oracle within `totalReads` strings, start leaf included (`ReadsWithin`).
-Every one is within the big-O shape below, with `s₀ = 1/2 − η₀` the signal. The settings the proof
-picks hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the
-window's `N = Θ(L)` lengths, so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes
-grow as `(L + |Q|)²` and the suffixes as `log L`. The prefix total's populations' group reads its
-log off the suffix pool alone, so that log grows as `log log L`. The strings asked are five sources'
-sum: the clusterings' prefixes against their suffixes; level 3's probes, each a family read of
-`|V̂|` strings at the `log L` mids of a sift at most `|Q| + 1` deep; its splits, at most `|Q|` a
-round, each re-sifting at most `|Q| + 2` leaves' edges over `|Σ|` letters down at most `|Q| + 2`
-midfixes; the harvested draws' walks, a family read at the sifts of each probe, where `totalWalk`
-bounds the probes each round's harvested draws take in all, about `1/ρ` per draw; and the start
-leaf's family read at each held-out string. Each bound has one constant over all of `rlStarDistRegion`.
+round's harvested draws find their strings within `totalWalk` probes in all (`RLStarSucceeds`);
+over the whole run its clusterings read at most `totalPref` prefixes and `totalSuff` suffixes, its
+rounds draw at most `totalProbes` probes, whatever they draw, and a run that succeeds asks the
+oracle within `totalReads` strings, start leaf included (`ReadsWithin`). Every one is within the
+big-O shape below, with `s₀ = 1/2 − η₀` the signal. The settings the proof picks hold each round's
+disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths,
+so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes grow as `(L + |Q|)²` and the
+suffixes as `log L`. The prefix total's populations' group reads its log off the suffix pool alone,
+so that log grows as `log log L`. The strings asked are five sources' sum: the clusterings'
+prefixes against their suffixes; level 3's probes, each a family read of `|V̂|` strings at the
+`log L` mids of a sift at most `|Q| + 1` deep; its splits, at most `|Q|` a round, each re-sifting
+at most `|Q| + 2` leaves' edges over `|Σ|` letters down at most `|Q| + 2` midfixes; the harvested
+draws' walks, a family read at the sifts of each probe, where `totalWalk` bounds the probes each
+round's harvested draws take in all, about `1/ρ` per draw; and the start leaf's family read at
+each held-out string. Each bound has one constant over all of `rlStarDistRegion`.
 
 `RLStarClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
 `L` is at least `L₀`; the bounds have one constant over all of `rlStarRegion`.
@@ -72,7 +73,7 @@ def rlStarDistRunRegion : Set RLStarDistRun := {r | r.toRLStarDistInputs ∈ rlS
 
 /-- `run` asks `oracle` at most `n` strings, and any answers agreeing with `oracle`'s on them give
 the same output and ask the same strings. -/
-def ReadsWithin {X : Type*} [DecidableEq X] {β : Type*} (run : Query X ℝ β) (oracle : X → ℝ)
+def ReadsWithin {X : Type*} [DecidableEq X] {Y : Type*} (run : Query X ℝ Y) (oracle : X → ℝ)
     (n : ℝ) : Prop :=
   ((run.reads oracle).card : ℝ) ≤ n ∧
     ∀ o : X → ℝ, (∀ w ∈ run.reads oracle, o w = oracle w) →
@@ -81,8 +82,8 @@ def ReadsWithin {X : Type*} [DecidableEq X] {β : Type*} (run : Query X ℝ β) 
 /-- The learner returns within `|Q| + 1` rounds, every round's tree at most `|Q| + 2` leaves and
 its harvested draws finding their strings within `B` probes a round, its last round consistent and
 its re-rooted DFA wrong on at most `ε` of `T`. -/
-def LoopSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype Q] {Ω : Type*}
-    [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] {K : ℕ} (settings : LoopSettings K)
+def RLStarSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype Q] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K)
     (O : Oracle μ (FreeMonoid A)) (D Dsf T : Measure (FreeMonoid A)) (M : _root_.DFA A Q) (ε : ℝ)
     (B : ℕ) {n : ℕ} (q : LoopDraws Ω A K settings.level3.harvestReadCap settings.level3.probeBudget
       × (Fin n → FreeMonoid A)) : Prop :=
@@ -131,14 +132,14 @@ def RLStarWithin.{u, v, w}
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
     (∀ q : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget × (Fin (heldOut x) → FreeMonoid A),
-      LoopSucceeds settings O (windowLaw D k L₁) (prefixLaw D Ls) (prefixLaw D L) M (γ + x.ξ)
+      RLStarSucceeds settings O (windowLaw D k L₁) (prefixLaw D Ls) (prefixLaw D L) M (γ + x.ξ)
         ⌈totalWalk { x with L }⌉₊ q →
       ReadsWithin (learnerQ settings (windowLaw D k L₁) (prefixLaw D Ls) q.1.2 q.2)
         (fun w => O.mq w q.1.1) (totalReads { x with L })) ∧
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => prefixLaw D L)).real
-      {q | ¬ LoopSucceeds settings O (windowLaw D k L₁) (prefixLaw D Ls) (prefixLaw D L) M
+      {q | ¬ RLStarSucceeds settings O (windowLaw D k L₁) (prefixLaw D Ls) (prefixLaw D L) M
         (γ + x.ξ) ⌈totalWalk { x with L }⌉₊ q}
       ≤ x.δ
 
@@ -185,7 +186,7 @@ def RLStarClaim.{u, v, w} : Prop :=
       let nProbe : ℝ :=
         r.Q ^ 3 * r.A * (1 / r.β + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
       let nHeld : ℝ := log (r.Q / r.δ) / r.ξ ^ 2
-      -- `|V̂|`, a round's family of states
+      -- `|V̂|`, a round's suffix family
       let nFam : ℝ := log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (1 / r.β + r.Q) * (r.L + r.Q) / r.ξ
       let lg : ℝ := log (r.L + r.Q + 1)
@@ -235,7 +236,7 @@ def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
     (∀ q : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget × (Fin (heldOut x) → FreeMonoid A),
-      LoopSucceeds settings O (windowStrings k L₁) (uniformStrings (L₁ + Fintype.card Q + 3))
+      RLStarSucceeds settings O (windowStrings k L₁) (uniformStrings (L₁ + Fintype.card Q + 3))
         (uniformStrings L) M (γ + x.ξ) ⌈totalWalk { x with L }⌉₊ q →
       ReadsWithin
         (learnerQ settings (windowStrings k L₁) (uniformStrings (L₁ + Fintype.card Q + 3))
@@ -244,8 +245,9 @@ def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
-      {q | ¬ LoopSucceeds settings O (windowStrings k L₁) (uniformStrings (L₁ + Fintype.card Q + 3))
-        (uniformStrings L) M (γ + x.ξ) ⌈totalWalk { x with L }⌉₊ q}
+      {q | ¬ RLStarSucceeds settings O (windowStrings k L₁)
+        (uniformStrings (L₁ + Fintype.card Q + 3)) (uniformStrings L) M (γ + x.ξ)
+        ⌈totalWalk { x with L }⌉₊ q}
       ≤ x.δ
 
 open Real in

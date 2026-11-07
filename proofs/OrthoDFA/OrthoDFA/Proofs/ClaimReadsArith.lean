@@ -555,14 +555,6 @@ lemma pw_mul {f₁ g₁ f₂ g₂ K₁ K₂ : ℝ} (h₁ : 0 ≤ f₁ ∧ f₁ �
     0 ≤ f₁ * f₂ ∧ f₁ * f₂ ≤ K₁ * K₂ * (g₁ * g₂) :=
   ⟨mul_nonneg h₁.1 h₂.1, (mul_le_mul h₁.2 h₂.2 h₂.1 (h₁.1.trans h₁.2)).trans_eq (by ring)⟩
 
-lemma pw_add {f₁ g₁ f₂ g₂ K₁ K₂ : ℝ} (hK₁ : 0 < K₁) (hK₂ : 0 < K₂)
-    (h₁ : 0 ≤ f₁ ∧ f₁ ≤ K₁ * g₁) (h₂ : 0 ≤ f₂ ∧ f₂ ≤ K₂ * g₂) :
-    0 ≤ f₁ + f₂ ∧ f₁ + f₂ ≤ (K₁ + K₂) * (g₁ + g₂) := by
-  have hg₁ := nonneg_of_mul_nonneg_right (h₁.1.trans h₁.2) hK₁
-  have hg₂ := nonneg_of_mul_nonneg_right (h₂.1.trans h₂.2) hK₂
-  refine ⟨add_nonneg h₁.1 h₂.1, ?_⟩
-  nlinarith [h₁.2, h₂.2, mul_nonneg hK₂.le hg₁, mul_nonneg hK₁.le hg₂]
-
 /-! ## The claim's shapes -/
 
 def shPref (r : RLStarDistRun) : ℝ :=

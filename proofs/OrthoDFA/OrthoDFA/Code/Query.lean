@@ -8,8 +8,7 @@ asks next, and returns a `β`. `eval o p` runs `p` against `o`, and `reads o p` 
 questions that run asks. Every piece of the learner that reads the oracle is written as such a
 program, so the questions a run asks are those of the program itself, and a run against any
 oracle agreeing with `o` on `reads o p` returns `eval o p` and asks `reads o p`
-(`Query.eval_congr`). `bind` asks the first program's questions and then those of the second at
-the first's answer, so its reads are the union of the two runs'.
+(`Query.eval_congr`).
 -/
 
 universe u v w w'
@@ -35,10 +34,8 @@ instance : Monad (Query.{u, v, w} Q R) where
   pure := pure
   bind := bind
 
-/-- The question `q`, returning its answer. -/
 def query (q : Q) : Query Q R R := ask q pure
 
-/-- What `p` returns against the oracle `o`. -/
 def eval (o : Q → R) : Query Q R β → β
   | pure b => b
   | ask q k => (k (o q)).eval o
@@ -60,7 +57,6 @@ def piList {ι : Type*} [DecidableEq ι] [Inhabited γ] (f : ι → Query Q R γ
   | [] => pure fun _ => default
   | i :: l => (f i).bind fun r => (piList f l).map fun g => Function.update g i r
 
-/-- `f i` for every `i`. -/
 noncomputable def pi {ι : Type*} [Fintype ι] [DecidableEq ι] [Inhabited γ]
     (f : ι → Query Q R γ) : Query Q R (ι → γ) :=
   piList f Finset.univ.toList
