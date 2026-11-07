@@ -9,8 +9,8 @@ import OrthoDFA.Proofs.BigO
 The witnesses are `ClusteringGuarantee`'s bounds at its `δ = α = δ/2`, the prefix count's log
 taken at the pool's ceiling; the tolerances are its per-state atom and collision conditions at the
 ceilings, and `1` off the parameters' range. They are stated and bounded on `toVec x`, the counts
-and the rates' reciprocals, and carried back to `ClusterInputs`. `ClusteringClaimSimple` follows
-from `ClusteringClaim`, each tight shape bounded by its product.
+and the rates' reciprocals, and carried back to `TrainFamilyInputs`. `TrainFamilyClaimSimple`
+follows from `TrainFamilyClaim`, each tight shape bounded by its product.
 -/
 
 noncomputable section
@@ -982,10 +982,11 @@ private lemma coll_dom : (fun (_, iδ, ip, ie, _, iu, iw, is, _) =>
   exact ⟨by positivity, by positivity, by linarith⟩
 
 /-- No strings harvested. -/
-private def toVec (x : ClusterInputs) : ClusterVec :=
+private def toVec (x : TrainFamilyInputs) : ClusterVec :=
   (x.nJ, 1 / x.δ, 1 / x.pAP, 1 / x.εcov, 1 / x.ε_s, 1 / x.ε_u, 1 / x.κ, 1 / x.s₀, 0)
 
-private lemma toVec_mem {x : ClusterInputs} (hx : x ∈ clusterRegion) : toVec x ∈ vecRegion := by
+private lemma toVec_mem {x : TrainFamilyInputs} (hx : x ∈ trainFamilyRegion) :
+    toVec x ∈ vecRegion := by
   obtain ⟨hJ, hδ, hδ1, hp, hp1, he, he1, hsl, hsl1, hu, hu1, hw, hw1, hs, hs1⟩ := hx
   simp only [toVec, vecRegion, Set.mem_Ici, Prod.mk_le_mk]
   exact ⟨by exact_mod_cast hJ, (le_div_iff₀ hδ).2 (by linarith), (le_div_iff₀ hp).2 (by linarith),
@@ -993,36 +994,36 @@ private lemma toVec_mem {x : ClusterInputs} (hx : x ∈ clusterRegion) : toVec x
     (le_div_iff₀ hu).2 (by linarith), (le_div_iff₀ hw).2 (by linarith),
     (le_div_iff₀ hs).2 (by linarith), le_rfl⟩
 
-private lemma transfer {f g : ClusterVec → ℝ} {g' : ClusterInputs → ℝ} (h : f =O[𝓟 vecRegion] g)
-    (hg : ∀ x, g (toVec x) = g' x) : (fun x => f (toVec x)) =O[𝓟 clusterRegion] g' :=
+private lemma transfer {f g : ClusterVec → ℝ} {g' : TrainFamilyInputs → ℝ} (h : f =O[𝓟 vecRegion] g)
+    (hg : ∀ x, g (toVec x) = g' x) : (fun x => f (toVec x)) =O[𝓟 trainFamilyRegion] g' :=
   (isBigO_comp_on h fun _ hx => toVec_mem hx).congr_right hg
 
-private lemma dominate {f g : ClusterVec → ℝ} {f' g' : ClusterInputs → ℝ}
+private lemma dominate {f g : ClusterVec → ℝ} {f' g' : TrainFamilyInputs → ℝ}
     (h : f =O[𝓟 vecRegion] g) (hf : ∀ x, f (toVec x) = f' x) (hg : ∀ x, g (toVec x) = g' x) :
-    f' =O[𝓟 clusterRegion] g' :=
+    f' =O[𝓟 trainFamilyRegion] g' :=
   (transfer h hg).congr_left hf
 
 private lemma half_eq (a : ℝ) : 1 / (2 * (1 / a)) = a / 2 := by
   rw [one_div, one_div, mul_inv, inv_inv, mul_comm, div_eq_mul_inv]
 
-theorem clusteringClaim_holds : ClusteringClaim := by
+theorem trainFamilyClaim_holds : TrainFamilyClaim := by
   refine ⟨fun x => kW (toVec x), fun x => nsuffW (toVec x), fun x => nprefW (toVec x),
     fun x => atomTolW (toVec x), fun x => collTolW (toVec x),
-    transfer kW_isBigO fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf,
-    transfer nsuffW_isBigO fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf,
-    transfer nprefW_isBigO fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf,
-    transfer atomTolW_isBigO fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf,
-    transfer collTolW_isBigO fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf,
+    transfer kW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
+    transfer nsuffW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
+    transfer nprefW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
+    transfer atomTolW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
+    transfer collTolW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
     fun x => tol_pos _, ?_⟩
   intro Ω _ μ _ S _ J _ x O populations tame uni Pre Suf hx hcard hηle huni htame hflat
   obtain ⟨nJ, δ, pAP, εcov, ε_s, ε_u, κ, s₀⟩ := x
-  simp only [clusterRegion, Set.mem_ofPred_eq] at hx hcard hηle
+  simp only [trainFamilyRegion, Set.mem_ofPred_eq] at hx hcard hηle
   obtain ⟨hJ, hδ, hδ1, hpAP, hpAP1, he, he1, hsl, hsl1, hu, hu1, hw, hw1, hs, hs1⟩ := hx
   obtain ⟨η₀, rfl⟩ : ∃ η₀, s₀ = 1 / 2 - η₀ := ⟨1 / 2 - s₀, by ring⟩
   subst hcard
   rw [sub_sub_cancel] at hηle
   have hη₀ : η₀ < 1 / 2 := by linarith
-  simp only [ClusteringOutcome, toVec, sub_sub_cancel]
+  simp only [TrainFamilyOutcome, toVec, sub_sub_cancel]
   set v : ClusterVec := ((populations.card : ℝ), 1 / δ, 1 / pAP, 1 / εcov, 1 / ε_s, 1 / ε_u,
     1 / κ, 1 / (1 / 2 - η₀), 0) with hv
   have hH0 : (allHarvest (fun _ : J => (∅ : Finset S))).card = 0 :=
@@ -1145,17 +1146,17 @@ theorem clusteringClaim_holds : ClusteringClaim := by
           gcongr; exact (hks B hB).2.trans (le_max_right _ _)
       _ ≤ _ := by linarith
 
-theorem clusteringClaimSimple_holds : ClusteringClaimSimple := by
+theorem trainFamilyClaimSimple_holds : TrainFamilyClaimSimple := by
   obtain ⟨k, nsuff, npref, atomTol, collTol, hk, hs, hp, ha, hc, hw⟩ :=
-    clusteringClaim_holds
+    trainFamilyClaim_holds
   exact ⟨k, nsuff, npref, atomTol, collTol, hk,
-    hs.trans (dominate nsuff_dom (fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf)
-      fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf),
-    hp.trans (dominate npref_dom (fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf)
+    hs.trans (dominate nsuff_dom (fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf)
+      fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf),
+    hp.trans (dominate npref_dom (fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf)
       fun x => by simp only [toVec]; ring_nf),
-    ha.trans (dominate atom_dom (fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf)
+    ha.trans (dominate atom_dom (fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf)
       fun x => by simp only [toVec]; ring_nf),
-    hc.trans (dominate coll_dom (fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf)
-      fun x => by simp only [toVec, ClusterInputs.ℓ_conf]; ring_nf), hw⟩
+    hc.trans (dominate coll_dom (fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf)
+      fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf), hw⟩
 
 end OrthoDFA
