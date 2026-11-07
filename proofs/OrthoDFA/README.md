@@ -14,7 +14,8 @@
   relative rule at visit ratio `R`, but for chance `δ` the loop's DFA is right on all but `γ + ξ`
   of `D`'s strings of length `L`, every round's tree has at most `|Q| + 2` leaves, and the whole
   run's prefixes, suffixes and probes are each within a stated big-O shape. But for chance `δ`, the
-  run also asks the oracle a number of strings within a stated big-O shape.
+  run's output also depends on at most `totalReads` of the oracle's answers, `totalReads` within a
+  stated big-O shape.
 - `RLStarClaimUniform` (`Claims/RLStar.lean`): `RLStarClaim` over uniform strings, once `L` is past
   a stated big-O length `L₀`.
 - `RLStarClaimUniformSimple` (`Claims/RLStar.lean`): `RLStarClaimUniform` with the prefix and
