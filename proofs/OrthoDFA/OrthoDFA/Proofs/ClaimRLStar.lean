@@ -1,6 +1,6 @@
-import OrthoDFA.Claims.Loop
+import OrthoDFA.Claims.RLStar
 import OrthoDFA.Proofs.LoopDFASummed
-import OrthoDFA.Proofs.ClaimLoopUniform
+import OrthoDFA.Proofs.ClaimRLStarUniform
 
 /-!
 # The learner's costs, asymptotically: the proof
@@ -10,8 +10,8 @@ import OrthoDFA.Proofs.ClaimLoopUniform
 `(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`, once `D` holds at most
 `1/loopTolInv ℓ` on any first `k` letters. The claim runs it at `c = ξ/(2R)`,
 `ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last round's leaf from `summed_bridge`;
-`ClaimLoopArith` bounds those shapes. `RLStarClaimUniform` and `RLStarClaimUniformSimple` follow
-(`ClaimLoopUniform`).
+`ClaimRLStarArith` bounds those shapes. `RLStarClaimUniform` and `RLStarClaimUniformSimple` follow
+(`ClaimRLStarUniform`).
 -/
 
 noncomputable section
