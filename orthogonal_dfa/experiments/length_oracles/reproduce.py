@@ -1,8 +1,9 @@
-"""Every run of the experiment and its data files, from source.
+"""Every run of the experiment and its data files that are not saved yet, from source.
 
     python -m orthogonal_dfa.experiments.length_oracles.reproduce OUT --gpus 0 1
 
-Runs go round robin over the GPUs, and logs go to OUT; a saved run is not rerun."""
+Runs go round robin over the GPUs, and logs go to OUT.  GPUs are needed only if something
+is missing."""
 
 import argparse
 import itertools
@@ -29,6 +30,13 @@ def launch(step, gpu, log, *args):
         )
 
 
+def any_missing(oracles):
+    return any(
+        not (RUNS / f"{oracle}_s{seed}" / "run.json").exists()
+        for oracle, seed in itertools.product(oracles, SEEDS)
+    )
+
+
 def run_all(out, gpus, oracles):
     procs = []
     for oracle, seed in itertools.product(oracles, SEEDS):
@@ -53,19 +61,25 @@ def run_all(out, gpus, oracles):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("out")
-    parser.add_argument("--gpus", nargs="+", type=int, required=True)
+    parser.add_argument("--gpus", nargs="*", type=int, default=[])
     args = parser.parse_args()
     os.makedirs(args.out, exist_ok=True)
 
-    # Also fits both oracles into the cache before the runs read it.
-    assert launch("label", args.gpus[0], f"{args.out}/label.log").wait() == 0
+    def run_step(step):
+        gpu = args.gpus[0] if args.gpus else ""
+        assert launch(step, gpu, f"{args.out}/{step}.log").wait() == 0
 
+    if any_missing(("saw", "flat", "residual")):
+        run_step("oracles")
+    run_step("label")
     gpus = itertools.cycle(args.gpus)
     run_all(args.out, gpus, ("saw", "flat"))
-    # The residual runs read flat's first stage back from the runs just saved.
-    assert launch("residual", args.gpus[0], f"{args.out}/residual.log").wait() == 0
-    run_all(args.out, gpus, ("residual",))
-    assert launch("random_strings", args.gpus[0], f"{args.out}/random.log").wait() == 0
+    if any_missing(("residual",)):
+        # The residual runs read flat's first stage back from the runs just saved.
+        run_step("residual")
+        run_all(args.out, gpus, ("residual",))
+    run_step("random_strings")
+    run_step("residual_report")
 
 
 if __name__ == "__main__":
