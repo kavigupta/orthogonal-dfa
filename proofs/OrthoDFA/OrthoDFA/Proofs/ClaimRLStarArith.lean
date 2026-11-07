@@ -1,4 +1,4 @@
-import OrthoDFA.Claims.Loop
+import OrthoDFA.Claims.RLStar
 import OrthoDFA.Proofs.LoopDFAArith
 import OrthoDFA.Proofs.BigO
 

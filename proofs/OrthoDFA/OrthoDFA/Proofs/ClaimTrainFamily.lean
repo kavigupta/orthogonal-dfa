@@ -1,5 +1,5 @@
 import Mathlib.Analysis.SpecialFunctions.Log.Base
-import OrthoDFA.Claims.Clustering
+import OrthoDFA.Claims.TrainFamily
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.BigO
 

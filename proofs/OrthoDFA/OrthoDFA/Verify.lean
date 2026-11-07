@@ -3,9 +3,9 @@ import OrthoDFA.Proofs.BandKappa
 import OrthoDFA.Proofs.Allowance
 import OrthoDFA.Proofs.BitSum
 import OrthoDFA.Proofs.Budget
-import OrthoDFA.Proofs.ClaimClustering
-import OrthoDFA.Proofs.ClaimLevels
-import OrthoDFA.Proofs.ClaimLoop
+import OrthoDFA.Proofs.ClaimTrainFamily
+import OrthoDFA.Proofs.ClaimCounterexSynth
+import OrthoDFA.Proofs.ClaimRLStar
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.CoveredStart
 import OrthoDFA.Proofs.DTree

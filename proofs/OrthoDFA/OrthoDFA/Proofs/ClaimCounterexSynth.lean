@@ -1,4 +1,4 @@
-import OrthoDFA.Claims.Levels
+import OrthoDFA.Claims.CounterexSynth
 import OrthoDFA.Proofs.BigO
 import OrthoDFA.Proofs.Level4
 import OrthoDFA.Proofs.Level5

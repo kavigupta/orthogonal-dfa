@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.ClaimLoopArith
+import OrthoDFA.Proofs.ClaimRLStarArith
 import OrthoDFA.Proofs.DFABridge
 
 /-!
