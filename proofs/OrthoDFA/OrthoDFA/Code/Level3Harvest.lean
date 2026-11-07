@@ -17,7 +17,6 @@ noncomputable def siteHarvest (read : FreeMonoid α → ARU) (k : ℕ) (H : Hypo
   | .ends, x => endsString (probeOrAgree read H.tree H.edges k x)
   | .middles, x => middleString (probeOrAgree read H.tree H.edges k x)
 
-/-- `siteHarvest` as a program. -/
 def siteHarvestQ (k : ℕ) (H : HypothesisDFA α) :
     Level3Site → FreeMonoid α → Query (FreeMonoid α) ARU (List (FreeMonoid α))
   | .ends, x => (probeOrAgreeQ H.tree H.edges k x).map endsString

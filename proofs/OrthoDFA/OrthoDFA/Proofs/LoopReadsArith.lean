@@ -21,10 +21,10 @@ def readsCluster (K a b : ℝ) : ℝ := K * (a * (b + 1))
 family read of `f` strings at each. -/
 def readsSearch (K f T q lg : ℝ) : ℝ := K * T * (f * (lg * (q + 1)))
 
-/-- Level 3's re-sifts: in each of `K` rounds at most `q + 1` splits, each re-sifting at most
+/-- Level 3's re-sifts: in each of `K` rounds at most `q` splits, each re-sifting at most
 `q + 2` leaves' edges over `A` letters down at most `q + 2` midfixes, a family read of `f` strings
 at each. -/
-def readsResift (K f q A : ℝ) : ℝ := K * (f * ((q + 1) * ((q + 2) * A * (q + 2))))
+def readsResift (K f q A : ℝ) : ℝ := K * (f * (q * ((q + 2) * A * (q + 2))))
 
 /-- The samplers' reads: `K` rounds of at most `B` probes walked by the harvested draws, each
 `lg` sifts down a tree of at most `q + 2` leaves, a family read of `f` strings at each. -/

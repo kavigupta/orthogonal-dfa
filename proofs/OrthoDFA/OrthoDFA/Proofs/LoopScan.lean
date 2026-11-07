@@ -406,8 +406,7 @@ lemma exists_getElem_of_mem_loopPopulations {h : SpecHist α} {i : Fin K}
   exact ⟨_, List.getElem?_eq_getElem ha⟩
 
 /-- Where the filled draws' first `scanCap` after the history `h` hit, scan within `scanCap` and
-return at a scheduled state, and level 3 on them keeps within `leafCap` leaves, the round is the one
-on the filled draws. -/
+return at a scheduled state, the round is the one on the filled draws. -/
 theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
@@ -419,10 +418,7 @@ theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
     (hret : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
       idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)
         ∈ ret O.mq (loopPopulations K h.pops.length) none settings.η₀ settings.indecisionLimit
-          settings.εcov settings.gateLevel B)
-    (hcap : (roundOf settings O D h
-      (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))
-      d.2.2).result.hypothesis.tree.leaves.length ≤ settings.level3.leafCap) :
+          settings.εcov settings.gateLevel B) :
     loopRound settings O D Dsf h d = some (roundOf settings O D h
       (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))
       d.2.2) := by
@@ -473,7 +469,7 @@ theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
   change (drawLists D settings.level3.walkStart settings.level3.harvestReadCap M sched h
     d.2.1).bind _ = _
   rw [hdl', Option.bind_some]
-  rw [if_pos ⟨hsc', hret', by rw [hro]; exact hcap⟩]
+  rw [if_pos ⟨hsc', hret'⟩]
   exact congrArg some hro
 
 end OrthoDFA

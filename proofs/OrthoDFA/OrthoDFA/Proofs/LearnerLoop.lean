@@ -395,8 +395,7 @@ small enough for level 5's premises at `f = 0`. The last round has at most
 `u + mr`, misled, `mr` bounding the mass the round's probes avoid. Every round the filled draws
 run is good but for chance `K δₘ` of a miss at the cap `harvestN y (δₘ / scanCap)` and the scan
 tail at `4 (K + 3) NP ≤ Tsc ≤ scanCap`, and its harvested draws walk at most `B` probes in all but
-for chance `2^(K scanCap) (1 - y/2)^(B + 1)`; a round meeting its spec keeps within `leafCap`
-leaves at `leafCap ≥ |Q| + 2`. -/
+for chance `2^(K scanCap) (1 - y/2)^(B + 1)`. Every round's tree has at most `|Q| + 2` leaves. -/
 def LoopCore : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -443,7 +442,6 @@ def LoopCore : Prop :=
   0 < Tu →
   roundSlope σ P.L C * Tu + roundSlack σ α C (2 * prefixMax P.D C.walkStart)
     + mr / (C.harvestRate / 2) + Fintype.card σ * (2 * indecisionLimit + slack) / Tu < 1 →
-  Fintype.card σ + 2 ≤ C.leafCap →
   C.harvestReadCap = Random.harvestN y (δₘ / scanCap) →
   0 < y → y ≤ C.harvestRate / 4 → y ≤ 1 → 0 < δₘ → 0 < scanCap →
   4 * ((K + 3) * NP) ≤ Tsc → Tsc ≤ scanCap →
@@ -465,6 +463,7 @@ def LoopCore : Prop :=
             ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                 o.Checks M O P.D C.walkStart (513 / 512 * εcov + 2 * indecisionLimit + 2 * slack)
                   (2 * indecisionLimit + slack) (C.disagreementRate + mr) E (u + mr))
+              ∧ (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2)
               ∧ RoundsFresh settings O P.D Dsf Ls p
               ∧ (∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
                 RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
@@ -484,7 +483,7 @@ theorem loop_core_holds : LoopCore := by
   intro α _ _ _ σ _ Ω _ μ _ M O P E K Ls NS NP NF η₀ ι gate εcov δc slack pAP cap m ms mr u cross
     Tu C scanCap y δₘ Tsc B c bsc hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hL1 hK hLs hcap
     hmsl hm1 hmsp hms1 hNSb hNPb hNFb hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0 hk1 hu hy0 hmr hmr1
-    hcr hprem hT hcond hleaf hcapN hyp hyr hyl1 hδₘ hsc hTsc hTM
+    hcr hprem hT hcond hcapN hyp hyr hyl1 hδₘ hsc hTsc hTM
   classical
   have hδ : 0 < C.δ := hprem.1
   have hc : cross ^ 4 = c := rfl
@@ -819,6 +818,7 @@ theorem loop_core_holds : LoopCore := by
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.Checks M O P.D k (513 / 512 * εcov + 2 * ι + 2 * slack) (2 * ι + slack)
             (C.disagreementRate + mr) E (u + mr))
+        ∧ (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2)
         ∧ RoundsFresh settings O P.D Dsf Ls p
         ∧ (∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
           RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
@@ -992,16 +992,13 @@ theorem loop_core_holds : LoopCore := by
             (persistDraws p ⟨i, hK'⟩) := by
           rw [← hti]
           refine roundGood_of settings O P.D Dsf _ _ (NP := NP) (A := (K + 3) * NP) (T := Tsc)
-            (fun B hB => (hsizes _ B hB).2.1) hnA (by omega) ?_ ?_ ?_ ?_
+            (fun B hB => (hsizes _ B hB).2.1) hnA (by omega) ?_ ?_ ?_
           · rw [← missAt_alike hdec.1 P.D hlenB, ← hdec.2.1]; exact hn4'.1
           · rw [hl, ← idealDraws_alike hdec P.D Dsf hlenB]; exact hn4'.2.1
           · have h3 := hcs'.1
             unfold idealRunAt at h3
             rw [← hti] at h3
             exact h3
-          · obtain ⟨-, hcls4, -⟩ := h4
-            rw [← idealRound_alike settings O P.D Dsf hlenB hdec]
-            exact (Random.classSet_leaves _ _ hcls4).trans hleaf
         have hwalk : harvestWalk P.D k settings.level3.harvestReadCap settings.scanCap
             (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i)).pops
             (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i)).prefs
@@ -1030,7 +1027,10 @@ theorem loop_core_holds : LoopCore := by
         rw [List.length_take, h2] at h3
         omega
       exact hr1
-    refine hp ⟨hag, fun i hi => ?_, fun r hr hall => ?_, fun r hr hall => ?_⟩
+    refine hp ⟨hag, fun o ho => ?_, fun i hi => ?_, fun r hr hall => ?_, fun r hr hall => ?_⟩
+    · obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ho
+      have hle := hag.1
+      exact Random.classSet_leaves _ _ (hspec i (by omega) hi (by omega)).1.2.2.1
     · have hle := hag.1
       have hK : i < K := by omega
       exact ⟨hK, (hspec i (by omega) hi hK).2.1⟩

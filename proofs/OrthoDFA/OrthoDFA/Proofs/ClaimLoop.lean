@@ -9,7 +9,7 @@ import OrthoDFA.Proofs.ClaimReadsArith
 `learner_loop_dfa_dist_tol` bounds, for every draw, the loop's reads by `(|Q| + 1)` rounds of
 `6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, its probes by `(|Q| + 1) loopBudget`,
 and the strings the learner asks the oracle by `learnerReads` where the loop's harvested draws
-walk at most `B` probes a round, all at `ℓ = L + |Q| + 4`, once `D` holds at most
+walk at most `⌈loopHB⌉₊` probes a round, all at `ℓ = L + |Q| + 4`, once `D` holds at most
 `1/loopTolInv ℓ` on any first `k` letters; `Query.eval_congr` is the rest of the reads conjunct,
 and `indecisiveLStar_eq` turns its error event into the learner's. The claim runs it at
 `c = ξ/(2R)`, `ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last round's leaf from
@@ -24,8 +24,10 @@ namespace OrthoDFA
 open MeasureTheory Asymptotics Filter Real
 
 theorem loopClaim_holds : LoopClaim := by
-  refine ⟨distP₀Tol, distPref, distSuff, distProbes, distReads, distHeldOut, distP₀Tol_isBigO,
-    distPref_isBigO, distSuff_isBigO, distProbes_isBigO, distReads_isBigO, distHeldOut_isBigO,
+  refine ⟨distP₀Tol, distPref, distSuff, distProbes, distReads, distWalk, distHeldOut,
+    distP₀Tol_isBigO,
+    distPref_isBigO, distSuff_isBigO, distProbes_isBigO, distReads_isBigO, distWalk_isBigO,
+    distHeldOut_isBigO,
     distP₀Tol_pos, ?_⟩
   intro α _ _ _ σ _ Ω _ μ _ x
   obtain ⟨⟨Q, A, δ, R, ξ, pAP, s₀⟩, β⟩ := x
@@ -63,25 +65,25 @@ theorem loopClaim_holds : LoopClaim := by
           (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
           (1 / 2 - s₀)) := rfl
     rw [e, max_eq_right hM1]
-  obtain ⟨settings, B, hw, -, -, -, -, -, hleaf, hcnt, hcalls, hprob⟩ :=
-    learner_loop_dfa_dist_tol M O L D
+  obtain ⟨settings, hw, -, -, -, -, hcnt, hcalls, hprob⟩ := learner_loop_dfa_dist_tol M O L D
     (1 / 2 - s₀)
     (ξ / (2 * R)) (γ + 3 * ξ / 4) δ pAP (ξ / 4) (1 / β + Fintype.card σ) _ hL hηle hη₀ hc0 hc1 hδ
     (by linarith) hpAP (by positivity) hA2
     (by have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _; linarith) hlong hpre hpAPu
     (summed_bridge M O hL L D (by linarith) hξ hAe (hlong.mono fun x hx => le_trans (by omega) hx)
       hfl' ⟨q, hq⟩) hp₀
-  refine ⟨settings, B, hw, hleaf, hcnt, fun p xs out hout hW => ⟨?_, fun o ho => ?_⟩, ?_⟩
-  · rw [indecisiveLStar_eq] at hout
-    obtain ⟨rs, hrs, rfl⟩ := Option.map_eq_some_iff.1 hout
-    exact hcalls p xs rs hrs hW
-  · obtain ⟨e1, e2⟩ := Query.eval_congr _ _ ho
+  refine ⟨settings, hw, hcnt, fun p xs rounds s hout hlv hW => ?_, ?_⟩
+  · obtain ⟨r, hr, he⟩ :=
+      Option.map_eq_some_iff.1 ((indecisiveLStar_eq O settings _ _ p xs).symm.trans hout)
+    refine ⟨hcalls p xs rounds ((Prod.mk.inj he).1 ▸ hr) hlv hW, fun o ho => ?_⟩
+    obtain ⟨e1, e2⟩ := Query.eval_congr _ _ ho
     exact ⟨e1.trans hout, e2⟩
+  replace hprob := hprob _ (Or.inr rfl)
   rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
   refine le_trans (measureReal_mono (fun q hq => ?_) (measure_ne_top _ _)) hprob
   simp only [Set.mem_setOf_eq] at hq ⊢
-  rintro ⟨rounds, hr, ⟨hlen, o, ho, hend, herr⟩, hW⟩
-  refine hq ⟨rounds, startLeaf O q.1.1 rounds q.2, ?_, ⟨hlen, o, ho, hend, ?_⟩, hW⟩
+  rintro ⟨rounds, hr, ⟨hlen, o, ho, hend, herr⟩, hlv, hW⟩
+  refine hq ⟨rounds, startLeaf O q.1.1 rounds q.2, ?_, ⟨hlen, o, ho, hend, ?_⟩, hlv, hW⟩
   · rw [indecisiveLStar_eq, hr]
     rfl
   · rw [Option.mem_def] at ho

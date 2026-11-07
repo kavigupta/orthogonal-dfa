@@ -54,7 +54,7 @@ def subst {Q' : Type*} {R' : Type*} (h : Q → Query Q' R' R) : Query Q R β →
   | pure b => pure b
   | ask q k => (h q).bind fun r => (k r).subst h
 
-/-- `f i` for each `i` of `l` in turn, the later answer kept where `i` repeats; `default` off
+/-- `f i` for each `i` of `l` in turn, the earlier answer kept where `i` repeats; `default` off
 `l`. -/
 def piList {ι : Type*} [DecidableEq ι] [Inhabited γ] (f : ι → Query Q R γ) :
     List ι → Query Q R (ι → γ)

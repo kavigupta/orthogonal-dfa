@@ -26,7 +26,7 @@ noncomputable def harvestFirst (read : FreeMonoid α → ARU) (k : ℕ) (H : Hyp
   xs.findSome? fun x => (siteHarvest read k H site x).head?.filter fun z => z ∉ T
 
 open scoped Classical in
-/-- `harvestFirst` as a program: the probes in turn, up to the first that harvests. -/
+/-- The probes in turn, up to the first that harvests. -/
 noncomputable def harvestFirstQ (k : ℕ) (H : HypothesisDFA α) (site : Level3Site)
     (T : Set (FreeMonoid α)) (xs : List (FreeMonoid α)) :
     Query (FreeMonoid α) ARU (Option (FreeMonoid α)) :=

@@ -223,7 +223,7 @@ theorem probeOrAgree_congr {r r' : FreeMonoid α → ARU} {T : DTree α} {E : Ed
 omit [DecidableEq α] in
 theorem countProbe_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x : FreeMonoid α}
     (h : ∀ z ∈ pot 0 x s.tree, r z = r' z) : countProbe r C s x = countProbe r' C s x := by
-  simp only [countProbe, probeOrAgree_congr h]
+  simp only [countProbe, countOutcome, probeOrAgree_congr h]
 
 omit [DecidableEq α] in
 theorem splitReads_congr {r r' : FreeMonoid α → ARU} {s : Level3State α} {x : FreeMonoid α}
@@ -238,7 +238,7 @@ theorem applyProbe_congr_of {r r' : FreeMonoid α → ARU} {s : Level3State α} 
       = probeOrAgree r' s.tree s.edges C.walkStart x)
     (h : ∀ z ∈ splitReads r C s x, r z = r' z) :
     applyProbe r C s x = applyProbe r' C s x := by
-  have hc : countProbe r C s x = countProbe r' C s x := by simp only [countProbe, ho]
+  have hc : countProbe r C s x = countProbe r' C s x := by simp only [countProbe, countOutcome, ho]
   unfold applyProbe
   rw [← ho, hc]
   rcases hpo : probeOrAgree r s.tree s.edges C.walkStart x with _ | ⟨p, c, u, t⟩ | _ | _ | _ <;>

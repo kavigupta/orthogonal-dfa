@@ -16,8 +16,8 @@ population is `D` itself. The probes' population's streams are its first `scanCa
 harvested population draws one at a time, as `split_draws` and `prefixes_for_split` do, until its
 draws hold every sample a state of the schedule takes from it (`DrawsHold`), at most `scanCap`;
 only the draws it makes run the sampler. The round fails if a harvested draw finds no string, the
-clustering would read past the draws, no state of the schedule returns, or level 3's tree grows
-past `leafCap` leaves, and the loop fails with it. Draws are made from uniforms (`drawFrom`).
+clustering would read past the draws, or no state of the schedule returns, and the loop fails with
+it. Draws are made from uniforms (`drawFrom`).
 
 The clustering is the one `ClusteringQualityGuarantee` is about, every population tame and none
 harvested into a table: the family is `clusterAt` at a state of the schedule at which `ret`
@@ -317,8 +317,7 @@ open scoped Classical in
 state of the schedule where `ret` holds of the answers, its family `clusterAt` there; then level 3
 over probes drawn by `d.2` from `D` avoiding the first `walkStart` letters of the prefixes the
 clustering read, reading the family. `none` if a harvested draw misses, the clustering would read
-past the draws, no state of the schedule returns, or level 3's tree grows past `leafCap`
-leaves. -/
+past the draws, or no state of the schedule returns. -/
 def roundQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     Query (FreeMonoid α) ℝ (Option (LoopRound α)) :=
@@ -343,7 +342,7 @@ def roundQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α
               drawFrom (avoidLaw D settings.level3.walkStart
                 (clusterKeys sched ps settings.level3.walkStart x)) (d.2 i)).subst
             (familyReadQ F B.lo (B.hi + 1))).map fun res =>
-            res.map fun res => ⟨B, F, res, roundPrefs sched ps x, roundSuffs sched x⟩
+            some ⟨B, F, res, roundPrefs sched ps x, roundSuffs sched x⟩
         else .pure none
     else .pure none
 

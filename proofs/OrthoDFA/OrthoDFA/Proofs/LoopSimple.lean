@@ -302,8 +302,8 @@ set_option maxHeartbeats 8000000 in -- the settings and the cap meet `LoopCore`'
 /-- The loop's claim with each round's failure `δ'` free and the last round's disagreeing probes
 at most `ε + ε/96`, level 3 running at disagreement rate `ε`, and at most half of each `E q`, plus
 `ε + ε/96`, misled; its family misreads at most `(1025/1024) εcov` and leaves undecided at most
-`(3/8) εcov` of `P.D`. Every round the filled draws run is good, and its harvested draws walk at
-most `B ≤ HB` probes in all. -/
+`(3/8) εcov` of `P.D`. Every round the filled draws run is good, every round's tree has at most
+`|Q| + 2` leaves, and its harvested draws walk at most `⌈HB⌉₊` probes in all. -/
 theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*}
     [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
@@ -341,10 +341,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     prefixMax P.D k ≤ cap * ε / 1536 →
     1536 * Real.log (16 * (Q + 1) * Kc / δ') * prefixMax P.D k ≤ ε →
     16 * B₃ ^ 2 * prefixMax P.D k ≤ δ' →
-    ∃ (settings : LoopSettings (Fintype.card σ + 1)) (Bw : ℕ),
+    ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-      (settings.scanCap : ℝ) ≤ SC ∧ (Bw : ℝ) ≤ HB ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
+      (settings.scanCap : ℝ) ≤ SC ∧
       (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * ⌊RB⌋₊) ∧
       (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin (Fintype.card σ + 1)))),
         (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊
@@ -360,6 +360,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
               ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                   o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96) E
                     (ε + ε / 96))
+                ∧ (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2)
                 ∧ RoundsFresh settings O P.D Dsf
                   (P.L + Fintype.card σ + 3) p
                 ∧ (∀ r (hr : r < Fintype.card σ + 1),
@@ -372,7 +373,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
                       settings.scanCap
                       (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).pops
                       (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).prefs
-                      (persistDraws p ⟨r, hr⟩).2.1.2.1 ≤ Bw)}
+                      (persistDraws p ⟨r, hr⟩).2.1.2.1 ≤ ⌈HB⌉₊)}
           ≤ (Q + 1) * (4 * δ') := by
   intro Q A L ι s τ J S B₃ Wm W PB FV RB cap Kc SC HN HB
     hL hη hη₀ hε hε1 hεd hεd12 hδ'0 hδ'1' hpAP hpAP1 hL1 hk0 hLε hk1 hk2 hk3
@@ -500,8 +501,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hyh0 : 0 < yh := by positivity
   have hhN : Random.harvestN yh (δm / Msc) = ⌈Real.log (Msc / δm) / yh⌉₊ := by
     rw [Random.harvestN, one_div_div]
-  set C : Random.Level3Settings :=
-    ⟨k, δ', ε, budget, Random.harvestN yh (δm / Msc), Fintype.card σ + 2⟩ with hCd
+  set C : Random.Level3Settings := ⟨k, δ', ε, budget, Random.harvestN yh (δm / Msc)⟩ with hCd
   have hMSC : (Msc : ℝ) ≤ SC := by
     have hT : Tsc ≤ 4 * ((Fintype.card σ + 1 + 3) * ⌊RB⌋₊) + ⌈8 * Real.log (16 * J / δ')⌉₊ := by
       simp only [hTscd]; omega
@@ -831,6 +831,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       linarith
     have := mul_le_mul_of_nonneg_left h1 (by positivity : (0 : ℝ) ≤ 384 / ε)
     linarith
+  have hBpc : Bp ≤ ⌈HB⌉₊ := Nat.cast_le.1 (hBp.trans (Nat.le_ceil _))
   have hcore := loop_core_holds M O P E (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
     ⌊PB⌋₊ ⌊RB⌋₊ ⌊FV⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / 1536) ε
     cross Tu C Msc yh δm Tsc Bp
@@ -848,19 +849,19 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     (fun pops _ => hfam pops)
     hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
-    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond le_rfl rfl hyh0
+    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond rfl hyh0
     (by show ε / 192 ≤ ε / 48 / 4; linarith) (by show ε / 192 ≤ 1; linarith) hδm0 (by omega)
     (le_max_left _ _) (by omega)
-  refine ⟨settings, Bp, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, by rw [hC3]; exact hHN,
-    by rw [hscan]; exact hMSC, hBp, by rw [hC3], hnp, hreads, hks, ?_⟩
+  refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, by rw [hC3]; exact hHN,
+    by rw [hscan]; exact hMSC, hnp, hreads, hks, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
   refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans ?_)
   · intro draws hd hgood
     apply hd
-    obtain ⟨⟨h1, o, ho, hag⟩, hfr, hrg, hwk⟩ := hgood
+    obtain ⟨⟨h1, o, ho, hag⟩, hlv, hfr, hrg, hwk⟩ := hgood
     exact ⟨⟨h1, o, ho, checks_mono (by linarith) (by linarith) (by linarith) (by linarith) hag⟩,
-      hfr, hrg, hwk⟩
+      hlv, hfr, hrg, fun r hr hh => (hwk r hr hh).trans hBpc⟩
   · have hδ8 := hshort
     have hQ0 : (0 : ℝ) ≤ (Fintype.card σ : ℝ) + 1 := by positivity
     have hb : ((Fintype.card σ + 1 : ℕ) : ℝ) * δm + (((Fintype.card σ + 1 : ℕ) : ℝ) + 1)

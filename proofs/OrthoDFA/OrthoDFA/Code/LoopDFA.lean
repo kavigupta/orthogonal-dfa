@@ -30,7 +30,6 @@ def HypothesisDFA.rerootedDFA (H : HypothesisDFA α) (read : FreeMonoid α → A
     (xs : Fin n → FreeMonoid α) (x : FreeMonoid α) (b : Prop) : Prop :=
   H.Classifies (pickLeaf H read xs) x b
 
-/-- `pickLeaf` as a program: it asks the read at each of `xs`. -/
 def pickLeafQ (H : HypothesisDFA α) {n : ℕ} (xs : Fin n → FreeMonoid α) :
     Query (FreeMonoid α) ARU (List Bool) :=
   (Query.table (List.ofFn xs)).map fun r => pickLeaf H r xs

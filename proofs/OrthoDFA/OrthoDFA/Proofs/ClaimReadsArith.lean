@@ -7,7 +7,7 @@ import OrthoDFA.Proofs.LoopReadsArith
 Each factor of `learnerReads` is within a constant of a shape in the claim's coordinates: the
 family size of `|V̂|` (`rel_fam_le`), `K` times the scan cap of `totalPref` (`rel_sc_le`), the
 probes a round's harvested draws walk of `1/ρ` times that (`rel_hb_le`), the sifts of
-`log (L + |Q| + 1)` (`lg_le`), and a sift's depth `|Q| + 1` and leaf cap `|Q| + 2` of `|Q|`. Each
+`log (L + |Q| + 1)` (`lg_le`), and a sift's depth `|Q| + 1` and leaf bound `|Q| + 2` of `|Q|`. Each
 source's reads is the product of its factors' bounds (`pw_mul`), so each is within its shape on its
 own.
 -/
@@ -454,7 +454,7 @@ lemma rel_hb_le {L Q A Ae iδ R iξ ip is P : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q)
     (hAAe : A ≤ Ae) (hiδ : 2 ≤ iδ) (hR : 1 ≤ R) (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 2 ≤ is)
     (hP : (Q + 1) * loopSC (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ))
         (1 / ip) (1 / 2 - 1 / is) ≤ 2 ^ 92 * P) :
-    0 ≤ loopHB (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
+    1 ≤ loopHB (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
         (1 / 2 - 1 / is)
       ∧ loopHB (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
         (1 / 2 - 1 / is) ≤ 2 ^ 108 * (R * (Ae + Q) * (L + Q) * iξ * P) := by
@@ -619,12 +619,15 @@ def distSC (r : LoopDistRun) : ℝ :=
 def distHB (r : LoopDistRun) : ℝ :=
   loopHB (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r) (r.ξ / 4) r.pAP (1 / 2 - r.s₀)
 
+/-- The probes a round's harvested draws walk, at most, at the claim's rates. -/
+def distWalk (r : LoopDistRun) : ℝ := distHB r
+
 def distLg (r : LoopDistRun) : ℝ := ((3 + Nat.clog 2 (r.L + r.Q + 3) : ℕ) : ℝ)
 
 /-- The strings `learner_loop_dfa_dist_tol` bounds the learner's asking by, at the claim's rates. -/
 def distReads (r : LoopDistRun) : ℝ :=
   learnerReads (r.Q + 1) (6 * (r.Q + 2) * distCount r) (distPool r + 1) (distFam r)
-    (distBudget r) r.Q (distHB r) (distLg r) r.A (distHeldOut r.toLoopDistInputs)
+    (distBudget r) r.Q (⌈distHB r⌉₊ : ℝ) (distLg r) r.A (distHeldOut r.toLoopDistInputs)
 
 section Pointwise
 
@@ -675,12 +678,19 @@ lemma sc_pw : 0 ≤ (r.Q + 1) * distSC r ∧ (r.Q + 1) * distSC r ≤ 2 ^ 92 * s
   simp only [one_div_one_div, summed_inv, quarter_inv] at h
   exact ⟨h.1, h.2.trans_eq (by unfold shPref; ring_nf)⟩
 
-lemma hb_pw : 0 ≤ distHB r ∧ distHB r ≤ 2 ^ 108 * (shRho r * shPref r) := by
+lemma hb_pw : 1 ≤ distHB r ∧ distHB r ≤ 2 ^ 108 * (shRho r * shPref r) := by
   obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, hip, his, -, -⟩ := dist_coords hr
   have h := rel_hb_le hL hQ hA hAAe hiδ hR hiξ hip his
     (rel_sc_le hL hQ hA hAAe hiδ hR hiξ hip his).2
   simp only [one_div_one_div, summed_inv, quarter_inv] at h
   exact ⟨h.1, h.2.trans_eq (by unfold shRho shPref; ring_nf)⟩
+
+lemma hbc_pw :
+    0 ≤ (⌈distHB r⌉₊ : ℝ) ∧ (⌈distHB r⌉₊ : ℝ) ≤ 2 ^ 109 * (shRho r * shPref r) := by
+  obtain ⟨h1, h2⟩ := hb_pw hr
+  have := Nat.ceil_lt_add_one (show 0 ≤ distHB r by linarith)
+  refine ⟨Nat.cast_nonneg _, ?_⟩
+  linarith
 
 lemma lg_pw : 0 ≤ distLg r ∧ distLg r ≤ 14 * shLg r :=
   ⟨Nat.cast_nonneg _, lg_le hr.1.1⟩
@@ -734,19 +744,20 @@ lemma search_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
 lemma resift_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     0 ≤ readsResift (r.Q + 1) (distFam r) r.Q r.A
       ∧ readsResift (r.Q + 1) (distFam r) r.Q r.A
-        ≤ 2 * (2 ^ 14 * (2 * (3 * 1 * 3))) * shResift r := by
+        ≤ 2 * (2 ^ 14 * (1 * (3 * 1 * 3))) * shResift r := by
   have hA : 0 ≤ (r.A : ℝ) ∧ (r.A : ℝ) ≤ 1 * r.A := ⟨Nat.cast_nonneg _, by linarith⟩
+  have hQ : 0 ≤ (r.Q : ℝ) ∧ (r.Q : ℝ) ≤ 1 * r.Q := ⟨Nat.cast_nonneg _, by linarith⟩
   rw [show shResift r = r.Q * (shFam r * (r.Q * (r.Q * r.A * r.Q))) by unfold shResift; ring]
-  exact pw_mul (k_pw hr) (pw_mul (fam_pw hr) (pw_mul (k_pw hr)
+  exact pw_mul (k_pw hr) (pw_mul (fam_pw hr) (pw_mul hQ
     (pw_mul (pw_mul (leaves_pw hr) hA) (leaves_pw hr))))
 
 lemma harvest_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
-    0 ≤ readsHarvest (r.Q + 1) (distFam r) r.Q (distHB r) (distLg r)
-      ∧ readsHarvest (r.Q + 1) (distFam r) r.Q (distHB r) (distLg r)
-        ≤ 2 * (2 ^ 14 * (2 ^ 108 * (14 * 2))) * shHarvest r := by
+    0 ≤ readsHarvest (r.Q + 1) (distFam r) r.Q (⌈distHB r⌉₊ : ℝ) (distLg r)
+      ∧ readsHarvest (r.Q + 1) (distFam r) r.Q (⌈distHB r⌉₊ : ℝ) (distLg r)
+        ≤ 2 * (2 ^ 14 * (2 ^ 109 * (14 * 2))) * shHarvest r := by
   rw [show shHarvest r = r.Q * (shFam r * ((shRho r * shPref r) * (shLg r * r.Q))) by
     unfold shHarvest; ring]
-  exact pw_mul (k_pw hr) (pw_mul (fam_pw hr) (pw_mul (hb_pw hr) (pw_mul (lg_pw hr) (k_pw hr))))
+  exact pw_mul (k_pw hr) (pw_mul (fam_pw hr) (pw_mul (hbc_pw hr) (pw_mul (lg_pw hr) (k_pw hr))))
 
 lemma start_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     0 ≤ readsStart (distHeldOut r.toLoopDistInputs) (distFam r)
@@ -760,6 +771,16 @@ lemma shapes_nonneg {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     nonneg_of_mul_nonneg_right ((resift_pw hr).1.trans (resift_pw hr).2) (by norm_num),
     nonneg_of_mul_nonneg_right ((harvest_pw hr).1.trans (harvest_pw hr).2) (by norm_num),
     nonneg_of_mul_nonneg_right ((start_pw hr).1.trans (start_pw hr).2) (by norm_num)⟩
+
+lemma distWalk_isBigO : distWalk =O[𝓟 loopDistRunRegion] (fun r => shRho r * shPref r) :=
+  isBigO_on (2 ^ 108) fun r hr => by
+    obtain ⟨h1, h2⟩ := hb_pw hr
+    have h3 : 0 ≤ shRho r * shPref r := by
+      by_contra hneg
+      push Not at hneg
+      have : (2 : ℝ) ^ 108 * (shRho r * shPref r) < 0 := mul_neg_of_pos_of_neg (by norm_num) hneg
+      linarith
+    exact ⟨(by linarith : 0 ≤ distHB r), h3, h2⟩
 
 /-- Each source of reads within its own shape. -/
 lemma distReads_isBigO : distReads =O[𝓟 loopDistRunRegion]
