@@ -11,8 +11,8 @@ length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, whe
 start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
 letters, `1/p₀Tol` growing as `L⁴ log L`, and every round's tree has at most `|Q| + 2` leaves
 (`RLStarSucceeds`); over the whole run its clusterings read at most `totalPref` prefixes and
-`totalSuff` suffixes, its rounds draw at most `totalProbes` probes, whatever they draw, and but for
-chance `δ`, the run succeeds and asks the oracle at most `totalReads` strings, start leaf included.
+`totalSuff` suffixes, its rounds draw at most `totalProbes` probes, whatever they draw;
+and, but for chance `δ`, the run asks the oracle at most `totalReads` strings, start leaf included.
 Every one is within the big-O shape below, with `s₀ = 1/2 − η₀` the signal. The settings the proof
 picks hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the
 window's `N = Θ(L)` lengths, so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes
