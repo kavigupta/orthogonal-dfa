@@ -152,24 +152,13 @@ def _sharpened(reads, inside, level):
 
 
 def split_members(
-    draw,
-    suffixes,
-    placing,
-    oracle,
-    *,
-    minority_below,
-    minority_share,
-    signal,
-    level,
-    rng,
+    draw, suffixes, oracle, *, minority_below, minority_share, signal, level, rng
 ):
     """The StateSplit placing n fresh members of draw, n = first_look at the
-    level each suffix is tested at, by the _fitted cut over the suffixes marked
-    placing for the labels of n others: those _sharpened gives over every
-    suffix, starting from the minority_share of the n whose counts over the
-    suffixes _going_with picks are lowest (minority_below) or highest, or that
-    starting tail where sharpening finds no cut; the smaller side is the
-    minority.  None if no suffix marked placing goes with the labels."""
+    level each suffix is tested at, by the cut _sharpened finds on n others,
+    starting from the minority_share of them whose counts over the suffixes
+    _going_with picks are lowest (minority_below) or highest; the smaller side
+    is the minority.  None if sharpening finds no cut."""
     size = first_look(signal, minority_share, level / len(suffixes), level)
     picking = draw(size)
     reads = _reads(oracle, picking, suffixes)
@@ -179,15 +168,11 @@ def split_members(
     labels = _tail(
         reads[:, picked] @ weights, math.ceil(minority_share * size), rng, True
     )
-    sharpened = _sharpened(reads, labels, level)
-    if sharpened is not None:
-        labels = _agreeing(reads, *sharpened[:2]) >= sharpened[2]
-    placeable = np.flatnonzero(placing)
-    fit = _fitted(reads[:, placeable], labels, level)
+    fit = _sharpened(reads, labels, level)
     if fit is None:
         return None
     kept, weights, count = fit
-    chosen = [suffixes[placeable[k]] for k in kept]
+    chosen = [suffixes[k] for k in kept]
     # A count of agreeing reads is the weighted reads plus the flipped ones.
     cut = count - (weights < 0).sum()
     testing = draw(size)
@@ -209,8 +194,8 @@ def split_members(
 
 def state_split(pst, dfa, state, family, *, minority_share, level):
     """(split_members of members aimed at state, read on family and fresh
-    suffixes and placed by the fresh ones the table does not hold, the aim);
-    None where nothing aims at state or split_members finds no split."""
+    suffixes, the aim); None where nothing aims at state or split_members finds
+    no split."""
     aim = aim_at(pst, dfa, state)
     if aim is None:
         return None
@@ -222,9 +207,6 @@ def state_split(pst, dfa, state, family, *, minority_share, level):
     split = split_members(
         lambda count: [aim() for _ in range(count)],
         suffixes,
-        # Members are kept by their noise on the suffixes that place them, so a
-        # suffix a later round reads would read them biased.
-        [not pst.table.contains_suffix(v) for v in suffixes],
         pst.oracle,
         minority_below=state in dfa.final_states,
         minority_share=minority_share,
