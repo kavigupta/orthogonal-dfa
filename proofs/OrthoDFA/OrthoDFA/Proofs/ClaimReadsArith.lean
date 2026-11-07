@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.ClaimLoopArith
+import OrthoDFA.Proofs.ClaimRLStarArith
 import OrthoDFA.Proofs.LoopReadsArith
 
 /-!
@@ -663,81 +663,73 @@ lemma pw_mul {f₁ g₁ f₂ g₂ K₁ K₂ : ℝ} (h₁ : 0 ≤ f₁ ∧ f₁ �
     0 ≤ f₁ * f₂ ∧ f₁ * f₂ ≤ K₁ * K₂ * (g₁ * g₂) :=
   ⟨mul_nonneg h₁.1 h₂.1, (mul_le_mul h₁.2 h₂.2 h₂.1 (h₁.1.trans h₁.2)).trans_eq (by ring)⟩
 
-lemma pw_add {f₁ g₁ f₂ g₂ K₁ K₂ : ℝ} (hK₁ : 0 < K₁) (hK₂ : 0 < K₂)
-    (h₁ : 0 ≤ f₁ ∧ f₁ ≤ K₁ * g₁) (h₂ : 0 ≤ f₂ ∧ f₂ ≤ K₂ * g₂) :
-    0 ≤ f₁ + f₂ ∧ f₁ + f₂ ≤ (K₁ + K₂) * (g₁ + g₂) := by
-  have hg₁ := nonneg_of_mul_nonneg_right (h₁.1.trans h₁.2) hK₁
-  have hg₂ := nonneg_of_mul_nonneg_right (h₂.1.trans h₂.2) hK₂
-  refine ⟨add_nonneg h₁.1 h₂.1, ?_⟩
-  nlinarith [h₁.2, h₂.2, mul_nonneg hK₂.le hg₁, mul_nonneg hK₁.le hg₂]
-
 /-! ## The claim's shapes -/
 
-def shPref (r : LoopDistRun) : ℝ :=
+def shPref (r : RLStarDistRun) : ℝ :=
   r.Q ^ 7 * (1 / r.β + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
       * log (r.Q * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
     + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
       * (1 / r.s₀ ^ 4 + r.Q ^ 4 * (1 / r.β + r.Q) ^ 2)
       * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
 
-def shSuff (r : LoopDistRun) : ℝ :=
+def shSuff (r : RLStarDistRun) : ℝ :=
   r.Q * (log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
     + log (r.Q / r.δ) / r.pAP)
 
-def shProbe (r : LoopDistRun) : ℝ :=
+def shProbe (r : RLStarDistRun) : ℝ :=
   r.Q ^ 3 * r.A * (1 / r.β + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
 
-def shHeld (r : LoopDistRun) : ℝ := log (r.Q / r.δ) / r.ξ ^ 2
+def shHeld (r : RLStarDistRun) : ℝ := log (r.Q / r.δ) / r.ξ ^ 2
 
 /-- The family size `|V̂|`. -/
-def shFam (r : LoopDistRun) : ℝ := log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
+def shFam (r : RLStarDistRun) : ℝ := log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
 
 /-- `1/ρ`, the disagreement rate's inverse. -/
-def shRho (r : LoopDistRun) : ℝ := r.R * (1 / r.β + r.Q) * (r.L + r.Q) / r.ξ
+def shRho (r : RLStarDistRun) : ℝ := r.R * (1 / r.β + r.Q) * (r.L + r.Q) / r.ξ
 
-def shLg (r : LoopDistRun) : ℝ := log (r.L + r.Q + 1)
+def shLg (r : RLStarDistRun) : ℝ := log (r.L + r.Q + 1)
 
-def shCluster (r : LoopDistRun) : ℝ := shPref r * shSuff r / r.Q
+def shCluster (r : RLStarDistRun) : ℝ := shPref r * shSuff r / r.Q
 
-def shSearch (r : LoopDistRun) : ℝ := shProbe r * shFam r * r.Q * shLg r
+def shSearch (r : RLStarDistRun) : ℝ := shProbe r * shFam r * r.Q * shLg r
 
-def shResift (r : LoopDistRun) : ℝ := r.Q ^ 4 * r.A * shFam r
+def shResift (r : RLStarDistRun) : ℝ := r.Q ^ 4 * r.A * shFam r
 
-def shHarvest (r : LoopDistRun) : ℝ := r.Q * shPref r * shFam r * shLg r * shRho r
+def shHarvest (r : RLStarDistRun) : ℝ := r.Q * shPref r * shFam r * shLg r * shRho r
 
-def shStart (r : LoopDistRun) : ℝ := shHeld r * shFam r
+def shStart (r : RLStarDistRun) : ℝ := shHeld r * shFam r
 
 /-! ## The learner's reads at the claim's rates -/
 
-def distCount (r : LoopDistRun) : ℝ :=
+def distCount (r : RLStarDistRun) : ℝ :=
   loopCount (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r) (r.ξ / 4) r.pAP (1 / 2 - r.s₀)
 
-def distPool (r : LoopDistRun) : ℝ :=
+def distPool (r : RLStarDistRun) : ℝ :=
   loopPool (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r) (r.ξ / 4) r.pAP (1 / 2 - r.s₀)
 
-def distFam (r : LoopDistRun) : ℝ :=
+def distFam (r : RLStarDistRun) : ℝ :=
   loopFam (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r) (r.ξ / 4) (1 / 2 - r.s₀)
 
-def distBudget (r : LoopDistRun) : ℝ :=
+def distBudget (r : RLStarDistRun) : ℝ :=
   loopBudget (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r)
 
-def distSC (r : LoopDistRun) : ℝ :=
+def distSC (r : RLStarDistRun) : ℝ :=
   loopSC (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r) (r.ξ / 4) r.pAP (1 / 2 - r.s₀)
 
 /-- The probes a round's harvested draws walk, at most, at the claim's rates. -/
-def distHB (r : LoopDistRun) : ℝ :=
+def distHB (r : RLStarDistRun) : ℝ :=
   loopHB (r.L + r.Q + 4) r.Q r.A (1 / r.β + r.Q) r.δ (distC r) (r.ξ / 4) r.pAP (1 / 2 - r.s₀)
 
-def distLg (r : LoopDistRun) : ℝ := ((3 + Nat.clog 2 (r.L + r.Q + 3) : ℕ) : ℝ)
+def distLg (r : RLStarDistRun) : ℝ := ((3 + Nat.clog 2 (r.L + r.Q + 3) : ℕ) : ℝ)
 
 /-- The strings `learner_loop_dfa_dist_tol` bounds the learner's asking by, at the claim's rates. -/
-def distReads (r : LoopDistRun) : ℝ :=
+def distReads (r : RLStarDistRun) : ℝ :=
   learnerReads (r.Q + 1) (6 * (r.Q + 2) * distCount r) (distPool r + 1) (distFam r)
-    (distBudget r) r.Q (⌈distHB r⌉₊ : ℝ) (distLg r) r.A (distHeldOut r.toLoopDistInputs)
+    (distBudget r) r.Q (⌈distHB r⌉₊ : ℝ) (distLg r) r.A (distHeldOut r.toRLStarDistInputs)
 
 section Pointwise
 
-variable {r : LoopDistRun} (hr : r ∈ loopDistRunRegion)
+variable {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion)
 include hr
 
 lemma pref_pw : 0 ≤ distPref r ∧ distPref r ≤ 2 ^ 90 * shPref r := by
@@ -759,7 +751,7 @@ lemma probes_pw : 0 ≤ distProbes r ∧ distProbes r ≤ 2 ^ 20 * shProbe r := 
   exact ⟨h.1, h.2.trans_eq (by unfold shProbe; ring_nf)⟩
 
 lemma held_pw :
-    0 ≤ (distHeldOut r.toLoopDistInputs : ℝ) ∧ (distHeldOut r.toLoopDistInputs : ℝ)
+    0 ≤ (distHeldOut r.toRLStarDistInputs : ℝ) ∧ (distHeldOut r.toRLStarDistInputs : ℝ)
       ≤ 2 ^ 13 * shHeld r := by
   obtain ⟨⟨hQ, -, hδ, hδ2, -, hξ, hξ1, -, -, -, -⟩, -, -⟩ := hr
   have hQ' : (1 : ℝ) ≤ r.Q := by exact_mod_cast hQ
@@ -831,7 +823,7 @@ lemma pool_pw : 0 ≤ distPool r + 2 ∧ distPool r + 2 ≤ 2 ^ 16 * (shSuff r /
 
 end Pointwise
 
-lemma cluster_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
+lemma cluster_pw {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion) :
     0 ≤ readsCluster (r.Q + 1) (6 * (r.Q + 2) * distCount r) (distPool r + 1)
       ∧ readsCluster (r.Q + 1) (6 * (r.Q + 2) * distCount r) (distPool r + 1)
         ≤ 2 ^ 90 * 2 ^ 16 * shCluster r := by
@@ -841,7 +833,7 @@ lemma cluster_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
   rw [e, show shCluster r = shPref r * (shSuff r / r.Q) by unfold shCluster; ring]
   exact pw_mul (pref_pw hr) (pool_pw hr)
 
-lemma search_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
+lemma search_pw {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion) :
     0 ≤ readsSearch (r.Q + 1) (distFam r) (distBudget r) r.Q (distLg r)
       ∧ readsSearch (r.Q + 1) (distFam r) (distBudget r) r.Q (distLg r)
         ≤ 2 ^ 20 * (2 ^ 14 * (14 * 2)) * shSearch r := by
@@ -851,7 +843,7 @@ lemma search_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
   rw [e, show shSearch r = shProbe r * (shFam r * (shLg r * r.Q)) by unfold shSearch; ring]
   exact pw_mul (probes_pw hr) (pw_mul (fam_pw hr) (pw_mul (lg_pw hr) (k_pw hr)))
 
-lemma resift_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
+lemma resift_pw {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion) :
     0 ≤ readsResift (r.Q + 1) (distFam r) r.Q r.A
       ∧ readsResift (r.Q + 1) (distFam r) r.Q r.A
         ≤ 2 * (2 ^ 14 * (1 * (3 * 1 * 3))) * shResift r := by
@@ -861,7 +853,7 @@ lemma resift_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
   exact pw_mul (k_pw hr) (pw_mul (fam_pw hr) (pw_mul hQ
     (pw_mul (pw_mul (leaves_pw hr) hA) (leaves_pw hr))))
 
-lemma harvest_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
+lemma harvest_pw {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion) :
     0 ≤ readsHarvest (r.Q + 1) (distFam r) r.Q (⌈distHB r⌉₊ : ℝ) (distLg r)
       ∧ readsHarvest (r.Q + 1) (distFam r) r.Q (⌈distHB r⌉₊ : ℝ) (distLg r)
         ≤ 2 ^ 14 * (2 ^ 111 * (14 * 2)) * shHarvest r := by
@@ -872,12 +864,12 @@ lemma harvest_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     unfold shHarvest; ring]
   exact pw_mul (fam_pw hr) (pw_mul (hbc_pw hr) (pw_mul (lg_pw hr) (k_pw hr)))
 
-lemma start_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
-    0 ≤ readsStart (distHeldOut r.toLoopDistInputs) (distFam r)
-      ∧ readsStart (distHeldOut r.toLoopDistInputs) (distFam r) ≤ 2 ^ 13 * 2 ^ 14 * shStart r :=
+lemma start_pw {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion) :
+    0 ≤ readsStart (distHeldOut r.toRLStarDistInputs) (distFam r)
+      ∧ readsStart (distHeldOut r.toRLStarDistInputs) (distFam r) ≤ 2 ^ 13 * 2 ^ 14 * shStart r :=
   pw_mul (held_pw hr) (fam_pw hr)
 
-lemma shapes_nonneg {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
+lemma shapes_nonneg {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion) :
     0 ≤ shCluster r ∧ 0 ≤ shSearch r ∧ 0 ≤ shResift r ∧ 0 ≤ shHarvest r ∧ 0 ≤ shStart r :=
   ⟨nonneg_of_mul_nonneg_right ((cluster_pw hr).1.trans (cluster_pw hr).2) (by norm_num),
     nonneg_of_mul_nonneg_right ((search_pw hr).1.trans (search_pw hr).2) (by norm_num),
@@ -885,7 +877,7 @@ lemma shapes_nonneg {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     nonneg_of_mul_nonneg_right ((harvest_pw hr).1.trans (harvest_pw hr).2) (by norm_num),
     nonneg_of_mul_nonneg_right ((start_pw hr).1.trans (start_pw hr).2) (by norm_num)⟩
 
-lemma distHB_isBigO : distHB =O[𝓟 loopDistRunRegion] (fun r => shRho r * shPref r / r.Q) :=
+lemma distHB_isBigO : distHB =O[𝓟 rlStarDistRunRegion] (fun r => shRho r * shPref r / r.Q) :=
   isBigO_on (2 ^ 109) fun r hr => by
     obtain ⟨h1, h2⟩ := hb_pw hr
     have hQ : (0 : ℝ) < r.Q := by
@@ -899,11 +891,11 @@ lemma distHB_isBigO : distHB =O[𝓟 loopDistRunRegion] (fun r => shRho r * shPr
     linarith
 
 /-- Each source of reads within its own shape. -/
-lemma distReads_isBigO : distReads =O[𝓟 loopDistRunRegion]
+lemma distReads_isBigO : distReads =O[𝓟 rlStarDistRunRegion]
     (fun r => shCluster r + shSearch r + shResift r + shHarvest r + shStart r) := by
-  have hg : ∀ f : LoopDistRun → ℝ, (∀ r ∈ loopDistRunRegion, 0 ≤ f r ∧
+  have hg : ∀ f : RLStarDistRun → ℝ, (∀ r ∈ rlStarDistRunRegion, 0 ≤ f r ∧
       f r ≤ shCluster r + shSearch r + shResift r + shHarvest r + shStart r) →
-      f =O[𝓟 loopDistRunRegion]
+      f =O[𝓟 rlStarDistRunRegion]
         (fun r => shCluster r + shSearch r + shResift r + shHarvest r + shStart r) :=
     fun f h => isBigO_on 1 fun r hr => ⟨(h r hr).1, (h r hr).1.trans (h r hr).2,
       (h r hr).2.trans_eq (one_mul _).symm⟩

@@ -46,12 +46,10 @@ def learnerQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid 
     match rounds.getLast? with
     | some o => ((pickLeafQ o.result.hypothesis xs).subst
         (familyReadQ o.family o.state.lo (o.state.hi + 1))).map fun s => some (rounds, s)
-    | none => .pure (some (rounds, []))
+    | none => .pure none
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
 
-/-- The rounds and the start leaf the learner returns at the noise `p.1`, the draws `p.2` and
-the held-out strings `xs`: `learnerQ` asking `O`'s answers at that noise. -/
 def indecisiveLStar {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
     (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) {n : ℕ}
