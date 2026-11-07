@@ -9,8 +9,8 @@ family size of `|V̂|` (`rel_fam_le`), `K` times the scan cap of `totalPref` (`r
 times `K` times a harvested population's draws of `totalPref` too (`rel_sh_le`), `|Q|` times the
 probes a round's harvested draws walk of `1/ρ` times that (`rel_hb_le`), the sifts of
 `log (L + |Q| + 1)` (`lg_le`), and a sift's depth `|Q| + 1` and leaf bound `|Q| + 2` of `|Q|`. Each
-source's reads is the product of its factors' bounds (`pw_mul`), so each is within its shape on its
-own.
+source's reads is the product of its factors' bounds (`pw_mul`), so the re-sifts are within the
+search's shape (`resift_le_search`) and each other source within its own.
 -/
 
 noncomputable section
@@ -878,18 +878,22 @@ lemma start_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
   pw_mul (held_pw hr) (fam_pw hr)
 
 lemma shapes_nonneg {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
-    0 ≤ shCluster r ∧ 0 ≤ shSearch r ∧ 0 ≤ shResift r ∧ 0 ≤ shHarvest r ∧ 0 ≤ shStart r :=
+    0 ≤ shCluster r ∧ 0 ≤ shSearch r ∧ 0 ≤ shHarvest r ∧ 0 ≤ shStart r :=
   ⟨nonneg_of_mul_nonneg_right ((cluster_pw hr).1.trans (cluster_pw hr).2) (by norm_num),
     nonneg_of_mul_nonneg_right ((search_pw hr).1.trans (search_pw hr).2) (by norm_num),
-    nonneg_of_mul_nonneg_right ((resift_pw hr).1.trans (resift_pw hr).2) (by norm_num),
     nonneg_of_mul_nonneg_right ((harvest_pw hr).1.trans (harvest_pw hr).2) (by norm_num),
     nonneg_of_mul_nonneg_right ((start_pw hr).1.trans (start_pw hr).2) (by norm_num)⟩
 
-/-- The re-sifts are within the search: `nProbe * |Q| * log(L + |Q| + 1)` is at least `1/4`. -/
+/-- The search's shape is the re-sifts' times
+
+      X = (1/β + |Q|) (L + |Q|) R / ξ · log (|Q| |Σ| / δ) · log (L + |Q| + 1),
+
+and X is at least 1/4 on the region. -/
 lemma resift_le_search {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     shResift r ≤ 4 * shSearch r := by
   obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, -, -, -, -⟩ := dist_coords hr
-  have hRes := (shapes_nonneg hr).2.2.1
+  have hRes : 0 ≤ shResift r :=
+    nonneg_of_mul_nonneg_right ((resift_pw hr).1.trans (resift_pw hr).2) (by norm_num)
   have hP : 1 ≤ (1 / r.β + r.Q) * (r.L + r.Q) * r.R / r.ξ := by
     rw [div_eq_mul_one_div]
     exact one_le_mul_of_one_le_of_one_le
@@ -917,6 +921,15 @@ lemma resift_le_search {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
   rw [e]
   nlinarith
 
+lemma resift_search_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
+    0 ≤ readsResift (r.Q + 1) (distFam r) r.Q r.A
+      ∧ readsResift (r.Q + 1) (distFam r) r.Q r.A ≤ 2 ^ 14 * 72 * shSearch r := by
+  obtain ⟨h0, h1⟩ := resift_pw hr
+  have h2 := resift_le_search hr
+  refine ⟨h0, h1.trans ?_⟩
+  have := mul_le_mul_of_nonneg_left h2 (by positivity : (0 : ℝ) ≤ 2 * (2 ^ 14 * (1 * (3 * 1 * 3))))
+  linarith
+
 lemma distHB_isBigO : distHB =O[𝓟 loopDistRunRegion] (fun r => shRho r * shPref r / r.Q) :=
   isBigO_on (2 ^ 109) fun r hr => by
     obtain ⟨h1, h2⟩ := hb_pw hr
@@ -941,23 +954,19 @@ lemma distReads_isBigO : distReads =O[𝓟 loopDistRunRegion]
       (h r hr).2.trans_eq (one_mul _).symm⟩
   have t1 := (bigO_dist _ (by norm_num) fun _ hr => cluster_pw hr).trans
     (hg shCluster fun r hr => by
-      obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr; exact ⟨h1, by linarith⟩)
+      obtain ⟨h1, h2, h4, h5⟩ := shapes_nonneg hr; exact ⟨h1, by linarith⟩)
   have t2 := (bigO_dist _ (by norm_num) fun _ hr => search_pw hr).trans
     (hg shSearch fun r hr => by
-      obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr; exact ⟨h2, by linarith⟩)
-  have hres : shResift =O[𝓟 loopDistRunRegion]
-      (fun r => shCluster r + shSearch r + shHarvest r + shStart r) :=
-    isBigO_on 4 fun r hr => by
-      obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr
-      have := resift_le_search hr
-      exact ⟨h3, by linarith, by linarith⟩
-  have t3 := (bigO_dist _ (by norm_num) fun _ hr => resift_pw hr).trans hres
+      obtain ⟨h1, h2, h4, h5⟩ := shapes_nonneg hr; exact ⟨h2, by linarith⟩)
+  have t3 := (bigO_dist _ (by norm_num) fun _ hr => resift_search_pw hr).trans
+    (hg shSearch fun r hr => by
+      obtain ⟨h1, h2, h4, h5⟩ := shapes_nonneg hr; exact ⟨h2, by linarith⟩)
   have t4 := (bigO_dist _ (by norm_num) fun _ hr => harvest_pw hr).trans
     (hg shHarvest fun r hr => by
-      obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr; exact ⟨h4, by linarith⟩)
+      obtain ⟨h1, h2, h4, h5⟩ := shapes_nonneg hr; exact ⟨h4, by linarith⟩)
   have t5 := (bigO_dist _ (by norm_num) fun _ hr => start_pw hr).trans
     (hg shStart fun r hr => by
-      obtain ⟨h1, h2, h3, h4, h5⟩ := shapes_nonneg hr; exact ⟨h5, by linarith⟩)
+      obtain ⟨h1, h2, h4, h5⟩ := shapes_nonneg hr; exact ⟨h5, by linarith⟩)
   exact (((t1.add t2).add t3).add t4).add t5
 
 end OrthoDFA

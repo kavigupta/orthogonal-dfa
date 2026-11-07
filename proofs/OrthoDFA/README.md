@@ -64,7 +64,7 @@ Each claim is proved from the explicit theorems below.
   harvested draws walk within `⌈totalWalk⌉₊` probes a round (`totalWalk` is `O` of `1/ρ` times the
   prefix count over `|Q|`: a harvested population draws only until its draws hold its samples, and
   each draw walks about `1/ρ` probes) also asks the oracle at most `totalReads` strings, a sum of
-  four terms (the clusterings', the counterexample search's with its re-sifts', the harvest's and
+  four terms (the clusterings', the counterexample search's (re-sifts included), the harvest's and
   the start leaf's), and its output and questions depend only on the answers at the strings it asks
   (`learnerQ`'s `eval` and `reads`). The prefixes' first term is the clustering's populations'
   group, whose log reads the suffix pool alone, so its log grows as `log log L`. The totals grow

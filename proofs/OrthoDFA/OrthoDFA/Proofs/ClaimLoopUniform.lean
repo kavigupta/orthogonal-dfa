@@ -257,7 +257,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
 
 /-- The reads' factors other than the prefix and suffix totals, at uniform strings. -/
 lemma uniform_factors {r : LoopRun} (hr : r ∈ loopRunRegion) :
-    0 < (r.Q : ℝ) ∧ 0 ≤ (r.A : ℝ)
+    0 < (r.Q : ℝ)
       ∧ 0 ≤ log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       ∧ 0 ≤ r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
       ∧ 0 ≤ log (r.L + r.Q + 1)
@@ -277,7 +277,7 @@ lemma uniform_factors {r : LoopRun} (hr : r ∈ loopRunRegion) :
   have l3 : 0 ≤ log ((r.Q : ℝ) * r.A / r.δ) :=
     Real.log_nonneg ((one_le_div hδ).2 (by linarith))
   have l4 : 0 ≤ log ((r.Q : ℝ) / r.δ) := Real.log_nonneg ((one_le_div hδ).2 (by linarith))
-  refine ⟨by linarith, Nat.cast_nonneg _, div_nonneg l1 (sq_nonneg _),
+  refine ⟨by linarith, div_nonneg l1 (sq_nonneg _),
     mul_nonneg (div_nonneg (mul_nonneg (by positivity) (by linarith)) hξ.le) l3,
     Real.log_nonneg (by linarith),
     div_nonneg (mul_nonneg (mul_nonneg (by linarith) (by positivity)) (by positivity)) hξ.le,
@@ -333,11 +333,11 @@ theorem loopClaimSimple_of_claim (h : LoopClaimUniform.{u, v, w}) : LoopClaimSim
     hwk.trans (isBigO_on 4 fun r hr => ?_), hh, hw⟩
   · obtain ⟨hp0, -, hp1⟩ := loop_pref_dom hr
     obtain ⟨hs0, -, hs1⟩ := loop_suff_dom hr
-    obtain ⟨hQ, -, hF, hPr, hlg, hρ, hHd⟩ := uniform_factors hr
+    obtain ⟨hQ, hF, hPr, hlg, hρ, hHd⟩ := uniform_factors hr
     dsimp only
     exact reads_dom hQ hp0 hp1 hs0 hs1 hF hPr hlg hρ hHd
   · obtain ⟨hp0, -, hp1⟩ := loop_pref_dom hr
-    obtain ⟨hQ, -, -, -, -, hρ, -⟩ := uniform_factors hr
+    obtain ⟨hQ, -, -, -, hρ, -⟩ := uniform_factors hr
     exact walk_dom hQ hp0 hp1 hρ
 
 end OrthoDFA
