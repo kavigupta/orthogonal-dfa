@@ -1,4 +1,4 @@
-"""Level3Settings of OrthoDFA/Code/Level3.lean, and the one shipped."""
+"""The counterexample search's settings, and the one shipped."""
 
 from dataclasses import dataclass
 
