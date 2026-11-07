@@ -7,7 +7,7 @@ PROCESSES=$1
 shift
 E=orthogonal_dfa.experiments
 
-scripts/capal_run_all.sh
+scripts/capal_run_all.sh "$PROCESSES"
 
 python -m $E.random_minimal.run --processes "$PROCESSES"
 python -m $E.random_minimal.capal_random --processes "$PROCESSES"
