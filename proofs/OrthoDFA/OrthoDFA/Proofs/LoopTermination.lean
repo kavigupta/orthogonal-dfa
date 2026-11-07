@@ -63,7 +63,7 @@ lemma readProb_undecided_le [IsProbabilityMeasure μ] (O : Oracle μ (FreeMonoid
     {F : Finset (FreeMonoid α)} (hF : 1 ∉ F) (lo hi : ℕ) (z : FreeMonoid α) :
     readProb O F lo (hi + 1) z .undecided ≤ undecidedProb O lo (hi + 1) (insert 1 F) z := by
   refine measureReal_mono (fun ω hω => ?_) (measure_ne_top _ _)
-  simp only [Set.mem_ofPred_eq, familyRead, readOf] at hω ⊢
+  simp only [Set.mem_ofPred_eq, familyRead_eq, readOf] at hω ⊢
   rw [decided, voteCount_insert O.mq hF]
   split_ifs at hω ⊢ <;> omega
 
@@ -75,7 +75,7 @@ lemma misreadProb_le [IsProbabilityMeasure μ] (O : Oracle μ (FreeMonoid α))
   refine (measureReal_mono (s₂ := {ω | ¬ cutCorrect O lo (hi + 1) (insert 1 F) p ω}
     ∪ {ω | ¬ decided O.mq lo (hi + 1) (insert 1 F) p ω}) (fun ω hω => ?_)
       (measure_ne_top _ _)).trans (measureReal_union_le _ _)
-  simp only [Set.mem_ofPred_eq, familyRead] at hω
+  simp only [Set.mem_ofPred_eq, familyRead_eq] at hω
   simp only [Set.mem_union, Set.mem_ofPred_eq, cutCorrect, decided]
   have hb := voteCount_insert O.mq hF p ω
   have hb01 : (if O.mq (p * 1) ω = 1 then 1 else 0) ≤ 1 := by split_ifs <;> omega

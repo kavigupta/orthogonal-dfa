@@ -74,8 +74,10 @@ noncomputable def keep (s : State α) (n d : ℕ) : State α ⊕ RoundEnd Unit :
     .inr .consistent
   else .inl s'
 
+variable [Fintype α]
+
 /-- The leaf `p` split on `c` and the midfix where the leaves `t` and `t₀` part. -/
-def splitLeaf (s : State α) (p : List Bool) (c : α) (t t₀ : List Bool) : State α :=
+noncomputable def splitLeaf (s : State α) (p : List Bool) (c : α) (t t₀ : List Bool) : State α :=
   let H := (HypothesisDFA.mk s.tree s.edges).split read
     (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
   newHypothesis H.tree H.edges (s.hypotheses + 1)
@@ -108,8 +110,8 @@ structure Result (α : Type*) where
 
 end
 
-noncomputable def indecisiveLStarLevel2 (settings : Settings) (read : FreeMonoid α → ARU)
-    {P : ℕ} (draws : Fin P → FreeMonoid α) : Result α :=
+noncomputable def indecisiveLStarLevel2 [Fintype α] (settings : Settings)
+    (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α) : Result α :=
   let r := runProbes read settings initialState (List.ofFn draws)
   ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩
 
