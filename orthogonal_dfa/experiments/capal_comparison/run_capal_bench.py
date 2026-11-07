@@ -11,10 +11,12 @@ experiment on CAPAL's home turf rather than ours.
 from __future__ import annotations
 
 from .capal_targets import capal_benchmarks
-from .sweep import run_sweep
+from .sweep import run_sweep, sweep_finished
 
 
 def main() -> None:
+    if sweep_finished("capal_benchmarks"):
+        return
     run_sweep(
         capal_benchmarks(),
         experiment="capal_benchmarks",

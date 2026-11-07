@@ -10,10 +10,12 @@ The modulo-9 and regex oracles from `tests/e2e/test_basic.py`, ported to upstrea
 from __future__ import annotations
 
 from .our_targets import our_benchmarks
-from .sweep import run_sweep
+from .sweep import run_sweep, sweep_finished
 
 
 def main() -> None:
+    if sweep_finished("our_benchmarks"):
+        return
     run_sweep(
         our_benchmarks(),
         experiment="our_benchmarks",

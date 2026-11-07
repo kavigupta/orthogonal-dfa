@@ -118,7 +118,29 @@ def describe(cell: Cell) -> str:
     )
 
 
-def reusable_cells(out_path: Path) -> Dict[tuple, dict]:
+def finished(out_path: Path, **config: Any) -> bool:
+    """Whether `out_path` is a completed run whose saved config has these values."""
+    if not out_path.exists():
+        return False
+    payload = json.loads(out_path.read_text())
+    return (
+        payload.get("complete") is True
+        and payload.get("schema_version") == SCHEMA_VERSION
+        and all(payload["config"].get(k) == v for k, v in config.items())
+    )
+
+
+def sweep_finished(experiment: str) -> bool:
+    """Needs no CAPAL checkout, unlike building the benchmarks `run_sweep` takes,
+    so it cannot compare benchmark names."""
+    out_path = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
+    done = finished(out_path, etas=ETAS, seeds=SEEDS, learners=LEARNERS)
+    if done:
+        print(f"{out_path} is complete; nothing to run.", flush=True)
+    return done
+
+
+def reusable_cells(out_path: Path, key: Callable[[dict], tuple]) -> Dict[tuple, dict]:
     """Cells from an earlier run of this experiment, keyed by identity.
 
     A cell is written only once it has finished, so a crashed run's cells are
@@ -139,10 +161,7 @@ def reusable_cells(out_path: Path) -> Dict[tuple, dict]:
             flush=True,
         )
         return {}
-    return {
-        (c["benchmark"], c["learner"], c["eta"], c["seed"]): c
-        for c in payload.get("cells", [])
-    }
+    return {key(c): c for c in payload.get("cells", [])}
 
 
 def run_sweep(
@@ -166,7 +185,9 @@ def run_sweep(
         "benchmarks": [b.name for b in benchmarks],
     }
 
-    previous = reusable_cells(out_path)
+    previous = reusable_cells(
+        out_path, lambda c: (c["benchmark"], c["learner"], c["eta"], c["seed"])
+    )
     if previous:
         print(f"Reusing up to {len(previous)} cells from {out_path}.", flush=True)
 

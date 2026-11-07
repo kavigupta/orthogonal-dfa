@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=duplicate-code
 """
 Experiment 3, the hyperparameter sweep, and experiment 4, the matched budget.
 
@@ -13,7 +14,7 @@ Three seeds per cell, against one for the head-to-head experiments.
 
 --matched-budget runs CAPAL with exactly the membership queries E-L* spent on
 the same cell, at eta=0.30. It is slow because it runs CAPAL with a large query budget,
-and so is not a sweep.
+and so is not a sweep. A saved cell is reused even if E-L*'s spend has since changed.
 
     python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep
     python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep --matched-budget
@@ -29,7 +30,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .core import REPO_ROOT, Cell, eval_words, write_experiment
 from .our_targets import our_benchmarks
-from .sweep import capal_cell
+from .sweep import capal_cell, finished, reusable_cells
 
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
 DEFAULT_SEEDS = [0, 1, 2]
@@ -93,7 +94,7 @@ def select_configs(
     return [(label, by_label[label]) for label in labels]
 
 
-def main() -> None:
+def main() -> None:  # pylint: disable=too-many-statements
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--etas", nargs="+", type=float, default=None)
     ap.add_argument("--seeds", nargs="+", type=int, default=DEFAULT_SEEDS)
@@ -121,6 +122,20 @@ def main() -> None:
     etas = args.etas or ([0.30] if args.matched_budget else DEFAULT_ETAS)
     experiment = "matched_budget" if args.matched_budget else "wall_sweep"
     default_out = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
+    out_path = Path(args.out) if args.out else default_out
+
+    labels = [label for label, _ in sweep_configs]
+    targets = {"benchmarks": args.targets} if args.targets else {}
+    if finished(
+        out_path,
+        etas=etas,
+        seeds=args.seeds,
+        configs=labels,
+        matched_budget=args.matched_budget,
+        **targets,
+    ):
+        print(f"{out_path} is complete; nothing to run.", flush=True)
+        return
 
     budgets = elstar_budgets() if args.matched_budget else {}
     benchmarks = our_benchmarks()
@@ -131,13 +146,16 @@ def main() -> None:
             raise SystemExit(f"unknown target(s): {sorted(missing)}")
         benchmarks = [by[n] for n in args.targets]
 
-    out_path = Path(args.out) if args.out else default_out
+    previous = reusable_cells(
+        out_path,
+        lambda c: (c["benchmark"], c["learner_config"]["label"], c["eta"], c["seed"]),
+    )
     cells: List[Cell] = []
     config = {
         "etas": list(etas),
         "seeds": list(args.seeds),
         "benchmarks": [b.name for b in benchmarks],
-        "configs": [label for label, _ in sweep_configs],
+        "configs": labels,
         "matched_budget": args.matched_budget,
     }
 
@@ -152,13 +170,23 @@ def main() -> None:
     )
 
     def flush(complete: bool = False) -> None:
+        # Until the sweep finishes, carry the cells it has not reached yet:
+        # this file is their only copy. The final write is the grid alone.
+        done_keys = {
+            (c.benchmark, c.learner_config["label"], c.eta, c.seed) for c in cells
+        }
+        carried = (
+            []
+            if complete
+            else [Cell(**c) for k, c in previous.items() if k not in done_keys]
+        )
         write_experiment(
             out_path,
             experiment=experiment,
             generated_by="orthogonal_dfa.experiments.capal_comparison.run_wall_sweep",
             description=description,
             config=config,
-            cells=cells,
+            cells=[*cells, *carried],
             complete=complete,
         )
 
@@ -174,6 +202,11 @@ def main() -> None:
                     f"[{done}/{total}] {b.name} eta={eta:.2f} {label} seed={seed}",
                     flush=True,
                 )
+                cached = previous.get((b.name, label, eta, seed))
+                if cached is not None:
+                    cells.append(Cell(**cached))
+                    print("   [reused]", flush=True)
+                    continue
                 budget = budgets.get((b.name, eta)) if args.matched_budget else None
                 if args.matched_budget and budget is None:
                     print("   skipped: E-L* has no spend recorded here", flush=True)
