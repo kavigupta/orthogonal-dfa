@@ -12,11 +12,9 @@
   `κ` must be.
 - `RLStarClaim` (`Claims/RLStar.lean`): over an input distribution `D` and a target admitted by the
   relative rule at visit ratio `R`, but for chance `δ` the loop's DFA is right on all but `γ + ξ`
-  of `D`'s strings of length `L`, every round's tree has at most `|Q| + 2` leaves, each round's
-  harvested draws find their strings within a stated big-O number of probes in all, and the whole
-  run's prefixes, suffixes and probes are each within a stated big-O shape. A run that succeeds
-  asks the oracle a number of strings within a stated big-O shape, and any answers agreeing with
-  the oracle's on those strings give the same output.
+  of `D`'s strings of length `L`, every round's tree has at most `|Q| + 2` leaves, and the whole
+  run's prefixes, suffixes and probes are each within a stated big-O shape. But for chance `δ`, the
+  run also asks the oracle a number of strings within a stated big-O shape.
 - `RLStarClaimUniform` (`Claims/RLStar.lean`): `RLStarClaim` over uniform strings, once `L` is past
   a stated big-O length `L₀`.
 - `RLStarClaimUniformSimple` (`Claims/RLStar.lean`): `RLStarClaimUniform` with the prefix and
