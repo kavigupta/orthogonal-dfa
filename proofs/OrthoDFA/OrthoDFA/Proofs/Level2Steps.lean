@@ -614,6 +614,66 @@ theorem step_same [Fintype α] (hC : TestsOK C) {s : State α} (hs : Inv read C 
 
 end Step
 
+/-! ## Learned edges stay at leaves -/
+
+section Keys
+
+variable [Fintype α]
+
+def KeyInv (s : State α) : Prop := EdgesOK read s.tree s.edges ∧ EdgesAtLeaves ⟨s.tree, s.edges⟩
+
+omit [Fintype α] in
+theorem keyInv_keep {s s' : State α} {n d : ℕ} (hs : KeyInv read s)
+    (h : keep C s n d = .inl s') : KeyInv read s' := by
+  unfold keep at h
+  dsimp only at h
+  split_ifs at h <;> cases h
+  exact hs
+
+theorem keyInv_step {s s' : State α} {x : FreeMonoid α} (hs : KeyInv read s)
+    (h : applyProbe read C s x = .inl s') : KeyInv read s' := by
+  have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.1 x
+  unfold applyProbe at h
+  generalize probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK
+  cases o with
+  | unlearnedEdge p c u t =>
+    obtain ⟨hp, hu, huc, -⟩ := hOK
+    simp only [Sum.inl.injEq] at h
+    subst h
+    refine ⟨edgesOK_upd read hs.1 hu huc, fun e t' w he => ?_⟩
+    simp only [newHypothesis] at he ⊢
+    by_cases hep : e = (p, c)
+    · subst hep; exact hp
+    · rw [Function.update_of_ne hep] at he
+      exact hs.2 e t' w he
+  | wrongEdge p c u t =>
+    obtain ⟨hp, -, -, t₀, w₀, hE, -⟩ := hOK
+    simp only [hE, Sum.inl.injEq] at h
+    subst h
+    exact ⟨edgesOK_split (H := ⟨s.tree, s.edges⟩) read hs.1 hp _,
+      edgesAtLeaves_split (H := ⟨s.tree, s.edges⟩) read _⟩
+  | agree => exact keyInv_keep read C hs h
+  | undecidedStart z => exact keyInv_keep read C hs h
+  | undecided zs cl => cases cl <;> exact keyInv_keep read C hs h
+
+theorem keyInv_runProbes : ∀ (xs : List (FreeMonoid α)) (s : State α), KeyInv read s →
+    KeyInv read (runProbes read C s xs).1
+  | [], _, hs => hs
+  | x :: xs, s, hs => by
+    unfold runProbes
+    rcases ha : applyProbe read C s x with s' | e
+    · exact keyInv_runProbes xs s' (keyInv_step read C hs ha)
+    · exact hs
+
+theorem edgesAtLeaves_runProbes (xs : List (FreeMonoid α)) :
+    EdgesAtLeaves ⟨(runProbes read C initialState xs).1.tree,
+      (runProbes read C initialState xs).1.edges⟩ :=
+  (keyInv_runProbes read C xs initialState
+    ⟨fun _ _ _ _ _ h => by simp [initialState, newHypothesis] at h,
+      fun _ _ _ h => by simp [initialState, newHypothesis] at h⟩).2
+
+end Keys
+
 end Level2
 
 end OrthoDFA
