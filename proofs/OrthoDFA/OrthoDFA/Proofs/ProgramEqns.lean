@@ -93,10 +93,6 @@ theorem eval_retargetQ [DecidableEq α] (T' : DTree α) (p : List Bool) (E : Edg
     · subst h; simp
     · simp [h]
 
-/-- Every learned edge is at a leaf. -/
-def EdgesAtLeaves (H : HypothesisDFA α) : Prop :=
-  ∀ e t w, H.edges e = some (t, w) → e.1 ∈ H.tree.leaves
-
 variable [DecidableEq α] [Fintype α]
 
 theorem HypothesisDFA.split_eq (H : HypothesisDFA α) (d : FreeMonoid α) (p : List Bool) :
@@ -106,23 +102,6 @@ theorem HypothesisDFA.split_eq (H : HypothesisDFA α) (d : FreeMonoid α) (p : L
   change (H.splitQ d p).eval read = _
   simp only [HypothesisDFA.splitQ, eval_map, eval_retargetQ, Finset.mem_toList, Finset.mem_product,
     List.mem_toFinset, Finset.mem_univ, and_true]
-
-/-- With every learned edge at a leaf, as along a run, the split retargets every edge, as the
-Python's split_leaf does. -/
-theorem HypothesisDFA.split_eq_of {H : HypothesisDFA α} (hH : EdgesAtLeaves H) (d : FreeMonoid α)
-    (p : List Bool) :
-    H.split read d p = ⟨H.tree.splitAt d p, retarget read (H.tree.splitAt d p) p H.edges⟩ := by
-  rw [HypothesisDFA.split_eq]
-  congr 1
-  funext e
-  split_ifs with he
-  · rfl
-  · rw [retarget_eq]
-    split_ifs
-    · rfl
-    rcases hE : H.edges e with _ | ⟨t', w⟩
-    · rfl
-    · exact absurd (hH e t' w hE) he
 
 end Retarget
 
@@ -291,17 +270,6 @@ theorem splitLeaf_edges_eq_some (s : Level3State α) (p : List Bool) (c : α) (t
   rw [splitLeaf_eq]
   simp only [newHypothesis]
   split_ifs with he <;> simp [he]
-
-theorem splitLeaf_eq_of {s : Level3State α} (hs : EdgesAtLeaves ⟨s.tree, s.edges⟩)
-    (p : List Bool) (c : α) (t t₀ : List Bool) :
-    splitLeaf read s p c t t₀ =
-      let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
-      newHypothesis T' (retarget read T' p s.edges) (s.hypotheses + 1) := by
-  have h := HypothesisDFA.split_eq_of read hs
-    (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
-  unfold HypothesisDFA.split at h
-  change ((HypothesisDFA.splitQ _ _ p).map _).eval read = _
-  rw [eval_map, h]
 
 theorem applyProbe_eq (s : Level3State α) (x : FreeMonoid α) :
     applyProbe read C s x =

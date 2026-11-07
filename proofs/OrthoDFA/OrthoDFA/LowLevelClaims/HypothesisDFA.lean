@@ -1,4 +1,4 @@
-import OrthoDFA.Code.HypothesisDFA
+import OrthoDFA.Code.Level3
 
 /-! What walking, splitting and learning edges promise. -/
 
@@ -36,5 +36,15 @@ def SplitAndLearnCorrect : Prop :=
     ∧ (∀ (u : FreeMonoid α) (s t : List Bool) (c : α), H.tree.sift read u = .inl s →
         H.tree.sift read (u * FreeMonoid.of c) = .inl t →
         EdgesOK read H.tree (Function.update H.edges (s, c) (some (t, u))))
+
+/-- Every learned edge along a level-3 run is at a leaf, so the leaf restriction in
+`HypothesisDFA.splitQ` drops none, and the split is hypothesis_dfa.HypothesisDFA.split_leaf's,
+which retargets every edge. -/
+def Level3EdgesAtLeaves : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU)
+    (C : Random.Level3Settings) (xs : List (FreeMonoid α)),
+    -- Each state a run splits at ends the run over the probes before it.
+    let s := (Random.runProbes read C Random.initialState xs).1
+    EdgesAtLeaves ⟨s.tree, s.edges⟩
 
 end OrthoDFA
