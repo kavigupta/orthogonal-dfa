@@ -150,6 +150,30 @@ theorem runInv_step {X : List (FreeMonoid α)} {s s' : Level3State α} {x : Free
     · simp only [splitLeaf, newHypothesis]; rw [hlen]
   · exact ⟨⟨⟨hs.inv.edges, hs.inv.cls, hs.inv.two⟩, hs.keys, hs.wit⟩, by simp [countProbe]⟩
 
+theorem leaves_le_step {X : List (FreeMonoid α)} {s s' : Level3State α} {x : FreeMonoid α}
+    (hs : RunInv read C X s) (h : applyProbe read C s x = .inl s') :
+    s.tree.leaves.length ≤ s'.tree.leaves.length := by
+  rcases step_cases read C hs.inv h with
+    ⟨p, c, u, t, -, -, -, -, -, rfl⟩ | ⟨p, c, u, t, t₀, w₀, -, -, -, hp, -, -, rfl⟩ | ⟨rfl, -, -⟩
+  · simp [newHypothesis]
+  · simp only [splitLeaf, newHypothesis]
+    rw [DTree.length_leaves_splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀))
+      s.tree p hp]
+    omega
+  · simp [countProbe]
+
+/-- A run's tree never loses a leaf. -/
+theorem leaves_le_runProbes {X : List (FreeMonoid α)} :
+    ∀ (xs : List (FreeMonoid α)) (s : Level3State α), (∀ x ∈ xs, x ∈ X) → RunInv read C X s →
+      s.tree.leaves.length ≤ (runProbes read C s xs).1.tree.leaves.length
+  | [], s, _, _ => by simp [runProbes]
+  | x :: xs, s, hX, hs => by
+    simp only [runProbes]
+    rcases ha : applyProbe read C s x with s' | e
+    · exact (leaves_le_step read C hs ha).trans (leaves_le_runProbes xs s'
+        (fun y hy => hX y (by simp [hy])) (runInv_step read C (hX x (by simp)) hs ha).1)
+    · exact le_rfl
+
 theorem runInv_runProbes {X : List (FreeMonoid α)} :
     ∀ (xs : List (FreeMonoid α)) (s : Level3State α), (∀ x ∈ xs, x ∈ X) → RunInv read C X s →
       RunInv read C X (runProbes read C s xs).1
@@ -177,6 +201,43 @@ theorem runProbes_tree (xs : List (FreeMonoid α)) :
   rw [h0] at h2
   refine ⟨h1, by omega, ?_⟩
   exact (classSet_props _ _ h1.inv.cls).1.mono (by omega)
+
+/-! ## The run with the leaf cap -/
+
+theorem runProbesCapped_eq (X : List (FreeMonoid α)) :
+    ∀ (xs : List (FreeMonoid α)) (s : Level3State α), (∀ y ∈ xs, y ∈ X) → RunInv read C X s →
+      runProbesCapped read C s xs
+        = if (runProbes read C s xs).1.tree.leaves.length ≤ C.leafCap
+          then some (runProbes read C s xs) else none
+  | [], _, _, _ => by simp only [runProbesCapped, runProbes]; exact if_congr Iff.rfl rfl rfl
+  | x :: xs, s, hX, hs => by
+    by_cases hc : s.tree.leaves.length ≤ C.leafCap
+    · rcases hap : applyProbe read C s x with s' | e
+      · have e1 : runProbes read C s (x :: xs) = runProbes read C s' xs := by
+          simp [runProbes, hap]
+        have e2 : runProbesCapped read C s (x :: xs) = runProbesCapped read C s' xs := by
+          simp [runProbesCapped, hc, hap]
+        rw [e1, e2]
+        exact runProbesCapped_eq X xs s' (fun y hy => hX y (by simp [hy]))
+          (runInv_step read C (hX x (by simp)) hs hap).1
+      · have e1 : runProbes read C s (x :: xs) = (s, e) := by simp [runProbes, hap]
+        have e2 : runProbesCapped read C s (x :: xs) = some (s, e) := by
+          simp [runProbesCapped, hc, hap]
+        rw [e1, e2, if_pos hc]
+    · have hle := leaves_le_runProbes read C (x :: xs) s hX hs
+      simp only [runProbesCapped, if_neg hc]
+      rw [if_neg (by omega)]
+
+/-- Level 3 with the leaf cap is level 3 where its final tree has at most `leafCap` leaves. -/
+theorem level3Capped_eq {T : ℕ} (xs : Fin T → FreeMonoid α) :
+    level3Capped C read xs
+      = if (indecisiveLStarLevel3 C read xs).hypothesis.tree.leaves.length ≤ C.leafCap
+        then some (indecisiveLStarLevel3 C read xs) else none := by
+  classical
+  unfold level3Capped indecisiveLStarLevel3
+  rw [runProbesCapped_eq read C (List.ofFn xs) (List.ofFn xs) initialState (fun _ h => h)
+    (runInv_start read C _)]
+  split_ifs <;> rfl
 
 /-! ## What the run reads -/
 

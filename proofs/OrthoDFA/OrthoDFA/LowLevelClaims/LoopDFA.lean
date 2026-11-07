@@ -194,7 +194,7 @@ def LearnerLoopDFASimple : Prop :=
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -280,7 +280,7 @@ def LearnerLoopDFA : Prop :=
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -379,7 +379,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -472,7 +472,7 @@ def LearnerLoopDFARelative : Prop :=
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -575,7 +575,7 @@ def LearnerLoopDFADist : Prop :=
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => prefixLaw D L)).real

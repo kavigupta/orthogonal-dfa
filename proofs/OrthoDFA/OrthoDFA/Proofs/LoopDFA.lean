@@ -429,7 +429,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-      (settings.scanCap : ℝ) ≤ SC ∧
+      (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
       (∀ p : LoopDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
             settings.level3.probeBudget,
         ∀ rounds,
@@ -546,7 +546,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     exact ciSup_le fun u => (windowLaw_prefix D (le_refl k) hkL₁ u).trans_le (hpre u)
   have hpm0 : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
   have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
-  obtain ⟨settings, hwalk, hdis, hbud, hHN, hSC, hcapN, hnp, hreads, hmain⟩ :=
+  obtain ⟨settings, hwalk, hdis, hbud, hHN, hSC, hleaf, hcapN, hnp, hreads, hmain⟩ :=
     loop_simple_checks M O P (shortAt M (L + 1)) η₀ εcov ε δ' pAP k
     hL hη hη₀ hεc0 hεcov1 hε0 hε12 hδ'0 hδ'1' hpAP hp1
     (by show 1 ≤ L + Fintype.card σ + 3; omega)
@@ -572,7 +572,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     show 0 ≤ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     positivity
-  refine ⟨settings, hwalk, hdis, hbud, hHN, hSC,
+  refine ⟨settings, hwalk, hdis, hbud, hHN, hSC, hleaf,
     fun p rounds hr => ?_, ?_⟩
   · obtain ⟨hlr, hpr, hsu⟩ := loop_reads_le_op settings O
       (windowLaw D k L₁)
@@ -792,7 +792,7 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-      (settings.scanCap : ℝ) ≤ SC ∧
+      (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
       (∀ p : LoopDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
             settings.level3.probeBudget,
         ∀ rounds,
@@ -828,7 +828,7 @@ theorem learner_loop_dfa_dist_holds : LearnerLoopDFADist := by
   have hAe : A ≤ 1 / β := by
     rw [le_div_iff₀ hβ]
     linarith [mul_comm β A]
-  obtain ⟨settings, h1, h2, h3, h5, h6, -, h4⟩ := learner_loop_dfa_dist_counts M O L D η₀ c γ δ
+  obtain ⟨settings, h1, h2, h3, h5, h6, h7, -, h4⟩ := learner_loop_dfa_dist_counts M O L D η₀ c γ δ
     pAP ξ
     (1 / β) p₀ hL hη hη₀ hc hδ hδ1 hpAP hξ hA2 hAe hlong
     (fun i hi hi' y a => by
@@ -838,7 +838,7 @@ theorem learner_loop_dfa_dist_holds : LearnerLoopDFADist := by
       rw [e, le_div_iff₀ hβ]
       linarith)
     hpre hpAPu hceil hk1 hk2 hk3 hk4
-  exact ⟨settings, h1, h2, h3, h5, h6, h4⟩
+  exact ⟨settings, h1, h2, h3, h5, h6, h7, h4⟩
 
 theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c γ δ pAP ξ Q A k L₁ N ε εcov δ' ι s τ J S B₃ Wm W PB RB
@@ -852,14 +852,14 @@ theorem learner_loop_dfa_simple_holds : LearnerLoopDFASimple := by
   have hwS : windowLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
       ((L + 1) / 2) (L + Fintype.card σ + 3)
       = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
-  obtain ⟨settings, h1, h2, h3, h5, h6, -, h4⟩ := learner_loop_dfa_dist_counts M O L
+  obtain ⟨settings, h1, h2, h3, h5, h6, h7, -, h4⟩ := learner_loop_dfa_dist_counts M O L
     (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ c γ δ pAP ξ A (A ^ k)⁻¹ hL
     hη hη₀ hc hδ hδ1 hpAP hξ hA2 le_rfl (uniformStrings_long _)
     (fun i _ hi y a => uniformStrings_floor (by omega) y a)
     (fun u => uniformStrings_prefix_le (by omega) u)
     (by rw [hpS]; exact hpAPu) (by rw [hpL]; exact hceil) hk1 hk2 hk3 hk4
   rw [hpL, hpS, hwS] at h4
-  exact ⟨settings, h1, h2, h3, h5, h6, h4⟩
+  exact ⟨settings, h1, h2, h3, h5, h6, h7, h4⟩
 
 set_option maxRecDepth 4000 in
 set_option maxHeartbeats 8000000 in -- unfolding the explicit theorem's settings
@@ -899,7 +899,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-      (settings.scanCap : ℝ) ≤ SC ∧
+      (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
       (∀ p : LoopDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
             settings.level3.probeBudget,
         ∀ rounds,
@@ -1083,7 +1083,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     (by linarith only [hP₀1]) hlR₀ hK₁0 (Nat.cast_nonneg n) hℓ1 hΛ1 hε0 hinvε hcap hlg rfl rfl rfl
     rfl rfl rfl hRB0 hRB hB₃0 hB₃ (inv_pos.2 hp₀0) hpow3
   rw [inv_inv] at h1 h2 h3 h4
-  obtain ⟨settings, hw, hd, hb, hHN, hSC, hreads, hprob⟩ :=
+  obtain ⟨settings, hw, hd, hb, hHN, hSC, hleaf, hreads, hprob⟩ :=
     learner_loop_dfa_dist_core M O L D η₀ c γ δ
     pAP ξ Ae p₀ hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hlong hpre hpAPu hbridge h1 h2 h3 h4
   -- the caps' bounds, the prefix count at `ℓ² (1 + log ℓ) R₀`
@@ -1102,7 +1102,8 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
   have hSC0 : 0 < 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2 := by
     have : 0 ≤ 8 * (Q + 4) * RB := mul_nonneg (by linarith only [hQ0]) hRB0
     linarith only [this, hlg16]
-  refine ⟨settings, hw, hd, hb, hHN.trans ?_, hSC.trans hSCle, fun p rounds hr => ?_, hprob⟩
+  refine ⟨settings, hw, hd, hb, hHN.trans ?_, hSC.trans hSCle, hleaf, fun p rounds hr => ?_,
+    hprob⟩
   · have hlog : Real.log (4 * (Q + 1) * (8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2)
         / δ') ≤ Real.log (4 * (Q + 1) * SC / δ') :=
       Real.log_le_log (by positivity) (div_le_div_of_nonneg_right
@@ -1168,7 +1169,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
   have hwS : windowLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
       ((L + 1) / 2) (L + Fintype.card σ + 3)
       = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
-  obtain ⟨settings, h1, h2, h3, h5, h6, -, h4⟩ := learner_loop_dfa_dist_tol M O L
+  obtain ⟨settings, h1, h2, h3, h5, h6, h7, -, h4⟩ := learner_loop_dfa_dist_tol M O L
     (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ c γ δ pAP ξ A (A ^ k)⁻¹ hL
     hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 le_rfl (uniformStrings_long _)
     (fun u => uniformStrings_prefix_le (by show (L + 1) / 2 ≤ _; omega) u)
@@ -1176,7 +1177,7 @@ theorem learner_loop_dfa_holds : LearnerLoopDFA := by
     (covered_bridge M O hL L _ hc hξ hA (uniformStrings_long _ |>.mono fun x hx => by omega)
       (fun i _ hi y a => uniformStrings_floor (by omega) y a) (by rw [hpL]; exact hceil)) hp₀
   rw [hpL, hpS, hwS] at h4
-  exact ⟨settings, h1, h2, h3, h5, h6, h4⟩
+  exact ⟨settings, h1, h2, h3, h5, h6, h7, h4⟩
 
 end OrthoDFA
 

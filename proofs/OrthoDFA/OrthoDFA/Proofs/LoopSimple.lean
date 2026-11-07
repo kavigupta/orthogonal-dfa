@@ -340,7 +340,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-      (settings.scanCap : ℝ) ≤ SC ∧
+      (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
       P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap ∧
       (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * ⌊RB⌋₊) ∧
       (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin (Fintype.card σ + 1)))),
@@ -473,7 +473,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     hx1
   have hhN : Random.harvestN yh (δm / Msc) = ⌈Real.log (Msc / δm) / yh⌉₊ := by
     rw [Random.harvestN, one_div_div]
-  set C : Random.Level3Settings := ⟨k, δ', ε, budget, Random.harvestN yh (δm / Msc)⟩ with hCd
+  set C : Random.Level3Settings :=
+    ⟨k, δ', ε, budget, Random.harvestN yh (δm / Msc), Fintype.card σ + 2⟩ with hCd
   have hcapC : P.L + C.probeBudget + 2 ≤ C.harvestReadCap := by
     show Lb ≤ Random.harvestN yh (δm / Msc)
     rw [hhN]; exact hLbN
@@ -796,12 +797,13 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       exact Nat.le_floor (hcounts pops hpops).2)
     hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
-    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond hcapC rfl hyh0
+    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond hcapC le_rfl rfl
+    hyh0
     (by show yh ≤ ε / 48 / 4; linarith [min_le_left (ε / 192) (Real.log (Msc / δm) / Lb)])
     (by linarith [min_le_left (ε / 192) (Real.log (Msc / δm) / Lb)]) hδm0 (by omega)
     (le_max_left _ _) (by omega)
   refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, by rw [hC3]; exact hHN,
-    by rw [hscan]; exact hMSC, by rw [hC3]; exact hcapC, hnp, hreads, ?_⟩
+    by rw [hscan]; exact hMSC, by rw [hC3], by rw [hC3]; exact hcapC, hnp, hreads, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
   refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans ?_)

@@ -59,14 +59,14 @@ theorem loopClaim_holds : LoopClaim := by
           (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
           (1 / 2 - s₀)) := rfl
     rw [e, max_eq_right hM1]
-  obtain ⟨settings, hw, -, -, -, -, hcnt, hprob⟩ := learner_loop_dfa_dist_tol M O L D
+  obtain ⟨settings, hw, -, -, -, -, hleaf, hcnt, hprob⟩ := learner_loop_dfa_dist_tol M O L D
     (1 / 2 - s₀)
     (ξ / (2 * R)) (γ + 3 * ξ / 4) δ pAP (ξ / 4) (1 / β + Fintype.card σ) _ hL hηle hη₀ hc0 hc1 hδ
     (by linarith) hpAP (by positivity) hA2
     (by have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _; linarith) hlong hpre hpAPu
     (summed_bridge M O hL L D (by linarith) hξ hAe (hlong.mono fun x hx => le_trans (by omega) hx)
       hfl' ⟨q, hq⟩) hp₀
-  refine ⟨settings, hw, hcnt, ?_⟩
+  refine ⟨settings, hw, hleaf, hcnt, ?_⟩
   rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
   exact hprob
 

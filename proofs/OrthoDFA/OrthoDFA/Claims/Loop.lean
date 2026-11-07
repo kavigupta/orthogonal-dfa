@@ -64,8 +64,8 @@ structure LoopDistRun extends LoopDistInputs where
 def loopDistRunRegion : Set LoopDistRun := {r | r.toLoopDistInputs ∈ loopDistRegion}
 
 /-- On every instance in `loopDistRegion`, for strings drawn from `D` whose first `k` letters
-`p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes` and is
-right but for `γ + ξ` on `heldOut` strings. -/
+`p₀Tol` bounds, settings, level 3 failing past `|Q| + 2` leaves, whose run reads within
+`totalPref`, `totalSuff` and `totalProbes` and is right but for `γ + ξ` on `heldOut` strings. -/
 def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : LoopDistRun → ℝ)
     (heldOut : LoopDistInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
@@ -90,7 +90,7 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : LoopDistRun 
     1 - γ ≤ rerootAccuracyOn (prefixLaw D L) M L (nonStartZoneStatesOn (prefixLaw D L) M L x.R q)
       q) →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
-    settings.level3.walkStart = k ∧
+    settings.level3.walkStart = k ∧ settings.level3.leafCap = Fintype.card Q + 2 ∧
     (∀ p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget,
       ∀ rounds,
@@ -142,8 +142,9 @@ def LoopClaim.{u, v, w} : Prop :=
     (∀ r, 0 < p₀Tol r) ∧
     LoopWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes heldOut
 
-/-- On every instance in `loopRegion` with `L₀ x ≤ L`, settings whose run reads within
-`totalPref`, `totalSuff` and `totalProbes` and is right but for `γ + ξ` on `heldOut` strings. -/
+/-- On every instance in `loopRegion` with `L₀ x ≤ L`, settings, level 3 failing past `|Q| + 2`
+leaves, whose run reads within `totalPref`, `totalSuff` and `totalProbes` and is right but for
+`γ + ξ` on `heldOut` strings. -/
 def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
     (totalPref totalSuff totalProbes : LoopRun → ℝ) (heldOut : LoopInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
@@ -161,7 +162,7 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
     1 - γ ≤ rerootAccuracy M L (nonStartZoneStates M L x.R q) q) →
   L₀ x ≤ L →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
-    settings.level3.walkStart = k ∧
+    settings.level3.walkStart = k ∧ settings.level3.leafCap = Fintype.card Q + 2 ∧
     (∀ p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget,
       ∀ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)

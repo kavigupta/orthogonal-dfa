@@ -4,8 +4,8 @@ import OrthoDFA.Proofs.LoopCodes
 # The loop on filled draws
 
 `idealRounds` runs the loop's rounds on the filled draws (`idealDraws`), never failing.  Where
-every round it runs hits, scans within `scanCap` and returns at a scheduled state (`RoundGood`),
-the loop is these rounds (`loopRounds_eq_some`).
+every round it runs hits, scans within `scanCap`, returns at a scheduled state and keeps level 3
+within `leafCap` leaves (`RoundGood`), the loop is these rounds (`loopRounds_eq_some`).
 -/
 
 noncomputable section
@@ -49,8 +49,8 @@ theorem idealRound_alike {L : ℕ} (settings : LoopSettings K) (O : Oracle μ (F
   unfold idealRound roundOf
   rw [idealRun_alike hh D Dsf hD, hh.length]
 
-/-- The round's draws hit, its filled draws scan within `scanCap`, and its clustering on them
-returns at a scheduled state. -/
+/-- The round's draws hit, its filled draws scan within `scanCap`, its clustering on them
+returns at a scheduled state, and its level 3 keeps within `leafCap` leaves. -/
 def RoundGood (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) : Prop :=
@@ -59,10 +59,12 @@ def RoundGood (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     ∧ ScanWithin (settings.schedule (loopPopulations K h.pops.length))
       (loopPopulations K h.pops.length) settings.scanCap
       (idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))
-    ∧ ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
+    ∧ (∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
       idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)
         ∈ ret O.mq (loopPopulations K h.pops.length) none settings.η₀ settings.indecisionLimit
-          settings.εcov settings.gateLevel B
+          settings.εcov settings.gateLevel B)
+    ∧ (idealRound settings O D Dsf h d).result.hypothesis.tree.leaves.length
+      ≤ settings.level3.leafCap
 
 /-- Where every round run on the filled draws is good, the loop runs those rounds. -/
 theorem loopRounds_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
@@ -79,8 +81,8 @@ theorem loopRounds_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoi
   | succ r ih =>
     rw [loopRounds, ih, Option.bind_some, idealRounds]
     split_ifs with h
-    · obtain ⟨h1, h2, h3⟩ := hg r h.1 h.2
-      rw [loopRound_eq_some settings O D Dsf _ _ h1 h2 h3]
+    · obtain ⟨h1, h2, h3, h4⟩ := hg r h.1 h.2
+      rw [loopRound_eq_some settings O D Dsf _ _ h1 h2 h3 h4]
       rfl
     · rfl
 
