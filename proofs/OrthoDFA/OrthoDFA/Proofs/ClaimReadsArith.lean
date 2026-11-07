@@ -5,10 +5,10 @@ import OrthoDFA.Proofs.LoopReadsArith
 # The strings the loop asks, asymptotically: the arithmetic
 
 Each factor of `learnerReads` is within a constant of a shape in the claim's coordinates: the
-family size of `|V̂|` (`rel_fam_le`), the probe budget of `totalProbes / |Q|` (`rel_depth_le`),
-`K` times the scan cap of `totalPref` (`rel_sc_le`), the harvest cap of the budget's shape plus
-`1/ρ` times `log X` (`rel_hn_le`, the scan cap at most `2^c X^k` for
-`X = (L + |Q|) Ae iδ R iξ ip is`), and the sifts of `log (L + |Q| + 1)` (`lg_le`). Each source's
+family size of `|V̂|` (`rel_fam_le`), `K` times the scan cap of `totalPref` (`rel_sc_le`), the
+harvest cap of `1/ρ` times `log X` (`rel_hn_le`, the scan cap at most `2^c X^k` for
+`X = (L + |Q|) Ae iδ R iξ ip is`), the sifts of `log (L + |Q| + 1)` (`lg_le`), and a sift's depth
+`|Q| + 1` and leaf cap `|Q| + 2` of `|Q|`. Each source's
 reads is the product of its factors' bounds (`pw_mul`), so each is within its shape on its own.
 -/
 
@@ -76,10 +76,9 @@ lemma loopSC_inv (ℓ Q A Ae iδ c ξ pAP η₀ : ℝ) :
 
 lemma loopHN_inv (ℓ Q A Ae iδ ic ξ pAP η₀ : ℝ) :
     loopHN ℓ Q A Ae (1 / iδ) (1 / ic) ξ pAP η₀
-      = ℓ + loopBudget ℓ Q A Ae (1 / iδ) (1 / ic) + 3
-        + 192 * (4 * (Ae + 1) * ℓ * ic)
+      = 192 * (4 * (Ae + 1) * ℓ * ic)
           * log (4 * (Q + 1) * loopSC ℓ Q A Ae (1 / iδ) (1 / ic) ξ pAP η₀
-            * (8 * (Q + 1) * iδ)) := by
+            * (8 * (Q + 1) * iδ)) + 1 := by
   unfold loopHN
   rw [div_inv_coord, show 4 * (Q + 1) * loopSC ℓ Q A Ae (1 / iδ) (1 / ic) ξ pAP η₀
       / (1 / iδ / (8 * (Q + 1))) = 4 * (Q + 1) * loopSC ℓ Q A Ae (1 / iδ) (1 / ic) ξ pAP η₀
@@ -342,42 +341,6 @@ lemma rel_fam_le {L Q A Ae iδ R iξ is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (hA
     le_of_mul_le_mul_left hQF (by linarith)
   linarith
 
-/-- The probe budget at the summed rates, against `totalProbes`' shape over `|Q|`. -/
-lemma rel_depth_le {L Q A Ae iδ R iξ : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (hA : 2 ≤ A)
-    (hAAe : A ≤ Ae) (hiδ : 2 ≤ iδ) (hR : 1 ≤ R) (hiξ : 1 ≤ iξ) :
-    0 ≤ loopBudget (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ))
-      ∧ loopBudget (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) + 2
-        ≤ 2 ^ 21 * (Q ^ 3 * A * (Ae + Q) * (L + Q) * R * iξ * log (Q * A * iδ) / Q) := by
-  obtain ⟨h0, h⟩ := rel_probes_le hL hQ hA hAAe hiδ hR hiξ
-  set B := loopBudget (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ))
-  have hQ0 : 0 < Q := by linarith
-  have hB0 : 0 ≤ B := nonneg_of_mul_nonneg_right h0 (by linarith)
-  have hl : 1 ≤ log (Q * A * iδ) := by
-    have : 4 ≤ Q * A * iδ := (show (4 : ℝ) = 1 * 2 * 2 by norm_num).trans_le
-      (pmul (by norm_num) (by norm_num) (pmul (by norm_num) (by norm_num) hQ hA) hiδ)
-    rw [Real.le_log_iff_exp_le (by linarith)]
-    have := Real.exp_one_lt_d9
-    linarith
-  set W := A * (Ae + Q) * (L + Q) * R * iξ * log (Q * A * iδ) with hW
-  have hW2 : 2 ≤ W := by
-    have h1 : 2 ≤ A * (Ae + Q) := by nlinarith
-    have h2 : 2 ≤ A * (Ae + Q) * (L + Q) := by nlinarith
-    have h3 : 2 ≤ A * (Ae + Q) * (L + Q) * R := by nlinarith
-    have h4 : 2 ≤ A * (Ae + Q) * (L + Q) * R * iξ := by nlinarith
-    rw [hW]; nlinarith
-  have e : Q ^ 3 * A * (Ae + Q) * (L + Q) * R * iξ * log (Q * A * iδ) / Q = Q ^ 2 * W := by
-    rw [hW]; field_simp
-  rw [e]
-  have hQ2 : 1 ≤ Q ^ 2 := one_le_pow₀ hQ
-  have hBW : Q * B ≤ Q * (2 ^ 20 * (Q ^ 2 * W)) := by
-    have e2 : Q ^ 3 * A * (Ae + Q) * (L + Q) * R * iξ * log (Q * A * iδ) = Q * (Q ^ 2 * W) := by
-      rw [hW]; ring
-    rw [e2] at h
-    nlinarith
-  have hB : B ≤ 2 ^ 20 * (Q ^ 2 * W) := le_of_mul_le_mul_left hBW hQ0
-  refine ⟨hB0, ?_⟩
-  nlinarith
-
 /-- The populations' prefix count times the scan cap, against `totalPref`'s shape. -/
 lemma rel_sc_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (hA : 2 ≤ A)
     (hAAe : A ≤ Ae) (hiδ : 2 ≤ iδ) (hR : 1 ≤ R) (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 2 ≤ is) :
@@ -487,21 +450,17 @@ lemma rel_sc_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (
   have hT2n : 0 ≤ T2 := le_trans (mul_nonneg hQ0 (by linarith)) hQlY
   linarith
 
-/-- The harvest cap at the summed rates: the probe budget's shape and `1/ε` times `log X`. -/
+/-- The harvest cap at the summed rates: `1/ε` times `log X`. -/
 lemma rel_hn_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (hA : 2 ≤ A)
     (hAAe : A ≤ Ae) (hiδ : 2 ≤ iδ) (hR : 1 ≤ R) (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 2 ≤ is) :
     0 ≤ loopHN (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
         (1 / 2 - 1 / is)
       ∧ loopHN (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
         (1 / 2 - 1 / is)
-        ≤ 2 ^ 22 * (Q ^ 3 * A * (Ae + Q) * (L + Q) * R * iξ * log (Q * A * iδ) / Q
-          + R * (Ae + Q) * (L + Q) * iξ * log ((L + Q) * Ae * iδ * R * iξ * ip * is)) := by
-  obtain ⟨hB0, hB⟩ := rel_depth_le hL hQ hA hAAe hiδ hR hiξ
+        ≤ 2 ^ 22 * (R * (Ae + Q) * (L + Q) * iξ * log ((L + Q) * Ae * iδ * R * iξ * ip * is)) := by
   obtain ⟨hM1, hM⟩ := rel_sc_pow hL hQ hA hAAe hiδ hR hiξ hip his
   rw [loopHN_inv]
   set X := (L + Q) * Ae * iδ * R * iξ * ip * is with hXd
-  set D := Q ^ 3 * A * (Ae + Q) * (L + Q) * R * iξ * log (Q * A * iδ) / Q with hDd
-  set B := loopBudget (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ))
   set M := loopSC (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
     (1 / 2 - 1 / is)
   have m := @one_le_mul_of_one_le_of_one_le ℝ _
@@ -514,25 +473,6 @@ lemma rel_hn_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (
   have hX8 : 8 ≤ X := by linarith
   have hX0 : 0 ≤ X := by linarith
   have hX1 : 1 ≤ X := by linarith
-  have hlX : log 2 ≤ log X := Real.log_le_log (by norm_num) (by linarith)
-  -- `D ≥ 6 (L + |Q|)`
-  have hD : 6 * (L + Q) ≤ D := by
-    have hl : 1 ≤ log (Q * A * iδ) := by
-      have : 4 ≤ Q * A * iδ := (show (4 : ℝ) = 1 * 2 * 2 by norm_num).trans_le
-        (pmul (by norm_num) (by norm_num) (pmul z zero_le_two hQ hA) hiδ)
-      rw [Real.le_log_iff_exp_le (by linarith)]
-      have := Real.exp_one_lt_d9
-      linarith
-    have e : D = (L + Q) * (Q ^ 2 * A * (Ae + Q) * R * iξ * log (Q * A * iδ)) := by
-      rw [hDd]; field_simp
-    rw [e]
-    have h1 : 6 ≤ Q ^ 2 * A * (Ae + Q) * R * iξ * log (Q * A * iδ) :=
-      (show (6 : ℝ) = 1 * 2 * 3 * 1 * 1 * 1 by norm_num).trans_le
-        (pmul (by norm_num) z (pmul (by norm_num) z (pmul (by norm_num) z
-          (pmul (by norm_num) (by norm_num) (pmul z zero_le_two (one_le_pow₀ hQ) hA)
-            (by linarith)) hR) hiξ) hl)
-    calc 6 * (L + Q) = (L + Q) * 6 := by ring
-      _ ≤ _ := mul_le_mul_of_nonneg_left h1 (by linarith)
   -- the log against `log X`
   have hQX : Q ≤ X := by
     have : Q ≤ Q * iδ := le_mul_of_one_le_right hQ0.le (by linarith)
@@ -572,15 +512,19 @@ lemma rel_hn_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (
     have := mul_nonneg (mul_nonneg (by linarith : (0 : ℝ) ≤ Ae + Q + 1)
       (by linarith : (0 : ℝ) ≤ L + Q + 4)) hRi
     linarith
-  have hρX : 0 ≤ R * (Ae + Q) * (L + Q) * iξ :=
-    mul_nonneg (mul_nonneg (mul_nonneg (by linarith) (by linarith)) (by linarith)) (by linarith)
-  have hlX0 : 0 ≤ log X := by linarith [Real.log_pos (by norm_num : (1 : ℝ) < 2)]
+  -- `1 ≤ (1/ε) log X`
+  have hρ1 : 1 ≤ R * (Ae + Q) * (L + Q) * iξ :=
+    m (m (m hR (by linarith)) hP1) hiξ
+  have hlX1 : 1 ≤ log X := by
+    rw [Real.le_log_iff_exp_le (by linarith)]
+    have := Real.exp_one_lt_d9
+    linarith
+  have hone : 1 ≤ R * (Ae + Q) * (L + Q) * iξ * log X := m hρ1 hlX1
   have hF0 : 0 ≤ 192 * (4 * (Ae + Q + 1) * (L + Q + 4) * (2 * R * iξ))
       * log (4 * (Q + 1) * M * (8 * (Q + 1) * iδ)) :=
     mul_nonneg (mul_nonneg (by norm_num) hρ0) hlog0
   refine ⟨by linarith, ?_⟩
   have h1 := mul_le_mul hρ hlog hlog0 (by linarith)
-  have h2 : 0 ≤ R * (Ae + Q) * (L + Q) * iξ * log X := mul_nonneg hρX hlX0
   linarith
 
 /-- `3 + ⌈log₂ (L + |Q| + 3)⌉` against `log (L + |Q| + 1)`. -/
@@ -654,9 +598,6 @@ def shHeld (r : LoopDistRun) : ℝ := log (r.Q / r.δ) / r.ξ ^ 2
 /-- The family size `|V̂|`. -/
 def shFam (r : LoopDistRun) : ℝ := log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
 
-/-- A round's probe budget, which bounds a sift's depth. -/
-def shDepth (r : LoopDistRun) : ℝ := shProbe r / r.Q
-
 /-- `1/ρ`, the disagreement rate's inverse. -/
 def shRho (r : LoopDistRun) : ℝ := r.R * (1 / r.β + r.Q) * (r.L + r.Q) / r.ξ
 
@@ -664,11 +605,9 @@ def shLg (r : LoopDistRun) : ℝ := log (r.L + r.Q + 1)
 
 def shCluster (r : LoopDistRun) : ℝ := shPref r * shSuff r / r.Q
 
-def shSearch (r : LoopDistRun) : ℝ :=
-  shProbe r * shFam r * shDepth r * (shLg r + r.A * shDepth r)
+def shSearch (r : LoopDistRun) : ℝ := shProbe r * shFam r * r.Q * (shLg r + r.A * r.Q)
 
-def shHarvest (r : LoopDistRun) : ℝ :=
-  r.Q * shPref r * shFam r * shDepth r * shLg r * (shDepth r + shRho r * shLY r)
+def shHarvest (r : LoopDistRun) : ℝ := r.Q ^ 2 * shPref r * shFam r * shLg r * shRho r * shLY r
 
 def shStart (r : LoopDistRun) : ℝ := shHeld r * shFam r
 
@@ -697,7 +636,7 @@ def distLg (r : LoopDistRun) : ℝ := ((3 + Nat.clog 2 (r.L + r.Q + 3) : ℕ) : 
 /-- The strings `learner_loop_dfa_dist_tol` bounds the learner's asking by, at the claim's rates. -/
 def distReads (r : LoopDistRun) : ℝ :=
   learnerReads (r.Q + 1) (6 * (r.Q + 2) * distCount r) (distPool r + 1) (distFam r)
-    (distBudget r) (distSC r) (distHN r) (distLg r) r.A (distHeldOut r.toLoopDistInputs)
+    (distBudget r) r.Q (distSC r) (distHN r) (distLg r) r.A (distHeldOut r.toLoopDistInputs)
 
 section Pointwise
 
@@ -742,28 +681,26 @@ lemma fam_pw : 0 ≤ distFam r ∧ distFam r ≤ 2 ^ 14 * shFam r := by
   simp only [one_div_one_div, summed_inv, quarter_inv] at h
   exact ⟨h.1, h.2.trans_eq (by unfold shFam; ring_nf)⟩
 
-lemma depth_pw : 0 ≤ distBudget r ∧ distBudget r + 2 ≤ 2 ^ 21 * shDepth r := by
-  obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, -, -, -, -⟩ := dist_coords hr
-  have h := rel_depth_le hL hQ hA hAAe hiδ hR hiξ
-  simp only [one_div_one_div, summed_inv] at h
-  exact ⟨h.1, h.2.trans_eq (by unfold shDepth shProbe; ring_nf)⟩
-
 lemma sc_pw : 0 ≤ (r.Q + 1) * distSC r ∧ (r.Q + 1) * distSC r ≤ 2 ^ 92 * shPref r := by
   obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, hip, his, -, -⟩ := dist_coords hr
   have h := rel_sc_le hL hQ hA hAAe hiδ hR hiξ hip his
   simp only [one_div_one_div, summed_inv, quarter_inv] at h
   exact ⟨h.1, h.2.trans_eq (by unfold shPref; ring_nf)⟩
 
-lemma hn_pw : 0 ≤ distHN r ∧ distHN r ≤ 2 ^ 22 * (shDepth r + shRho r * shLY r) := by
+lemma hn_pw : 0 ≤ distHN r ∧ distHN r ≤ 2 ^ 22 * (shRho r * shLY r) := by
   obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, hip, his, -, -⟩ := dist_coords hr
   have h := rel_hn_le hL hQ hA hAAe hiδ hR hiξ hip his
   simp only [one_div_one_div, summed_inv, quarter_inv] at h
-  exact ⟨h.1, h.2.trans_eq (by unfold shDepth shProbe shRho shLY; ring_nf)⟩
+  exact ⟨h.1, h.2.trans_eq (by unfold shRho shLY; ring_nf)⟩
 
 lemma lg_pw : 0 ≤ distLg r ∧ distLg r ≤ 14 * shLg r :=
   ⟨Nat.cast_nonneg _, lg_le hr.1.1⟩
 
 lemma k_pw : 0 ≤ (r.Q : ℝ) + 1 ∧ (r.Q : ℝ) + 1 ≤ 2 * r.Q := by
+  have hQ : (1 : ℝ) ≤ r.Q := by exact_mod_cast hr.1.1
+  constructor <;> linarith
+
+lemma leaves_pw : 0 ≤ (r.Q : ℝ) + 2 ∧ (r.Q : ℝ) + 2 ≤ 3 * r.Q := by
   have hQ : (1 : ℝ) ≤ r.Q := by exact_mod_cast hr.1.1
   constructor <;> linarith
 
@@ -796,40 +733,33 @@ lemma cluster_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
   exact pw_mul (pref_pw hr) (pool_pw hr)
 
 lemma search_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
-    0 ≤ readsSearch (r.Q + 1) (distFam r) (distBudget r) (distLg r) r.A
-      ∧ readsSearch (r.Q + 1) (distFam r) (distBudget r) (distLg r) r.A
-        ≤ 2 ^ 20 * (2 ^ 14 * (14 * 2 ^ 21 + 2 ^ 21 * 1 * 2 ^ 21)) * shSearch r := by
-  obtain ⟨hT0, hT⟩ := depth_pw hr
-  have hT1 : 0 ≤ distBudget r + 1 ∧ distBudget r + 1 ≤ 2 ^ 21 * shDepth r :=
-    ⟨by linarith, by linarith⟩
-  have hT2 : 0 ≤ distBudget r + 2 ∧ distBudget r + 2 ≤ 2 ^ 21 * shDepth r := ⟨by linarith, hT⟩
+    0 ≤ readsSearch (r.Q + 1) (distFam r) (distBudget r) r.Q (distLg r) r.A
+      ∧ readsSearch (r.Q + 1) (distFam r) (distBudget r) r.Q (distLg r) r.A
+        ≤ 2 ^ 20 * (2 ^ 14 * (14 * 2 + 3 * 1 * 3)) * shSearch r := by
   have hA : 0 ≤ (r.A : ℝ) ∧ (r.A : ℝ) ≤ 1 * r.A := ⟨Nat.cast_nonneg _, by linarith⟩
-  have e : readsSearch (r.Q + 1) (distFam r) (distBudget r) (distLg r) r.A
-      = distProbes r * (distFam r * (distLg r * (distBudget r + 1)
-        + (distBudget r + 2) * r.A * (distBudget r + 2))) := by
+  have e : readsSearch (r.Q + 1) (distFam r) (distBudget r) r.Q (distLg r) r.A
+      = distProbes r * (distFam r * (distLg r * (r.Q + 1)
+        + (r.Q + 2) * r.A * (r.Q + 2))) := by
     unfold readsSearch distProbes distBudget; ring
-  have hin := pw_add (by norm_num) (by norm_num) (pw_mul (lg_pw hr) hT1)
-    (pw_mul (pw_mul hT2 hA) hT2)
-  rw [e, show shSearch r = shProbe r * (shFam r * (shLg r * shDepth r
-    + shDepth r * r.A * shDepth r)) by unfold shSearch; ring]
+  have hin := pw_add (by norm_num) (by norm_num) (pw_mul (lg_pw hr) (k_pw hr))
+    (pw_mul (pw_mul (leaves_pw hr) hA) (leaves_pw hr))
+  rw [e, show shSearch r = shProbe r * (shFam r * (shLg r * r.Q
+    + r.Q * r.A * r.Q)) by unfold shSearch; ring]
   have h := pw_mul (probes_pw hr) (pw_mul (fam_pw hr) hin)
   exact ⟨h.1, h.2.trans_eq (by ring)⟩
 
 lemma harvest_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
-    0 ≤ readsHarvest (r.Q + 1) (distFam r) (distBudget r) (distSC r) (distHN r) (distLg r)
-      ∧ readsHarvest (r.Q + 1) (distFam r) (distBudget r) (distSC r) (distHN r) (distLg r)
-        ≤ 2 * 2 ^ 92 * (2 ^ 14 * (2 ^ 22 * (14 * 2 ^ 21))) * shHarvest r := by
-  obtain ⟨hT0, hT⟩ := depth_pw hr
-  have hT1 : 0 ≤ distBudget r + 1 ∧ distBudget r + 1 ≤ 2 ^ 21 * shDepth r :=
-    ⟨by linarith, by linarith⟩
-  have e : readsHarvest (r.Q + 1) (distFam r) (distBudget r) (distSC r) (distHN r) (distLg r)
+    0 ≤ readsHarvest (r.Q + 1) (distFam r) r.Q (distSC r) (distHN r) (distLg r)
+      ∧ readsHarvest (r.Q + 1) (distFam r) r.Q (distSC r) (distHN r) (distLg r)
+        ≤ 2 * 2 ^ 92 * (2 ^ 14 * (2 ^ 22 * (14 * 2))) * shHarvest r := by
+  have e : readsHarvest (r.Q + 1) (distFam r) r.Q (distSC r) (distHN r) (distLg r)
       = ((r.Q + 1) * ((r.Q + 1) * distSC r))
-        * (distFam r * (distHN r * (distLg r * (distBudget r + 1)))) := by
+        * (distFam r * (distHN r * (distLg r * (r.Q + 1)))) := by
     unfold readsHarvest; ring
-  rw [e, show shHarvest r = (r.Q * shPref r) * (shFam r * ((shDepth r + shRho r * shLY r)
-    * (shLg r * shDepth r))) by unfold shHarvest; ring]
+  rw [e, show shHarvest r = (r.Q * shPref r) * (shFam r * ((shRho r * shLY r)
+    * (shLg r * r.Q))) by unfold shHarvest; ring]
   exact pw_mul (pw_mul (k_pw hr) (sc_pw hr))
-    (pw_mul (fam_pw hr) (pw_mul (hn_pw hr) (pw_mul (lg_pw hr) hT1)))
+    (pw_mul (fam_pw hr) (pw_mul (hn_pw hr) (pw_mul (lg_pw hr) (k_pw hr))))
 
 lemma start_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     0 ≤ readsStart (distHeldOut r.toLoopDistInputs) (distFam r)

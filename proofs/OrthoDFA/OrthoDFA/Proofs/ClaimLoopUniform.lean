@@ -233,7 +233,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     prefixLaw_uniformStrings le_rfl
   have hwS : windowLaw (uniformStrings (α := A) m) k L₁ = windowStrings k L₁ :=
     windowLaw_uniformStrings (by omega)
-  obtain ⟨settings, hwk, hcnt, hcalls, hprob⟩ := hw (toDist x) M O L γ (uniformStrings m) hxd hQ
+  obtain ⟨settings, hwk, hlf, hcnt, hcalls, hprob⟩ := hw (toDist x) M O L γ (uniformStrings m) hxd hQ
     hA hL hη
     (uniformStrings_long m)
     (fun u => (uniformStrings_prefix_le (by omega) u).trans (by rw [hAc]; exact hp₀))
@@ -246,7 +246,7 @@ theorem loopClaimUniform_of_loopClaim (h : LoopClaim.{u, v, w}) : LoopClaimUnifo
     (by rw [hpS]; exact hpAPu) (by rw [hpL]; exact hdom)
   rw [hwS, hpS] at hcnt hcalls
   rw [hwS, hpS, hpL] at hprob
-  exact ⟨settings, hwk, hcnt, hcalls, hprob⟩
+  exact ⟨settings, hwk, hlf, hcnt, hcalls, hprob⟩
 
 /-- The reads' factors other than the prefix and suffix totals, at uniform strings. -/
 lemma uniform_factors {r : LoopRun} (hr : r ∈ loopRunRegion) :
@@ -285,25 +285,21 @@ lemma uniform_factors {r : LoopRun} (hr : r ∈ loopRunRegion) :
 lemma reads_dom {Q P P' S S' F Pr lg A ρ lY Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ P) (hPP : P ≤ 4 * P')
     (hS : 0 ≤ S) (hSS : S ≤ 2 * S') (hF : 0 ≤ F) (hPr : 0 ≤ Pr) (hlg : 0 ≤ lg) (hA : 0 ≤ A)
     (hρ : 0 ≤ ρ) (hlY : 0 ≤ lY) (hHd : 0 ≤ Hd) :
-    0 ≤ P * S / Q + Pr * F * (Pr / Q) * (lg + A * (Pr / Q))
-        + Q * P * F * (Pr / Q) * lg * (Pr / Q + ρ * lY) + Hd * F
-      ∧ 0 ≤ P' * S' / Q + Pr * F * (Pr / Q) * (lg + A * (Pr / Q))
-        + Q * P' * F * (Pr / Q) * lg * (Pr / Q + ρ * lY) + Hd * F
-      ∧ P * S / Q + Pr * F * (Pr / Q) * (lg + A * (Pr / Q))
-          + Q * P * F * (Pr / Q) * lg * (Pr / Q + ρ * lY) + Hd * F
-        ≤ 8 * (P' * S' / Q + Pr * F * (Pr / Q) * (lg + A * (Pr / Q))
-          + Q * P' * F * (Pr / Q) * lg * (Pr / Q + ρ * lY) + Hd * F) := by
+    0 ≤ P * S / Q + Pr * F * Q * (lg + A * Q) + Q ^ 2 * P * F * lg * ρ * lY + Hd * F
+      ∧ 0 ≤ P' * S' / Q + Pr * F * Q * (lg + A * Q) + Q ^ 2 * P' * F * lg * ρ * lY + Hd * F
+      ∧ P * S / Q + Pr * F * Q * (lg + A * Q) + Q ^ 2 * P * F * lg * ρ * lY + Hd * F
+        ≤ 8 * (P' * S' / Q + Pr * F * Q * (lg + A * Q) + Q ^ 2 * P' * F * lg * ρ * lY
+          + Hd * F) := by
   have hP' : 0 ≤ P' := by linarith
   have hS' : 0 ≤ S' := by linarith
-  have hD : 0 ≤ Pr / Q := div_nonneg hPr hQ.le
-  set G := F * (Pr / Q) * lg * (Pr / Q + ρ * lY) with hG
-  have hG0 : 0 ≤ G := mul_nonneg (mul_nonneg (mul_nonneg hF hD) hlg) (add_nonneg hD
-    (mul_nonneg hρ hlY))
-  have e : ∀ P, Q * P * F * (Pr / Q) * lg * (Pr / Q + ρ * lY) = Q * P * G := fun P => by
+  set G := F * lg * ρ * lY with hG
+  have hG0 : 0 ≤ G := mul_nonneg (mul_nonneg (mul_nonneg hF hlg) hρ) hlY
+  have e : ∀ P, Q ^ 2 * P * F * lg * ρ * lY = Q * P * (Q * G) := fun P => by
     rw [hG]; ring
   rw [e, e]
-  have hT2 : 0 ≤ Pr * F * (Pr / Q) * (lg + A * (Pr / Q)) :=
-    mul_nonneg (mul_nonneg (mul_nonneg hPr hF) hD) (add_nonneg hlg (mul_nonneg hA hD))
+  have hG0' : 0 ≤ Q * G := mul_nonneg hQ.le hG0
+  have hT2 : 0 ≤ Pr * F * Q * (lg + A * Q) :=
+    mul_nonneg (mul_nonneg (mul_nonneg hPr hF) hQ.le) (add_nonneg hlg (mul_nonneg hA hQ.le))
   have hT4 : 0 ≤ Hd * F := mul_nonneg hHd hF
   have hPS : P * S ≤ 8 * (P' * S') := by
     have := mul_le_mul hPP hSS hS (by linarith)
@@ -311,13 +307,13 @@ lemma reads_dom {Q P P' S S' F Pr lg A ρ lY Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ 
   have hPS' : P * S / Q ≤ 8 * (P' * S' / Q) := by
     rw [← mul_div_assoc]
     exact div_le_div_of_nonneg_right hPS hQ.le
-  have hQPG : Q * P * G ≤ 4 * (Q * P' * G) := by
-    have := mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hPP hQ.le) hG0
+  have hQPG : Q * P * (Q * G) ≤ 4 * (Q * P' * (Q * G)) := by
+    have := mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hPP hQ.le) hG0'
     linarith
   have n1 : 0 ≤ P * S / Q := div_nonneg (mul_nonneg hP hS) hQ.le
   have n2 : 0 ≤ P' * S' / Q := div_nonneg (mul_nonneg hP' hS') hQ.le
-  have n3 : 0 ≤ Q * P * G := mul_nonneg (mul_nonneg hQ.le hP) hG0
-  have n4 : 0 ≤ Q * P' * G := mul_nonneg (mul_nonneg hQ.le hP') hG0
+  have n3 : 0 ≤ Q * P * (Q * G) := mul_nonneg (mul_nonneg hQ.le hP) hG0'
+  have n4 : 0 ≤ Q * P' * (Q * G) := mul_nonneg (mul_nonneg hQ.le hP') hG0'
   refine ⟨by linarith, by linarith, by linarith⟩
 
 theorem loopClaimSimple_of_claim (h : LoopClaimUniform.{u, v, w}) : LoopClaimSimple.{u, v, w} := by

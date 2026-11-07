@@ -14,7 +14,8 @@ hypothesis, at most level 3's `harvestReadCap` of them, and takes the first stri
 at the harvest's site, as the round reads them, that no earlier clustering read. The first
 population is `D` itself. Each population's streams are its first `scanCap` draws; the round fails
 if a harvested draw finds no string, the clustering would read past them, no state of the
-schedule returns, or level 3's tree grows past `leafCap` leaves, and the loop fails with it. Draws are made from uniforms (`drawFrom`).
+schedule returns, or level 3's tree grows past `leafCap` leaves, and the loop fails with it. Draws
+are made from uniforms (`drawFrom`).
 
 The clustering is the one `ClusteringQualityGuarantee` is about, every population tame and none
 harvested into a table: the family is `clusterAt` at a state of the schedule at which `ret`
