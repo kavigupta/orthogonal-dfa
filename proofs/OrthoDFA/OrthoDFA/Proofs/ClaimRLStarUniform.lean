@@ -125,8 +125,7 @@ lemma uniform_rewrite {X R A δ ξ pAP s₀ : ℝ} (hA : 0 < A) (hδ : 0 < δ) (
 
 theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     RLStarClaimUniform.{u, v, w} := by
-  obtain ⟨p₀Tol, tp, ts, tpr, tr, tw, ho, hp₀, hpref, hsuff, hprobes, hreads, hwalk, hho, hpos,
-    hw⟩ := h
+  obtain ⟨p₀Tol, tp, ts, tpr, tr, ho, hp₀, hpref, hsuff, hprobes, hreads, hho, hpos, hw⟩ := h
   obtain ⟨C, hC⟩ := isBigO_principal.1 hp₀
   set C₀ := 16 * max 1 C with hC₀d
   have hC₀ : 1 ≤ C₀ := by rw [hC₀d]; linarith [le_max_left 1 C]
@@ -136,8 +135,7 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
   have hmaps : Set.MapsTo toDist rlStarRegion rlStarDistRegion := fun x hx => toDist_mem hx
   refine ⟨fun x => 1 + 4 * (log (C₀ * loopG x) + 6 * log (x.Q + 4) + 24) / log x.A,
     fun r => tp (toDistRun r), fun r => ts (toDistRun r), fun r => tpr (toDistRun r),
-    fun r => tr (toDistRun r), fun r => tw (toDistRun r), fun x => ho (toDist x), ?_, ?_, ?_, ?_,
-    ?_, ?_, ?_, ?_⟩
+    fun r => tr (toDistRun r), fun x => ho (toDist x), ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · refine isBigO_on (263 + 6 * log C₀) fun x hx => ?_
     obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
     have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ
@@ -196,13 +194,6 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     simp only [Function.comp, toDistRun, toDist, one_div_one_div]
     obtain ⟨e, e'⟩ := uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := r.R) hA' hδ hξ hp hs
     rw [e, e']
-  · refine (isBigO_comp_on hwalk hmapsR).congr' EventuallyEq.rfl
-      (eventually_principal.2 fun r hr => ?_)
-    obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
-    have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
-    simp only [Function.comp, toDistRun, toDist, one_div_one_div]
-    obtain ⟨e, e'⟩ := uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := r.R) hA' hδ hξ hp hs
-    rw [e, e']
   · exact isBigO_comp_on hho hmaps
   -- the run, at `D` uniform
   intro A _ _ _ Q _ Ω _ μ _ x M O L γ k L₁ hx hQ hA hL hη hpAPu hdom hL₀
@@ -243,7 +234,7 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     prefixLaw_uniformStrings le_rfl
   have hwS : windowLaw (uniformStrings (α := A) m) k L₁ = windowStrings k L₁ :=
     windowLaw_uniformStrings (by omega)
-  obtain ⟨settings, hwk, hcnt, hcalls, hprob⟩ := hw (toDist x) M O L γ (uniformStrings m) hxd hQ
+  obtain ⟨settings, hwk, hcnt, hprob⟩ := hw (toDist x) M O L γ (uniformStrings m) hxd hQ
     hA hL hη
     (uniformStrings_long m)
     (fun u => (uniformStrings_prefix_le (by omega) u).trans (by rw [hAc]; exact hp₀))
@@ -255,8 +246,8 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
       exact h)
     (by rw [hpS]; exact hpAPu) (by rw [hpL]; exact hdom)
   rw [hwS, hpS] at hcnt
-  rw [hwS, hpS, hpL] at hcalls hprob
-  exact ⟨settings, hwk, hcnt, hcalls, hprob⟩
+  rw [hwS, hpS, hpL] at hprob
+  exact ⟨settings, hwk, hcnt, hprob⟩
 
 /-- The reads' factors other than the prefix and suffix totals, at uniform strings. -/
 lemma uniform_factors {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
@@ -323,21 +314,16 @@ lemma reads_dom {Q P P' S S' F Pr lg A ρ Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ P) 
 
 theorem rlStarClaimUniformSimple_of_claim (h : RLStarClaimUniform.{u, v, w}) :
     RLStarClaimUniformSimple.{u, v, w} := by
-  obtain ⟨L₀, pref, suff, probes, reads, walk, heldOut, hL₀, hp, hs, hpr, hrd, hwk, hh, hw⟩ := h
-  refine ⟨L₀, pref, suff, probes, reads, walk, heldOut, hL₀,
+  obtain ⟨L₀, pref, suff, probes, reads, heldOut, hL₀, hp, hs, hpr, hrd, hh, hw⟩ := h
+  refine ⟨L₀, pref, suff, probes, reads, heldOut, hL₀,
     hp.trans (isBigO_on 4 fun r hr => loop_pref_dom hr),
     hs.trans (isBigO_on 2 fun r hr => loop_suff_dom hr), hpr,
-    hrd.trans (isBigO_on 8 fun r hr => ?_),
-    hwk.trans (isBigO_on 4 fun r hr => ?_), hh, hw⟩
-  · obtain ⟨hp0, -, hp1⟩ := loop_pref_dom hr
-    obtain ⟨hs0, -, hs1⟩ := loop_suff_dom hr
-    obtain ⟨hQ, hA, hF, hPr, hlg, hρ, hHd⟩ := uniform_factors hr
-    dsimp only
-    exact reads_dom hQ hp0 hp1 hs0 hs1 hF hPr hlg hA hρ hHd
-  · obtain ⟨hp0, hp0', hp1⟩ := loop_pref_dom hr
-    obtain ⟨-, -, -, -, -, hρ, -⟩ := uniform_factors hr
-    have := mul_le_mul_of_nonneg_left hp1 hρ
-    exact ⟨mul_nonneg hρ hp0, mul_nonneg hρ hp0', by linarith⟩
+    hrd.trans (isBigO_on 8 fun r hr => ?_), hh, hw⟩
+  obtain ⟨hp0, -, hp1⟩ := loop_pref_dom hr
+  obtain ⟨hs0, -, hs1⟩ := loop_suff_dom hr
+  obtain ⟨hQ, hA, hF, hPr, hlg, hρ, hHd⟩ := uniform_factors hr
+  dsimp only
+  exact reads_dom hQ hp0 hp1 hs0 hs1 hF hPr hlg hA hρ hHd
 
 end OrthoDFA
 

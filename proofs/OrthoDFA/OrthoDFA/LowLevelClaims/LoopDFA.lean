@@ -79,9 +79,7 @@ def windowStrings (lo hi : ℕ) : Measure (FreeMonoid α) :=
 def windowLaw (D : Measure (FreeMonoid α)) (lo hi : ℕ) : Measure (FreeMonoid α) :=
   ((hi + 1 - lo : ℕ) : ℝ≥0∞)⁻¹ • ∑ n ∈ Finset.Icc lo hi, prefixLaw D n
 
-/-- In every round `r` of `rounds`, run at the noise `p.1` on the draws `p.2`, some `t` with
-`∑ᵢ ∑ₙ t(i, n) ≤ B` has each harvested population `i`'s draw `n` find its string among the first
-`t(i, n)` of its probes. -/
+/-- Each round's harvested draws find their strings within `B` probes in all. -/
 def HarvestProbesWithin {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
     (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
     (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
@@ -208,8 +206,8 @@ def LearnerLoopDFASimple : Prop :=
   16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, every round's tree has at most `|Q| + 2` leaves and its harvested
-  -- draws walk at most `⌈HB⌉₊` probes a round, but for chance `δ`.
+  -- the strings of length `L`, every round's tree has at most `|Q| + 2` leaves and each round's
+  -- harvested draws walk at most `⌈HB⌉₊` probes, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
@@ -298,8 +296,8 @@ def LearnerLoopDFA : Prop :=
   L₀ ≤ L →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, every round's tree has at most `|Q| + 2` leaves and its harvested
-  -- draws walk at most `⌈HB⌉₊` probes a round, but for chance `δ`.
+  -- the strings of length `L`, every round's tree has at most `|Q| + 2` leaves and each round's
+  -- harvested draws walk at most `⌈HB⌉₊` probes, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
@@ -401,8 +399,8 @@ def LearnerLoopDFARelativeSimple : Prop :=
   16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, every round's tree has at most `|Q| + 2` leaves and its harvested
-  -- draws walk at most `⌈HB⌉₊` probes a round, but for chance `δ`.
+  -- the strings of length `L`, every round's tree has at most `|Q| + 2` leaves and each round's
+  -- harvested draws walk at most `⌈HB⌉₊` probes, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
@@ -498,8 +496,8 @@ def LearnerLoopDFARelative : Prop :=
   L₀ ≤ L →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, every round's tree has at most `|Q| + 2` leaves and its harvested
-  -- draws walk at most `⌈HB⌉₊` probes a round, but for chance `δ`.
+  -- the strings of length `L`, every round's tree has at most `|Q| + 2` leaves and each round's
+  -- harvested draws walk at most `⌈HB⌉₊` probes, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
@@ -605,8 +603,8 @@ def LearnerLoopDFADist : Prop :=
   -- and for no two of a round's probes to share their walk start.
   16 * B₃ ^ 2 * p₀ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA misclassifies at most
-  -- `γ + ξ` of `D`'s first `L` letters, every round's tree has at most `|Q| + 2` leaves and its
-  -- harvested draws walk at most `⌈HB⌉₊` probes a round, but for chance `δ`.
+  -- `γ + ξ` of `D`'s first `L` letters, every round's tree has at most `|Q| + 2` leaves and each
+  -- round's harvested draws walk at most `⌈HB⌉₊` probes, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧

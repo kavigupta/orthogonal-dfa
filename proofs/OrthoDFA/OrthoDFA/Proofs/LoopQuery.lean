@@ -283,8 +283,8 @@ lemma card_clusterAt_le (mq : FreeMonoid α → Ω → ℝ) (pops : Finset (Opti
 
 variable (o : FreeMonoid α → ℝ)
 
-/-- Draw `n` harvesting within its first `t n` probes, a harvested population's draws ask at most
-`f (∑ₙ t n)` sifts. -/
+/-- Draw `n` harvesting within its first `t n` probes, a harvested population's draws sift
+`∑ₙ t n` probes, each a family read of at most `f` strings at `3 + ⌈log₂ L⌉` reads of each mid. -/
 theorem card_reads_popDrawsQ_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (k N M : ℕ) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) (i : Fin K)
     (u : ℕ → unitInterval × (Fin N → unitInterval)) {L f P : ℕ}
