@@ -247,10 +247,7 @@ def clusterReads {K : ℕ} (sched : Finset State) (pops : Finset (Option (Fin K)
     (x : Run Ω (FreeMonoid α) (Option (Fin K))) : Finset (FreeMonoid α) :=
   (roundPrefs sched pops x ×ˢ insert 1 (roundSuffs sched x)).image fun z => z.1 * z.2
 
-/-- Population `j`'s first `M` draws off `T`, draw `n` by `u n`: for the probes' population from
-`D` conditioned off `T` by the uniform, for a harvested one by its sampler at cap `N` over the
-probes the block draws from `D`, its family read asked of the oracle.  `none` if a harvested draw
-misses. -/
+/-- Population `j`'s first `M` draws off `T`; `none` if a harvested draw misses. -/
 def popDrawsQ {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ) (pops : List (HarvestSampler α))
     (T : Finset (FreeMonoid α)) (j : Option (Fin K))
     (u : ℕ → unitInterval × (Fin N → unitInterval)) :
@@ -264,10 +261,7 @@ def popDrawsQ {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ) (pops : List
           (familyReadQ s.family s.kl s.kh)
     | none => .pure (some fun _ => 1)
 
-/-- The clustering's draws after the history `h`: suffixes from `Dsf` off what the earlier rounds
-read, each population's first `M` draws (`popDrawsQ`) as its stream, the probes' population a
-second `M` off the earlier rounds' prefixes as its certification stream, and the hash's sides.
-`none` if a draw misses. -/
+/-- The clustering's draws after the history `h`; `none` if a draw misses. -/
 def clusterDrawsQ {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (k N M : ℕ) (h : LoopHist α)
     (c : ClusterRest α K N) :
     Query (FreeMonoid α) ℝ (Option (Draws Unit (FreeMonoid α) (Option (Fin K)))) :=
@@ -280,12 +274,7 @@ def clusterDrawsQ {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (k N M : ℕ) (h :
         c.2.2.2)
 
 open scoped Classical in
-/-- The round after the history `h`: the clustering's draws off what the earlier rounds read; the
-clustering, which asks `clusterReads` and returns at a state of the schedule where `ret` holds of
-the answers, its family `clusterAt` there; then level 3 over probes drawn by `d.2` from `D`
-avoiding the first `walkStart` letters of the prefixes the clustering read, reading the family.
-`none` if a harvested draw misses, the clustering would read past the `scanCap` draws, or no state
-of the schedule returns. -/
+/-- The round after the history `h`; `none` if it fails. -/
 def roundQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     Query (FreeMonoid α) ℝ (Option (LoopRound α)) :=
