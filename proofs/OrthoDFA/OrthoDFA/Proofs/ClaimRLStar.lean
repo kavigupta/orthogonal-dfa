@@ -73,7 +73,8 @@ theorem rlStarClaim_holds : RLStarClaim := by
       hfl' ⟨q, hq⟩) hp₀
   replace hprob := hprob _ (Nat.ceil_mono (min_le_right _ _))
   rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
-  refine ⟨settings, hw, hcnt, (measureReal_mono fun q hq hs => ?_).trans hprob⟩
+  refine ⟨settings, hw, hcnt, (measureReal_mono ?_).trans hprob⟩
+  intro q hq hs
   obtain ⟨rounds, hr, hok, hlv, hW⟩ := hs
   exact hq ⟨⟨rounds, hr, hok, hlv⟩, _, hcalls q.1 q.2 rounds hr hlv hW,
     fun o ho => (Query.eval_congr _ _ ho).1⟩

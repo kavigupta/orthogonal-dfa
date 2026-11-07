@@ -65,7 +65,9 @@ lemma rel_sc_ge {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (
   have hC0 : 0 ≤ C := by
     have e : (Q + 1) * (6 * (Q + 2) * C) = (6 * (Q + 1) * (Q + 2)) * C := by ring
     exact nonneg_of_mul_nonneg_right (e ▸ hP0) (by positivity)
-  have hl : 0 ≤ log (16 * (Q + 2) * (8 * (Q + 1) * iδ)) := Real.log_nonneg (by nlinarith)
+  have hl : 0 ≤ log (16 * (Q + 2) * (8 * (Q + 1) * iδ)) :=
+    Real.log_nonneg (one_le_mul_of_one_le_of_one_le (by linarith)
+      (one_le_mul_of_one_le_of_one_le (by linarith) (by linarith)))
   have : 0 ≤ 8 * (Q + 4) * C := mul_nonneg (by linarith) hC0
   linarith
 
