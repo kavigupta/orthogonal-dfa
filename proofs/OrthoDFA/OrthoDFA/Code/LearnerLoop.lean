@@ -13,11 +13,10 @@ a draw from it walks fresh probes from the probes' distribution `D` under the ro
 hypothesis, at most level 3's `harvestReadCap` of them, and takes the first string undecided
 at the harvest's site, as the round reads them, that no earlier clustering read. The first
 population is `D` itself. The probes' population's streams are its first `scanCap` draws. A
-harvested population draws one at a time, as `split_draws` and `prefixes_for_split` do, until its
-draws hold every sample a state of the schedule takes from it (`DrawsHold`), at most `scanCap`;
-only the draws it makes run the sampler. The round fails if a harvested draw finds no string, the
-clustering would read past the draws, or no state of the schedule returns, and the loop fails with
-it. Draws are made from uniforms (`drawFrom`).
+harvested population draws one at a time until its draws hold every sample a state of the schedule
+takes from it (`DrawsHold`), at most `scanCap`; only the draws it makes run the sampler. The round
+fails if a harvested draw finds no string, the clustering would read past the draws, or no state of
+the schedule returns, and the loop fails with it. Draws are made from uniforms (`drawFrom`).
 
 The clustering is the one `ClusteringQualityGuarantee` is about, every population tame and none
 harvested into a table: the family is `clusterAt` at a state of the schedule at which `ret`
@@ -44,6 +43,12 @@ be fresh.
 
 Known modelling gap. A harvest's table here is drawn from its population's law, where the Python
 first puts the strings the round harvested into it (`take`).
+
+Known modelling gap. A harvested population's draws stop here once its distinct table-side and
+reserve-side draws reach the counts for the largest `npref` in the schedule, the reserve side
+outside the uniform table. The Python's `split_draws` stops at a count of table-side draws that
+counts duplicates and grows with the state the clustering reaches, and `prefixes_for_split`
+excludes `tabled()`, the strings of every table and of `seen`, from its reserve-side draws.
 
 Known modelling gap. The uniform pool is drawn afresh each round, where the Python keeps one pool
 across rounds; on one noise a kept pool's prefixes would be read again by every round.
