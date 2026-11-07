@@ -172,7 +172,7 @@ def LearnerLoopDFASimple : Prop :=
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
   -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+  let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -264,7 +264,7 @@ def LearnerLoopDFA : Prop :=
     + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
   -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+  let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -354,7 +354,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
   -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+  let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -453,7 +453,7 @@ def LearnerLoopDFARelative : Prop :=
     + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
   -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+  let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -545,7 +545,7 @@ def LearnerLoopDFADist : Prop :=
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: the reads the probes need, and enough tries that the draws
   -- miss but rarely.
-  let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+  let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
