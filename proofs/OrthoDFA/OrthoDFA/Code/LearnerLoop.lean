@@ -151,14 +151,16 @@ def roundLaw (α : Type*) (K N P : ℕ) : Measure (RoundDraws α K N P) :=
 
 variable {Ω : Type*} [MeasurableSpace Ω]
 
+/-- A run's randomness: the oracle's noise, which every round reads, and each round's draws. -/
+abbrev LoopDraws (Ω α : Type*) (K N P : ℕ) := Ω × (Fin K → RoundDraws α K N P)
+
 /-- One noise for the whole run, which every string's read keeps, and `K` rounds' uniforms,
 independent. -/
-def loopMeasure (μ : Measure Ω) (α : Type*) (K N P : ℕ) :
-    Measure (Ω × (Fin K → RoundDraws α K N P)) :=
+def loopMeasure (μ : Measure Ω) (α : Type*) (K N P : ℕ) : Measure (LoopDraws Ω α K N P) :=
   μ.prod (Measure.pi fun _ : Fin K => roundLaw α K N P)
 
 /-- The rounds' draws, each read through the run's one noise. -/
-def persistDraws {K N P : ℕ} (p : Ω × (Fin K → RoundDraws α K N P)) :
+def persistDraws {K N P : ℕ} (p : LoopDraws Ω α K N P) :
     Fin K → LoopRoundDraws Ω α K N P :=
   fun i => (p.1, p.2 i)
 
@@ -331,10 +333,9 @@ def loopRounds {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid 
 /-- The rounds the loop runs, at most `K`; `none` if a round fails. -/
 def indecisiveLStarLoop {K : ℕ} (settings : LoopSettings K)
     (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
-      settings.level3.probeBudget) :
+    (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     Option (List (LoopRound α)) :=
-  loopRounds settings O D Dsf draws K
+  loopRounds settings O D Dsf (persistDraws p) K
 
 end OrthoDFA
 
