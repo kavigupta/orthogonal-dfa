@@ -19,7 +19,8 @@ strings of length `L` visit at some position from `⌈L/2⌉` to `L` (`coveredSt
 accuracy at least `1 − γ` through the covered states. Then the loop, its probes uniform over the
 lengths `⌈L/2⌉` to `L + |Q| + 3` and walked from `⌈L/2⌉`, stops within `|Q| + 1` rounds at a
 consistent round, its re-rooted DFA (`rerootedDFA`) misclassifies at most `γ + ξ` of the strings of
-length `L`, and every round's tree has at most `|Q| + 2` leaves, but for chance `δ`. The final
+length `L`, every round's tree has at most `|Q| + 2` leaves, and each round's harvested draws find
+their strings within `⌈HB⌉₊` probes in all (`HarvestProbesWithin`), but for chance `δ`. The final
 hypothesis is started at the leaf that scores best on `n` held-out strings of length `L`, drawn
 after the loop: each leaf is scored by how many of them its run classifies as the last round's
 family reads them, the undecided ones counting for none. A run that reaches an unlearned edge counts
@@ -77,6 +78,21 @@ def windowStrings (lo hi : ℕ) : Measure (FreeMonoid α) :=
 /-- `D`'s strings cut at a length uniform over `lo` to `hi`. -/
 def windowLaw (D : Measure (FreeMonoid α)) (lo hi : ℕ) : Measure (FreeMonoid α) :=
   ((hi + 1 - lo : ℕ) : ℝ≥0∞)⁻¹ • ∑ n ∈ Finset.Icc lo hi, prefixLaw D n
+
+/-- In every round `r` of `rounds`, run at the noise `p.1` on the draws `p.2`, some `t` with
+`∑ᵢ ∑ₙ t(i, n) ≤ B` has each harvested population `i`'s draw `n` find its string among the first
+`t(i, n)` of its probes. -/
+def HarvestProbesWithin {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
+    (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
+    (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (rounds : List (LoopRound α)) (B : ℕ) : Prop :=
+  ∀ r (hr : r < K), r < rounds.length →
+    ∃ t : Fin K → Fin settings.scanCap → ℕ, ∑ i, ∑ n, t i n ≤ B ∧
+      ∀ i s, (histOf (rounds.take r)).pops[i.val]? = some s → ∀ n : Fin settings.scanCap,
+        (Random.harvestFirst (fun z => familyRead O.mq s.family s.kl s.kh z p.1)
+          settings.level3.walkStart s.hyp s.site ↑(histOf (rounds.take r)).prefs
+          ((List.ofFn fun j => drawFrom D (((p.2 ⟨r, hr⟩).1.2.1 (some i) n).2 j)).take
+            (t i n))).isSome
 
 /-- The share of `T`'s strings that visit `q` at some position from `⌈L/2⌉` to `L`. -/
 def windowVisitRateOn {σ : Type*} (T : Measure (FreeMonoid α)) (M : _root_.DFA α σ) (L : ℕ)
@@ -173,6 +189,8 @@ def LearnerLoopDFASimple : Prop :=
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
+  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -190,8 +208,8 @@ def LearnerLoopDFASimple : Prop :=
   16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, and every round's tree has at most `|Q| + 2` leaves, but for chance
-  -- `δ`.
+  -- the strings of length `L`, every round's tree has at most `|Q| + 2` leaves and its harvested
+  -- draws walk at most `⌈HB⌉₊` probes a round, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
@@ -205,7 +223,8 @@ def LearnerLoopDFASimple : Prop :=
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
-        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
+        (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2) ∧
+        HarvestProbesWithin settings O (windowStrings k L₁) q.1 rounds ⌈HB⌉₊}
       ≤ δ
 
 /-- `LearnerLoopDFASimple` once the Python's length `L` is at least `L₀`. -/
@@ -266,6 +285,8 @@ def LearnerLoopDFA : Prop :=
     + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
+  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -277,8 +298,8 @@ def LearnerLoopDFA : Prop :=
   L₀ ≤ L →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, and every round's tree has at most `|Q| + 2` leaves, but for chance
-  -- `δ`.
+  -- the strings of length `L`, every round's tree has at most `|Q| + 2` leaves and its harvested
+  -- draws walk at most `⌈HB⌉₊` probes a round, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
@@ -292,7 +313,8 @@ def LearnerLoopDFA : Prop :=
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
-        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
+        (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2) ∧
+        HarvestProbesWithin settings O (windowStrings k L₁) q.1 rounds ⌈HB⌉₊}
       ≤ δ
 
 /-- `LearnerLoopDFASimple` with the target admitted by the relative rule: if some state `q` in
@@ -357,6 +379,8 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
+  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -377,8 +401,8 @@ def LearnerLoopDFARelativeSimple : Prop :=
   16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, and every round's tree has at most `|Q| + 2` leaves, but for chance
-  -- `δ`.
+  -- the strings of length `L`, every round's tree has at most `|Q| + 2` leaves and its harvested
+  -- draws walk at most `⌈HB⌉₊` probes a round, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
@@ -392,7 +416,8 @@ def LearnerLoopDFARelativeSimple : Prop :=
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
-        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
+        (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2) ∧
+        HarvestProbesWithin settings O (windowStrings k L₁) q.1 rounds ⌈HB⌉₊}
       ≤ δ
 
 /-- `LearnerLoopDFARelativeSimple` once the Python's length `L` is at least `L₀`. -/
@@ -457,6 +482,8 @@ def LearnerLoopDFARelative : Prop :=
     + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
+  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -471,8 +498,8 @@ def LearnerLoopDFARelative : Prop :=
   L₀ ≤ L →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, and every round's tree has at most `|Q| + 2` leaves, but for chance
-  -- `δ`.
+  -- the strings of length `L`, every round's tree has at most `|Q| + 2` leaves and its harvested
+  -- draws walk at most `⌈HB⌉₊` probes a round, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
@@ -486,7 +513,8 @@ def LearnerLoopDFARelative : Prop :=
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
-        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
+        (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2) ∧
+        HarvestProbesWithin settings O (windowStrings k L₁) q.1 rounds ⌈HB⌉₊}
       ≤ δ
 
 /-- `LearnerLoopDFASimple` over strings drawn from `D`: the probes are `D`'s strings cut at a length
@@ -550,6 +578,8 @@ def LearnerLoopDFADist : Prop :=
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
+  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -575,8 +605,8 @@ def LearnerLoopDFADist : Prop :=
   -- and for no two of a round's probes to share their walk start.
   16 * B₃ ^ 2 * p₀ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA misclassifies at most
-  -- `γ + ξ` of `D`'s first `L` letters, and every round's tree has at most `|Q| + 2` leaves, but
-  -- for chance `δ`.
+  -- `γ + ξ` of `D`'s first `L` letters, every round's tree has at most `|Q| + 2` leaves and its
+  -- harvested draws walk at most `⌈HB⌉₊` probes a round, but for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
@@ -590,7 +620,8 @@ def LearnerLoopDFADist : Prop :=
             o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                 (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
-        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
+        (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2) ∧
+        HarvestProbesWithin settings O (windowLaw D k L₁) q.1 rounds ⌈HB⌉₊}
       ≤ δ
 
 end OrthoDFA

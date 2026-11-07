@@ -18,7 +18,7 @@ open MeasureTheory
 
 theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple := by
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k L₁ N m ε εcov δ' ι s τ J S B₃ Wm W PB RB
-    cap Kc n SC HN hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hk1 hk2 hk3 hk4
+    cap Kc n SC HN HB hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hk1 hk2 hk3 hk4
   obtain ⟨q, hself, hq⟩ := hdom
   have hR2 := half_le_of_self_nonStartZone (uniformStrings L) M L hR hself
   have hA : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
@@ -53,7 +53,7 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
 set_option maxHeartbeats 4000000 in -- matching the claim's `L₀` against `loopMassInv`
 theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k L₁ N m ε δ' s S B₃ n aε Ce Θι Θ Θa K₁
-    Wm W₀ P₀ R₀ E₁ Kc E E₂ E₃ T L₀ SC HN hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hL₀
+    Wm W₀ P₀ R₀ E₁ Kc E E₂ E₃ T L₀ SC HN HB hL hη hη₀ hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu hdom hL₀
   obtain ⟨q, hself, hq⟩ := hdom
   have hR2 := half_le_of_self_nonStartZone (uniformStrings L) M L hR hself
   have : Nonempty σ := ⟨M.start⟩
@@ -112,10 +112,11 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
     (by rw [hpS]; exact hpAPu)
     (summed_bridge M O hL L _ hR hξ hA ((uniformStrings_long _).mono fun x hx => by omega)
       (fun i _ hi y a => uniformStrings_floor (by omega) y a) ⟨q, by rw [hpL]; exact hq⟩) hp₀
+  replace h4 := h4 _ (Nat.ceil_mono (min_le_left _ _))
   have hε : ∀ x : ℝ, ξ / (2 * R) / (4 * (A + Q + 1) * x) = m / (3 * (A + Q + 1) * x) :=
     fun x => by simp only [m]; field_simp; ring
-  rw [hε] at h2 h3 h5
-  rw [hR₀] at h5 h6
+  rw [hε] at h2 h3 h5 h4
+  rw [hR₀] at h5 h6 h4
   rw [hpL, hpS, hwS, show ∀ x : ℝ, 32 * x / (ξ / 4) ^ 2 = 512 * x / ξ ^ 2 from fun x => by ring,
     show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at h4
   exact ⟨settings, h1, h2, h3, h5, h6, h4⟩

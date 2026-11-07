@@ -172,6 +172,22 @@ lemma mem_reads_findSome {xs : List δ} {q : Q} (hq : q ∈ (findSome f xs).read
       · rw [hx] at hq
         simp at hq
 
+/-- A search that finds its value in `l₁` asks nothing of `l₂`. -/
+lemma findSome_append_of_eval {l₁ : List δ} (l₂ : List δ) {y : ε}
+    (h : (findSome f l₁).eval o = some y) :
+    (findSome f (l₁ ++ l₂)).eval o = some y
+      ∧ (findSome f (l₁ ++ l₂)).reads o = (findSome f l₁).reads o := by
+  induction l₁ with
+  | nil => simp [findSome] at h
+  | cons x l₁ ih =>
+    simp only [List.cons_append, findSome, eval_bind, reads_bind] at h ⊢
+    rcases hx : (f x).eval o with _ | y'
+    · rw [hx] at h
+      obtain ⟨e1, e2⟩ := ih h
+      exact ⟨e1, by rw [e2]⟩
+    · rw [hx] at h
+      exact ⟨h, rfl⟩
+
 lemma card_reads_findSome_le (xs : List δ) {n : ℕ} (hn : ∀ x ∈ xs, ((f x).reads o).card ≤ n) :
     ((findSome f xs).reads o).card ≤ xs.length * n := by
   induction xs with
