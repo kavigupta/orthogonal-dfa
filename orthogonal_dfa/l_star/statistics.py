@@ -227,7 +227,7 @@ def reads_minority_bounded(
     or undecided at least a third with accept or reject at most `minority_limit`; and
     is on its rarer decided side at most `limit`, or at most `ratio` times as often as
     it is undecided.
-    `BandPasses` in proofs/OrthoDFA/FamilyRead.lean.
+    `BandPasses` in proofs/OrthoDFA/OrthoDFA/LowLevelClaims/FamilyRead.lean.
 
     `evidence_margin_for_population_size`'s other two criteria imply neither half:
     a mean just inside the band at a small count can sit at or below `k_low` more
@@ -318,7 +318,7 @@ def denoise_sample_size(
 
 
 def seq_rate(p0, p1, level, trials, hits) -> bool:
-    """``seqRate`` of ``OrthoDFA/SeqTest.lean``, proved sound by ``SeqRateSound``: whether the
+    """``seqRate`` of OrthoDFA/Code/SeqTest.lean, proved sound by ``SeqRateSound``: whether the
     likelihood ratio of rate ``p1`` against ``p0`` reaches ``1 / level``,
 
         (p1 / p0)^hits ((1 - p1) / (1 - p0))^(trials - hits) >= 1 / level.
@@ -337,7 +337,7 @@ def seq_rate(p0, p1, level, trials, hits) -> bool:
 
 
 def rate_side(theta, level, min_samples, trials, hits) -> Optional[bool]:
-    """``rateSide θ a n₀ n h`` of ``OrthoDFA/RateTest.lean``, proved sound by
+    """``rateSide θ a n₀ n h`` of OrthoDFA/Code/RateTest.lean, proved sound by
     ``RateTestSound``: ``True`` where ``P(Bin(trials, θ) ≥ hits) < level``, ``False``
     where ``P(Bin(trials, θ) ≤ hits) < level``, and ``None`` otherwise or before
     ``min_samples`` trials."""

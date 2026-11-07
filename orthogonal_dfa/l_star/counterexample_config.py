@@ -1,4 +1,4 @@
-"""``Level5Settings`` of ``OrthoDFA/Level5.lean``, and the one shipped."""
+"""Level3Settings of OrthoDFA/Code/Level3.lean, and the one shipped."""
 
 from dataclasses import dataclass
 

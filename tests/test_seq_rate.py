@@ -1,4 +1,4 @@
-"""``seq_rate`` keeps the promise ``OrthoDFA/SeqTest.lean`` makes: under its null rate, or any
+"""``seq_rate`` keeps the promise OrthoDFA/Code/SeqTest.lean makes: under its null rate, or any
 rate beyond it from the alternative, it ever fires at most ``level`` of the time."""
 
 import itertools
@@ -52,7 +52,7 @@ class TestTheRatio(unittest.TestCase):
 
 
 def lean_seq_rate(p0, p1, level, trials, hits):
-    """``seqRate p₀ p₁ a n h`` of ``OrthoDFA/SeqTest.lean``, in exact arithmetic, and how far
+    """``seqRate p₀ p₁ a n h`` of OrthoDFA/Code/SeqTest.lean, in exact arithmetic, and how far
     the likelihood ratio is from ``1 / level`` relative to it."""
     ratio = (p1 / p0) ** hits * ((1 - p1) / (1 - p0)) ** (trials - hits)
     return 1 / level <= ratio, abs(ratio * level - 1)
