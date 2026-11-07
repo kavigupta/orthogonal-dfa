@@ -18,8 +18,9 @@ quantities, as probabilities rather than shares of a sample.
 strings of length `L` visit at some position from `⌈L/2⌉` to `L` (`coveredStates`) re-roots it with
 accuracy at least `1 − γ` through the covered states. Then the loop, its probes uniform over the
 lengths `⌈L/2⌉` to `L + |Q| + 3` and walked from `⌈L/2⌉`, stops within `|Q| + 1` rounds at a
-consistent round, and its re-rooted DFA (`rerootedDFA`) misclassifies at most `γ + ξ` of the
-strings of length `L`, but for chance `δ`. The final hypothesis is started at the leaf that scores
+consistent round, each round's harvested draws finding their strings within `B` probes in all
+(`HarvestProbesWithin`), and its re-rooted DFA (`rerootedDFA`) misclassifies at most `γ + ξ` of
+the strings of length `L`, but for chance `δ`. The final hypothesis is started at the leaf that scores
 best on `n` held-out strings of length `L`, drawn after the loop: each leaf is scored by how many
 of them its run classifies as the last round's family reads them, the undecided ones counting for
 none. A run that reaches an unlearned edge counts as wrong. A covered state is visited `c` of the
@@ -76,6 +77,21 @@ def windowStrings (lo hi : ℕ) : Measure (FreeMonoid α) :=
 /-- `D`'s strings cut at a length uniform over `lo` to `hi`. -/
 def windowLaw (D : Measure (FreeMonoid α)) (lo hi : ℕ) : Measure (FreeMonoid α) :=
   ((hi + 1 - lo : ℕ) : ℝ≥0∞)⁻¹ • ∑ n ∈ Finset.Icc lo hi, prefixLaw D n
+
+/-- In every round `r` of `rounds`, run at the noise `p.1` on the draws `p.2`, some `t` with
+`∑ᵢ ∑ₙ t(i, n) ≤ B` has each harvested population `i`'s draw `n` find its string among the first
+`t(i, n)` of its probes. -/
+def HarvestProbesWithin {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
+    (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
+    (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (rounds : List (LoopRound α)) (B : ℕ) : Prop :=
+  ∀ r (hr : r < K), r < rounds.length →
+    ∃ t : Fin K → Fin settings.scanCap → ℕ, ∑ i, ∑ n, t i n ≤ B ∧
+      ∀ i s, (histOf (rounds.take r)).pops[i.val]? = some s → ∀ n : Fin settings.scanCap,
+        (Random.harvestFirst (fun z => familyRead O.mq s.family s.kl s.kh z p.1)
+          settings.level3.walkStart s.hyp s.site ↑(histOf (rounds.take r)).prefs
+          ((List.ofFn fun j => drawFrom D (((p.2 ⟨r, hr⟩).1.2.1 (some i) n).2 j)).take
+            (t i n))).isSome
 
 /-- The share of `T`'s strings that visit `q` at some position from `⌈L/2⌉` to `L`. -/
 def windowVisitRateOn {σ : Type*} (T : Measure (FreeMonoid α)) (M : _root_.DFA α σ) (L : ℕ)
@@ -172,6 +188,8 @@ def LearnerLoopDFASimple : Prop :=
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
+  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -187,13 +205,14 @@ def LearnerLoopDFASimple : Prop :=
   n * (6 * J * RB + B₃ + n) * (A ^ k)⁻¹ ≤ δ / 4 →
   -- and for no two of a round's probes to share their walk start.
   16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' →
-  -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
-  -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1),
+  -- Within `|Q| + 1` rounds the loop ends consistent, its harvested draws walking at most `B`
+  -- probes a round, and its re-rooted DFA (the final hypothesis started at the leaf that scores
+  -- best on `n` held-out strings) misclassifies at most `γ + ξ` of the strings of length `L`, but
+  -- for chance `δ`.
+  ∃ (settings : LoopSettings (Fintype.card σ + 1)) (B : ℕ),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ (B : ℝ) ≤ HB ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -202,7 +221,8 @@ def LearnerLoopDFASimple : Prop :=
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
-                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)
+          ∧ HarvestProbesWithin settings O (windowStrings k L₁) q.1 rounds B}
       ≤ δ
 
 /-- `LearnerLoopDFASimple` once the Python's length `L` is at least `L₀`. -/
@@ -263,6 +283,8 @@ def LearnerLoopDFA : Prop :=
     + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
+  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -272,13 +294,14 @@ def LearnerLoopDFA : Prop :=
   (∃ q ∈ coveredStates M L c, 1 - γ ≤ rerootAccuracy M L (coveredStates M L c) q) →
   -- The Python's length is long enough.
   L₀ ≤ L →
-  -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
-  -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1),
+  -- Within `|Q| + 1` rounds the loop ends consistent, its harvested draws walking at most `B`
+  -- probes a round, and its re-rooted DFA (the final hypothesis started at the leaf that scores
+  -- best on `n` held-out strings) misclassifies at most `γ + ξ` of the strings of length `L`, but
+  -- for chance `δ`.
+  ∃ (settings : LoopSettings (Fintype.card σ + 1)) (B : ℕ),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ (B : ℝ) ≤ HB ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -287,7 +310,8 @@ def LearnerLoopDFA : Prop :=
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
-                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)
+          ∧ HarvestProbesWithin settings O (windowStrings k L₁) q.1 rounds B}
       ≤ δ
 
 /-- `LearnerLoopDFASimple` with the target admitted by the relative rule: if some state `q` in
@@ -352,6 +376,8 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
+  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -370,13 +396,14 @@ def LearnerLoopDFARelativeSimple : Prop :=
   n * (6 * J * RB + B₃ + n) * (A ^ k)⁻¹ ≤ δ / 4 →
   -- and for no two of a round's probes to share their walk start.
   16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' →
-  -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
-  -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1),
+  -- Within `|Q| + 1` rounds the loop ends consistent, its harvested draws walking at most `B`
+  -- probes a round, and its re-rooted DFA (the final hypothesis started at the leaf that scores
+  -- best on `n` held-out strings) misclassifies at most `γ + ξ` of the strings of length `L`, but
+  -- for chance `δ`.
+  ∃ (settings : LoopSettings (Fintype.card σ + 1)) (B : ℕ),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ (B : ℝ) ≤ HB ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -385,7 +412,8 @@ def LearnerLoopDFARelativeSimple : Prop :=
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
-                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)
+          ∧ HarvestProbesWithin settings O (windowStrings k L₁) q.1 rounds B}
       ≤ δ
 
 /-- `LearnerLoopDFARelativeSimple` once the Python's length `L` is at least `L₀`. -/
@@ -450,6 +478,8 @@ def LearnerLoopDFARelative : Prop :=
     + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
+  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -462,13 +492,14 @@ def LearnerLoopDFARelative : Prop :=
     1 - γ ≤ rerootAccuracy M L (nonStartZoneStates M L R q) q) →
   -- The Python's length is long enough.
   L₀ ≤ L →
-  -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
-  -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1),
+  -- Within `|Q| + 1` rounds the loop ends consistent, its harvested draws walking at most `B`
+  -- probes a round, and its re-rooted DFA (the final hypothesis started at the leaf that scores
+  -- best on `n` held-out strings) misclassifies at most `γ + ξ` of the strings of length `L`, but
+  -- for chance `δ`.
+  ∃ (settings : LoopSettings (Fintype.card σ + 1)) (B : ℕ),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ (B : ℝ) ≤ HB ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -477,7 +508,8 @@ def LearnerLoopDFARelative : Prop :=
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
-                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)
+          ∧ HarvestProbesWithin settings O (windowStrings k L₁) q.1 rounds B}
       ≤ δ
 
 /-- `LearnerLoopDFASimple` over strings drawn from `D`: the probes are `D`'s strings cut at a length
@@ -541,6 +573,8 @@ def LearnerLoopDFADist : Prop :=
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
+  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -565,12 +599,13 @@ def LearnerLoopDFADist : Prop :=
   n * (6 * J * RB + B₃ + n) * p₀ ≤ δ / 4 →
   -- and for no two of a round's probes to share their walk start.
   16 * B₃ ^ 2 * p₀ ≤ δ' →
-  -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA misclassifies at most
-  -- `γ + ξ` of `D`'s first `L` letters, but for chance `δ`.
-  ∃ settings : LoopSettings (Fintype.card σ + 1),
+  -- Within `|Q| + 1` rounds the loop ends consistent, its harvested draws walking at most `B`
+  -- probes a round, and its re-rooted DFA misclassifies at most `γ + ξ` of `D`'s first `L`
+  -- letters, but for chance `δ`.
+  ∃ (settings : LoopSettings (Fintype.card σ + 1)) (B : ℕ),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
+    (settings.scanCap : ℝ) ≤ SC ∧ (B : ℝ) ≤ HB ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => prefixLaw D L)).real
@@ -579,7 +614,8 @@ def LearnerLoopDFADist : Prop :=
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
-                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)
+          ∧ HarvestProbesWithin settings O (windowLaw D k L₁) q.1 rounds B}
       ≤ δ
 
 end OrthoDFA

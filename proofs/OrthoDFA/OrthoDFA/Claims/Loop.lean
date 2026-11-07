@@ -9,11 +9,13 @@ import OrthoDFA.LowLevelClaims.LoopDFA
 by any one letter, the loop's re-rooted DFA misclassifies at most `γ + ξ` of `D`'s strings cut at
 length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, when the target admits
 a start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
-letters, `1/p₀Tol` growing as `L⁴ log L`; over the whole run its clusterings read at most
+letters, `1/p₀Tol` growing as `L⁴ log L`, and but for that chance each round's harvested draws
+find their strings within `B` probes in all; over the whole run its clusterings read at most
 `totalPref` prefixes and `totalSuff` suffixes, its rounds draw at most `totalProbes` probes, and,
-start leaf included, it asks the oracle at most `totalReads` strings, whatever they draw, its
-output the same against any answers that agree on those strings. Every one is within the big-O
-shape below, with `s₀ = 1/2 − η₀` the signal. The settings the proof picks hold each round's
+start leaf included, it asks the oracle at most `totalReads` strings whatever they draw, so long as
+the harvested draws find their strings within `B` probes a round, its output the same against any
+answers that agree on those strings. Every one is within the big-O shape below, with
+`s₀ = 1/2 − η₀` the signal. The settings the proof picks hold each round's
 disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths,
 so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes grow as `(L + |Q|)²` and the
 suffixes as `log L`. The prefix total's populations' group reads its log off the suffix pool alone,
@@ -21,9 +23,9 @@ so that log grows as `log log L`. The strings asked are five sources' sum: the c
 prefixes against their suffixes; level 3's probes, each a family read of `|V̂|` strings at the
 `log L` mids of a sift at most `|Q| + 1` deep (level 3 fails past `|Q| + 2` leaves); its splits, at
 most `|Q| + 1` a round, each re-sifting at most `|Q| + 2` leaves' edges over `|Σ|` letters down
-at most `|Q| + 2` midfixes; the `|Q| + 1` populations' scans, each walk a family read at the
-sifts of up to the harvest cap's probes, that cap `1/ρ` times `log X`; and the start leaf's family
-read at each held-out string. Each bound has one constant over all of `loopDistRegion`.
+at most `|Q| + 2` midfixes; the harvested draws' walks, a family read at the sifts of each probe,
+a round's `B` probes `1/ρ` times the draws of its `|Q| + 1` populations' scans; and the start
+leaf's family read at each held-out string. Each bound has one constant over all of `loopDistRegion`.
 
 `LoopClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
 `L` is at least `L₀`; the bounds have one constant over all of `loopRegion`. `LoopClaimSimple`
@@ -71,9 +73,10 @@ structure LoopDistRun extends LoopDistInputs where
 def loopDistRunRegion : Set LoopDistRun := {r | r.toLoopDistInputs ∈ loopDistRegion}
 
 /-- On every instance in `loopDistRegion`, for strings drawn from `D` whose first `k` letters
-`p₀Tol` bounds, settings, level 3 failing past `|Q| + 2` leaves, whose run reads within
-`totalPref`, `totalSuff` and `totalProbes`, asks the oracle at most `totalReads` strings, and is
-right but for `γ + ξ` on `heldOut` strings. -/
+`p₀Tol` bounds, settings, level 3 failing past `|Q| + 2` leaves, and a probe count `B`, whose run
+reads within `totalPref`, `totalSuff` and `totalProbes`, asks the oracle at most `totalReads`
+strings where its harvested draws walk at most `B` probes a round, and is right but for `γ + ξ` on
+`heldOut` strings, its draws walking within `B`. -/
 def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : LoopDistRun → ℝ)
     (heldOut : LoopDistInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
@@ -97,7 +100,7 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : L
   (∃ q, q ∈ nonStartZoneStatesOn (prefixLaw D L) M L x.R q ∧
     1 - γ ≤ rerootAccuracyOn (prefixLaw D L) M L (nonStartZoneStatesOn (prefixLaw D L) M L x.R q)
       q) →
-  ∃ settings : LoopSettings (Fintype.card Q + 1),
+  ∃ (settings : LoopSettings (Fintype.card Q + 1)) (B : ℕ),
     settings.level3.walkStart = k ∧ settings.level3.leafCap = Fintype.card Q + 2 ∧
     (∀ (p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget) rounds,
@@ -105,11 +108,13 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : L
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    -- The learner asks the oracle at most `totalReads` strings, and any answers agreeing with the
-    -- oracle's on them give the same output and ask the same strings.
+    -- Where its harvested draws walk at most `B` probes a round, the learner asks the oracle at
+    -- most `totalReads` strings, and any answers agreeing with the oracle's on them give the same
+    -- output and ask the same strings.
     (∀ (p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget) (xs : Fin (heldOut x) → FreeMonoid A) out,
       indecisiveLStar settings O (windowLaw D k L₁) (prefixLaw D Ls) p xs = some out →
+      HarvestProbesWithin settings O (windowLaw D k L₁) p out.1 B →
       let run := learnerQ settings (windowLaw D k L₁) (prefixLaw D Ls) p.2 xs
       let asked := run.reads fun w => O.mq w p.1
       (asked.card : ℝ) ≤ totalReads { x with L }
@@ -122,7 +127,8 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : L
             = some (rounds, s) ∧
         (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {w | ¬
-              o.result.hypothesis.Classifies s w (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)}
+              o.result.hypothesis.Classifies s w (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)
+          ∧ HarvestProbesWithin settings O (windowLaw D k L₁) q.1 rounds B}
       ≤ x.δ
 
 open Real in
@@ -171,18 +177,18 @@ def LoopClaim.{u, v, w} : Prop :=
       -- `|V̂|`, a round's family of states
       let nFam : ℝ := log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (1 / r.β + r.Q) * (r.L + r.Q) / r.ξ
-      let lY : ℝ := log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
       let lg : ℝ := log (r.L + r.Q + 1)
       -- clusterings, counterexample search, its re-sifts, harvest, start leaf
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q ^ 2 * nPref * nFam * lg * ρInv * lY + nHeld * nFam) ∧
+        + r.Q ^ 2 * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopDistRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     (∀ r, 0 < p₀Tol r) ∧
     LoopWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes totalReads heldOut
 
 /-- On every instance in `loopRegion` with `L₀ x ≤ L`, settings, level 3 failing past `|Q| + 2`
-leaves, whose run reads within `totalPref`, `totalSuff` and `totalProbes`, asks the oracle at most
-`totalReads` strings, and is right but for `γ + ξ` on `heldOut` strings. -/
+leaves, and a probe count `B`, whose run reads within `totalPref`, `totalSuff` and `totalProbes`,
+asks the oracle at most `totalReads` strings where its harvested draws walk at most `B` probes a
+round, and is right but for `γ + ξ` on `heldOut` strings, its draws walking within `B`. -/
 def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
     (totalPref totalSuff totalProbes totalReads : LoopRun → ℝ) (heldOut : LoopInputs → ℕ) :
     Prop :=
@@ -200,7 +206,7 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
   (∃ q, q ∈ nonStartZoneStates M L x.R q ∧
     1 - γ ≤ rerootAccuracy M L (nonStartZoneStates M L x.R q) q) →
   L₀ x ≤ L →
-  ∃ settings : LoopSettings (Fintype.card Q + 1),
+  ∃ (settings : LoopSettings (Fintype.card Q + 1)) (B : ℕ),
     settings.level3.walkStart = k ∧ settings.level3.leafCap = Fintype.card Q + 2 ∧
     (∀ (p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget) rounds,
@@ -213,6 +219,7 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
           settings.level3.probeBudget) (xs : Fin (heldOut x) → FreeMonoid A) out,
       indecisiveLStar settings O (windowStrings k L₁)
         (uniformStrings (L₁ + Fintype.card Q + 3)) p xs = some out →
+      HarvestProbesWithin settings O (windowStrings k L₁) p out.1 B →
       let run := learnerQ settings (windowStrings k L₁) (uniformStrings (L₁ + Fintype.card Q + 3))
         p.2 xs
       let asked := run.reads fun w => O.mq w p.1
@@ -226,7 +233,8 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
             (uniformStrings (L₁ + Fintype.card Q + 3)) q.1 q.2 = some (rounds, s) ∧
         (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {w | ¬
-              o.result.hypothesis.Classifies s w (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)}
+              o.result.hypothesis.Classifies s w (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ)
+          ∧ HarvestProbesWithin settings O (windowStrings k L₁) q.1 rounds B}
       ≤ x.δ
 
 open Real in
@@ -261,11 +269,10 @@ def LoopClaimUniform.{u, v, w} : Prop :=
       let nHeld : ℝ := log (r.Q / r.δ) / r.ξ ^ 2
       let nFam : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
-      let lY : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
       let lg : ℝ := log (r.L + r.Q + 1)
       -- clusterings, counterexample search, its re-sifts, harvest, start leaf
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q ^ 2 * nPref * nFam * lg * ρInv * lY + nHeld * nFam) ∧
+        + r.Q ^ 2 * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     LoopWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut
 
@@ -294,11 +301,10 @@ def LoopClaimSimple.{u, v, w} : Prop :=
       let nHeld : ℝ := log (r.Q / r.δ) / r.ξ ^ 2
       let nFam : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
-      let lY : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
       let lg : ℝ := log (r.L + r.Q + 1)
       -- clusterings, counterexample search, its re-sifts, harvest, start leaf
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q ^ 2 * nPref * nFam * lg * ρInv * lY + nHeld * nFam) ∧
+        + r.Q ^ 2 * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     LoopWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut
 

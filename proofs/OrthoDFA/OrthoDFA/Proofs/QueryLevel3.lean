@@ -640,6 +640,22 @@ theorem card_reads_harvestFirstQ_le {L : ℕ} (xs : List (FreeMonoid α))
     exact (Finset.card_le_card (reads_siteHarvestQ_sub read k H site x)).trans
       (probeReads_card_clog read H.tree H.edges k (hL x hx))
 
+/-- Probes that harvest within their first `t` ask only of those `t`. -/
+theorem card_reads_harvestFirstQ_take_le {L : ℕ} (xs : List (FreeMonoid α)) (t : ℕ)
+    (hL : ∀ x ∈ xs, x.toList.length ≤ L)
+    (ht : (harvestFirst read k H site T (xs.take t)).isSome) :
+    ((harvestFirstQ k H site T xs).reads read).card
+      ≤ t * ((3 + Nat.clog 2 L) * (mids H.tree).card) := by
+  obtain ⟨z, hz⟩ := Option.isSome_iff_exists.1 ht
+  rw [← eval_harvestFirstQ read k H site T] at hz
+  unfold harvestFirstQ at hz ⊢
+  have e := (findSome_append_of_eval read _ (xs.drop t) hz).2
+  rw [List.take_append_drop] at e
+  rw [e]
+  refine (card_reads_harvestFirstQ_le read k H site T (xs.take t)
+    fun x hx => hL x (List.mem_of_mem_take hx)).trans ?_
+  exact Nat.mul_le_mul_right _ (List.length_take_le _ _)
+
 omit inst in
 theorem eval_drawManyFirstQ {m N' : ℕ} (yss : Fin m → (Fin N' → FreeMonoid α)) :
     (drawManyFirstQ k H site T yss).eval read = drawManyFirst read k H site T yss := by
@@ -658,6 +674,18 @@ theorem card_reads_drawManyFirstQ_le {L m N' : ℕ} (yss : Fin m → (Fin N' →
     obtain ⟨t, rfl⟩ := List.mem_ofFn.1 hy
     exact hL i t
   rwa [List.length_ofFn] at this
+
+/-- Draw `i` harvesting within its first `t i` probes, the draws ask at most `∑ᵢ t i` sifts. -/
+theorem card_reads_drawManyFirstQ_take_le {L m N' : ℕ} (yss : Fin m → (Fin N' → FreeMonoid α))
+    (hL : ∀ i t, (yss i t).toList.length ≤ L) (t : Fin m → ℕ)
+    (ht : ∀ i, (harvestFirst read k H site T ((List.ofFn (yss i)).take (t i))).isSome) :
+    ((drawManyFirstQ k H site T yss).reads read).card
+      ≤ (∑ i, t i) * ((3 + Nat.clog 2 L) * (mids H.tree).card) := by
+  unfold drawManyFirstQ
+  rw [reads_map, reads_pi, Finset.sum_mul]
+  refine Finset.card_biUnion_le.trans (Finset.sum_le_sum fun i _ => ?_)
+  exact card_reads_harvestFirstQ_take_le read k H site T _ (t i)
+    (fun y hy => by obtain ⟨j, rfl⟩ := List.mem_ofFn.1 hy; exact hL i j) (ht i)
 
 end Harvest
 
