@@ -8,8 +8,8 @@ Each factor of `learnerReads` is within a constant of a shape in the claim's coo
 family size of `|V̂|` (`rel_fam_le`), `K` times the scan cap of `totalPref` (`rel_sc_le`), the
 harvest cap of `1/ρ` times `log X` (`rel_hn_le`, the scan cap at most `2^c X^k` for
 `X = (L + |Q|) Ae iδ R iξ ip is`), the sifts of `log (L + |Q| + 1)` (`lg_le`), and a sift's depth
-`|Q| + 1` and leaf cap `|Q| + 2` of `|Q|`. Each source's
-reads is the product of its factors' bounds (`pw_mul`), so each is within its shape on its own.
+`|Q| + 1` and leaf bound `|Q| + 2` of `|Q|`. Each source's reads is the product of its factors'
+bounds (`pw_mul`), so each is within its shape on its own.
 -/
 
 noncomputable section

@@ -18,8 +18,8 @@ quantities, as probabilities rather than shares of a sample.
 strings of length `L` visit at some position from `⌈L/2⌉` to `L` (`coveredStates`) re-roots it with
 accuracy at least `1 − γ` through the covered states. Then the loop, its probes uniform over the
 lengths `⌈L/2⌉` to `L + |Q| + 3` and walked from `⌈L/2⌉`, stops within `|Q| + 1` rounds at a
-consistent round, and its re-rooted DFA (`rerootedDFA`) misclassifies at most `γ + ξ` of the
-strings of length `L`, but for chance `δ`. The final hypothesis is started at the leaf that scores
+consistent round, its re-rooted DFA (`rerootedDFA`) misclassifies at most `γ + ξ` of the
+strings of length `L`, and every round's tree has at most `|Q| + 2` leaves, but for chance `δ`. The final hypothesis is started at the leaf that scores
 best on `n` held-out strings of length `L`, drawn after the loop: each leaf is scored by how many
 of them its run classifies as the last round's family reads them, the undecided ones counting for
 none. A run that reaches an unlearned edge counts as wrong. A covered state is visited `c` of the
@@ -189,11 +189,12 @@ def LearnerLoopDFASimple : Prop :=
   16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, but for chance `δ`.
+  -- the strings of length `L`, and every round's tree has at most `|Q| + 2` leaves, but for chance
+  -- `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
+    (settings.scanCap : ℝ) ≤ SC ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -202,7 +203,8 @@ def LearnerLoopDFASimple : Prop :=
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
-                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
+        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
       ≤ δ
 
 /-- `LearnerLoopDFASimple` once the Python's length `L` is at least `L₀`. -/
@@ -274,11 +276,12 @@ def LearnerLoopDFA : Prop :=
   L₀ ≤ L →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, but for chance `δ`.
+  -- the strings of length `L`, and every round's tree has at most `|Q| + 2` leaves, but for chance
+  -- `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
+    (settings.scanCap : ℝ) ≤ SC ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -287,7 +290,8 @@ def LearnerLoopDFA : Prop :=
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
-                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
+        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
       ≤ δ
 
 /-- `LearnerLoopDFASimple` with the target admitted by the relative rule: if some state `q` in
@@ -372,11 +376,12 @@ def LearnerLoopDFARelativeSimple : Prop :=
   16 * B₃ ^ 2 * (A ^ k)⁻¹ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, but for chance `δ`.
+  -- the strings of length `L`, and every round's tree has at most `|Q| + 2` leaves, but for chance
+  -- `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
+    (settings.scanCap : ℝ) ≤ SC ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -385,7 +390,8 @@ def LearnerLoopDFARelativeSimple : Prop :=
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
-                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
+        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
       ≤ δ
 
 /-- `LearnerLoopDFARelativeSimple` once the Python's length `L` is at least `L₀`. -/
@@ -464,11 +470,12 @@ def LearnerLoopDFARelative : Prop :=
   L₀ ≤ L →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA (the final hypothesis
   -- started at the leaf that scores best on `n` held-out strings) misclassifies at most `γ + ξ` of
-  -- the strings of length `L`, but for chance `δ`.
+  -- the strings of length `L`, and every round's tree has at most `|Q| + 2` leaves, but for chance
+  -- `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
+    (settings.scanCap : ℝ) ≤ SC ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => uniformStrings L)).real
@@ -477,7 +484,8 @@ def LearnerLoopDFARelative : Prop :=
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
-                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
+        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
       ≤ δ
 
 /-- `LearnerLoopDFASimple` over strings drawn from `D`: the probes are `D`'s strings cut at a length
@@ -566,11 +574,12 @@ def LearnerLoopDFADist : Prop :=
   -- and for no two of a round's probes to share their walk start.
   16 * B₃ ^ 2 * p₀ ≤ δ' →
   -- Within `|Q| + 1` rounds the loop ends consistent, and its re-rooted DFA misclassifies at most
-  -- `γ + ξ` of `D`'s first `L` letters, but for chance `δ`.
+  -- `γ + ξ` of `D`'s first `L` letters, and every round's tree has at most `|Q| + 2` leaves, but
+  -- for chance `δ`.
   ∃ settings : LoopSettings (Fintype.card σ + 1),
     settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
     (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
-    (settings.scanCap : ℝ) ≤ SC ∧ settings.level3.leafCap = Fintype.card σ + 2 ∧
+    (settings.scanCap : ℝ) ≤ SC ∧
     ((loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin n => prefixLaw D L)).real
@@ -579,7 +588,8 @@ def LearnerLoopDFADist : Prop :=
         (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
               o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
-                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ)}
+                (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
+        ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
       ≤ δ
 
 end OrthoDFA
