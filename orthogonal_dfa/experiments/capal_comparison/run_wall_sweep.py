@@ -14,7 +14,7 @@ Three seeds per cell, against one for the head-to-head experiments.
 
 --matched-budget runs CAPAL with exactly the membership queries E-L* spent on
 the same cell, at eta=0.30. It is slow because it runs CAPAL with a large query budget,
-and so is not a sweep. A saved cell is reused even if E-L*'s spend has since changed.
+and so is not a sweep. A saved cell is reused only while E-L*'s spend is unchanged.
 
     python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep
     python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep --matched-budget
@@ -68,6 +68,10 @@ def cell_key(cell: dict) -> tuple:
         cell["eta"],
         cell["seed"],
     )
+
+
+def is_current(cached: Optional[dict], budget: Optional[int]) -> bool:
+    return cached is not None and cached["learner_config"].get("query_budget") == budget
 
 
 def elstar_budgets() -> Dict[Tuple[str, float], int]:
@@ -146,7 +150,7 @@ def main() -> None:  # pylint: disable=too-many-statements
         if not args.matched_budget or (name, eta) in budgets
     ]
     previous = reusable_cells(out_path, cell_key)
-    if not set(grid) - previous.keys():
+    if all(is_current(previous.get(k), budgets.get((k[0], k[2]))) for k in grid):
         print(f"{out_path} has every cell; nothing to run.", flush=True)
         return
 
@@ -206,11 +210,11 @@ def main() -> None:  # pylint: disable=too-many-statements
                     flush=True,
                 )
                 cached = previous.get((b.name, label, eta, seed))
-                if cached is not None:
+                budget = budgets.get((b.name, eta))
+                if is_current(cached, budget):
                     cells.append(Cell(**cached))
                     print("   [reused]", flush=True)
                     continue
-                budget = budgets.get((b.name, eta)) if args.matched_budget else None
                 if args.matched_budget and budget is None:
                     print("   skipped: E-L* has no spend recorded here", flush=True)
                     continue
@@ -224,6 +228,8 @@ def main() -> None:  # pylint: disable=too-many-statements
                     **kwargs,
                 )
                 cell.learner_config["label"] = label
+                if args.matched_budget:
+                    cell.learner_config["query_budget"] = budget
                 cells.append(cell)
                 print(
                     f"   -> acc={cell.accuracy} conv={cell.converged} "
