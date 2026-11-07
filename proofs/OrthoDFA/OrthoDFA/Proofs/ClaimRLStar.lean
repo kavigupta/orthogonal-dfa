@@ -8,9 +8,11 @@ import OrthoDFA.Proofs.ClaimReadsArith
 
 `learner_loop_dfa_dist_tol` bounds, for every draw, the loop's reads by `(|Q| + 1)` rounds of
 `6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, its probes by `(|Q| + 1) loopBudget`,
-and the strings the learner asks the oracle by `learnerReads`, all at `ℓ = L + |Q| + 4`, once `D`
-holds at most `1/loopTolInv ℓ` on any first `k` letters; `Query.eval_congr` makes the output
-depend only on those strings' answers.
+and the strings the learner asks the oracle by `learnerReads` where the loop's harvested draws
+walk at most `⌈loopHB⌉₊` probes a round, all at `ℓ = L + |Q| + 4`, once `D` holds at most
+`1/loopTolInv ℓ` on any first `k` letters; but for chance `δ` the run succeeds with its draws
+walking within that bound. `Query.eval_congr` makes the output depend only on those strings'
+answers.
 The claim runs it at `c = ξ/(2R)`, `ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last
 round's leaf from `summed_bridge`; `ClaimRLStarArith` and `ClaimReadsArith` bound those shapes.
 `RLStarClaimUniform` and `RLStarClaimUniformSimple` follow (`ClaimRLStarUniform`).
@@ -69,11 +71,12 @@ theorem rlStarClaim_holds : RLStarClaim := by
     (by have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _; linarith) hlong hpre hpAPu
     (summed_bridge M O hL L D (by linarith) hξ hAe (hlong.mono fun x hx => le_trans (by omega) hx)
       hfl' ⟨q, hq⟩) hp₀
+  replace hprob := hprob _ (Nat.ceil_mono (min_le_right _ _))
   rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
   refine ⟨settings, hw, hcnt, (measureReal_mono ?_).trans hprob⟩
   intro q hq hs
-  obtain ⟨rounds, hr, hok, hlv⟩ := hs
-  exact hq ⟨⟨rounds, hr, hok, hlv⟩, _, hcalls q.1 q.2 rounds hr hlv,
+  obtain ⟨rounds, hr, hok, hlv, hW⟩ := hs
+  exact hq ⟨⟨rounds, hr, hok, hlv⟩, _, hcalls q.1 q.2 rounds hr hlv hW,
     fun o ho => (Query.eval_congr _ _ ho).1⟩
 
 theorem rlStarClaimUniform_holds : RLStarClaimUniform :=
