@@ -1,20 +1,91 @@
 import OrthoDFA.Code.Query
 import Mathlib.Data.Finset.Card
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Algebra.BigOperators.Intervals
 
 /-!
 # What a query program's run depends on
 
 `eval_congr`: a run against an oracle agreeing with `o` on `reads o p` returns what the run
 against `o` returns and asks what it asks. The rest computes `eval` and `reads` of each
-combinator.
+combinator; `extendUntil` runs as `growList` (`eval_extendUntil`) and asks only of the steps it
+takes (`card_reads_extendUntil_le`).
 -/
 
 namespace OrthoDFA
 
-namespace Query
-
 universe u v w w'
+
+section Grow
+
+variable {β : Type*}
+
+/-- `l` extended by `f l.length`, then `f (l.length + 1)`, and so on, until `stop` holds of it or
+`n` have been added; `none` at the first `none`. -/
+def growList (f : ℕ → Option β) (stop : List β → Prop) [DecidablePred stop] :
+    ℕ → List β → Option (List β)
+  | 0, l => some l
+  | n + 1, l => if stop l then some l else
+    match f l.length with
+    | some z => growList f stop n (l ++ [z])
+    | none => none
+
+variable {f : ℕ → Option β} {stop : List β → Prop} [DecidablePred stop]
+
+/-- What `growList` returns: `l` and at most `n` values of `f` after it, stopped where `stop` first
+holds or at `n`. -/
+lemma growList_eq_some : ∀ {n : ℕ} {l l' : List β}, growList f stop n l = some l' →
+    ∃ e : List β, l' = l ++ e ∧ e.length ≤ n
+      ∧ (∀ m (hm : m < e.length), f (l.length + m) = some e[m])
+      ∧ (stop l' ∨ e.length = n) ∧ ∀ m < e.length, ¬ stop (l ++ e.take m)
+  | 0, l, l', h => by
+    simp only [growList, Option.some.injEq] at h
+    subst h
+    exact ⟨[], by simp, by simp, by simp, Or.inr rfl, by simp⟩
+  | n + 1, l, l', h => by
+    unfold growList at h
+    split_ifs at h with hs
+    · simp only [Option.some.injEq] at h
+      subst h
+      exact ⟨[], by simp, by simp, by simp, Or.inl (by simpa using hs), by simp⟩
+    rcases hf : f l.length with _ | z
+    · rw [hf] at h
+      simp at h
+    rw [hf] at h
+    obtain ⟨e, rfl, hlen, hfe, hstop, hmin⟩ := growList_eq_some h
+    refine ⟨z :: e, by simp, by simp only [List.length_cons]; omega, fun m hm => ?_, ?_,
+      fun m hm => ?_⟩
+    · rcases m with _ | m
+      · simpa using hf
+      · have := hfe m (by simpa using hm)
+        rw [List.length_append, List.length_singleton] at this
+        rw [show l.length + (m + 1) = l.length + 1 + m by omega, this]
+        rfl
+    · rcases hstop with h1 | h1
+      · exact Or.inl (by simpa using h1)
+      · exact Or.inr (by simp [h1])
+    · rcases m with _ | m
+      · simpa using hs
+      · simpa using hmin m (by simpa using hm)
+
+/-- Where every value it may take is `some`, `growList` returns. -/
+lemma growList_isSome : ∀ {n : ℕ} {l : List β}, (∀ m < n, (f (l.length + m)).isSome) →
+    (growList f stop n l).isSome
+  | 0, l, _ => rfl
+  | n + 1, l, h => by
+    unfold growList
+    split_ifs with hs
+    · rfl
+    obtain ⟨z, hz⟩ := Option.isSome_iff_exists.1 (h 0 (by omega))
+    rw [Nat.add_zero] at hz
+    rw [hz]
+    exact growList_isSome fun m hm => by
+      rw [show (l ++ [z]).length + m = l.length + (m + 1) by simp; omega]
+      exact h (m + 1) (by omega)
+
+end Grow
+
+namespace Query
 
 variable {Q : Type u} {R : Type v} {β : Type w} {γ : Type w'} (o : Q → R)
 
@@ -204,6 +275,53 @@ lemma card_reads_findSome_le (xs : List δ) {n : ℕ} (hn : ∀ x ∈ xs, ((f x)
       rw [Nat.succ_mul]; omega
 
 end FindSome
+
+section Extend
+
+variable (f : ℕ → Query Q R (Option β)) (stop : List β → Prop) [DecidablePred stop]
+
+omit instQ in
+@[simp] lemma eval_extendUntil : ∀ (n : ℕ) (l : List β),
+    (extendUntil f stop n l).eval o = growList (fun m => (f m).eval o) stop n l
+  | 0, l => rfl
+  | n + 1, l => by
+    unfold extendUntil growList
+    split_ifs with hs
+    · rfl
+    rw [eval_bind]
+    try dsimp only
+    rcases (f l.length).eval o with _ | z
+    · rfl
+    · exact eval_extendUntil n (l ++ [z])
+
+/-- A run returning `l'` asks only of the steps from `l.length` to `l'.length`, at most `t m` at
+step `m`. -/
+lemma card_reads_extendUntil_le (t : ℕ → ℕ) : ∀ (n : ℕ) (l l' : List β),
+    (extendUntil f stop n l).eval o = some l' →
+    (∀ m, l.length ≤ m → m < l'.length → ((f m).reads o).card ≤ t m) →
+    ((extendUntil f stop n l).reads o).card ≤ ∑ m ∈ Finset.Ico l.length l'.length, t m
+  | 0, l, l', _, _ => by simp [extendUntil]
+  | n + 1, l, l', h, ht => by
+    unfold extendUntil at h ⊢
+    split_ifs at h ⊢ with hs
+    · simp
+    rw [eval_bind] at h
+    rw [reads_bind]
+    rcases hz : (f l.length).eval o with _ | z
+    · rw [hz] at h
+      simp at h
+    rw [hz] at h
+    simp only at h ⊢
+    have hgrow := growList_eq_some (by rwa [eval_extendUntil] at h)
+    obtain ⟨e, rfl, -, -, -, -⟩ := hgrow
+    have hlt : l.length < (l ++ [z] ++ e).length := by simp
+    have ih := card_reads_extendUntil_le t n (l ++ [z]) _ h fun m hm1 hm2 =>
+      ht m (by simp at hm1; omega) hm2
+    rw [Finset.sum_eq_sum_Ico_succ_bot hlt]
+    refine (Finset.card_union_le _ _).trans (Nat.add_le_add (ht _ le_rfl hlt) ?_)
+    simpa using ih
+
+end Extend
 
 end Query
 

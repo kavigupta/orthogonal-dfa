@@ -57,7 +57,7 @@ def RoundGood (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
   (clusterDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap h
       (d.1, d.2.1)).isSome
     ∧ ScanWithin (settings.schedule (loopPopulations K h.pops.length))
-      (loopPopulations K h.pops.length) settings.scanCap
+      (loopPopulations K h.pops.length) (fun _ => settings.scanCap)
       (idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))
     ∧ (∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
       idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)

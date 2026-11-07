@@ -146,23 +146,23 @@ def allSome {ι β : Type*} (f : ι → Option β) : Option (ι → β) :=
 def padDraws {M : ℕ} (f : Fin M → FreeMonoid α) (n : ℕ) : FreeMonoid α :=
   if h : n < M then f ⟨n, h⟩ else 1
 
-/-- What the first `M` draws of population `j`'s streams fix of its table and certification
+/-- What the first `n j` draws of population `j`'s streams fix of its table and certification
 sequences, in order: the probes' population reads its two streams as they are, a harvested one
 the hash's two sides of its one stream. -/
-def seqsOf {K : ℕ} (M : ℕ) (dr : Draws Ω (FreeMonoid α) (Option (Fin K))) :
+def seqsOf {K : ℕ} (n : Option (Fin K) → ℕ) (dr : Draws Ω (FreeMonoid α) (Option (Fin K))) :
     Option (Fin K) → List (FreeMonoid α) × List (FreeMonoid α)
-  | none => ((List.range M).map (dr.1.2.1.2 none), (List.range M).map (dr.1.2.2 none))
+  | none => ((List.range (n none)).map (dr.1.2.1.2 none), (List.range (n none)).map (dr.1.2.2 none))
   | some i =>
-    ((List.range M).map (dr.1.2.1.2 (some i)) |>.filter fun s => dr.2 s,
-      (List.range M).map (dr.1.2.1.2 (some i)) |>.filter fun s => !dr.2 s)
+    ((List.range (n (some i))).map (dr.1.2.1.2 (some i)) |>.filter fun s => dr.2 s,
+      (List.range (n (some i))).map (dr.1.2.1.2 (some i)) |>.filter fun s => !dr.2 s)
 
-/-- At every state of `sched`, the clustering finds each sample it takes among what the first `M`
-draws of each population's streams fix. -/
-def ScanWithin {K : ℕ} (sched : Finset State) (pops : Finset (Option (Fin K))) (M : ℕ)
-    (dr : Draws Ω (FreeMonoid α) (Option (Fin K))) : Prop :=
-  ∀ B ∈ sched, ∀ j ∈ pops, B.npref ≤ (seqsOf M dr j).1.toFinset.card
+/-- At every state of `sched`, the clustering finds each sample it takes among what the first `n j`
+draws of each population `j`'s streams fix. -/
+def ScanWithin {K : ℕ} (sched : Finset State) (pops : Finset (Option (Fin K)))
+    (n : Option (Fin K) → ℕ) (dr : Draws Ω (FreeMonoid α) (Option (Fin K))) : Prop :=
+  ∀ B ∈ sched, ∀ j ∈ pops, B.npref ≤ (seqsOf n dr j).1.toFinset.card
     ∧ ∀ e ≤ B.npref, B.npref + e
-      ≤ ((seqsOf M dr j).2.toFinset \ prefixesAt pops B.npref (streams (fun _ => ∅) none dr)).card
+      ≤ ((seqsOf n dr j).2.toFinset \ prefixesAt pops B.npref (streams (fun _ => ∅) none dr)).card
 
 /-- The clustering's schedule, FNR limit and gate level, and level 3's settings. -/
 structure LoopSettings (K : ℕ) where
@@ -172,7 +172,7 @@ structure LoopSettings (K : ℕ) where
   εcov : ℝ
   gateLevel : ℝ
   level3 : Random.Level3Settings
-  /-- The draws of each population's streams the clustering may read. -/
+  /-- The most draws a population makes. -/
   scanCap : ℕ
 
 variable {μ : Measure Ω}
@@ -254,9 +254,14 @@ def clusterReads {K : ℕ} (sched : Finset State) (pops : Finset (Option (Fin K)
 def padList (l : List (FreeMonoid α)) (n : ℕ) : FreeMonoid α := l.getD n 1
 
 /-- The probes' population's first `M` draws off `T`, draw `n` by `u n`. -/
-def uniDraws (D : Measure (FreeMonoid α)) (M : ℕ) (T : Finset (FreeMonoid α))
+def uniDraws {N : ℕ} (D : Measure (FreeMonoid α)) (M : ℕ) (T : Finset (FreeMonoid α))
     (u : ℕ → unitInterval × (Fin N → unitInterval)) : List (FreeMonoid α) :=
   List.ofFn fun n : Fin M => drawFrom (offLaw D T) (u n).1
+
+/-- The probes' population's `m` prefixes off its first `M` draws by `u`. -/
+def uniTable {N : ℕ} (D : Measure (FreeMonoid α)) (M : ℕ) (T : Finset (FreeMonoid α))
+    (u : ℕ → unitInterval × (Fin N → unitInterval)) (m : ℕ) : Finset (FreeMonoid α) :=
+  freshDraws ∅ (padList (uniDraws D M T u)) m
 
 /-- A harvested population's first draws `l` hold every sample a state of `sched` takes from it:
 `npref` distinct on the table side of the hash `g`, and `2 npref` distinct on its reserve side
@@ -292,42 +297,40 @@ def drawListsQ {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ) (sched : Fi
     (h : LoopHist α) (c : ClusterRest α K N) :
     Query (FreeMonoid α) ℝ (Option (Option (Fin K) → List (FreeMonoid α))) :=
   (Query.pi fun j => popDrawsQ D k N M h.pops h.prefs
-      (DrawsHold sched c.2.2.2 fun m => freshDraws ∅ (padList (uniDraws D M h.prefs (c.2.1 none))) m)
-      j (c.2.1 j)).map allSome
+      (DrawsHold sched c.2.2.2 (uniTable D M h.prefs (c.2.1 none))) j (c.2.1 j)).map allSome
 
-/-- The clustering's draws after the history `h`: suffixes from `Dsf` off what the earlier rounds
-read, each population's draws (`drawListsQ`) as its stream, the probes' population a second `M`
-off the earlier rounds' prefixes as its certification stream, and the hash's sides. `none` if a
-draw misses. -/
-def clusterDrawsQ {K : ℕ} (D Dsf : Measure (FreeMonoid α)) (k N M : ℕ) (sched : Finset State)
-    (h : LoopHist α) (c : ClusterRest α K N) :
-    Query (FreeMonoid α) ℝ (Option (Draws Unit (FreeMonoid α) (Option (Fin K)))) :=
-  (drawListsQ D k N M sched h c).map fun tabs =>
-    tabs.map fun tab =>
-      (((), ((fun n => drawFrom (offLaw Dsf h.suffs) (c.1 n), fun j => padList (tab j)),
-        fun j => match j with
-          | none => padDraws fun n : Fin M => drawFrom (offLaw D h.prefs) (c.2.2.1 none n)
-          | some _ => fun _ => 1)),
-        c.2.2.2)
+/-- The clustering's draws at the noise `ω`, each population's stream its draws `tabs`: suffixes
+from `Dsf` off `suffs`, the probes' population a second `M` off `prefs` as its certification
+stream, and the hash's sides. -/
+def drawsOf {K N : ℕ} (ω : Ω) (D Dsf : Measure (FreeMonoid α)) (M : ℕ)
+    (prefs suffs : Finset (FreeMonoid α)) (c : ClusterRest α K N)
+    (tabs : Option (Fin K) → List (FreeMonoid α)) : Draws Ω (FreeMonoid α) (Option (Fin K)) :=
+  ((ω, ((fun n => drawFrom (offLaw Dsf suffs) (c.1 n), fun j => padList (tabs j)),
+    fun j => match j with
+      | none => padDraws fun n : Fin M => drawFrom (offLaw D prefs) (c.2.2.1 none n)
+      | some _ => fun _ => 1)),
+    c.2.2.2)
 
 open scoped Classical in
-/-- The round after the history `h`: the clustering's draws off what the earlier rounds read; the
-clustering, which asks `clusterReads` and returns at a state of the schedule where `ret` holds of
-the answers, its family `clusterAt` there; then level 3 over probes drawn by `d.2` from `D`
-avoiding the first `walkStart` letters of the prefixes the clustering read, reading the family.
-`none` if a harvested draw misses, the clustering would read past the `scanCap` draws, no state
-of the schedule returns, or level 3's tree grows past `leafCap` leaves. -/
+/-- The round after the history `h`: each population's draws off what the earlier rounds read
+(`drawListsQ`); the clustering on them (`drawsOf`), which asks `clusterReads` and returns at a
+state of the schedule where `ret` holds of the answers, its family `clusterAt` there; then level 3
+over probes drawn by `d.2` from `D` avoiding the first `walkStart` letters of the prefixes the
+clustering read, reading the family. `none` if a harvested draw misses, the clustering would read
+past the draws, no state of the schedule returns, or level 3's tree grows past `leafCap`
+leaves. -/
 def roundQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     Query (FreeMonoid α) ℝ (Option (LoopRound α)) :=
   let ps := loopPopulations K h.pops.length
   let sched := settings.schedule ps
-  (clusterDrawsQ D Dsf settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap h
+  (drawListsQ D settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap sched h
       d.1).bind fun
   | none => .pure none
-  | some dr =>
+  | some tabs =>
+    let dr := drawsOf () D Dsf settings.scanCap h.prefs h.suffs d.1 tabs
     let x := streams (fun _ => ∅) none dr
-    if ScanWithin sched ps settings.scanCap dr then
+    if ScanWithin sched ps (fun j => (tabs j).length) dr then
       (Query.table (clusterReads sched ps x).toList).bind fun t =>
         let mq : FreeMonoid α → Unit → ℝ := fun w _ => t w
         if ∃ B ∈ sched, x ∈ ret mq ps none settings.η₀ settings.indecisionLimit settings.εcov
