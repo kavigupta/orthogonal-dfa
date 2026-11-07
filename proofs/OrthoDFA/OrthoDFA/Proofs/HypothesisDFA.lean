@@ -216,6 +216,19 @@ theorem split_edges_of_mem (hp : p ∈ H.tree.leaves) (d : FreeMonoid α) {e : L
   · rfl
   · exact (retarget_eq_none_of_not_mem read hp he h).symm
 
+theorem edgesAtLeaves_split (d : FreeMonoid α) : EdgesAtLeaves (H.split read d p) := by
+  intro e t w he
+  rw [HypothesisDFA.split_eq] at he ⊢
+  dsimp only at he ⊢
+  by_cases hq : e.1 ∈ H.tree.leaves
+  swap
+  · simp [hq] at he
+  rw [if_pos hq, retarget_eq] at he
+  by_cases hpe : p.isPrefixOf e.1 = true
+  · simp [hpe] at he
+  exact DTree.mem_leaves_splitAt_of_ne d H.tree p e.1 hq fun h => hpe (by
+    rw [h]; exact List.isPrefixOf_iff_prefix.2 (List.prefix_refl _))
+
 end Split
 
 theorem edgesOK_upd (hE : EdgesOK read T E) {p t : List Bool} {c : α}

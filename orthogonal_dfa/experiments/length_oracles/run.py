@@ -66,8 +66,12 @@ class RestartRecorder(SynthesisTracker):
 
 
 def git(*args):
+    """None outside a git checkout, such as the artifact."""
     here = os.path.dirname(os.path.abspath(__file__))
-    return subprocess.check_output(["git", *args], text=True, cwd=here).strip()
+    result = subprocess.run(
+        ["git", *args], capture_output=True, text=True, cwd=here, check=False
+    )
+    return result.stdout.strip() if result.returncode == 0 else None
 
 
 def main():
@@ -104,13 +108,14 @@ def main():
     )
     restarts = tracker.restarts
     assert len(restarts) == RESTARTS, len(restarts)
+    status = git("status", "--porcelain", "--untracked-files=no")
     with open(f"{a.out}/run.json", "w") as f:
         json.dump(
             dict(
                 oracle=a.oracle,
                 seed=a.seed,
                 commit=git("rev-parse", "--short=8", "HEAD"),
-                dirty=bool(git("status", "--porcelain", "--untracked-files=no")),
+                dirty=None if status is None else bool(status),
                 hours=(time.time() - started) / 3600,
                 family_size=restarts[0]["family_size"],
                 family_fnr=restarts[0]["family_fnr"],
