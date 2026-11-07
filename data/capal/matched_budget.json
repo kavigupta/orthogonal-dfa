@@ -46,7 +46,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 1491352
       },
       "learned_states": 16,
       "accuracy": 0.5694,
@@ -77,7 +78,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 1491352
       },
       "learned_states": 12,
       "accuracy": 0.9148,
@@ -108,7 +110,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 1491352
       },
       "learned_states": 17,
       "accuracy": 0.7482,
@@ -139,7 +142,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 1438416
       },
       "learned_states": 8,
       "accuracy": 0.9186,
@@ -170,7 +174,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 1438416
       },
       "learned_states": 15,
       "accuracy": 0.9402,
@@ -201,7 +206,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 1438416
       },
       "learned_states": 11,
       "accuracy": 0.9186,
@@ -232,7 +238,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 1465651
       },
       "learned_states": 9,
       "accuracy": 0.8674,
@@ -263,7 +270,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 1465651
       },
       "learned_states": 15,
       "accuracy": 0.8912,
@@ -294,7 +302,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 1465651
       },
       "learned_states": 14,
       "accuracy": 0.8038,
@@ -325,7 +334,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 3020265
       },
       "learned_states": 8,
       "accuracy": 0.9648,
@@ -356,7 +366,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 3020265
       },
       "learned_states": 8,
       "accuracy": 0.9648,
@@ -387,7 +398,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 3020265
       },
       "learned_states": 8,
       "accuracy": 0.9648,
@@ -418,7 +430,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 6534026
       },
       "learned_states": 18,
       "accuracy": 0.8884,
@@ -449,7 +462,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 6534026
       },
       "learned_states": 16,
       "accuracy": 0.719,
@@ -480,7 +494,8 @@
         "enum_depth": 8,
         "extra_len_max": 16,
         "eta_hat": 0.3,
-        "label": "matched,enum=8,extra=16,pool=24,m=2000"
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 6534026
       },
       "learned_states": 4,
       "accuracy": 0.4288,

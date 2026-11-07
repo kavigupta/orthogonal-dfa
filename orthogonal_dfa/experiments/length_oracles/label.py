@@ -52,6 +52,9 @@ def saved_labels():
 
 
 def main():
+    if SAVED.exists():
+        print(f"{SAVED} exists; nothing to run.", flush=True)
+        return
     z = {kind: labels(kind, COUNT) for kind in KINDS}
     for kind, y in z.items():
         print(kind, "accept rate", y.mean(), flush=True)
