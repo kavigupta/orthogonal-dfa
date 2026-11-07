@@ -5,7 +5,7 @@ import OrthoDFA.LowLevelClaims.LoopDFA
 /-!
 # The learner's costs, asymptotically
 
-`LoopClaim`: over an input distribution `D`, with `β` the least rate at which `D` extends a prefix
+`RLStarClaim`: over an input distribution `D`, with `β` the least rate at which `D` extends a prefix
 by any one letter, the loop's re-rooted DFA misclassifies at most `γ + ξ` of `D`'s strings cut at
 length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, when the target admits
 a start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
@@ -16,11 +16,11 @@ shape below, with `s₀ = 1/2 − η₀` the signal. The settings the proof pick
 disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths,
 so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes grow as `(L + |Q|)²` and the
 suffixes as `log L`. The prefix total's populations' group reads its log off the suffix pool alone,
-so that log grows as `log log L`. Each bound has one constant over all of `loopDistRegion`.
+so that log grows as `log log L`. Each bound has one constant over all of `rlStarDistRegion`.
 
-`LoopClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
-`L` is at least `L₀`; the bounds have one constant over all of `loopRegion`. `LoopClaimSimple`
-states the same with the prefix and suffix totals each a single product.
+`RLStarClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
+`L` is at least `L₀`; the bounds have one constant over all of `rlStarRegion`.
+`RLStarClaimUniformSimple` states the same with the prefix and suffix totals each a single product.
 -/
 
 namespace OrthoDFA
@@ -30,7 +30,7 @@ open MeasureTheory Asymptotics Filter
 /-- The learner's inputs: `Q` states, `A` letters, the failure chance `δ`, the visit ratio `R` of
 `nonStartZoneStates`, the accuracy slack `ξ`, `pAP` the share of suffixes that preserve
 membership, and the signal `s₀ = 1/2 − η₀`. -/
-structure LoopInputs where
+structure RLStarInputs where
   Q : ℕ
   A : ℕ
   δ : ℝ
@@ -40,45 +40,45 @@ structure LoopInputs where
   s₀ : ℝ
 
 /-- A ratio `R < 1` asks more of the target than `R = 1`: fewer non-start-zone states. -/
-def loopRegion : Set LoopInputs :=
+def rlStarRegion : Set RLStarInputs :=
   {x | 1 ≤ x.Q ∧ 2 ≤ x.A ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 1 ≤ x.R ∧ 0 < x.ξ ∧ x.ξ ≤ 1 ∧
     0 < x.pAP ∧ x.pAP ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2}
 
 /-- The inputs with the Python's length `L`, which the totals grow with. -/
-structure LoopRun extends LoopInputs where
+structure RLStarRun extends RLStarInputs where
   L : ℕ
 
-def loopRunRegion : Set LoopRun := {r | r.toLoopInputs ∈ loopRegion}
+def rlStarRunRegion : Set RLStarRun := {r | r.toRLStarInputs ∈ rlStarRegion}
 
-/-- `LoopInputs` with `β`, the least rate at which the input distribution extends a prefix by any
+/-- `RLStarInputs` with `β`, the least rate at which the input distribution extends a prefix by any
 one letter: `1/|Σ|` for uniform strings. -/
-structure LoopDistInputs extends LoopInputs where
+structure RLStarDistInputs extends RLStarInputs where
   β : ℝ
 
-def loopDistRegion : Set LoopDistInputs :=
-  {x | x.toLoopInputs ∈ loopRegion ∧ 0 < x.β ∧ x.β * x.A ≤ 1}
+def rlStarDistRegion : Set RLStarDistInputs :=
+  {x | x.toRLStarInputs ∈ rlStarRegion ∧ 0 < x.β ∧ x.β * x.A ≤ 1}
 
-structure LoopDistRun extends LoopDistInputs where
+structure RLStarDistRun extends RLStarDistInputs where
   L : ℕ
 
-def loopDistRunRegion : Set LoopDistRun := {r | r.toLoopDistInputs ∈ loopDistRegion}
+def rlStarDistRunRegion : Set RLStarDistRun := {r | r.toRLStarDistInputs ∈ rlStarDistRegion}
 
-/-- On every instance in `loopDistRegion`, for strings drawn from `D` whose first `k` letters
+/-- On every instance in `rlStarDistRegion`, for strings drawn from `D` whose first `k` letters
 `p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes`, is
 right but for `γ + ξ` on `heldOut` strings and keeps every round's tree within `|Q| + 2` leaves. -/
-def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : LoopDistRun → ℝ)
-    (heldOut : LoopDistInputs → ℕ) : Prop :=
+def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : RLStarDistRun → ℝ)
+    (heldOut : RLStarDistInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
     [Fintype Q] {Ω : Type w}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (x : LoopDistInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L : ℕ) (γ : ℝ)
+    (x : RLStarDistInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L : ℕ) (γ : ℝ)
     (D : Measure (FreeMonoid A)) [IsProbabilityMeasure D],
   -- Probes are `D`'s strings cut at a length uniform over `k` to `L₁`, suffixes their first `Ls`
   -- letters, and the coverage, error and held-out strings are over their first `L`.
   let k : ℕ := (L + 1) / 2
   let L₁ : ℕ := L + Fintype.card Q + 3
   let Ls : ℕ := L₁ + Fintype.card Q + 3
-  x ∈ loopDistRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
+  x ∈ rlStarDistRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ 1 / 2 - x.s₀ →
   (∀ᵐ w ∂D, Ls ≤ w.toList.length) →
@@ -113,9 +113,9 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : LoopDistRun 
 open Real in
 /-- The learner's costs over an input distribution `D`: `p₀Tol` bounds the most `D` may hold on any
 first `k` letters, and `β` is the rate edges are crossed at. -/
-def LoopClaim.{u, v, w} : Prop :=
-  ∃ (p₀Tol totalPref totalSuff totalProbes : LoopDistRun → ℝ) (heldOut : LoopDistInputs → ℕ),
-    (fun r => 1 / p₀Tol r) =O[𝓟 loopDistRunRegion] (fun r =>
+def RLStarClaim.{u, v, w} : Prop :=
+  ∃ (p₀Tol totalPref totalSuff totalProbes : RLStarDistRun → ℝ) (heldOut : RLStarDistInputs → ℕ),
+    (fun r => 1 / p₀Tol r) =O[𝓟 rlStarDistRunRegion] (fun r =>
       (r.L + r.Q) ^ 4 * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
           * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) * r.Q ^ 3 * r.R * (1 / r.β + r.Q)
           / r.ξ
@@ -128,34 +128,34 @@ def LoopClaim.{u, v, w} : Prop :=
           * r.R ^ 2 / (r.ξ ^ 4 * r.δ * r.s₀ ^ 4)
         + (r.L + r.Q) ^ 2 * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
           * r.Q ^ 5 * r.A ^ 2 * (1 / r.β + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.δ)) ∧
-    totalPref =O[𝓟 loopDistRunRegion] (fun r =>
+    totalPref =O[𝓟 rlStarDistRunRegion] (fun r =>
       r.Q ^ 7 * (1 / r.β + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
           * log (r.Q * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
         + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
           * (1 / r.s₀ ^ 4 + r.Q ^ 4 * (1 / r.β + r.Q) ^ 2)
           * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))) ∧
-    totalSuff =O[𝓟 loopDistRunRegion] (fun r =>
+    totalSuff =O[𝓟 rlStarDistRunRegion] (fun r =>
       r.Q * (log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)) ∧
-    totalProbes =O[𝓟 loopDistRunRegion] (fun r =>
+    totalProbes =O[𝓟 rlStarDistRunRegion] (fun r =>
       r.Q ^ 3 * r.A * (1 / r.β + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)) ∧
-    (fun x => (heldOut x : ℝ)) =O[𝓟 loopDistRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
+    (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarDistRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     (∀ r, 0 < p₀Tol r) ∧
-    LoopWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes heldOut
+    RLStarWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes heldOut
 
-/-- On every instance in `loopRegion` with `L₀ x ≤ L`, settings whose run reads within
+/-- On every instance in `rlStarRegion` with `L₀ x ≤ L`, settings whose run reads within
 `totalPref`, `totalSuff` and `totalProbes`, is right but for `γ + ξ` on `heldOut` strings and keeps
 every round's tree within `|Q| + 2` leaves. -/
-def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
-    (totalPref totalSuff totalProbes : LoopRun → ℝ) (heldOut : LoopInputs → ℕ) : Prop :=
+def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
+    (totalPref totalSuff totalProbes : RLStarRun → ℝ) (heldOut : RLStarInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
     [Fintype Q] {Ω : Type w}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (x : LoopInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L : ℕ) (γ : ℝ),
+    (x : RLStarInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L : ℕ) (γ : ℝ),
   -- Probes are walked from half the Python's length, uniform over the lengths `k` to `L₁`.
   let k : ℕ := (L + 1) / 2
   let L₁ : ℕ := L + Fintype.card Q + 3
-  x ∈ loopRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
+  x ∈ rlStarRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ 1 / 2 - x.s₀ →
   x.pAP ≤ (uniformStrings (L₁ + Fintype.card Q + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -184,42 +184,42 @@ def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
       ≤ x.δ
 
 open Real in
-/-- `LoopClaim` at uniform strings: `L₀` gives way to `p₀Tol`, and `1/|Σ|` to `β`. -/
-def LoopClaimUniform.{u, v, w} : Prop :=
-  ∃ (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
-    (heldOut : LoopInputs → ℕ),
-    L₀ =O[𝓟 loopRegion] (fun x =>
+/-- `RLStarClaim` at uniform strings: `L₀` gives way to `p₀Tol`, and `1/|Σ|` to `β`. -/
+def RLStarClaimUniform.{u, v, w} : Prop :=
+  ∃ (L₀ : RLStarInputs → ℝ) (totalPref totalSuff totalProbes : RLStarRun → ℝ)
+    (heldOut : RLStarInputs → ℕ),
+    L₀ =O[𝓟 rlStarRegion] (fun x =>
       1 + log (x.Q * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
-    totalPref =O[𝓟 loopRunRegion] (fun r =>
+    totalPref =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
           * log (r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
         + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
           * (1 / r.s₀ ^ 4 + r.Q ^ 4 * (r.A + r.Q) ^ 2)
           * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))) ∧
-    totalSuff =O[𝓟 loopRunRegion] (fun r =>
+    totalSuff =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)) ∧
-    totalProbes =O[𝓟 loopRunRegion] (fun r =>
+    totalProbes =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)) ∧
-    (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
-    LoopWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes heldOut
+    (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
+    RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes heldOut
 
 open Real in
 /-- The uniform claim with the prefix and suffix totals each a single product. -/
-def LoopClaimSimple.{u, v, w} : Prop :=
-  ∃ (L₀ : LoopInputs → ℝ) (totalPref totalSuff totalProbes : LoopRun → ℝ)
-    (heldOut : LoopInputs → ℕ),
-    L₀ =O[𝓟 loopRegion] (fun x =>
+def RLStarClaimUniformSimple.{u, v, w} : Prop :=
+  ∃ (L₀ : RLStarInputs → ℝ) (totalPref totalSuff totalProbes : RLStarRun → ℝ)
+    (heldOut : RLStarInputs → ℕ),
+    L₀ =O[𝓟 rlStarRegion] (fun x =>
       1 + log (x.Q * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
-    totalPref =O[𝓟 loopRunRegion] (fun r =>
+    totalPref =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
         * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
         / (r.ξ ^ 2 * r.s₀ ^ 4)) ∧
-    totalSuff =O[𝓟 loopRunRegion] (fun r =>
+    totalSuff =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)) ∧
-    totalProbes =O[𝓟 loopRunRegion] (fun r =>
+    totalProbes =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)) ∧
-    (fun x => (heldOut x : ℝ)) =O[𝓟 loopRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
-    LoopWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes heldOut
+    (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
+    RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes heldOut
 
 end OrthoDFA

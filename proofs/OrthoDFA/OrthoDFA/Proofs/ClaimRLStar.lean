@@ -1,7 +1,6 @@
-import OrthoDFA.Claims.Loop
+import OrthoDFA.Claims.RLStar
 import OrthoDFA.Proofs.LoopDFASummed
-import OrthoDFA.Proofs.ClaimLoopUniform
-import OrthoDFA.Proofs.ClaimReadsArith
+import OrthoDFA.Proofs.ClaimRLStarUniform
 
 /-!
 # The learner's costs, asymptotically: the proof
@@ -11,8 +10,8 @@ import OrthoDFA.Proofs.ClaimReadsArith
 `(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`, once `D` holds at most
 `1/loopTolInv ℓ` on any first `k` letters. The claim runs it at `c = ξ/(2R)`,
 `ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last round's leaf from `summed_bridge`;
-`ClaimLoopArith` bounds those shapes. `LoopClaimUniform` and `LoopClaimSimple` follow
-(`ClaimLoopUniform`).
+`ClaimRLStarArith` bounds those shapes. `RLStarClaimUniform` and `RLStarClaimUniformSimple` follow
+(`ClaimRLStarUniform`).
 -/
 
 noncomputable section
@@ -21,14 +20,14 @@ namespace OrthoDFA
 
 open MeasureTheory Asymptotics Filter Real
 
-theorem loopClaim_holds : LoopClaim := by
+theorem rlStarClaim_holds : RLStarClaim := by
   refine ⟨distP₀Tol, distPref, distSuff, distProbes, distHeldOut, distP₀Tol_isBigO,
     distPref_isBigO, distSuff_isBigO, distProbes_isBigO, distHeldOut_isBigO, distP₀Tol_pos, ?_⟩
   intro α _ _ _ σ _ Ω _ μ _ x
   obtain ⟨⟨Q, A, δ, R, ξ, pAP, s₀⟩, β⟩ := x
   intro M O L γ D _ k L₁ Ls hx hQ hA hL hηle hlong hpre hfl hpAPu hdom
-  have hr : ({ toLoopDistInputs := ⟨⟨Q, A, δ, R, ξ, pAP, s₀⟩, β⟩, L } : LoopDistRun)
-      ∈ loopDistRunRegion := hx
+  have hr : ({ toRLStarDistInputs := ⟨⟨Q, A, δ, R, ξ, pAP, s₀⟩, β⟩, L } : RLStarDistRun)
+      ∈ rlStarDistRunRegion := hx
   obtain ⟨-, -, -, hAAe, -, -, -, -, -, hc0, hc1⟩ := dist_coords hr
   obtain ⟨⟨-, hA2, hδ, hδ2, hR, hξ, hξ1, hpAP, hpAP1, hs, hs1⟩, hβ, -⟩ := hx
   subst hQ hA
@@ -71,9 +70,11 @@ theorem loopClaim_holds : LoopClaim := by
   rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
   exact hprob
 
-theorem loopClaimUniform_holds : LoopClaimUniform := loopClaimUniform_of_loopClaim loopClaim_holds
+theorem rlStarClaimUniform_holds : RLStarClaimUniform :=
+  rlStarClaimUniform_of_rlStarClaim rlStarClaim_holds
 
-theorem loopClaimSimple_holds : LoopClaimSimple := loopClaimSimple_of_claim loopClaimUniform_holds
+theorem rlStarClaimUniformSimple_holds : RLStarClaimUniformSimple :=
+  rlStarClaimUniformSimple_of_claim rlStarClaimUniform_holds
 
 end OrthoDFA
 
