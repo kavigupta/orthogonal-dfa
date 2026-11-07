@@ -76,7 +76,9 @@ theorem inv_keys_step {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read
       (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) s.tree p hp
     have ht := DTree.sift_inl_mem read _ _ t huc
     have ht₀ := DTree.sift_inl_mem read _ _ t₀ (hs.edges p hp c t₀ w₀ hE).2
-    refine ⟨⟨by simp only [splitLeaf_eq, newHypothesis]; exact (edgesOK_retarget read hs.edges hp _).restrict _ _, ?_, ?_⟩, fun e t' w he => ?_⟩
+    refine ⟨⟨by
+      simp only [splitLeaf_eq, newHypothesis]
+      exact (edgesOK_retarget read hs.edges hp _).restrict _ _, ?_, ?_⟩, fun e t' w he => ?_⟩
     · simp only [splitLeaf_eq, newHypothesis]
       rw [hlen, show s.tree.leaves.length + 1 - 2 = s.tree.leaves.length - 2 + 1 by
         have := hs.two; omega]
@@ -116,7 +118,7 @@ theorem inv_keys_runProbes : ∀ (xs : List (FreeMonoid α)) (s : Level3State α
     Keys s → Inv read (runProbes read C s xs).1 ∧ Keys (runProbes read C s xs).1
   | [], _, hs, hk => ⟨hs, hk⟩
   | x :: xs, s, hs, hk => by
-    simp only [runProbes_nil, runProbes_cons]
+    simp only [runProbes_cons]
     rcases ha : applyProbe read C s x with s' | e
     · obtain ⟨h1, h2⟩ := inv_keys_step read C hs hk ha
       exact inv_keys_runProbes xs s' h1 h2

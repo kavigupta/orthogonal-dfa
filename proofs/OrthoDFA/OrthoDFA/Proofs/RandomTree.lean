@@ -62,7 +62,7 @@ theorem sift_inl_congr {σ : Type*} {M : DFA α σ} {side : σ → Bool} (hW : N
     ∀ (T : DTree α) (p p' : List Bool), T.sift read z = .inl p → T.sift read z' = .inl p' →
       p = p'
   | .leaf, p, p', h, h' => by
-    simp only [DTree.sift_leaf, DTree.sift_node, Sum.inl.injEq] at h h'; rw [← h, ← h']
+    simp only [DTree.sift_leaf, Sum.inl.injEq] at h h'; rw [← h, ← h']
   | .node m r a, p, p', h, h' => by
     have hs : M.eval (z * m).toList = M.eval (z' * m).toList := by
       simp only [FreeMonoid.toList_mul, DFA.eval, DFA.evalFrom_of_append]
@@ -70,7 +70,7 @@ theorem sift_inl_congr {σ : Type*} {M : DFA α σ} {side : σ → Bool} (hW : N
     have hw := hW (z * m)
     have hw' := hW (z' * m)
     rw [hs] at hw
-    simp only [DTree.sift_leaf, DTree.sift_node] at h h'
+    simp only [DTree.sift_node] at h h'
     split at h <;> rename_i hr <;> split at h' <;> rename_i hr'
     · rcases hq : a.sift read z with q | q <;> rw [hq] at h <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inl.injEq, reduceCtorEq] at h
@@ -308,7 +308,8 @@ theorem step_change (hW : NoWrong M side read) {s s' : Level3State α} (hs : RIn
       Level2.Ψ_lt_learn _ (s := Level2.newHypothesis s.tree s.edges 0) hp hE _ 0⟩
   · obtain ⟨hw₀, hw₀c⟩ := hs.1.edges p hp c t₀ w₀ hE
     obtain ⟨hinv, hΨ⟩ := split_ok read hW hs.1 hs.2 hp hu huc hw₀ hw₀c htt
-    exact ⟨hinv, by simp only [splitLeaf_eq, newHypothesis], by simp only [splitLeaf_eq, newHypothesis], hΨ⟩
+    exact ⟨hinv, by simp only [splitLeaf_eq, newHypothesis],
+      by simp only [splitLeaf_eq, newHypothesis], hΨ⟩
   · exact absurd ⟨rfl, rfl⟩ hne
 
 omit [Fintype σ] in

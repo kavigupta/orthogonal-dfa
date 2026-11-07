@@ -89,14 +89,14 @@ theorem sift_true (read : FreeMonoid α → ARU) : ∀ (T : DTree α) (z : FreeM
     T.sift read z = .inl p →
     (∀ m ∈ mids T, read (z * m) ≠ if side (M.eval (z * m).toList) then .reject else .accept) →
     p = leafOf M side T (M.eval z.toList)
-  | .leaf, z, p, h, _ => by simp only [DTree.sift_leaf, DTree.sift_node, Sum.inl.injEq] at h; simp [leafOf, ← h]
+  | .leaf, z, p, h, _ => by simp only [DTree.sift_leaf, Sum.inl.injEq] at h; simp [leafOf, ← h]
   | .node m r a, z, p, h, hw => by
     classical
     have hm := hw m (by simp [mids])
     have hsub : ∀ T', (T' = r ∨ T' = a) → ∀ m' ∈ mids T', read (z * m') ≠
         if side (M.eval (z * m').toList) then .reject else .accept :=
       fun T' hT' m' hm' => hw m' (by rcases hT' with rfl | rfl <;> simp [mids, hm'])
-    simp only [DTree.sift_leaf, DTree.sift_node] at h
+    simp only [DTree.sift_node] at h
     unfold leafOf
     rw [← eval_mul]
     split at h

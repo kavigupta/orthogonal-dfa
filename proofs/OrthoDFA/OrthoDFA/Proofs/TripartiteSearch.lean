@@ -435,8 +435,9 @@ theorem tripartiteQ_card :
   refine (Finset.card_insert_le _ _).trans ?_
   split
   · refine Nat.add_le_add_right (Finset.card_insert_le _ _) 1 |>.trans ?_
-    split <;> simp <;> omega
-  · simp <;> omega
+    split <;> simp
+    omega
+  · simp; omega
 
 omit recover in
 theorem tripartiteQ_card_noRecovery :
@@ -446,8 +447,9 @@ theorem tripartiteQ_card_noRecovery :
   refine (Finset.card_insert_le _ _).trans ?_
   split
   · refine Nat.add_le_add_right (Finset.card_insert_le _ _) 1 |>.trans ?_
-    split <;> simp <;> omega
-  · simp <;> omega
+    split <;> simp
+    omega
+  · simp; omega
 
 omit recover in
 theorem tripartiteSearch_undecidedMid_mem (j : ℕ)

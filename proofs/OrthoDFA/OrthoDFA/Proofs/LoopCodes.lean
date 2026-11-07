@@ -101,7 +101,7 @@ theorem result_fin (C : Random.Level3Settings) (read : FreeMonoid α → ARU) {T
     ×ˢ (Finset.univ : Finset α)).finite_toSet.subset fun qc hqc => ?_
   rcases he : (Random.runProbes read C Random.initialState (List.ofFn draws)).1.edges qc with
     _ | ⟨t, w⟩
-  · rw [Set.mem_setOf_eq, Random.indecisiveLStarLevel3_edges] at hqc
+  · rw [Set.mem_ofPred_eq, Random.indecisiveLStarLevel3_edges] at hqc
     exact absurd he hqc
   · simp only [Finset.coe_product, Finset.coe_univ, Set.prod_univ, Set.mem_preimage,
       Finset.mem_coe, List.mem_toFinset]

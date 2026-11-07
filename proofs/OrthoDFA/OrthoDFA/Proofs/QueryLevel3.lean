@@ -8,11 +8,11 @@ import OrthoDFA.Code.Level3DrawMany
 /-!
 # Level 3 and the harvest, as programs
 
-Each program asks the read at no more strings than the function's reads, so that with probes at most `L` long a level-3
-run over `T` probes whose final tree has at most `n + 2` leaves asks at most
-`T probeSifts L (n + 1) + n (n + 2)|Σ|(n + 2)` strings, a split's re-sifts charged to the leaf
-it adds (`card_reads_level3Q_le`), and a harvest
-draw over `N` probes at most `N (3 + ⌈log₂ L⌉)|mids|` (`card_reads_harvestFirstQ_le`).
+Each program asks the read at no more strings than the function's reads, so that with probes at
+most `L` long a level-3 run over `T` probes whose final tree has at most `n + 2` leaves asks at
+most `T probeSifts L (n + 1) + n (n + 2)|Σ|(n + 2)` strings, a split's re-sifts charged to the leaf
+it adds (`card_reads_level3Q_le`), and a harvest draw over `N` probes at most
+`N (3 + ⌈log₂ L⌉)|mids|` (`card_reads_harvestFirstQ_le`).
 -/
 
 noncomputable section
@@ -101,7 +101,7 @@ theorem reads_probeOrAgreeQ_sub (E : Edges α) (k : ℕ) :
   rcases hw with hw | hw
   · exact Or.inl (DTree.reads_siftQ_sub read T _ hw)
   refine Or.inr ?_
-  rw [← DTree.sift_def] at hw
+  rw [DTree.eval_siftQ] at hw
   rcases hs : T.sift read (prefixOf x k) with a | z
   · rw [hs] at hw
     simp only at hw ⊢
@@ -130,7 +130,7 @@ theorem reads_probeOrAgreeQ_sub (E : Edges α) (k : ℕ) :
       rcases hw with hw | hw
       · exact Or.inl (DTree.reads_siftQ_sub read T _ hw)
       · refine Or.inr ?_
-        rw [← DTree.sift_def] at hw
+        rw [DTree.eval_siftQ] at hw
         rcases hs' : T.sift read (prefixOf x (hi + 1)) with t | z'
         · rw [hs'] at hw
           simp only [reads_bind] at hw
@@ -170,8 +170,7 @@ variable [Fintype α] [DecidableEq α] (C : Level3Settings)
 theorem reads_splitLeafQ_sub (s : Level3State α) (p : List Bool) (c : α) (t t₀ : List Bool) :
     (splitLeafQ s p c t t₀).reads read
       ⊆ resifts s (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p) := by
-  unfold splitLeafQ
-  rw [reads_map]
+  simp only [splitLeafQ, HypothesisDFA.splitQ, reads_map]
   generalize s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p = T'
   have : ∀ es : List (List Bool × α), (∀ e ∈ es, e ∈ s.tree.leaves.toFinset ×ˢ Finset.univ) →
       (retargetQ T' p s.edges es).reads read ⊆ resifts s T' := by
@@ -195,7 +194,8 @@ theorem reads_applyProbeQ_sub (s : Level3State α) (x : FreeMonoid α) :
     (applyProbeQ C s x).reads read ⊆ probeReads read s.tree s.edges C.walkStart x
       ∪ splitReads read C s x := by
   unfold applyProbeQ splitReads
-  rw [reads_bind, eval_probeOrAgreeQ]
+  rw [reads_bind, show (probeOrAgreeQ s.tree s.edges C.walkStart x).eval read
+    = probeOrAgree read s.tree s.edges C.walkStart x from rfl]
   refine Finset.union_subset_union (reads_probeOrAgreeQ_sub read _ x _ _) ?_
   rcases probeOrAgree read s.tree s.edges C.walkStart x with _ | ⟨p, c, u, t⟩ | _ | _ | _ <;>
     try simp
@@ -258,9 +258,11 @@ theorem card_reads_runProbesQ_le {L : ℕ} (n : ℕ) (X : List (FreeMonoid α)) 
     have hL' : ∀ y ∈ xs, y.toList.length ≤ L := fun y hy => hL y (by simp [hy])
     have hfin' : ∀ s', applyProbe read C s x = .inl s' →
         (runProbes read C s' xs).1.tree.leaves.length ≤ n + 2 := fun s' hap => by
-      have e : runProbes read C s (x :: xs) = runProbes read C s' xs := by simp [runProbes_nil, runProbes_cons, hap]
+      have e : runProbes read C s (x :: xs) = runProbes read C s' xs := by
+        simp [runProbes_cons, hap]
       rwa [e] at hfin
-    simp only [runProbesQ, reads_bind, eval_applyProbeQ read C s x, List.length_cons]
+    simp only [runProbesQ, reads_bind, List.length_cons,
+      show (applyProbeQ C s x).eval read = applyProbe read C s x from rfl]
     refine (Finset.card_union_le _ _).trans ?_
     rcases splitReads_eq_empty_or read C hs x with h0 | ⟨s', hap, hlen⟩
     · rw [h0, Finset.card_empty, add_zero] at hhead
@@ -329,7 +331,7 @@ variable (read : FreeMonoid α → ARU) (k : ℕ) (H : HypothesisDFA α) (site :
 omit inst in
 theorem eval_siteHarvestQ (x : FreeMonoid α) :
     (siteHarvestQ k H site x).eval read = siteHarvest read k H site x := by
-  cases site <;> simp [siteHarvestQ, siteHarvest, eval_probeOrAgreeQ]
+  cases site <;> simp [siteHarvestQ, siteHarvest, probeOrAgree]
 
 theorem reads_siteHarvestQ_sub (x : FreeMonoid α) :
     (siteHarvestQ k H site x).reads read ⊆ probeReads read H.tree H.edges k x := by

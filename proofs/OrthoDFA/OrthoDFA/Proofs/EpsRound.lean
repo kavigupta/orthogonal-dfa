@@ -104,7 +104,7 @@ theorem eps_ends_of_not_anyB (J : Level3State α → Prop) (hJ : HypInv J)
     simp only [AnyB, not_or, not_exists, not_and] at hb
     obtain ⟨hb1, hb2⟩ := hb
     rcases hst : applyProbe read C s x with s' | e
-    · simp only [runProbes_nil, runProbes_cons, hst]
+    · simp only [runProbes_cons, hst]
       by_cases hsm : Same s s'
       · obtain ⟨hs', hΨ, hn', -⟩ := step_same read C hs hst hsm.1 hsm.2
         have hlt : s'.probeCount < Ns := by
@@ -125,7 +125,7 @@ theorem eps_ends_of_not_anyB (J : Level3State α → Prop) (hJ : HypInv J)
           Nat.mul_le_mul_right _ hΨ
         rw [Nat.add_mul, one_mul] at this
         omega
-    · simp only [runProbes_nil, runProbes_cons, hst]
+    · simp only [runProbes_cons, hst]
       by_contra hne
       exact hb1 (Or.inl ⟨hn, Or.inl ⟨e, hst, hne⟩⟩)
 

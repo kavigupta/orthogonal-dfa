@@ -6,7 +6,7 @@ import Mathlib.Data.Finset.Card
 namespace OrthoDFA
 
 /-- Each result says what `agrees` is where it points; the search asks only positions from `lo`
-to `hi`, at most `2 + 3⌈log₂(hi − lo)⌉` of them, and without recovery at most
+to `hi`, at most `2 + 3⌈log₂(hi − lo)⌉` distinct ones, and without recovery at most
 `2 + ⌈log₂(hi − lo)⌉`; and where `agrees` turns from agreeing to disagreeing at `t` with nothing
 undecided, it finds `t`. -/
 def TripartiteSearchCorrect : Prop :=

@@ -16,10 +16,10 @@ variable {α : Type*} (read : FreeMonoid α → ARU)
 
 theorem sift_inr_mids : ∀ (T : DTree α) (v z : FreeMonoid α), T.sift read v = .inr z →
     ∃ m ∈ mids T, z = v * m
-  | .leaf, _, _, h => by simp [DTree.sift_leaf, DTree.sift_node] at h
+  | .leaf, _, _, h => by simp [DTree.sift_leaf] at h
   | .node m r a, v, z, h => by
     classical
-    simp only [DTree.sift_leaf, DTree.sift_node] at h
+    simp only [DTree.sift_node] at h
     split at h
     · rcases hq : a.sift read v with q | q <;> rw [hq] at h <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inr.injEq, reduceCtorEq] at h

@@ -31,7 +31,7 @@ theorem sift_congr_mids : ∀ (T : DTree α) (u : FreeMonoid α) {rd rd' : FreeM
     have hm : rd (u * m) = rd' (u * m) := h m (by simp [mids])
     have hr := sift_congr_mids r u fun m' hm' => h m' (by simp [mids, hm'])
     have ha := sift_congr_mids a u fun m' hm' => h m' (by simp [mids, hm'])
-    simp only [DTree.sift_leaf, DTree.sift_node, hm, hr, ha]
+    simp only [DTree.sift_node, hm, hr, ha]
 
 open scoped Classical in
 /-- A sift that reaches a leaf with `z` read undecided reaches it whatever `z` reads. -/
@@ -40,7 +40,7 @@ theorem sift_update_inl (rd : FreeMonoid α → ARU) (z : FreeMonoid α) :
       T.sift (Function.update rd z .undecided) u = .inl p → T.sift rd u = .inl p
   | .leaf, _, _, h => h
   | .node m r a, u, p, h => by
-    simp only [DTree.sift_leaf, DTree.sift_node] at h ⊢
+    simp only [DTree.sift_node] at h ⊢
     by_cases hz : u * m = z
     · subst hz
       simp at h

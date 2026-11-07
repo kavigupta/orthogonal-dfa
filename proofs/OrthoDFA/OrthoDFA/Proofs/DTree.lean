@@ -123,9 +123,9 @@ variable {α : Type*} (read : FreeMonoid α → ARU)
 
 theorem sift_inl_mem : ∀ (T : DTree α) (z : FreeMonoid α) (p : List Bool),
     T.sift read z = .inl p → p ∈ T.leaves
-  | .leaf, z, p, h => by simp only [DTree.sift_leaf, DTree.sift_node, Sum.inl.injEq] at h; simp [leaves, ← h]
+  | .leaf, z, p, h => by simp only [DTree.sift_leaf, Sum.inl.injEq] at h; simp [leaves, ← h]
   | .node m r a, z, p, h => by
-    simp only [DTree.sift_leaf, DTree.sift_node] at h
+    simp only [DTree.sift_node] at h
     split at h
     · rcases hq : a.sift read z with q | q <;> rw [hq] at h <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inl.injEq, reduceCtorEq] at h
@@ -139,9 +139,9 @@ theorem sift_inl_mem : ∀ (T : DTree α) (z : FreeMonoid α) (p : List Bool),
 
 theorem sift_inr : ∀ (T : DTree α) (z z' : FreeMonoid α),
     T.sift read z = .inr z' → read z' = .undecided
-  | .leaf, z, z', h => by simp [DTree.sift_leaf, DTree.sift_node] at h
+  | .leaf, z, z', h => by simp [DTree.sift_leaf] at h
   | .node m r a, z, z', h => by
-    simp only [DTree.sift_leaf, DTree.sift_node] at h
+    simp only [DTree.sift_node] at h
     split at h
     · rcases hq : a.sift read z with q | q <;> rw [hq] at h <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inr.injEq, reduceCtorEq] at h
@@ -168,7 +168,8 @@ theorem sift_splitAt (d : FreeMonoid α) : ∀ (T : DTree α) (p : List Bool) (z
     (T.splitAt d p).sift read z = (T.sift read z).elim
       (fun q => if q = p then ((DTree.node d .leaf .leaf).sift read z).map (p ++ ·) id
         else .inl q) .inr
-  | .leaf, [], z => by cases hd : read (z * d) <;> simp [splitAt, DTree.sift_leaf, DTree.sift_node, hd]
+  | .leaf, [], z => by
+    cases hd : read (z * d) <;> simp [splitAt, DTree.sift_leaf, DTree.sift_node, hd]
   | .leaf, b :: p, z => by simp [splitAt, DTree.sift_leaf, DTree.sift_node]
   | .node m r a, [], z => by
     simp only [splitAt]
@@ -274,9 +275,11 @@ theorem sift_part : ∀ (T : DTree α) (z₁ z₂ : FreeMonoid α) (p₁ p₂ : 
       ∧ read (z₂ * T.midfixAt (commonPrefix p₁ p₂)) ≠ .undecided
       ∧ read (z₁ * T.midfixAt (commonPrefix p₁ p₂)) ≠ read (z₂ * T.midfixAt (commonPrefix p₁ p₂))
   | .leaf, z₁, z₂, p₁, p₂, h₁, h₂, hne => by
-    simp only [DTree.sift_leaf, DTree.sift_node, Sum.inl.injEq] at h₁ h₂; subst h₁ h₂; exact absurd rfl hne
+    simp only [DTree.sift_leaf, Sum.inl.injEq] at h₁ h₂
+    subst h₁ h₂
+    exact absurd rfl hne
   | .node m r a, z₁, z₂, p₁, p₂, h₁, h₂, hne => by
-    simp only [DTree.sift_leaf, DTree.sift_node] at h₁ h₂
+    simp only [DTree.sift_node] at h₁ h₂
     split at h₁ <;> rename_i hr₁ <;> split at h₂ <;> rename_i hr₂
     · rcases hq₁ : a.sift read z₁ with q₁ | q₁ <;> rw [hq₁] at h₁ <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inl.injEq, reduceCtorEq] at h₁
@@ -316,7 +319,7 @@ theorem sift_congr (z z' : FreeMonoid α) (h : ∀ m, read (z * m) = read (z' * 
     ∀ (T : DTree α) (p : List Bool), T.sift read z = .inl p → T.sift read z' = .inl p
   | .leaf, p, hp => by simpa [DTree.sift_leaf, DTree.sift_node] using hp
   | .node m r a, p, hp => by
-    simp only [DTree.sift_leaf, DTree.sift_node, ← h m] at hp ⊢
+    simp only [DTree.sift_node, ← h m] at hp ⊢
     split at hp
     · rcases hq : a.sift read z with q | q <;> rw [hq] at hp <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inl.injEq, reduceCtorEq] at hp
@@ -328,9 +331,9 @@ theorem sift_congr (z z' : FreeMonoid α) (h : ∀ m, read (z * m) = read (z' * 
 
 theorem sift_inr_mul : ∀ (T : DTree α) (z z' : FreeMonoid α),
     T.sift read z = .inr z' → ∃ m, z' = z * m
-  | .leaf, z, z', h => by simp [DTree.sift_leaf, DTree.sift_node] at h
+  | .leaf, z, z', h => by simp [DTree.sift_leaf] at h
   | .node m r a, z, z', h => by
-    simp only [DTree.sift_leaf, DTree.sift_node] at h
+    simp only [DTree.sift_node] at h
     split at h
     · rcases hq : a.sift read z with q | q <;> rw [hq] at h <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inr.injEq, reduceCtorEq] at h
@@ -444,10 +447,10 @@ theorem sift_eq_siftWithPath_of (c : FreeMonoid α → Option Bool) (hc : ∀ w,
     ∀ (T : DTree α) (z : FreeMonoid α), T.sift read z = match (T.siftWithPath c z).2 with
       | some p => .inl p
       | none => .inr ((T.siftWithPath c z).1.getLastD 1)
-  | .leaf, z => by simp [DTree.sift_leaf, DTree.sift_node, siftWithPath]
+  | .leaf, z => by simp [DTree.sift_leaf, siftWithPath]
   | .node m r a, z => by
     have hm := hc (z * m)
-    simp only [DTree.sift_leaf, DTree.sift_node, siftWithPath]
+    simp only [DTree.sift_node, siftWithPath]
     rcases hr : read (z * m) with _ | _ | _ <;> rw [hr] at hm <;> simp only [ARU.cut] at hm <;>
       simp only [hm]
     · rw [sift_eq_siftWithPath_of c hc a z]

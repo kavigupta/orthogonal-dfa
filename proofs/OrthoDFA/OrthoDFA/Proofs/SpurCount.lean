@@ -498,14 +498,15 @@ theorem claim6_succ (hL : ∀ x ∈ xs, x.toList.length ≤ L)
         + (edgesMax n (Fintype.card α) : ℝ) * ((s₁.tree.leaves.length : ℝ) - 2) := by
       unfold Φu6; rw [hc1, hh]
     rw [Finset.sum_range_succ, hl] at hphiU'
-    refine ⟨⟨⟨by rw [hs₁]; exact (edgesOK_retarget r hI.inv.edges hp _).restrict _ _, ?_, ?_⟩, hsm', ?_, by rw [hs₁]; rfl, ?_⟩, ?_, ?_⟩
+    refine ⟨⟨⟨by rw [hs₁]; exact (edgesOK_retarget r hI.inv.edges hp _).restrict _ _, ?_, ?_⟩,
+      hsm', ?_, by rw [hs₁]; rfl, ?_⟩, ?_, ?_⟩
     · rw [hs₁]
-      show (s.tree.splitAt _ p) ∈ classSet ((s.tree.splitAt _ p).leaves.length - 2)
+      change (s.tree.splitAt _ p) ∈ classSet ((s.tree.splitAt _ p).leaves.length - 2)
       rw [hlen, show s.tree.leaves.length + 1 - 2 = s.tree.leaves.length - 2 + 1 by
         have := hI.inv.two; omega]
       exact classSet_split hI.inv.cls hp ht ht₀
     · rw [hs₁]
-      show 2 ≤ (s.tree.splitAt _ p).leaves.length
+      change 2 ≤ (s.tree.splitAt _ p).leaves.length
       rw [hlen]; have := hI.inv.two; omega
     · have := hI.hyp; omega
     · rw [hc1, hh]; exact hA

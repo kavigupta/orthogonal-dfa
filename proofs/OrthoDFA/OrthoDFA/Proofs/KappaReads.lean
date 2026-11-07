@@ -40,12 +40,12 @@ theorem siftReads_congr {rd rd' : FreeMonoid α → ARU} : ∀ (T : DTree α) (z
       simp only [siftReads]; exact Finset.mem_insert_of_mem hw)
     rcases hc : rd (z * m) with _ | _ | _ <;> rw [hc] at hsub <;> rw [hc] at hm
     · obtain ⟨h1, h2⟩ := siftReads_congr a z hsub
-      simp only [DTree.sift_leaf, DTree.sift_node, siftReads, ← hm, hc, h1, h2]
+      simp only [DTree.sift_node, siftReads, ← hm, hc, h1, h2]
       exact ⟨trivial, trivial⟩
     · obtain ⟨h1, h2⟩ := siftReads_congr r z hsub
-      simp only [DTree.sift_leaf, DTree.sift_node, siftReads, ← hm, hc, h1, h2]
+      simp only [DTree.sift_node, siftReads, ← hm, hc, h1, h2]
       exact ⟨trivial, trivial⟩
-    · simp only [DTree.sift_leaf, DTree.sift_node, siftReads, ← hm, hc]
+    · simp only [DTree.sift_node, siftReads, ← hm, hc]
       exact ⟨trivial, trivial⟩
 
 /-- A sift reads a string undecided only where it stops. -/
@@ -56,10 +56,10 @@ theorem siftReads_undecided {rd : FreeMonoid α → ARU} : ∀ (T : DTree α) (z
     classical
     simp only [siftReads, Finset.mem_insert] at h
     rcases h with rfl | h
-    · simp [DTree.sift_leaf, DTree.sift_node, hw]
+    · simp [DTree.sift_node, hw]
     · rcases hc : rd (z * m) with _ | _ | _ <;> rw [hc] at h
-      · simp [DTree.sift_leaf, DTree.sift_node, hc, siftReads_undecided a z w h hw]
-      · simp [DTree.sift_leaf, DTree.sift_node, hc, siftReads_undecided r z w h hw]
+      · simp [DTree.sift_node, hc, siftReads_undecided a z w h hw]
+      · simp [DTree.sift_node, hc, siftReads_undecided r z w h hw]
       · simp at h
 
 /-- A sift reads its string followed by midfixes. -/
@@ -85,11 +85,11 @@ theorem sift_true_reads (rd : FreeMonoid α → ARU) : ∀ (T : DTree α) (z : F
     (p : List Bool), T.sift rd z = .inl p →
     (∀ w ∈ siftReads rd T z, rd w ≠ if side (M.eval w.toList) then .reject else .accept) →
     p = leafOf M side T (M.eval z.toList)
-  | .leaf, z, p, h, _ => by simp only [DTree.sift_leaf, DTree.sift_node, Sum.inl.injEq] at h; simp [leafOf, ← h]
+  | .leaf, z, p, h, _ => by simp only [DTree.sift_leaf, Sum.inl.injEq] at h; simp [leafOf, ← h]
   | .node m r a, z, p, h, hw => by
     classical
     have hm := hw (z * m) (by simp [siftReads])
-    simp only [DTree.sift_leaf, DTree.sift_node] at h
+    simp only [DTree.sift_node] at h
     unfold leafOf
     rw [← eval_mul]
     rcases hc : rd (z * m) with _ | _ | _ <;> rw [hc] at h hm
@@ -612,7 +612,7 @@ theorem probeReads_sub {L : ℕ} (hx : x.toList.length ≤ L) :
         · exact Finset.empty_subset _
         · exact hsr
       · exact hsr
-  · exact ⟨{k}, by simp <;> omega, Finset.union_subset (fun w hw =>
+  · exact ⟨{k}, by simp; omega, Finset.union_subset (fun w hw =>
       mem_posReads.2 ⟨k, Finset.mem_singleton_self _, hw⟩) (Finset.empty_subset _)⟩
 
 end Probe

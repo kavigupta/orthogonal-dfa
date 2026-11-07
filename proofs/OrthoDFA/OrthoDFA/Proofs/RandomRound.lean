@@ -113,7 +113,7 @@ theorem ends_of_not_anyB {side : σ → Bool} (hW : NoWrong M side read)
     simp only [AnyB, not_or, not_exists, not_and] at hb
     obtain ⟨hb1, hb2⟩ := hb
     rcases hst : applyProbe read C s x with s' | e
-    · simp only [runProbes_nil, runProbes_cons, hst]
+    · simp only [runProbes_cons, hst]
       by_cases hsm : Same s s'
       · obtain ⟨hs', hΨ, hn', -⟩ := step_same read C hs.1 hst hsm.1 hsm.2
         replace hs' : RInv read s' := ⟨hs', hsm.1 ▸ hs.2⟩
@@ -133,7 +133,7 @@ theorem ends_of_not_anyB {side : σ → Bool} (hW : NoWrong M side read)
           Nat.mul_le_mul_right _ hΨ
         rw [Nat.add_mul, one_mul] at this
         omega
-    · simp only [runProbes_nil, runProbes_cons, hst]
+    · simp only [runProbes_cons, hst]
       by_contra hne
       exact hb1 (Or.inl ⟨hn, Or.inl ⟨e, hst, hne⟩⟩)
 

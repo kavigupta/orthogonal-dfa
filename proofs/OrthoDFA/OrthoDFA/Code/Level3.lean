@@ -112,10 +112,6 @@ def countOutcome (s : Level3State α) (o : Outcome α) : Level3State α :=
     endsUndecided := s.endsUndecided ++ endsString o
     middleUndecided := s.middleUndecided ++ middleString o }
 
-/-- A probe counted into the stretch. -/
-def countProbe (s : Level3State α) (x : FreeMonoid α) : Level3State α :=
-  countOutcome s (probeOrAgree read s.tree s.edges C.walkStart x)
-
 open scoped Classical in
 /-- The tests, in turn: the probes stopping undecided at their start or end sift, the undecided
 middles among the searches, and the rate of both. -/
@@ -143,8 +139,6 @@ structure Level3Result (α : Type*) where
 
 end
 
-/-! A split retargets the edges at the tree's leaves, where every learned edge is. -/
-
 section Query
 
 variable (read : FreeMonoid α → ARU) (C : Level3Settings)
@@ -154,9 +148,9 @@ variable [Fintype α]
 /-- The leaf `p` split on `c` and the midfix where the leaves `t` and `t₀` part. -/
 noncomputable def splitLeafQ (s : Level3State α) (p : List Bool) (c : α) (t t₀ : List Bool) :
     Query (FreeMonoid α) ARU (Level3State α) :=
-  let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
-  (retargetQ T' p s.edges (s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).toList).map
-    fun E' => newHypothesis T' E' (s.hypotheses + 1)
+  ((HypothesisDFA.mk s.tree s.edges).splitQ
+    (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p).map
+    fun H => newHypothesis H.tree H.edges (s.hypotheses + 1)
 
 noncomputable def applyProbeQ (s : Level3State α) (x : FreeMonoid α) :
     Query (FreeMonoid α) ARU (Level3State α ⊕ RoundEnd Level3Site) :=

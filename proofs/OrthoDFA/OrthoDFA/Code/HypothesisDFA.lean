@@ -60,10 +60,17 @@ def retargetQ [DecidableEq α] (T' : DTree α) (p : List Bool) (E : Edges α) :
   | e :: es => (retargetAtQ T' p E e).bind fun v =>
     (retargetQ T' p E es).map fun E' => Function.update E' e v
 
-/-- The leaf `p` split into a node reading at `d`, and the edges retargeted. -/
-def HypothesisDFA.split (read : FreeMonoid α → ARU) (H : HypothesisDFA α) (d : FreeMonoid α)
-    (p : List Bool) : HypothesisDFA α :=
-  ⟨H.tree.splitAt d p, retarget read (H.tree.splitAt d p) p H.edges⟩
+/-- The leaf `p` split into a node reading at `d`, the edges at the tree's leaves retargeted and
+every other edge unlearned, which along a run loses none (`indecisiveLStarLevel3_eq_all`). -/
+noncomputable def HypothesisDFA.splitQ [DecidableEq α] [Fintype α] (H : HypothesisDFA α)
+    (d : FreeMonoid α) (p : List Bool) : Query (FreeMonoid α) ARU (HypothesisDFA α) :=
+  let T' := H.tree.splitAt d p
+  (retargetQ T' p H.edges (H.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).toList).map
+    fun E' => ⟨T', E'⟩
+
+noncomputable def HypothesisDFA.split [DecidableEq α] [Fintype α] (read : FreeMonoid α → ARU)
+    (H : HypothesisDFA α) (d : FreeMonoid α) (p : List Bool) : HypothesisDFA α :=
+  (H.splitQ d p).eval read
 
 /-- Every learned edge out of a leaf is witnessed: a string at the leaf whose successor sifts to
 the edge's target. -/

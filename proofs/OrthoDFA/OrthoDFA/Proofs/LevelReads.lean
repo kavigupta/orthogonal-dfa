@@ -76,7 +76,7 @@ theorem runProbes_congr_of_steps (C : Level3Settings) {r r' : FreeMonoid α → 
   | x₀ :: ys, s, hstep => by
     have h0 : applyProbe r C s x₀ = applyProbe r' C s x₀ :=
       hstep 0 s x₀ (by simp [stateAt]) (by simp)
-    simp only [runProbes_nil, runProbes_cons]
+    simp only [runProbes_cons]
     rw [← h0]
     rcases ha : applyProbe r C s x₀ with s' | e
     · refine runProbes_congr_of_steps C ys s' (fun j t x hjt hjx => ?_)

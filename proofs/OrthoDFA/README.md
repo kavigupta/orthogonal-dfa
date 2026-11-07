@@ -104,8 +104,8 @@ this (`parity_toggle`, #438).
 - `FamilyReadBound`: the suffix family's reads are independent across strings, every DFA state
   has one distribution its strings read with, and the band's check bounds each.
 - `TripartiteSearchCorrect`: the search the probes use to find where the walk and the sift part
-  finds what it reports, queries at most `2 + 3⌈log₂(hi − lo)⌉` positions (`2 + ⌈log₂(hi − lo)⌉`
-  without recovery), and finds the turn exactly where nothing is undecided.
+  finds what it reports, queries at most `2 + 3⌈log₂(hi − lo)⌉` distinct positions
+  (`2 + ⌈log₂(hi − lo)⌉` without recovery), and finds the turn exactly where nothing is undecided.
 - `Level2RoundCorrect`, `Level3RoundCorrect`, `Level4RoundCorrect` and `Level5RoundCorrect`: one L\*
   round ends well but for chance `δ`, with ideal reads, random indecision, rare wrong reads, a few
   tolerated, and wrong reads scaling with indecision, a few tolerated.
@@ -377,8 +377,10 @@ the time. Each level says what a state's chance of reading undecided is.
   selection rule `evidence_margin_for_population_size` makes, at `ε = cross_limit`, `ε₂ =
   MINORITY_READ_LIMIT` and `κ = MINORITY_UNDECIDED_RATIO`.
 - `OrthoDFA/Code/TripartiteSearch.lean` — `tripartiteSearch`, a bisection for where `agrees` turns
-  from agreeing to disagreeing that steps past undecided positions.
-  `orthogonal_dfa/l_star/tripartite_search.py` is the same function.
+  from agreeing to disagreeing that steps past undecided positions, the eval of the program
+  `tripartiteQ`, whose reads set is the positions asked.
+  `orthogonal_dfa/l_star/tripartite_search.py` is the same search; it returns
+  `(kind, position, queried)` where Lean returns the result.
 - `OrthoDFA/Code/Query.lean` — `Query`, the free monad whose programs record the strings they ask;
   the `Q`-suffixed definitions in `Code/` are the algorithm's pieces as such programs.
 - `OrthoDFA/Code/DTree.lean` — the discrimination tree, and `DTree.siftWithPath`, sifting a string
@@ -387,8 +389,10 @@ the time. Each level says what a state's chance of reading undecided is.
   is the same split, naming the leaf by its state.
 - `OrthoDFA/Code/HypothesisDFA.lean` — a hypothesis DFA: a tree and learned edges between its
   leaves, and the walk a string takes along them; `walkEnd` is its last leaf when it follows every
-  letter. `HypothesisDFA.split` splits a leaf and re-sifts the witnesses of the edges into it
-  (`hypothesis_dfa.HypothesisDFA.split_leaf`).
+  letter. `HypothesisDFA.split` splits a leaf and re-sifts the witnesses of the edges into it,
+  keeping only the edges at the tree's leaves; along a level-3 run every learned edge is at one,
+  so the run is the one whose splits keep every edge (`indecisiveLStarLevel3_eq_all`), as
+  `hypothesis_dfa.HypothesisDFA.split_leaf` does.
 - `OrthoDFA/Code/Probe.lean` and `OrthoDFA/LowLevelClaims/Probe.lean` — `probe`: a string walked
   along the edges from its first `k` letters' leaf and sifted, and where the two part, found by
   `tripartiteSearch` without recovery (`counterexample_probe.locate`). `ProbeCorrect`: with the
@@ -547,7 +551,7 @@ probability rather than the algorithm. They are proved under `OrthoDFA/Proofs/` 
   and `prefixLaw`, the law of a string's first `n` letters.
 
 - `OrthoDFA/LowLevelClaims/TripartiteSearch.lean` — `TripartiteSearchCorrect`: each result says what
-  `agrees` is where it points, the queries stay between the endpoints and number at most
+  `agrees` is where it points, the positions asked stay between the endpoints and number at most
   `2 + 3⌈log₂(hi − lo)⌉`, or `2 + ⌈log₂(hi − lo)⌉` without recovery, and with nothing undecided it
   finds the turn exactly.
 

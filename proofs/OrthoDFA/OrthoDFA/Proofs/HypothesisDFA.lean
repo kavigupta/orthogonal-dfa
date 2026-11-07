@@ -183,7 +183,40 @@ theorem edgesOK_retarget (hE : EdgesOK read T E) {p : List Bool}
         exact ⟨DTree.sift_splitAt_ne read hw hne, DTree.sift_splitAt_ne read hwc ht₁⟩
   · simp [hpq] at h
 
+theorem retarget_eq_none_of_not_mem {p : List Bool} (hp : p ∈ T.leaves) {d : FreeMonoid α}
+    {e : List Bool × α} (he : e.1 ∈ (T.splitAt d p).leaves) (hn : e.1 ∉ T.leaves) :
+    retarget read (T.splitAt d p) p E e = none := by
+  rw [retarget_eq, if_pos]
+  rcases (DTree.mem_leaves_splitAt d T p hp e.1).1 he with ⟨h, -⟩ | h | h
+  · exact absurd h hn
+  all_goals rw [h]; exact List.isPrefixOf_iff_prefix.2 (List.prefix_append _ _)
+
 variable [DecidableEq α]
+
+section Split
+
+variable [Fintype α] {H : HypothesisDFA α} {p : List Bool}
+
+theorem HypothesisDFA.split_tree (d : FreeMonoid α) :
+    (H.split read d p).tree = H.tree.splitAt d p := by
+  rw [HypothesisDFA.split_eq]
+
+theorem edgesOK_split (hE : EdgesOK read H.tree H.edges) (hp : p ∈ H.tree.leaves)
+    (d : FreeMonoid α) : EdgesOK read (H.split read d p).tree (H.split read d p).edges := by
+  rw [HypothesisDFA.split_eq]
+  exact (edgesOK_retarget read hE hp d).restrict _ _
+
+/-- At the split tree's leaves the split's edges are every edge retargeted. -/
+theorem split_edges_of_mem (hp : p ∈ H.tree.leaves) (d : FreeMonoid α) {e : List Bool × α}
+    (he : e.1 ∈ (H.tree.splitAt d p).leaves) :
+    (H.split read d p).edges e = retarget read (H.tree.splitAt d p) p H.edges e := by
+  rw [HypothesisDFA.split_eq]
+  dsimp only
+  split_ifs with h
+  · rfl
+  · exact (retarget_eq_none_of_not_mem read hp he h).symm
+
+end Split
 
 theorem edgesOK_upd (hE : EdgesOK read T E) {p t : List Bool} {c : α}
     {u : FreeMonoid α} (hu : T.sift read u = .inl p)
@@ -203,8 +236,8 @@ theorem edgesOK_upd (hE : EdgesOK read T E) {p t : List Bool} {c : α}
 end Edges
 
 theorem splitAndLearnCorrect : SplitAndLearnCorrect := by
-  intro α _ read H hE
-  exact ⟨fun d p hp => edgesOK_retarget read hE hp d,
+  intro α _ _ read H hE
+  exact ⟨fun d p hp => edgesOK_split read hE hp d,
     fun u s t c hu huc => edgesOK_upd read hE hu huc⟩
 
 end OrthoDFA

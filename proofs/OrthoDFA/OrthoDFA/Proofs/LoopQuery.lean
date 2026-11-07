@@ -172,13 +172,12 @@ lemma eval_roundQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) 
         xs.1 := by
     funext z
     rw [hxs1]
-    exact eval_familyReadQ_mq O.mq ω _ _ _ z
-  rw [hF, eval_map, eval_subst, hread, Random.eval_level3Q]
+    rfl
+  rw [hF, eval_map, eval_subst, hread]
   have hres : (roundOf settings O D (h.spec O ω) xs d.2).result
-      = Random.indecisiveLStarLevel3 settings.level3
-        (fun z => familyRead O.mq (clusterAt O.mq ps xs B) B.lo (B.hi + 1) z xs.1)
-        (fun i => drawFrom (avoidLaw D settings.level3.walkStart
-          (clusterKeys sched ps settings.level3.walkStart xc)) (d.2 i)) := by
+      = (Random.level3Q settings.level3 (fun i => drawFrom (avoidLaw D settings.level3.walkStart
+          (clusterKeys sched ps settings.level3.walkStart xc)) (d.2 i))).eval
+        (fun z => familyRead O.mq (clusterAt O.mq ps xs B) B.lo (B.hi + 1) z xs.1) := by
     simp only [roundOf, hlen]; rfl
   rw [← hres]
   refine ⟨?_, fun o ho => ?_⟩
@@ -365,8 +364,7 @@ theorem card_reads_roundQ_le (settings : LoopSettings K) (D Dsf : Measure (FreeM
   split_ifs at hleaf ⊢ with hex
   swap
   · simp
-  simp only [eval_map, eval_subst, Random.eval_level3Q, Option.mem_def, Option.some.injEq,
-    forall_eq'] at hleaf
+  simp only [eval_map, eval_subst, Option.mem_def, Option.some.injEq, forall_eq'] at hleaf
   set t := (Query.table (clusterReads sched ps x).toList).eval o
   have hBs := (Classical.epsilon_spec (p := fun B => B ∈ sched ∧ x ∈ ret (fun w _ => t w) ps
     none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
@@ -500,6 +498,7 @@ end Reads
 
 section Learner
 
+omit [DecidableEq α] in
 /-- The leaf picked depends on the read only at the held-out strings. -/
 lemma pickLeaf_congr (H : HypothesisDFA α) {read read' : FreeMonoid α → ARU} {n : ℕ}
     (xs : Fin n → FreeMonoid α) (h : ∀ i, read (xs i) = read' (xs i)) :
@@ -511,9 +510,6 @@ lemma pickLeaf_congr (H : HypothesisDFA α) {read read' : FreeMonoid α → ARU}
     funext i
     rw [h i]
   simp only [pickLeaf_eq, this]
-
-lemma eval_pickLeafQ (H : HypothesisDFA α) {n : ℕ} (xs : Fin n → FreeMonoid α)
-    (read : FreeMonoid α → ARU) : (pickLeafQ H xs).eval read = pickLeaf H read xs := rfl
 
 omit [DecidableEq α] in
 lemma card_reads_pickLeafQ_le (H : HypothesisDFA α) {n : ℕ} (xs : Fin n → FreeMonoid α)
@@ -540,7 +536,6 @@ theorem indecisiveLStar_eq (settings : LoopSettings K) (D Dsf : Measure (FreeMon
         (rounds, startLeaf O p.1 rounds xs) := by
   unfold indecisiveLStar learnerQ
   rw [eval_bind]
-  change _ = (indecisiveLStarLoop settings O D Dsf p).map _
   unfold indecisiveLStarLoop
   rcases (loopQ settings D Dsf p.2).eval (fun w => O.mq w p.1) with _ | rounds
   · rfl

@@ -164,7 +164,9 @@ theorem eps_step_change_of {s s' : Level3State α} (hs : Inv read s) (hg : WitIn
       rw [ho]
       simp only [hE]
       exact hz
-    refine ⟨⟨by simp only [splitLeaf_eq, newHypothesis]; exact (edgesOK_retarget read hs.edges hp _).restrict _ _, ?_,
+    refine ⟨⟨by
+        simp only [splitLeaf_eq, newHypothesis]
+        exact (edgesOK_retarget read hs.edges hp _).restrict _ _, ?_,
       by simp only [splitLeaf_eq, newHypothesis]; rw [hlen]; have := hs.two; omega⟩,
       ⟨hleaves, fun p' c' t' w h => ?_⟩, by rw [splitLeaf_eq]; rfl, by rw [splitLeaf_eq]; rfl, ?_⟩
     · simp only [splitLeaf_eq, newHypothesis]
@@ -174,8 +176,8 @@ theorem eps_step_change_of {s s' : Level3State α} (hs : Inv read s) (hg : WitIn
     · rw [splitLeaf_edges_eq_some] at h
       rw [splitLeaf_tree]
       exact wit_retarget M side read hg hp _ hR p' c' t' w h.2
-    · have hsz : (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p).leaves.length
-          ≤ Fintype.card σ + 2 := by
+    · have hsz : (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀))
+          p).leaves.length ≤ Fintype.card σ + 2 := by
         have := img_card_le M side
           (s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p)
         rw [splitLeaf_tree] at hleaves
@@ -196,7 +198,7 @@ theorem sift_congr {r r' : FreeMonoid α → ARU} :
     have hm := h m (by simp [mids])
     have ha := sift_congr a z fun m' hm' => h m' (by simp [mids, hm'])
     have hb := sift_congr b z fun m' hm' => h m' (by simp [mids, hm'])
-    simp only [DTree.sift_leaf, DTree.sift_node, hm, ha, hb]
+    simp only [DTree.sift_node, hm, ha, hb]
 
 omit [DecidableEq α] in
 /-- Reads agreeing on the probe's prefixes followed by midfixes sift every prefix alike. -/

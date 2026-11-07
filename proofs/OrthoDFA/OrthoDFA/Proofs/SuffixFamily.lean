@@ -46,6 +46,7 @@ theorem readDist_rare (q : σ) :
     exact Finset.card_filter_le _ _
   · simp [readDist, dif_neg h]
 
+omit [DecidableEq α] in
 theorem read_measurable (z : FreeMonoid α) : Measurable fun ω => fam.read ω z := by
   simp only [read, familyRead_eq]
   exact (measurable_from_nat (f := readOf fam.kl fam.kh)).comp (measurable_voteCount fam.O fam.F z)
