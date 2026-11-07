@@ -492,6 +492,7 @@ lemma rel_hn_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (
     pb_mul hX0 nD (pb_mul hX0 (by linarith) bQ1 hM) bD
   have hy1 : 1 ≤ 4 * (Q + 1) * M * (8 * (Q + 1) * iδ) :=
     m (m (by linarith) hM1) (m (by linarith : (1 : ℝ) ≤ 8 * (Q + 1)) (by linarith))
+  have hlX : log 2 ≤ log X := Real.log_le_log (by norm_num) (by linarith)
   have hlog : log (4 * (Q + 1) * M * (8 * (Q + 1) * iδ)) ≤ 108 * log X := by
     have h1 := Real.log_le_log (by linarith) hy
     rw [Real.log_mul (by positivity) (pow_pos (by linarith) _).ne', Real.log_pow,

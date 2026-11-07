@@ -9,10 +9,11 @@ import OrthoDFA.Code.Level3DrawMany
 # Level 3 and the harvest, as programs
 
 Each program returns what its function returns (`eval_siftQ`, `eval_probeOrAgreeQ`,
-`eval_level3Q`, `eval_harvestFirstQ`, `eval_drawManyFirstQ`, `eval_familyReadQ`), and asks the
-read at no more strings than the function's reads, so that with probes at most `L` long and
-`leafCap ≤ n + 2` a level-3 run over `T` probes asks at most
-`T (probeSifts L (n + 1) + (n + 2)|Σ|(n + 2))` strings (`card_reads_level3Q_le`) and a harvest draw over `N` probes at most `N (3 + ⌈log₂ L⌉)|mids|`
+`eval_harvestFirstQ`, `eval_drawManyFirstQ`, `eval_familyReadQ`), level 3's where its final tree
+has at most `leafCap` leaves and `none` otherwise (`eval_level3Q`), and asks the read at no more
+strings than the function's reads, so that with probes at most `L` long and `leafCap ≤ n + 2` a
+level-3 run over `T` probes asks at most `T (probeSifts L (n + 1) + (n + 2)|Σ|(n + 2))` strings
+(`card_reads_level3Q_le`) and a harvest draw over `N` probes at most `N (3 + ⌈log₂ L⌉)|mids|`
 (`card_reads_harvestFirstQ_le`). A split asks only at the tree's leaves' edges, where a run keeps
 every learned edge, so the program's run is the function's only along a run (`RunInv`).
 -/
