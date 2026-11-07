@@ -70,9 +70,11 @@ theorem rlStarClaim_holds : RLStarClaim := by
     (summed_bridge M O hL L D (by linarith) hξ hAe (hlong.mono fun x hx => le_trans (by omega) hx)
       hfl' ⟨q, hq⟩) hp₀
   rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
-  refine ⟨settings, hw, hcnt, (measureReal_mono fun q hq hs => hq ⟨hs, ?_⟩).trans hprob⟩
-  obtain ⟨rounds, hr, _, hlv⟩ := hs
-  exact ⟨_, hcalls q.1 q.2 rounds hr hlv, fun o ho => (Query.eval_congr _ _ ho).1⟩
+  refine ⟨settings, hw, hcnt, (measureReal_mono ?_).trans hprob⟩
+  intro q hq hs
+  obtain ⟨rounds, hr, hok, hlv⟩ := hs
+  exact hq ⟨⟨rounds, hr, hok, hlv⟩, _, hcalls q.1 q.2 rounds hr hlv,
+    fun o ho => (Query.eval_congr _ _ ho).1⟩
 
 theorem rlStarClaimUniform_holds : RLStarClaimUniform :=
   rlStarClaimUniform_of_rlStarClaim rlStarClaim_holds
