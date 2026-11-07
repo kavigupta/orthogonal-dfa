@@ -5,8 +5,7 @@ import OrthoDFA.Proofs.ScanTail
 # A round's draws hit and scan within the cap
 
 A round is good (`RoundGood`) where its harvested draws all hit, its filled draws scan within
-`scanCap`, its clustering returns at a scheduled state, and its level 3 keeps within `leafCap`
-leaves.  The draws miss (`MissAt`) with chance
+`scanCap`, and its clustering returns at a scheduled state.  The draws miss (`MissAt`) with chance
 at most `K δₘ` at the cap `harvestN y (δₘ / M)`, each harvested population yielding at least `y`
 off the earlier rounds' prefixes (`restLaw_missAt_le`); they scan short with the chance of
 `clusterLaw_scanShort_le`.  Both charged in one round's draws after any history the earlier rounds
@@ -170,8 +169,8 @@ lemma card_loopPopulations_le (K r : ℕ) : (loopPopulations K r).card ≤ K + 1
   exact Finset.card_image_le.trans ((Finset.card_filter_le _ _).trans (by simp))
 
 omit [IsProbabilityMeasure μ] in
-/-- No harvested draw missing, no population's sides falling short, a scheduled state
-returning and level 3 within `leafCap` leaves, the round is good. -/
+/-- No harvested draw missing, no population's sides falling short and a scheduled state
+returning, the round is good. -/
 lemma roundGood_of (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
@@ -185,12 +184,10 @@ lemma roundGood_of (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (h3 : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
       idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)
         ∈ ret O.mq (loopPopulations K h.pops.length) none settings.η₀ settings.indecisionLimit
-          settings.εcov settings.gateLevel B)
-    (h4 : (idealRound settings O D Dsf h d).result.hypothesis.tree.leaves.length
-      ≤ settings.level3.leafCap) :
+          settings.εcov settings.gateLevel B) :
     RoundGood settings O D Dsf h d :=
   ⟨clusterDraws_isSome D Dsf _ _ _ h (d.1, d.2.1) h1,
-    scanWithin_of_not_scanShort _ _ hNP hNA hAT _ h2, h3, h4⟩
+    scanWithin_of_not_scanShort _ _ hNP hNA hAT _ h2, h3⟩
 
 omit [IsProbabilityMeasure μ] [DecidableEq α] in
 /-- Falling short reads no noise. -/
@@ -231,7 +228,6 @@ them, miss or fall short with chance at most
 
 at the cap `harvestN y (δₘ / M)`, `M` the scan cap and `4 (K + 3) NP ≤ T ≤ M`. -/
 theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ}
-    (hN : P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap)
     (hcap : settings.level3.harvestReadCap = Random.harvestN y (δₘ / settings.scanCap))
     (hy0 : 0 < y) (hy1 : y ≤ 1) (hδ : 0 < δₘ) (hM : 0 < settings.scanCap) (hm : m ≤ 1 / 2)
     (hA : 4 * ((K + 3) * NP) ≤ T) (hT : T ≤ settings.scanCap)
@@ -293,10 +289,10 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ}
   have hmain := persist_stage_le O ν (Measure.dirac ()) ν (fun d => ((() : Unit), d)) hσ Prod.snd
     measurable_snd (fun w => Prod.ext rfl rfl) ⟨r, hr⟩ (stageH settings O P.D Dsf r)
     (fun ω x x' hxx' _ => stageH_congr_draws settings O P.D Dsf r ω x x' fun i hi => hxx' i hi)
-    (measurableSet_stageH settings O P.D Dsf P.length_le hN r) W G
+    (measurableSet_stageH settings O P.D Dsf P.length_le r) W G
     (fun y x ω ω' hG hs h => by
       obtain ⟨c, rfl, -⟩ := hG
-      exact stageH_stop settings O P.D Dsf P.length_le hN r c x ω ω' ω₀ hs h)
+      exact stageH_stop settings O P.D Dsf P.length_le r c x ω ω' ω₀ hs h)
     Bad (fun y hy => by
       rcases y with _ | c
       · rfl
@@ -445,7 +441,7 @@ lemma loopRounds_roundOf (n : ℕ) : ∀ rounds, loopRounds settings O D Dsf dra
       · exact hrr o' h1
       · rw [List.mem_singleton] at h1
         subst h1
-        rw [loopRound_eq] at ho
+        unfold loopRound at ho
         obtain ⟨dr, -, hdr⟩ := Option.mem_bind_iff.1 ho
         split_ifs at hdr
         · exact ⟨_, _, _, (Option.mem_some_iff.1 hdr).symm⟩

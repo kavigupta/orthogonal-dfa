@@ -311,10 +311,14 @@ section History
 variable [IsProbabilityMeasure μ] (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
   (D Dsf : Measure (FreeMonoid α))
 
+/-- The length up to which a round's data hold its reads: past `D`'s strings by the probe budget,
+the most a sampler's walk reads past its probe. -/
+def codeLen : ℕ := lenBound D + settings.level3.probeBudget
+
 /-- The earlier rounds' harvest data, at the noise `ω`. -/
 def histCodes (ω : Ω) (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) (r : ℕ) :
     List (HarvestCode α) :=
-  codesOf settings.level3.harvestReadCap (idealRounds settings O D Dsf (fun i => (ω, g i)) r)
+  codesOf (codeLen settings D) (idealRounds settings O D Dsf (fun i => (ω, g i)) r)
 
 /-- The history the first `i` of the harvest data `c` hand on. -/
 abbrev histAt (c : List (HarvestCode α)) (i : ℕ) : LoopHist α :=
@@ -336,7 +340,7 @@ def HistOK (ω : Ω) (g : Fin K → RoundDraws α K settings.level3.harvestReadC
 def histReads (c : List (HarvestCode α)) (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
     (r : ℕ) (ω : Ω) : Finset (FreeMonoid α) :=
   (Finset.range r).biUnion fun i => if h : i < K ∧ i ≤ c.length then
-    roundReads settings D Dsf settings.level3.harvestReadCap (histAt c i) ω
+    roundReads settings D Dsf (codeLen settings D) (histAt c i) ω
       (g ⟨i, h.1⟩) else ∅
 
 omit [IsProbabilityMeasure μ] in
@@ -358,7 +362,6 @@ lemma histReads_mono {c c' : List (HarvestCode α)} {r r' : ℕ}
 
 /-- The earlier rounds are fixed by the answers at the strings they read. -/
 theorem hist_congr [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (hN : L + settings.level3.probeBudget ≤ settings.level3.harvestReadCap)
     (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     ∀ (r : ℕ) (ω ω' : Ω), HistOK settings O D Dsf ω g r →
       (∀ w ∈ histReads settings D Dsf (histCodes settings O D Dsf ω g r) g r ω,
@@ -379,24 +382,26 @@ theorem hist_congr [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.t
       · rw [codesOf_append_single]; exact List.prefix_append _ _
       · exact List.prefix_refl _
     have hlenle : c.length ≤ y.length := hpre.length_le
-    obtain ⟨hokω', hc'⟩ := hist_congr hlen hN g r ω ω' hok' fun w hw => h w
+    obtain ⟨hokω', hc'⟩ := hist_congr hlen g r ω ω' hok' fun w hw => h w
       ((histReads_mono settings D Dsf g ω (Nat.le_succ r) hpre fun i _ hi => hi.trans hlenle) hw)
     by_cases hrK : r < K
-    · have hy : y = if c.length = r then c ++ (popCode settings.level3.harvestReadCap
+    · have hy : y = if c.length = r then c ++ (popCode (codeLen settings D)
           (idealRound settings O D Dsf (dec c) (ω, g ⟨r, hrK⟩))).toList else c :=
-        codesOf_idealRounds_succ settings O D Dsf hlen hN (fun i => (ω, g i)) r hrK
+        codesOf_idealRounds_succ settings O D Dsf (ae_lenBound hlen) (N := codeLen settings D) le_rfl (fun i => (ω, g i)) r
+          hrK
       have hy' : histCodes settings O D Dsf ω' g (r + 1) = if c.length = r then
-          c ++ (popCode settings.level3.harvestReadCap
+          c ++ (popCode (codeLen settings D)
             (idealRound settings O D Dsf (dec c) (ω', g ⟨r, hrK⟩))).toList
             else c := by
-        have := codesOf_idealRounds_succ settings O D Dsf hlen hN (fun i => (ω', g i)) r hrK
-        rw [show codesOf settings.level3.harvestReadCap
+        have := codesOf_idealRounds_succ settings O D Dsf (ae_lenBound hlen) (N := codeLen settings D) le_rfl
+          (fun i => (ω', g i)) r hrK
+        rw [show codesOf (codeLen settings D)
             (idealRounds settings O D Dsf (fun i => (ω', g i)) r) = c from hc'] at this
         exact this
       by_cases hcl : c.length = r
       · have hr := hret hrK hcl
         -- round `r`'s reads are among the history's
-        have hround : ∀ w ∈ roundReads settings D Dsf settings.level3.harvestReadCap (dec c) ω
+        have hround : ∀ w ∈ roundReads settings D Dsf (codeLen settings D) (dec c) ω
             (g ⟨r, hrK⟩), (O.mq w ω = 1 ↔ O.mq w ω' = 1) := by
           intro w hw
           refine h w (Finset.mem_biUnion.2 ⟨r, Finset.mem_range.2 (Nat.lt_succ_self r), ?_⟩)
@@ -408,7 +413,7 @@ theorem hist_congr [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.t
           simp only [dif_pos (show r < K ∧ r ≤ y.length from ⟨hrK, hry⟩), histAt]
           rw [hyt]
           exact hw
-        have hpc := popCode_congr settings O D Dsf settings.level3.harvestReadCap (dec c)
+        have hpc := popCode_congr settings O D Dsf (codeLen settings D) (dec c)
           (g ⟨r, hrK⟩) hr hround
         refine ⟨⟨hokω', fun h' hl' => ?_⟩, ?_⟩
         · rw [hc'] at hl' ⊢

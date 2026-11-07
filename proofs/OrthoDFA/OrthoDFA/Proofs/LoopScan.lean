@@ -284,52 +284,8 @@ theorem roundOf_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
   simp only
   rw [← hpred, hr.clusterAt O.mq hB, hr.1, clusterKeys, clusterKeys, hr.roundPrefs, hr.roundSuffs]
 
-theorem roundOf_result (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D : Measure (FreeMonoid α)) (h : LoopHist α) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
-    (u : Fin settings.level3.probeBudget → unitInterval) :
-    (roundOf settings O D h x u).result = Random.indecisiveLStarLevel3 settings.level3
-      (roundOf settings O D h x u).read fun i => drawFrom (avoidLaw D settings.level3.walkStart
-        (clusterKeys (settings.schedule (loopPopulations K h.pops.length))
-          (loopPopulations K h.pops.length) settings.level3.walkStart x)) (u i) := rfl
-
-open scoped Classical in
-/-- The round fails where level 3's uncapped run ends with more than `leafCap` leaves. -/
-theorem loopRound_eq (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
-    (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) :
-    loopRound settings O D Dsf h d =
-      (clusterDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap
-          h (d.1, d.2.1)).bind fun dr =>
-        if ScanWithin (settings.schedule (loopPopulations K h.pops.length))
-            (loopPopulations K h.pops.length) settings.scanCap dr
-            ∧ (∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
-              streams (fun _ => ∅) none dr ∈ ret O.mq (loopPopulations K h.pops.length) none
-                settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
-            ∧ (roundOf settings O D h (streams (fun _ => ∅) none dr)
-              d.2.2).result.hypothesis.tree.leaves.length ≤ settings.level3.leafCap
-        then some (roundOf settings O D h (streams (fun _ => ∅) none dr) d.2.2)
-        else none := by
-  classical
-  unfold loopRound
-  dsimp only
-  refine congrArg _ (funext fun dr => ?_)
-  by_cases hc : ScanWithin (settings.schedule (loopPopulations K h.pops.length))
-      (loopPopulations K h.pops.length) settings.scanCap dr
-      ∧ ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
-        streams (fun _ => ∅) none dr ∈ ret O.mq (loopPopulations K h.pops.length) none
-          settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
-  · rw [if_pos hc]
-    by_cases hl : (roundOf settings O D h (streams (fun _ => ∅) none dr)
-        d.2.2).result.hypothesis.tree.leaves.length ≤ settings.level3.leafCap
-    · rw [if_pos ⟨hc.1, hc.2, hl⟩, Random.level3Capped_eq, ← roundOf_result, if_pos hl,
-        Option.map_some]
-    · rw [if_neg fun h' => hl h'.2.2, Random.level3Capped_eq, ← roundOf_result, if_neg hl,
-        Option.map_none]
-  · rw [if_neg hc, if_neg fun h' => hc ⟨h'.1, h'.2.1⟩]
-
 /-- Where the filled draws after the history `h` hit, scan within `scanCap` and return at a
-scheduled state, and level 3 on them keeps within `leafCap` leaves, the round is the one on the
-filled draws. -/
+scheduled state, the round is the one on the filled draws. -/
 theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
@@ -341,10 +297,7 @@ theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
     (hret : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
       idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)
         ∈ ret O.mq (loopPopulations K h.pops.length) none settings.η₀ settings.indecisionLimit
-          settings.εcov settings.gateLevel B)
-    (hcap : (roundOf settings O D h
-      (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))
-      d.2.2).result.hypothesis.tree.leaves.length ≤ settings.level3.leafCap) :
+          settings.εcov settings.gateLevel B) :
     loopRound settings O D Dsf h d = some (roundOf settings O D h
       (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))
       d.2.2) := by
@@ -358,11 +311,10 @@ theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
         settings.indecisionLimit settings.εcov settings.gateLevel B := by
     obtain ⟨B, hB, hx⟩ := hret
     exact ⟨B, hB, (hsr.ret O.mq none _ _ _ _ hB).1 hx⟩
-  rw [loopRound_eq]
+  unfold loopRound
   simp only [hdr, Option.bind_some]
-  have hro := roundOf_congr settings O D h hsr' hret' d.2.2
-  rw [if_pos ⟨scanWithin_agree hag.symm hscan, hret', by rw [hro]; exact hcap⟩]
-  exact congrArg some hro
+  rw [if_pos ⟨scanWithin_agree hag.symm hscan, hret'⟩]
+  exact congrArg some (roundOf_congr settings O D h hsr' hret' d.2.2)
 
 end OrthoDFA
 

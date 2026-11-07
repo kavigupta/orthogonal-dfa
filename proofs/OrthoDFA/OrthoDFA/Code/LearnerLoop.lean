@@ -13,9 +13,8 @@ a draw from it walks fresh probes from the probes' distribution `D` under the ro
 hypothesis, at most level 3's `harvestReadCap` of them, and takes the first string undecided
 at the harvest's site, as the round reads them, that no earlier clustering read. The first
 population is `D` itself. Each population's streams are its first `scanCap` draws; the round fails
-if a harvested draw finds no string, the clustering would read past them, no state of the
-schedule returns, or level 3's tree grows past `leafCap` leaves, and the loop fails with it. Draws
-are made from uniforms (`drawFrom`).
+if a harvested draw finds no string, the clustering would read past them, or no state of the
+schedule returns, and the loop fails with it. Draws are made from uniforms (`drawFrom`).
 
 The clustering is the one `ClusteringQualityGuarantee` is about, every population tame and none
 harvested into a table: the family is `clusterAt` at a state of the schedule at which `ret`
@@ -47,9 +46,6 @@ outer resampling loop is unbounded.
 
 Known modelling gap. The Python reads the family with its seed, at `pst.accept_thresh` and
 `pst.reject_thresh`.
-
-Known modelling gap. Level 3 here fails once its tree has more than `leafCap` leaves, `|Q| + 2` in
-the claims. The Python's `CounterexampleSearch` has no such cap, as it does not know `|Q|`.
 
 Known modelling gap. `counterexample_driven_synthesis` also runs the certificate, halves the FNR
 limit, stops on a stall or on certificate patience and returns the
@@ -287,8 +283,7 @@ def roundOf {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
 open scoped Classical in
 /-- The round after the history `h`: the clustering's draws off what the earlier rounds read, then
 the clustering on them and level 3.  `none` if a harvested draw misses, the clustering would read
-past the `scanCap` draws, no state of the schedule returns, or level 3's tree grows past `leafCap`
-leaves. -/
+past the `scanCap` draws, or no state of the schedule returns. -/
 def loopRound {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) :
@@ -299,13 +294,7 @@ def loopRound {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid �
     if ScanWithin (settings.schedule ps) ps settings.scanCap dr
         ∧ ∃ B ∈ settings.schedule ps, streams (fun _ => ∅) none dr
           ∈ ret O.mq ps none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
-    then
-      let x := streams (fun _ => ∅) none dr
-      let o := roundOf settings O D h x d.2.2
-      let K₀ := clusterKeys (settings.schedule ps) ps settings.level3.walkStart x
-      (Random.level3Capped settings.level3 o.read fun i =>
-          drawFrom (avoidLaw D settings.level3.walkStart K₀) (d.2.2 i)).map
-        fun res => { o with result := res }
+    then some (roundOf settings O D h (streams (fun _ => ∅) none dr) d.2.2)
     else none
 
 def RoundEnd.harvested {H : Type*} : RoundEnd H → Option H

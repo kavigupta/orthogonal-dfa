@@ -112,7 +112,9 @@ def describe(restart, y, data):
 
 
 def minimal_dfa(table, accepting):
-    return DFA(
+    """States numbered breadth-first from the start: minify's numbering changes with the
+    hash seed, and graphviz's layout with the numbering."""
+    dfa = DFA(
         states=set(range(len(table["transitions"]))),
         input_symbols=set(range(VOCAB.alphabet_size)),
         transitions={
@@ -122,6 +124,25 @@ def minimal_dfa(table, accepting):
         initial_state=table["start"],
         final_states={q for q, a in enumerate(accepting) if a},
     ).minify()
+    order = [dfa.initial_state]
+    i = 0
+    while i < len(order):
+        for c in sorted(dfa.input_symbols):
+            t = dfa.transitions[order[i]][c]
+            if t not in order:
+                order.append(t)
+        i += 1
+    number = {q: i for i, q in enumerate(order)}
+    return DFA(
+        states=set(number.values()),
+        input_symbols=dfa.input_symbols,
+        transitions={
+            number[q]: {c: number[t] for c, t in dfa.transitions[q].items()}
+            for q in order
+        },
+        initial_state=0,
+        final_states={number[q] for q in dfa.final_states},
+    )
 
 
 def product_parts(y, data, run):

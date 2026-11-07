@@ -63,8 +63,6 @@ structure Level3Settings where
   probeBudget : ℕ
   /-- The cap on probes the bounded-rejection harvest sampler draws per population draw. -/
   harvestReadCap : ℕ
-  /-- The round fails once its tree has more leaves than this. -/
-  leafCap : ℕ
 
 /-- The tests' level under the `j`-th hypothesis. -/
 noncomputable def Level3Settings.level (C : Level3Settings) (j : ℕ) : ℝ :=
@@ -172,23 +170,6 @@ noncomputable def indecisiveLStarLevel3 (settings : Level3Settings)
     (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α) : Level3Result α :=
   let r := runProbes read settings initialState (List.ofFn draws)
   ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩
-
-/-- `runProbes`, `none` at a state with more than `leafCap` leaves. -/
-noncomputable def runProbesCapped (read : FreeMonoid α → ARU) (C : Level3Settings) :
-    Level3State α → List (FreeMonoid α) → Option (Level3State α × RoundEnd Level3Site)
-  | s, [] => if s.tree.leaves.length ≤ C.leafCap then some (s, .failed) else none
-  | s, x :: xs =>
-    if s.tree.leaves.length ≤ C.leafCap then
-      match applyProbe read C s x with
-      | .inl s' => runProbesCapped read C s' xs
-      | .inr e => some (s, e)
-    else none
-
-/-- `indecisiveLStarLevel3`, `none` once its tree has more than `leafCap` leaves. -/
-noncomputable def level3Capped (settings : Level3Settings) (read : FreeMonoid α → ARU) {P : ℕ}
-    (draws : Fin P → FreeMonoid α) : Option (Level3Result α) :=
-  (runProbesCapped read settings initialState (List.ofFn draws)).map
-    fun r => ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩
 
 end Random
 
