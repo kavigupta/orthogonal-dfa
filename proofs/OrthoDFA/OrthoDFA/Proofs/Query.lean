@@ -157,21 +157,6 @@ omit instQ in
     · exact ih
     · rfl
 
-lemma mem_reads_findSome {xs : List δ} {q : Q} (hq : q ∈ (findSome f xs).reads o) :
-    ∃ x ∈ xs, q ∈ (f x).reads o := by
-  induction xs with
-  | nil => simp [findSome] at hq
-  | cons x xs ih =>
-    simp only [findSome, reads_bind, Finset.mem_union] at hq
-    rcases hq with hq | hq
-    · exact ⟨x, by simp, hq⟩
-    · rcases hx : (f x).eval o with _ | y
-      · rw [hx] at hq
-        obtain ⟨x', hx', hq'⟩ := ih hq
-        exact ⟨x', by simp [hx'], hq'⟩
-      · rw [hx] at hq
-        simp at hq
-
 lemma card_reads_findSome_le (xs : List δ) {n : ℕ} (hn : ∀ x ∈ xs, ((f x).reads o).card ≤ n) :
     ((findSome f xs).reads o).card ≤ xs.length * n := by
   induction xs with

@@ -71,18 +71,19 @@ theorem rlStarClaim_holds : RLStarClaim := by
       hfl' ⟨q, hq⟩) hp₀
   refine ⟨settings, hw, hcnt, fun q ⟨rounds, s, hout, _, hlv⟩ => ?_, ?_⟩
   · obtain ⟨r, hr, he⟩ :=
-      Option.map_eq_some_iff.1 ((indecisiveLStar_eq O settings _ _ q.1 q.2).symm.trans hout)
+      Option.bind_eq_some_iff.1 ((indecisiveLStar_eq O settings _ _ q.1 q.2).symm.trans hout)
+    obtain ⟨-, -, he⟩ := Option.map_eq_some_iff.1 he
     exact ⟨hcalls q.1 q.2 rounds ((Prod.mk.inj he).1 ▸ hr) hlv,
       fun o ho => Query.eval_congr _ _ ho⟩
   rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
   refine le_trans (measureReal_mono (fun q hq => ?_) (measure_ne_top _ _)) hprob
-  simp only [Set.mem_setOf_eq, LoopSucceeds] at hq ⊢
+  simp only [Set.mem_setOf_eq, RLStarSucceeds] at hq ⊢
   rintro ⟨rounds, hr, ⟨hlen, o, ho, hend, herr⟩, hlv⟩
+  have ho' : rounds.getLast? = some o := ho
   refine hq ⟨rounds, startLeaf O q.1.1 rounds q.2, ?_, ⟨hlen, o, ho, hend, ?_⟩, hlv⟩
   · rw [indecisiveLStar_eq, hr]
-    rfl
-  · rw [Option.mem_def] at ho
-    simp only [startLeaf, ho]
+    simp only [Option.bind_some, ho', Option.map_some]
+  · simp only [startLeaf, ho']
     exact herr
 
 theorem rlStarClaimUniform_holds : RLStarClaimUniform :=
