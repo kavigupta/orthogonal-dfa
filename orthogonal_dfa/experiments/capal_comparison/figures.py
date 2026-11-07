@@ -269,8 +269,9 @@ GRID_PANELS = [
 # between the cells of a row.
 GRID_COLUMN = "0.62cm"
 GRID_CELL = "0.42cm"
-GRID_MACROS = r"""\definecolor{bgsolved}{HTML}{1F5FA8}
-\definecolor{bgfailed}{HTML}{BF8330}
+# the paper's light blue and orange (frame-alignment-checks' bar colors)
+GRID_MACROS = r"""\definecolor{bgsolved}{HTML}{80CDFF}
+\definecolor{bgfailed}{HTML}{FFCA80}
 \def\bgcell#1#2#3#4{
     \begin{scope}[shift={(#1 + 0.5, -#2 - 0.5)}, x=CELL, y=CELL]
         \fill[bg#3] (-0.5, -0.5) rectangle (0.5, 0.5);
