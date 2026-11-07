@@ -44,8 +44,8 @@ checking the code that made them, so delete them after changing a learner or a s
 
 ### CAPAL comparison
 
-The matched budget is the queries E-L* spent in `our_benchmarks.json`, so it has to be
-rerun whenever E-L*'s cells there are.
+The matched budget is the queries E-L* spent in `our_benchmarks.json`, so its cells rerun
+on their own when that spend changes.
 
 ```bash
 # everything
@@ -55,7 +55,7 @@ scripts/capal_delete_results.sh
 rm data/capal/capal_benchmarks.json
 
 # our benchmarks, both learners
-rm data/capal/our_benchmarks.json data/capal/matched_budget.json
+rm data/capal/our_benchmarks.json
 
 # hyperparameter sweep
 rm data/capal/wall_sweep.json
@@ -68,7 +68,6 @@ for f in data/capal/capal_benchmarks.json data/capal/our_benchmarks.json; do
     jq '.cells |= map(select(.learner != "E-L*"))' "$f" > "$f.new"
     mv "$f.new" "$f"
 done
-rm data/capal/matched_budget.json
 ```
 
 ### Random suite
