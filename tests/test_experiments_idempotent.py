@@ -48,7 +48,7 @@ class TestSavedResults(unittest.TestCase):
         for module, workers, argv in ENTRY_POINTS:
             with self.subTest(module=module.__name__, argv=argv):
                 failing = {w: mock.Mock(side_effect=AssertionError(w)) for w in workers}
-                with mock.patch.multiple(module, **failing), mock.patch(
+                with mock.patch.dict(vars(module), failing), mock.patch(
                     "sys.argv", ["main", *argv]
                 ), mock.patch("multiprocessing.Pool", ThreadPool), mock.patch(
                     "builtins.print"
