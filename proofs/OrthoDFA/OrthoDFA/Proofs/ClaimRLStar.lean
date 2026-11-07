@@ -1,17 +1,19 @@
 import OrthoDFA.Claims.RLStar
 import OrthoDFA.Proofs.LoopDFASummed
 import OrthoDFA.Proofs.ClaimRLStarUniform
+import OrthoDFA.Proofs.ClaimReadsArith
 
 /-!
 # The learner's costs, asymptotically: the proof
 
 `learner_loop_dfa_dist_tol` bounds, for every draw, the loop's reads by `(|Q| + 1)` rounds of
-`6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, and its probes by
-`(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`, once `D` holds at most
-`1/loopTolInv ℓ` on any first `k` letters. The claim runs it at `c = ξ/(2R)`,
-`ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last round's leaf from `summed_bridge`;
-`ClaimRLStarArith` bounds those shapes. `RLStarClaimUniform` and `RLStarClaimUniformSimple` follow
-(`ClaimRLStarUniform`).
+`6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, its probes by `(|Q| + 1) loopBudget`,
+and the strings the learner asks the oracle by `learnerReads`, all at `ℓ = L + |Q| + 4`, once `D`
+holds at most `1/loopTolInv ℓ` on any first `k` letters; `Query.eval_congr` is the rest of the
+reads conjunct. The claim runs
+it at `c = ξ/(2R)`, `ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last round's leaf from
+`summed_bridge`; `ClaimRLStarArith` and `ClaimReadsArith` bound those shapes. `RLStarClaimUniform`
+and `RLStarClaimUniformSimple` follow (`ClaimRLStarUniform`).
 -/
 
 noncomputable section
@@ -21,8 +23,9 @@ namespace OrthoDFA
 open MeasureTheory Asymptotics Filter Real
 
 theorem rlStarClaim_holds : RLStarClaim := by
-  refine ⟨distP₀Tol, distPref, distSuff, distProbes, distHeldOut, distP₀Tol_isBigO,
-    distPref_isBigO, distSuff_isBigO, distProbes_isBigO, distHeldOut_isBigO, distP₀Tol_pos, ?_⟩
+  refine ⟨distP₀Tol, distPref, distSuff, distProbes, distReads, distHeldOut, distP₀Tol_isBigO,
+    distPref_isBigO, distSuff_isBigO, distProbes_isBigO, distReads_isBigO, distHeldOut_isBigO,
+    distP₀Tol_pos, ?_⟩
   intro α _ _ _ σ _ Ω _ μ _ x
   obtain ⟨⟨Q, A, δ, R, ξ, pAP, s₀⟩, β⟩ := x
   intro M O L γ D _ k L₁ Ls hx hQ hA hL hηle hlong hpre hfl hpAPu hdom
@@ -59,14 +62,15 @@ theorem rlStarClaim_holds : RLStarClaim := by
           (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
           (1 / 2 - s₀)) := rfl
     rw [e, max_eq_right hM1]
-  obtain ⟨settings, hw, -, -, -, -, hcnt, hprob⟩ := learner_loop_dfa_dist_tol M O L D
+  obtain ⟨settings, hw, -, -, -, -, hcnt, hcalls, hprob⟩ := learner_loop_dfa_dist_tol M O L D
     (1 / 2 - s₀)
     (ξ / (2 * R)) (γ + 3 * ξ / 4) δ pAP (ξ / 4) (1 / β + Fintype.card σ) _ hL hηle hη₀ hc0 hc1 hδ
     (by linarith) hpAP (by positivity) hA2
     (by have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _; linarith) hlong hpre hpAPu
     (summed_bridge M O hL L D (by linarith) hξ hAe (hlong.mono fun x hx => le_trans (by omega) hx)
       hfl' ⟨q, hq⟩) hp₀
-  refine ⟨settings, hw, hcnt, ?_⟩
+  refine ⟨settings, hw, hcnt, fun q ⟨rounds, hr, _, hlv⟩ =>
+    ⟨hcalls q.1 q.2 rounds hr hlv, fun o ho => Query.eval_congr _ _ ho⟩, ?_⟩
   rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
   exact hprob
 

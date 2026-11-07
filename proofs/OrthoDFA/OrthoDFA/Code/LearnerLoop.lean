@@ -23,8 +23,6 @@ without its seed, at the gate's cut: a string reads accept at `hi + 1` or more o
 votes and reject at `lo` or fewer. Without its seed the family is suffix draws of one length, so
 it is suffix-free.
 
-The whole run reads one noise, fixed per string as the Python's is.
-
 Known modelling gap. The round draws its probes from `D` conditioned on their first `walkStart`
 letters avoiding those of every prefix the round's clustering read, so that it never reads a string
 the clustering read. The Python draws them from `D`.
@@ -236,7 +234,6 @@ def histOf (rounds : List (LoopRound α)) : LoopHist α :=
   ⟨rounds.filterMap fun o => o.sampler,
     rounds.foldr (fun o T => o.prefs ∪ T) ∅, rounds.foldr (fun o T => o.suffs ∪ T) ∅⟩
 
-/-- Every string the clustering asks at the states of `sched`. -/
 def clusterReads {K : ℕ} (sched : Finset State) (pops : Finset (Option (Fin K)))
     (x : Run Ω (FreeMonoid α) (Option (Fin K))) : Finset (FreeMonoid α) :=
   (roundPrefs sched pops x ×ˢ insert 1 (roundSuffs sched x)).image fun z => z.1 * z.2
