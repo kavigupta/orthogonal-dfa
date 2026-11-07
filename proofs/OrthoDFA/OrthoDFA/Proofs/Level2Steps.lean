@@ -357,7 +357,7 @@ theorem split_count {side : σ → Bool} (hI : ReadsByState read M side) {T : DT
           by_contra h
           simp only [Bool.not_eq_false, List.isPrefixOf_iff_prefix] at h
           exact hne (eq_of_prefix_leaves T hp hqT h).symm
-        simp only [E', retarget, hpq, Bool.false_eq_true, if_false] at hnone
+        simp only [E', retarget_eq, hpq, Bool.false_eq_true, if_false] at hnone
         rcases hEq : E (q, c) with _ | ⟨t, w⟩
         · exact Or.inl (Or.inl ⟨hqT, rfl⟩)
         · rw [hEq] at hnone
@@ -418,15 +418,32 @@ theorem split_count {side : σ → Bool} (hI : ReadsByState read M side) {T : DT
     omega
   omega
 
-omit [DecidableEq α] in
+/-- The split's unlearned edges are those of every edge retargeted. -/
+theorem unlearnedOf_split {H : HypothesisDFA α} {p : List Bool} (hp : p ∈ H.tree.leaves)
+    (d : FreeMonoid α) :
+    unlearnedOf (H.split read d p).tree (H.split read d p).edges
+      = unlearnedOf (H.tree.splitAt d p) (retarget read (H.tree.splitAt d p) p H.edges) := by
+  unfold unlearnedOf
+  rw [HypothesisDFA.split_tree]
+  congr 1
+  refine Finset.filter_congr fun qc hq => ?_
+  rw [split_edges_of_mem read hp d (List.mem_toFinset.1 (Finset.mem_product.1 hq).1)]
+
 /-- A split within `|Q| + 2` leaves lowers `Φ`. -/
 theorem Φ_lt_split {side : σ → Bool} (hI : ReadsByState read M side) {s : State α}
     (hE : EdgesOK read s.tree s.edges) {p : List Bool} (hp : p ∈ s.tree.leaves) (d : FreeMonoid α)
     (hsz : (s.tree.splitAt d p).leaves.length ≤ Fintype.card σ + 2) (j : ℕ) :
-    Φ read M (newHypothesis (s.tree.splitAt d p) (retarget read (s.tree.splitAt d p) p s.edges) j)
-      < Φ read M s := by
+    let H := (HypothesisDFA.mk s.tree s.edges).split read d p
+    Φ read M (newHypothesis H.tree H.edges j) < Φ read M s := by
   have h := split_count read M hI hE hp d
+  have ht : ((HypothesisDFA.mk s.tree s.edges).split read d p).tree = s.tree.splitAt d p :=
+    HypothesisDFA.split_tree read d
+  have hu : unlearnedOf ((HypothesisDFA.mk s.tree s.edges).split read d p).tree
+      ((HypothesisDFA.mk s.tree s.edges).split read d p).edges
+      = unlearnedOf (s.tree.splitAt d p) (retarget read (s.tree.splitAt d p) p s.edges) :=
+    unlearnedOf_split read hp d
   simp only [Φ, unlearned, newHypothesis]
+  rw [hu, ht]
   rw [DTree.length_leaves_splitAt d s.tree p hp] at hsz ⊢
   have h2 : Fintype.card σ + 2 - s.tree.leaves.length
       = Fintype.card σ + 2 - (s.tree.leaves.length + 1) + 1 := by omega
@@ -525,7 +542,8 @@ theorem step_change [Fintype α] (hI : ReadsByState read M side)
       · simpa [mul_assoc] using hpart.2.1
       · simpa [mul_assoc] using hpart.2.2
     simp only [hE]
-    exact ⟨_, _, rfl, inv_fresh read C hn (edgesOK_retarget read hs.edges hp _) hreach,
+    exact ⟨_, _, rfl, inv_fresh read C hn (edgesOK_split read hs.edges hp _)
+      (by rw [HypothesisDFA.split_tree]; exact hreach),
       Φ_lt_split read M hI hs.edges hp _ (leaves_le_of_reached read hI hreach) _⟩
 
 omit [DecidableEq α] in
@@ -567,7 +585,7 @@ theorem inv_counted (hC : TestsOK C) {s : State α} (hs : Inv read C s) {o : Out
 
 /-- A step that keeps the hypothesis counts the probe: the round goes on with neither test firing,
 harvests with the undecided reads' test firing, or ends consistent with the disagreements'. -/
-theorem step_same (hC : TestsOK C) {s : State α} (hs : Inv read C s) {x : FreeMonoid α}
+theorem step_same [Fintype α] (hC : TestsOK C) {s : State α} (hs : Inv read C s) {x : FreeMonoid α}
     (hc : ¬ Changes (probeOrAgree read s.tree s.edges C.walkStart x))
     (hlen : (probeOrAgree read s.tree s.edges C.walkStart x).undecidedStrings.length ≤ 1) :
     let s' := counted s (probeOrAgree read s.tree s.edges C.walkStart x)
@@ -595,6 +613,66 @@ theorem step_same (hC : TestsOK C) {s : State α} (hs : Inv read C s) {x : FreeM
     · exact Or.inl ⟨rfl, inv_counted read C hC hs hOK hc hlen h1 h2, h1⟩
 
 end Step
+
+/-! ## Learned edges stay at leaves -/
+
+section Keys
+
+variable [Fintype α]
+
+def KeyInv (s : State α) : Prop := EdgesOK read s.tree s.edges ∧ EdgesAtLeaves ⟨s.tree, s.edges⟩
+
+omit [Fintype α] in
+theorem keyInv_keep {s s' : State α} {n d : ℕ} (hs : KeyInv read s)
+    (h : keep C s n d = .inl s') : KeyInv read s' := by
+  unfold keep at h
+  dsimp only at h
+  split_ifs at h <;> cases h
+  exact hs
+
+theorem keyInv_step {s s' : State α} {x : FreeMonoid α} (hs : KeyInv read s)
+    (h : applyProbe read C s x = .inl s') : KeyInv read s' := by
+  have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.1 x
+  unfold applyProbe at h
+  generalize probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK
+  cases o with
+  | unlearnedEdge p c u t =>
+    obtain ⟨hp, hu, huc, -⟩ := hOK
+    simp only [Sum.inl.injEq] at h
+    subst h
+    refine ⟨edgesOK_upd read hs.1 hu huc, fun e t' w he => ?_⟩
+    simp only [newHypothesis] at he ⊢
+    by_cases hep : e = (p, c)
+    · subst hep; exact hp
+    · rw [Function.update_of_ne hep] at he
+      exact hs.2 e t' w he
+  | wrongEdge p c u t =>
+    obtain ⟨hp, -, -, t₀, w₀, hE, -⟩ := hOK
+    simp only [hE, Sum.inl.injEq] at h
+    subst h
+    exact ⟨edgesOK_split (H := ⟨s.tree, s.edges⟩) read hs.1 hp _,
+      edgesAtLeaves_split (H := ⟨s.tree, s.edges⟩) read _⟩
+  | agree => exact keyInv_keep read C hs h
+  | undecidedStart z => exact keyInv_keep read C hs h
+  | undecided zs cl => cases cl <;> exact keyInv_keep read C hs h
+
+theorem keyInv_runProbes : ∀ (xs : List (FreeMonoid α)) (s : State α), KeyInv read s →
+    KeyInv read (runProbes read C s xs).1
+  | [], _, hs => hs
+  | x :: xs, s, hs => by
+    unfold runProbes
+    rcases ha : applyProbe read C s x with s' | e
+    · exact keyInv_runProbes xs s' (keyInv_step read C hs ha)
+    · exact hs
+
+theorem edgesAtLeaves_runProbes (xs : List (FreeMonoid α)) :
+    EdgesAtLeaves ⟨(runProbes read C initialState xs).1.tree,
+      (runProbes read C initialState xs).1.edges⟩ :=
+  (keyInv_runProbes read C xs initialState
+    ⟨fun _ _ _ _ _ h => by simp [initialState, newHypothesis] at h,
+      fun _ _ _ h => by simp [initialState, newHypothesis] at h⟩).2
+
+end Keys
 
 end Level2
 

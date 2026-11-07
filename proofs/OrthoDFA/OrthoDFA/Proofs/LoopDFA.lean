@@ -4,6 +4,7 @@ import OrthoDFA.Proofs.UniformStrings
 import OrthoDFA.Proofs.DFABridge
 import OrthoDFA.Proofs.LoopDFAArith
 import OrthoDFA.Proofs.LoopSelect
+import OrthoDFA.Proofs.LoopQuery
 
 /-!
 # The learner's DFA: the proof
@@ -66,8 +67,9 @@ theorem readProb_sum (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)
     (w : FreeMonoid α) :
     readProb O F kl kh w .accept + readProb O F kl kh w .reject
       + readProb O F kl kh w .undecided = 1 := by
-  have hm : ∀ v : ARU, MeasurableSet {ω | familyRead O.mq F kl kh w ω = v} := fun v =>
-    (measurable_voteCount O F w) ((Set.to_countable {j | readOf kl kh j = v}).measurableSet)
+  have hm : ∀ v : ARU, MeasurableSet {ω | familyRead O.mq F kl kh w ω = v} := fun v => by
+    simp only [familyRead_eq]
+    exact (measurable_voteCount O F w) ((Set.to_countable {j | readOf kl kh j = v}).measurableSet)
   unfold readProb
   rw [← measureReal_union (Set.disjoint_left.2 fun ω h1 h2 => by
       simp only [Set.mem_setOf_eq] at h1 h2; rw [h1] at h2; cases h2) (hm _),
@@ -115,7 +117,7 @@ are at most half of each state's strings shorter than `L + 1`, plus `εm`, both 
 against the coverage `c`, has a leaf from which its hypothesis misjudges at most what re-rooting
 at a covered start does, `D` extending each prefix by each letter at least `1/Ae` of the time. -/
 theorem dfa_of_checks (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
-    (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (o : LoopRound α)
+    (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) (o : SpecRound α)
     (L : ℕ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (hlong : ∀ᵐ x ∂D, L + Fintype.card σ + 3 ≤ x.toList.length) {Ae c εr εu εB εm γ : ℝ}
     (hAe : 0 ≤ Ae)
@@ -352,7 +354,7 @@ theorem covered_bridge {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] 
     let N : ℝ := L₁ + 1 - k
     let ε : ℝ := c / (4 * (Ae + 1) * N)
     let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
-    ∀ o : LoopRound α,
+    ∀ o : SpecRound α,
       o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
         (shortAt M (L + 1)) (ε + ε / 96) →
       ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
@@ -417,7 +419,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     (∀ᵐ w ∂D, Ls ≤ w.toList.length) →
     (∀ u, D.real {w | prefixOf w k = u} ≤ p₀) →
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-    (∀ o : LoopRound α,
+    (∀ o : SpecRound α,
       o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
         (shortAt M (L + 1)) (ε + ε / 96) →
       ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
@@ -444,7 +446,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
               q.1 = some rounds ∧
           (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
               o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
-                o.result.hypothesis.rerootedDFA o.read q.2 x
+                o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                   (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
           ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
         ≤ δ := by
@@ -575,17 +577,18 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     positivity
   refine ⟨settings, hwalk, hdis, hbud, hHN, hSC,
     fun p rounds hr => ?_, ?_⟩
-  · obtain ⟨hlr, hpr, hsu⟩ := loop_reads_le_op settings O
+  · obtain ⟨rs, hrs, rfl⟩ := indecisiveLStarLoop_some O hr
+    obtain ⟨hlr, hpr, hsu⟩ := loop_reads_le_op settings O
       (windowLaw D k L₁)
-      (prefixLaw D Ls) p _ _
-      hreads rounds hr
+      (prefixLaw D Ls) (persistDraws p) _ _
+      hreads rs hrs
+    rw [List.length_map]
     have hQ : Q = (Fintype.card σ : ℝ) := rfl
-    have e : ∀ (f : LoopRound α → ℕ)
-        (l : List (LoopRound α)),
-        (l.map fun o => (f o : ℝ)).sum = ((l.map f).sum : ℝ) := fun f l => by
-      rw [Nat.cast_list_sum, List.map_map]; rfl
-    refine ⟨hlr, (e _ _).trans_le ((Nat.cast_le.2 hpr).trans ?_),
-      (e _ _).trans_le ((Nat.cast_le.2 hsu).trans ?_)⟩
+    have e : ∀ f : LoopRound α → ℕ, ((rs.map SpecRound.data).map fun o => (f o : ℝ)).sum
+        = ((rs.map fun o => f o.data).sum : ℝ) := fun f => by
+      rw [Nat.cast_list_sum, List.map_map, List.map_map]; rfl
+    refine ⟨hlr, (e _).trans_le ((Nat.cast_le.2 hpr).trans ?_),
+      (e _).trans_le ((Nat.cast_le.2 hsu).trans ?_)⟩
     · calc (((Fintype.card σ + 1) * (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊) : ℕ) : ℝ)
           = (Q + 1) * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ)) := by rw [hQ]; push_cast; ring
         _ ≤ (Q + 1) * (6 * (Q + 2) * RB) :=
@@ -622,7 +625,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
         ∧ RoundsFresh settings O P.D Dsf Ls p
         ∧ ∀ r (hr : r < Fintype.card σ + 1),
           AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
-            RoundGood settings O P.D Dsf (histOf (idealRounds settings O P.D Dsf
+            RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
               (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))} with hBloopd
   -- the loop's last round, consistent and fresh, picks well unless its scores stray or a
   -- held-out string collides
@@ -633,7 +636,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
         q.1 = some rounds ∧
       (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
-            o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis o.read q.2) x
+            o.result.hypothesis.Classifies (pickLeaf o.result.hypothesis (o.read O q.1.1) q.2) x
               (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
       ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
       ⊆ (Prod.fst ⁻¹' Bloop) ∪ ⋃ r : Fin (Fintype.card σ + 1),
@@ -650,7 +653,14 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     refine Set.mem_iUnion.2 ⟨⟨r, hr⟩, ?_⟩
     by_contra hnot
     apply hq
-    refine ⟨_, idealRounds_mem_loop settings O Dsf P.D q.1 hrg, ⟨hlen, o, ho, hcons, ?_⟩, hlv⟩
+    have hloop := idealRounds_mem_loop settings O Dsf P.D (persistDraws q.1) hrg
+    have hro : o.read = o.data.read O q.1.1 :=
+      loopRounds_read O settings P.D Dsf q.1 _ hloop o (List.mem_of_getLast? ho)
+    refine ⟨_, by rw [indecisiveLStarLoop_eq, hloop]; rfl, ⟨by rwa [List.length_map], o.data,
+      by rw [List.getLast?_map, ho]; rfl, hcons, ?_⟩, fun o' ho' => by
+        obtain ⟨o'', ho'', rfl⟩ := List.mem_map.1 ho'
+        exact hlv o'' ho''⟩
+    rw [← hro]
     have hnot' : (q.1.1, q.2) ∉ SelBad O (prefixLaw D L) n (Fintype.card σ + 2) t
           (some (tt, resCode o.result))
         ∧ (q.1.2, q.2) ∈ SelDk settings P.D L n r hr (some (tt, resCode o.result)) := by
@@ -809,7 +819,7 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
               q.1 = some rounds ∧
           (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
               o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
-                o.result.hypothesis.rerootedDFA o.read q.2 x
+                o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                   (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
           ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
         ≤ δ := by
@@ -893,7 +903,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     (∀ᵐ w ∂D, Ls ≤ w.toList.length) →
     (∀ u, D.real {w | prefixOf w k = u} ≤ p₀) →
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-    (∀ o : LoopRound α,
+    (∀ o : SpecRound α,
       o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
         (shortAt M (L + 1)) (ε + ε / 96) →
       ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
@@ -920,7 +930,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
               q.1 = some rounds ∧
           (rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
               o.result.ending = .consistent ∧ (prefixLaw D L).real {x | ¬
-                o.result.hypothesis.rerootedDFA o.read q.2 x
+                o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 x
                   (M.eval x.toList ∈ M.accept)} ≤ γ + ξ) ∧
           ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2}
         ≤ δ := by

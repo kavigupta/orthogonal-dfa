@@ -92,7 +92,7 @@ theorem finish_inr {t : Level3State α} {e : RoundEnd Level3Site} (h : applyTest
 
 theorem step_inr {s : Level3State α} {x : FreeMonoid α} {e : RoundEnd Level3Site}
     (h : applyProbe read C s x = .inr e) : runTests C (countProbe read C s x) = some e := by
-  unfold applyProbe at h
+  simp only [applyProbe_eq] at h
   split at h
   · simp at h
   · split at h
@@ -115,7 +115,7 @@ theorem step_same_counts {s s' : Level3State α} (hs : Inv read s) {x : FreeMono
     exact absurd this (by simp)
   · exfalso
     have := congrArg List.length (congrArg DTree.leaves hsm.1)
-    simp only [splitLeaf, newHypothesis] at this
+    simp only [splitLeaf_eq, newHypothesis] at this
     rw [DTree.length_leaves_splitAt _ _ _ hp] at this
     omega
   · exact ⟨h1, h2, hinv, h3⟩
@@ -238,14 +238,14 @@ theorem stInv_countProbe {ys : List (FreeMonoid α)} {s : Level3State α}
   classical
   obtain ⟨htree, hedges, hhyp, hn, hdis, hst', hpt⟩ := hst
   subst htree hedges
-  refine ⟨rfl, rfl, hhyp, by simp [countProbe, hn], ?_, ?_, ?_⟩
-  · simp only [countProbe, hdis, countP_snoc]
+  refine ⟨rfl, rfl, hhyp, by simp [countProbe, countOutcome, hn], ?_, ?_, ?_⟩
+  · simp only [countProbe, countOutcome, hdis, countP_snoc]
     cases hb : searches (probeOrAgree read s.tree s.edges C.walkStart x) <;> simp [fS, hb]
-  · simp only [countProbe, List.length_append, hst', countP_snoc]
+  · simp only [countProbe, countOutcome, List.length_append, hst', countP_snoc]
     rw [length_le_one_eq _ (endsString_length _)]
     cases hb : (endsString (probeOrAgree read s.tree s.edges C.walkStart x)).isEmpty <;>
       simp [fE, hb]
-  · simp only [countProbe, List.length_append, hpt, countP_snoc]
+  · simp only [countProbe, countOutcome, List.length_append, hpt, countP_snoc]
     rw [length_le_one_eq _ (middleString_length _)]
     cases hb : (middleString (probeOrAgree read s.tree s.edges C.walkStart x)).isEmpty <;>
       simp [fP, hb]

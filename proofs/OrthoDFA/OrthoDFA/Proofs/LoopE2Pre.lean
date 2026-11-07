@@ -46,7 +46,7 @@ theorem level3Fail_congr_up (fam : SuffixFamily μ' α σ) (C : Random.Level3Set
   set H := (Random.indecisiveLStarLevel3 C (fun z => fam.read ω z) xs).hypothesis with hHd
   have hmid : Random.MidsLe C.probeBudget H.tree := by
     have := (Random.runProbes_tree (fun z => fam.read ω z) C (List.ofFn xs)).2.2
-    rwa [List.length_ofFn] at this
+    rwa [List.length_ofFn, ← Random.indecisiveLStarLevel3_tree] at this
   have hz : ∀ x : FreeMonoid α, x.toList.length ≤ L → ∀ j, j ≤ x.toList.length →
       ∀ m ∈ Random.mids H.tree, fam.read ω (prefixOf x j * m) = fam.read ω' (prefixOf x j * m) :=
     fun x hx j hj m hm => h _ (by

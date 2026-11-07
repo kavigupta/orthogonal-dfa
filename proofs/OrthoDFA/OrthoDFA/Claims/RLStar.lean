@@ -105,7 +105,7 @@ def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes : RLStarDist
             q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (prefixLaw D L).real {w | ¬
-              o.result.hypothesis.rerootedDFA o.read q.2 w
+              o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 w
                 (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ) ∧
         ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2}
       ≤ x.δ
@@ -178,7 +178,7 @@ def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
             (uniformStrings (L₁ + Fintype.card Q + 3)) q.1 = some rounds ∧
         (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
             o.result.ending = .consistent ∧ (uniformStrings L).real {w | ¬
-              o.result.hypothesis.rerootedDFA o.read q.2 w
+              o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 w
                 (M.eval w.toList ∈ M.accept)} ≤ γ + x.ξ) ∧
         ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2}
       ≤ x.δ

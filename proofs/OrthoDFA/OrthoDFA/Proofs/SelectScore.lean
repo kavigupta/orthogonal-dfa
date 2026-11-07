@@ -67,7 +67,7 @@ theorem measurable_agreeAt (s : List Bool) (x : FreeMonoid α) :
       ∧ H.Classifies s x (readOf kl kh j = .accept) then (1 : ℝ) else 0)
         ∘ fun ω => voteCount O.mq F x ω := by
     funext ω
-    rfl
+    simp only [agreeAt, familyRead_eq, Function.comp_apply]
   rw [e]
   exact measurable_from_nat.comp (measurable_voteCount O F x)
 
@@ -320,8 +320,10 @@ theorem pickLeaf_le (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
     {ω | familyRead O.mq F kl kh x ω = if x ∈ O.L then .reject else .accept}
   set und : FreeMonoid α → Set Ω := fun x => {ω | familyRead O.mq F kl kh x ω = .undecided}
   have hmeasR : ∀ x (S : Set ARU), MeasurableSet {ω | familyRead O.mq F kl kh x ω ∈ S} :=
-    fun x S => (measurable_from_nat.comp (measurable_voteCount O F x))
-      (MeasurableSpace.measurableSet_top (s := S))
+    fun x S => by
+      simp only [familyRead_eq]
+      exact ((measurable_from_nat (f := readOf kl kh)).comp (measurable_voteCount O F x))
+        (MeasurableSpace.measurableSet_top (s := S))
   have hmis : ∀ x, MeasurableSet (mis x) := fun x => hmeasR x {_}
   have hund : ∀ x, MeasurableSet (und x) := fun x => hmeasR x {_}
   -- decided and not misread, the read classifies as the target does

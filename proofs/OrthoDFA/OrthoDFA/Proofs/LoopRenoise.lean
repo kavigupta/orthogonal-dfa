@@ -53,8 +53,7 @@ lemma SuffixFamily.renoise_readDist (fam : SuffixFamily μ α σ) (R : Set (Free
 lemma renoise_read_of_notMem (fam : SuffixFamily μ α σ) (R : Set (FreeMonoid α))
     {z : FreeMonoid α} (hz : ∀ v ∈ fam.F, z * v ∉ R) (p : Ω × Ω) :
     (fam.renoise R).read p z = fam.read p.1 z := by
-  unfold SuffixFamily.read SuffixFamily.renoise familyRead voteCount
-  dsimp only
+  (unfold SuffixFamily.read SuffixFamily.renoise; simp only [familyRead_eq]; unfold voteCount)
   congr 2
   refine Finset.filter_congr fun v hv => ?_
   rw [renoise_mq_of_notMem fam.O (hz v hv)]

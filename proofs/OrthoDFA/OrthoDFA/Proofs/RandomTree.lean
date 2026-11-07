@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.RandomRisk
 import OrthoDFA.Proofs.Level2Steps
+import OrthoDFA.Proofs.Reads
 
 /-!
 # The tree and the steps under reads that are never wrong
@@ -22,12 +23,6 @@ variable {α : Type*}
 /-- No read is on its state's wrong side. -/
 def NoWrong {σ : Type*} (M : DFA α σ) (side : σ → Bool) (read : FreeMonoid α → ARU) : Prop :=
   ∀ z, read z ≠ if side (M.eval z.toList) then .reject else .accept
-
-open scoped Classical in
-/-- The midfixes of the tree's nodes. -/
-noncomputable def mids : DTree α → Finset (FreeMonoid α)
-  | .leaf => ∅
-  | .node m r a => insert m (mids r ∪ mids a)
 
 open scoped Classical in
 /-- The strings a probe of `x` can read: a prefix of length at least `k` followed by a midfix. -/
@@ -67,7 +62,7 @@ theorem sift_inl_congr {σ : Type*} {M : DFA α σ} {side : σ → Bool} (hW : N
     ∀ (T : DTree α) (p p' : List Bool), T.sift read z = .inl p → T.sift read z' = .inl p' →
       p = p'
   | .leaf, p, p', h, h' => by
-    simp only [DTree.sift, Sum.inl.injEq] at h h'; rw [← h, ← h']
+    simp only [DTree.sift_leaf, Sum.inl.injEq] at h h'; rw [← h, ← h']
   | .node m r a, p, p', h, h' => by
     have hs : M.eval (z * m).toList = M.eval (z' * m).toList := by
       simp only [FreeMonoid.toList_mul, DFA.eval, DFA.evalFrom_of_append]
@@ -75,7 +70,7 @@ theorem sift_inl_congr {σ : Type*} {M : DFA α σ} {side : σ → Bool} (hW : N
     have hw := hW (z * m)
     have hw' := hW (z' * m)
     rw [hs] at hw
-    simp only [DTree.sift] at h h'
+    simp only [DTree.sift_node] at h h'
     split at h <;> rename_i hr <;> split at h' <;> rename_i hr'
     · rcases hq : a.sift read z with q | q <;> rw [hq] at h <;> simp only [Sum.map_inl,
         Sum.map_inr, Sum.inl.injEq, reduceCtorEq] at h
@@ -215,7 +210,7 @@ theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read s)
     ∨ (s' = countProbe read C s x ∧ runTests C s' = none
         ∧ changes (probeOrAgree read s.tree s.edges C.walkStart x) = false) := by
   have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
-  unfold applyProbe at h
+  simp only [applyProbe_eq] at h
   generalize hg : probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK
   cases o with
   | unlearnedEdge p c u t =>
@@ -234,7 +229,7 @@ theorem changes_of_inr {s : Level3State α} (hs : Inv read s) {x : FreeMonoid α
     {e : RoundEnd Level3Site} (h : applyProbe read C s x = .inr e) :
     changes (probeOrAgree read s.tree s.edges C.walkStart x) = false := by
   have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
-  unfold applyProbe at h
+  simp only [applyProbe_eq] at h
   generalize hg : probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK
   cases o with
   | unlearnedEdge p c u t => simp at h
@@ -257,7 +252,7 @@ theorem step_same {s s' : Level3State α} (hs : Inv read s) {x : FreeMonoid α}
     exact absurd this (by simp)
   · exfalso
     have := congrArg List.length (congrArg DTree.leaves ht)
-    simp only [splitLeaf, newHypothesis] at this
+    simp only [splitLeaf_eq, newHypothesis] at this
     rw [DTree.length_leaves_splitAt _ _ _ hp] at this
     omega
   · exact ⟨⟨hs.edges, hs.cls, hs.two⟩, fun _ => rfl, rfl, rfl⟩
@@ -290,9 +285,10 @@ theorem split_ok (hW : NoWrong M side read) {s : Level3State α} (hs : Inv read 
     DTree.length_leaves_splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) s.tree p hp
   have ht := DTree.sift_inl_mem read _ _ t huc
   have ht₀ := DTree.sift_inl_mem read _ _ t₀ hw₀c
-  refine ⟨⟨⟨edgesOK_retarget read hs.edges hp _, ?_,
-    by simp only [splitLeaf, newHypothesis]; rw [hlen]; have := hs.two; omega⟩, hreach⟩, ?_⟩
-  · simp only [splitLeaf, newHypothesis]
+  simp only [splitLeaf_eq]
+  refine ⟨⟨⟨(edgesOK_retarget read hs.edges hp _).restrict _ _, ?_,
+    by simp only [newHypothesis]; rw [hlen]; have := hs.two; omega⟩, hreach⟩, ?_⟩
+  · simp only [newHypothesis]
     rw [hlen, show s.tree.leaves.length + 1 - 2 = s.tree.leaves.length - 2 + 1 by
       have := hs.two; omega]
     exact classSet_split hs.cls hp ht ht₀
@@ -312,7 +308,8 @@ theorem step_change (hW : NoWrong M side read) {s s' : Level3State α} (hs : RIn
       Level2.Ψ_lt_learn _ (s := Level2.newHypothesis s.tree s.edges 0) hp hE _ 0⟩
   · obtain ⟨hw₀, hw₀c⟩ := hs.1.edges p hp c t₀ w₀ hE
     obtain ⟨hinv, hΨ⟩ := split_ok read hW hs.1 hs.2 hp hu huc hw₀ hw₀c htt
-    exact ⟨hinv, rfl, rfl, hΨ⟩
+    exact ⟨hinv, by simp only [splitLeaf_eq, newHypothesis],
+      by simp only [splitLeaf_eq, newHypothesis], hΨ⟩
   · exact absurd ⟨rfl, rfl⟩ hne
 
 omit [Fintype σ] in
@@ -322,7 +319,7 @@ theorem applyProbe_ne_failed (s : Level3State α) (x : FreeMonoid α) :
     intro t ht
     unfold applyTests runTests at ht
     split_ifs at ht <;> simp_all
-  unfold applyProbe
+  simp only [applyProbe_eq]
   split
   · simp
   · split

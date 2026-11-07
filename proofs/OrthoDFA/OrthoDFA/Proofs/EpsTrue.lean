@@ -89,14 +89,14 @@ theorem sift_true (read : FreeMonoid α → ARU) : ∀ (T : DTree α) (z : FreeM
     T.sift read z = .inl p →
     (∀ m ∈ mids T, read (z * m) ≠ if side (M.eval (z * m).toList) then .reject else .accept) →
     p = leafOf M side T (M.eval z.toList)
-  | .leaf, z, p, h, _ => by simp only [DTree.sift, Sum.inl.injEq] at h; simp [leafOf, ← h]
+  | .leaf, z, p, h, _ => by simp only [DTree.sift_leaf, Sum.inl.injEq] at h; simp [leafOf, ← h]
   | .node m r a, z, p, h, hw => by
     classical
     have hm := hw m (by simp [mids])
     have hsub : ∀ T', (T' = r ∨ T' = a) → ∀ m' ∈ mids T', read (z * m') ≠
         if side (M.eval (z * m').toList) then .reject else .accept :=
       fun T' hT' m' hm' => hw m' (by rcases hT' with rfl | rfl <;> simp [mids, hm'])
-    simp only [DTree.sift] at h
+    simp only [DTree.sift_node] at h
     unfold leafOf
     rw [← eval_mul]
     split at h
@@ -240,18 +240,18 @@ omit [DecidableEq α] [Fintype α] [Fintype σ] in
 theorem searchOutcome_prefix (T : DTree α) (x : FreeMonoid α) (st : ℕ → List Bool)
     (un : Option (α × List Bool)) (lo hi : ℕ) (hle : lo ≤ hi) {p : List Bool} {c : α}
     {u : FreeMonoid α} {t : List Bool}
-    (h : searchOutcome read T x st un hi (tripartiteSearch false (siftAgrees read T x st) lo hi).1
+    (h : searchOutcome read T x st un hi (tripartiteSearch false (siftAgrees read T x st) lo hi)
       = .wrongEdge p c u t
-      ∨ searchOutcome read T x st un hi (tripartiteSearch false (siftAgrees read T x st) lo hi).1
+      ∨ searchOutcome read T x st un hi (tripartiteSearch false (siftAgrees read T x st) lo hi)
       = .unlearnedEdge p c u t) :
     (∃ q, lo < q ∧ q ≤ hi ∧ u = prefixOf x (q - 1) ∧ x.toList[q - 1]? = some c)
       ∨ (un = some (c, t) ∧ u = prefixOf x hi) := by
   have hs := tripartiteSearch_ok (recover := false) (agrees := siftAgrees read T x st) hle
-  generalize (tripartiteSearch false (siftAgrees read T x st) lo hi).1 = r at hs h
+  generalize (tripartiteSearch false (siftAgrees read T x st) lo hi) = r at hs h
   cases r with
   | edge q =>
     obtain ⟨h1, h2, -, -⟩ := hs
-    simp only [searchOutcome] at h
+    simp only [searchOutcome_eq] at h
     split at h
     · rename_i c' t' hc ht
       simp only [Outcome.wrongEdge.injEq, reduceCtorEq, or_false] at h
@@ -259,14 +259,14 @@ theorem searchOutcome_prefix (T : DTree α) (x : FreeMonoid α) (st : ℕ → Li
       exact Or.inl ⟨q, h1, h2, rfl, hc⟩
     · simp at h
   | allAgree =>
-    simp only [searchOutcome] at h
+    simp only [searchOutcome_eq] at h
     split at h
     · rename_i c' t'
       simp only [reduceCtorEq, Outcome.unlearnedEdge.injEq, false_or] at h
       obtain ⟨-, rfl, rfl, rfl⟩ := h
       exact Or.inr ⟨rfl, rfl⟩
     · simp at h
-  | _ => simp [searchOutcome] at h
+  | _ => simp [searchOutcome_eq] at h
 
 omit [DecidableEq α] [Fintype α] [Fintype σ] in
 /-- The prefix and letter of an edge a probe learns or disagrees at are the probe's, past its
@@ -278,12 +278,12 @@ theorem probe_prefix (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α)
     ∃ i, k ≤ i ∧ i < x.toList.length ∧ u = prefixOf x i ∧ x.toList[i]? = some c := by
   have hk : k ≤ x.toList.length := by
     by_contra hc
-    simp [probeOrAgree, show x.toList.length < k by omega] at h
+    simp [probeOrAgree_eq, show x.toList.length < k by omega] at h
   have h' : probe read T E k x = .wrongEdge p c u t
       ∨ probe read T E k x = .unlearnedEdge p c u t := by
-    simpa [probeOrAgree, show ¬ x.toList.length < k by omega] using h
+    simpa [probeOrAgree_eq, show ¬ x.toList.length < k by omega] using h
   clear h
-  unfold probe at h'
+  simp only [probe_eq] at h'
   rcases ha : T.sift read (prefixOf x k) with a | z₀
   · rw [ha] at h'
     simp only at h'

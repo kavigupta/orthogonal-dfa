@@ -1,4 +1,5 @@
 import OrthoDFA.Code.Clustering
+import OrthoDFA.Code.Query
 
 /-!
 # The family's read of a string
@@ -20,15 +21,21 @@ inductive ARU
 
 instance : MeasurableSpace ARU := ⊤
 
+instance : Inhabited ARU := ⟨.undecided⟩
+
 def readOf (kl kh x : ℕ) : ARU :=
   if kh ≤ x then .accept else if x ≤ kl then .reject else .undecided
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
 variable {S : Type*} [Stringlike S]
 
+noncomputable def familyReadQ (F : Finset S) (kl kh : ℕ) (w : S) : Query S ℝ ARU :=
+  (Query.table (F.toList.map (w * ·))).map fun t =>
+    readOf kl kh (voteCount (fun z (_ : Unit) => t z) F w ())
+
 noncomputable def familyRead (mq : S → Ω → ℝ) (F : Finset S) (kl kh : ℕ) (w : S) (ω : Ω) :
     ARU :=
-  readOf kl kh (voteCount mq F w ω)
+  (familyReadQ F kl kh w).eval (mq · ω)
 
 /-! ## Strings -/
 

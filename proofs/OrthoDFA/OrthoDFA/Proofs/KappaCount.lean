@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.KappaSteps
+import OrthoDFA.Proofs.Reads
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -256,9 +257,6 @@ theorem splitReads_card {s : Level3State α} (hW : WitInv M side s) (x : FreeMon
     · simp
   all_goals simp
 
-/-- The most prefixes a probe at most `L` long sifts. -/
-def probeSifts (L : ℕ) : ℕ := min (L + 1) (3 + Nat.clog 2 L)
-
 omit [DecidableEq α] in
 theorem probeReads_card {s : Level3State α} (hW : WitInv M side s) {x : FreeMonoid α} {L : ℕ}
     (hx : x.toList.length ≤ L) :
@@ -275,7 +273,7 @@ theorem probeReads_card {s : Level3State α} (hW : WitInv M side s) {x : FreeMon
       ≤ (3 + Nat.clog 2 L) * Fintype.card σ := by
     obtain ⟨ps, hps, hsub⟩ := probeReads_sub (rd := read) (T := s.tree) s.edges C.walkStart hx
     calc _ ≤ (posReads read s.tree x ps).card := Finset.card_le_card hsub
-      _ ≤ ps.toFinset.card * (mids s.tree).card := posReads_card _ _ _ _
+      _ ≤ ps.card * (mids s.tree).card := posReads_card _ _ _ _
       _ ≤ _ := Nat.mul_le_mul hps hmid
   unfold probeSifts
   rcases le_total (L + 1) (3 + Nat.clog 2 L) with h | h
@@ -637,22 +635,22 @@ theorem claim_succ (L : ℕ) (hL : ∀ x ∈ xs, x.toList.length ≤ L) {n : ℕ
         ∧ (splitLeaf r s p c t t₀).edges = s.edges) := by
       rintro ⟨ht, -⟩
       have := congrArg (fun T => T.leaves.length) ht
-      simp only [splitLeaf, newHypothesis] at this
+      simp only [splitLeaf_eq, newHypothesis] at this
       omega
-    obtain ⟨hI1, hW1, -, -, hΨ⟩ := kappa_step_change M side r C hI.inv hI.wit hnw hap hne
+    obtain ⟨hI1, hW1, -, hhy, hΨ⟩ := kappa_step_change M side r C hI.inv hI.wit hnw hap hne
     rw [ho_def] at ho
     subst ho
     have hU0 : U0 ≤ 0 := by simpa [endsString, middleString] using hu0r
     have hl : ((splitLeaf r s p c t t₀).tree.leaves.length : ℝ) - s.tree.leaves.length = 1 := by
-      simp only [splitLeaf, newHypothesis]; rw [hlen]; push_cast; ring
+      simp only [splitLeaf_eq, newHypothesis]; rw [hlen]; push_cast; ring
     have hA := costAt_nonneg C (level_le_one hδ0 hδ1 (s.hypotheses + 1)).1
       (level_le_one hδ0 hδ1 (s.hypotheses + 1)).2
     have hph := phiU_fresh (C := C) (Fintype.card σ) (Fintype.card α)
-      (s' := splitLeaf r s p c t t₀) rfl (by simp [cost, splitLeaf, newHypothesis]) hcost
+      (s' := splitLeaf r s p c t t₀) hhy (by simp [cost, splitLeaf_eq, newHypothesis]) hcost
     rw [hl] at hph hpB
-    refine ⟨⟨hI1, hW1, ?_, rfl, ?_⟩, ?_, ?_⟩
-    · have := hI.hyp; simp only [splitLeaf, newHypothesis] at hΨ ⊢; omega
-    · simp [cost, splitLeaf, newHypothesis, hA]
+    refine ⟨⟨hI1, hW1, ?_, by rw [splitLeaf_eq]; rfl, ?_⟩, ?_, ?_⟩
+    · have := hI.hyp; simp only [splitLeaf_eq, newHypothesis] at hΨ ⊢; omega
+    · simp [cost, splitLeaf_eq, newHypothesis, hA]
     · linarith
     · linarith
   · -- counted
@@ -662,11 +660,11 @@ theorem claim_succ (L : ℕ) (hL : ∀ x ∈ xs, x.toList.length ≤ L) {n : ℕ
     have hsc := counted_search r C hI.inv hch
     have hsearch : (countProbe r C s x).searchCount
         = (countProbe r C s x).middleUndecided.length := by
-      simp only [countProbe, List.length_append, hI.search]
+      simp only [countProbe, countOutcome, List.length_append, hI.search]
       omega
     have hcount : cost (countProbe r C s x) - cost s
         = (endsString o).length + (middleString o).length := by
-      simp only [cost, countProbe, List.length_append, Nat.cast_add, ho_def]
+      simp only [cost, countProbe, countOutcome, List.length_append, Nat.cast_add, ho_def]
       ring
     have hU1 := hs0U hs0
     have hB1 := hs0B hs0
@@ -675,7 +673,7 @@ theorem claim_succ (L : ℕ) (hL : ∀ x ∈ xs, x.toList.length ≤ L) {n : ℕ
     simp only [countProbe_tree, sub_self, mul_zero, add_zero] at hpB
     refine ⟨⟨hsame.1, witInv_congr M side hI.wit rfl rfl, ?_, hsearch, ?_⟩, ?_, ?_⟩
     · have := hI.hyp; have := hsame.2.1 (Fintype.card σ)
-      simp only [countProbe] at this ⊢; omega
+      simp only [countProbe, countOutcome] at this ⊢; omega
     · exact quiet_cost C _ hrt hsearch hy0 hyε hε1 (level_le_one hδ0 hδ1 _).1
         (level_le_one hδ0 hδ1 _).2
     · linarith

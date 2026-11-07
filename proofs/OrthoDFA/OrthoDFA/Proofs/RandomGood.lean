@@ -131,10 +131,8 @@ theorem mid_mean_le (hmeas : ∀ z, Measurable (read z)) (hind : iIndepFun read 
                     · rw [Set.indicator_of_notMem hp]; split_ifs <;> norm_num
               _ = ((Ps.filter (· ∈ probeQueries (read · ω) T E k x)).card : ℝ) := by
                   rw [Finset.sum_boole]
-              _ ≤ ((probeQueries (read · ω) T E k x).length : ℝ) := by
-                  exact_mod_cast (Finset.card_le_card fun p hp =>
-                    List.mem_toFinset.2 (Finset.mem_filter.1 hp).2).trans
-                    (List.toFinset_card_le _)
+              _ ≤ ((probeQueries (read · ω) T E k x).card : ℝ) := by
+                  exact_mod_cast Finset.card_le_card fun p hp => (Finset.mem_filter.1 hp).2
               _ ≤ 2 + Nat.clog 2 L := by
                   exact_mod_cast probeQueries_length (read · ω) T E k x hx
           · have : ∀ p, ω ∉ F p := fun p h => hω h.1

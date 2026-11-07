@@ -13,6 +13,7 @@ import OrthoDFA.Proofs.FamilyOracle
 import OrthoDFA.Proofs.FamilyRead
 import OrthoDFA.Proofs.HypothesisDFA
 import OrthoDFA.Proofs.Level2Round
+import OrthoDFA.Proofs.LoopRuns
 import OrthoDFA.Proofs.Probe
 import OrthoDFA.Proofs.LoopDFA
 import OrthoDFA.Proofs.LoopDFARelative
@@ -51,7 +52,8 @@ both. The loop runs level 5.
 The supporting claims are stated under `OrthoDFA.LowLevelClaims`: `AdaptiveReadsBound`,
 `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
 `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
-`SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect` and `SplitAndLearnCorrect`.
+`SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
+`RunsKeepEdgesAtLeaves`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `OrthoDFA.Claims`:
 `TrainFamilyClaim`, `TrainFamilyClaimSimple`, `CounterexSynthClaim`, `RLStarClaim`,
@@ -137,6 +139,10 @@ theorem learner_loop_dfa_relative : LearnerLoopDFARelative := learner_loop_dfa_r
 theorem split_and_learn_correct : SplitAndLearnCorrect := splitAndLearnCorrect
 
 #print axioms split_and_learn_correct
+
+theorem runs_keep_edges_at_leaves : RunsKeepEdgesAtLeaves := runsKeepEdgesAtLeaves_holds
+
+#print axioms runs_keep_edges_at_leaves
 
 theorem probe_correct : ProbeCorrect := probeCorrect
 

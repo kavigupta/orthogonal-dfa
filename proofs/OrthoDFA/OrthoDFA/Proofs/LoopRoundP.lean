@@ -78,7 +78,7 @@ lemma measurableSet_histCodes [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ 
   measurable_persist settings (measurableSet_codesOf settings O D Dsf (ae_lenBound hlen) (N := codeLen settings D) le_rfl r c)
 
 omit [IsProbabilityMeasure μ] in
-lemma measurable_idealRun_at [IsProbabilityMeasure D] (h : LoopHist α) (i : Fin K) :
+lemma measurable_idealRun_at [IsProbabilityMeasure D] (h : SpecHist α) (i : Fin K) :
     Measurable (fun p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) =>
       idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h ((p.1, (p.2 i).1) : ClusterDraws Ω α K settings.level3.harvestReadCap)) :=
   (measurable_idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h).comp (measurable_fst.prodMk (measurable_fst.comp

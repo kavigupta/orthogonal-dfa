@@ -19,27 +19,27 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpac
 /-- The populations `rounds` harvested, in order, their samplers drawing from `D` walked from
 `k`. -/
 noncomputable def harvestsOf (D : Measure (FreeMonoid α)) (k : ℕ)
-    (rounds : List (LoopRound α)) :
+    (rounds : List (SpecRound α)) :
     List (Measure (FreeMonoid α)) :=
   rounds.filterMap fun o => o.population D k
 
 omit [MeasurableSpace Ω] in
-lemma histOf_pops (D : Measure (FreeMonoid α)) (k : ℕ) (rounds : List (LoopRound α)) :
-    samplerLaws D k (histOf rounds).pops = harvestsOf D k rounds := by
-  unfold histOf harvestsOf samplerLaws
+lemma histOf_pops (D : Measure (FreeMonoid α)) (k : ℕ) (rounds : List (SpecRound α)) :
+    samplerLaws D k (specHistOf rounds).pops = harvestsOf D k rounds := by
+  unfold specHistOf harvestsOf samplerLaws
   rw [List.map_filterMap]
   congr 1
   funext o
-  unfold LoopRound.sampler LoopRound.population
+  unfold SpecRound.sampler SpecRound.population
   cases o.result.ending.harvested <;> rfl
 
 /-- Round `r`'s clustering run on the filled draws. -/
 noncomputable def idealRunAt (r : Fin K) : Run Ω (FreeMonoid α) (Option (Fin K)) :=
   idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap
-    (histOf (idealRounds settings O D Dsf draws r)) ((draws r).1, (draws r).2.1)
+    (specHistOf (idealRounds settings O D Dsf draws r)) ((draws r).1, (draws r).2.1)
 
 /-- Every round harvested. -/
-abbrev AllHarvested (rounds : List (LoopRound α)) : Prop :=
+abbrev AllHarvested (rounds : List (SpecRound α)) : Prop :=
   ∀ o ∈ rounds, o.result.ending.harvested ≠ none
 
 lemma idealRounds_succ (r : ℕ) :
@@ -47,7 +47,7 @@ lemma idealRounds_succ (r : ℕ) :
       if h : r < K ∧ AllHarvested (idealRounds settings O D Dsf draws r) then
         idealRounds settings O D Dsf draws r
           ++ [idealRound settings O D Dsf
-            (histOf (idealRounds settings O D Dsf draws r))
+            (specHistOf (idealRounds settings O D Dsf draws r))
             (draws ⟨r, h.1⟩)]
       else idealRounds settings O D Dsf draws r := by
   rw [idealRounds]
@@ -98,7 +98,7 @@ lemma harvested_of_lt (r i : ℕ) (hi : i + 1 < (idealRounds settings O D Dsf dr
 /-- Round `i` is run on the harvests of the rounds before it, from round `i`'s draws. -/
 lemma getElem_idealRounds (r i : ℕ) (hi : i < (idealRounds settings O D Dsf draws r).length) :
     ∃ hK : i < K, (idealRounds settings O D Dsf draws r)[i] = idealRound settings O D Dsf
-      (histOf ((idealRounds settings O D Dsf draws r).take i))
+      (specHistOf ((idealRounds settings O D Dsf draws r).take i))
         (draws ⟨i, hK⟩) := by
   induction r with
   | zero => simp [idealRounds] at hi
@@ -163,7 +163,7 @@ lemma take_idealRounds {r s : ℕ} (hrs : r ≤ s) :
     · exact ih
 
 omit [MeasurableSpace Ω] [DecidableEq α] in
-lemma harvestsOf_take_getD {k : ℕ} {rounds : List (LoopRound α)} {j i : ℕ} (hij : i < j)
+lemma harvestsOf_take_getD {k : ℕ} {rounds : List (SpecRound α)} {j i : ℕ} (hij : i < j)
     (hj : j ≤ rounds.length) (hall : AllHarvested (rounds.take j)) {ν : Measure (FreeMonoid α)}
     (hν : (rounds[i]'(by omega)).population D k = some ν) :
     (harvestsOf D k (rounds.take j)).getD i (Measure.dirac 1) = ν := by
@@ -175,7 +175,7 @@ lemma harvestsOf_take_getD {k : ℕ} {rounds : List (LoopRound α)} {j i : ℕ} 
     obtain ⟨zo, hzo⟩ := Option.ne_none_iff_exists'.1 ho
     have hpo : o.population D k
         = some (popLaw (Random.harvestLaw o.read D k o.result.hypothesis zo)) := by
-      simp [LoopRound.population, hzo]
+      simp [SpecRound.population, hzo]
     simp only [List.take_succ_cons, harvestsOf, List.filterMap_cons, hpo] at hν ⊢
     rcases i with _ | i
     · simp only [List.getElem_cons_zero, hpo, Option.some.injEq] at hν

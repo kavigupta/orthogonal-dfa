@@ -4,15 +4,13 @@ import OrthoDFA.Proofs.DrawFrom
 
 /-! # Decoupling the `m`-draw sampler from the harvest law
 
-The three facts that make `drawMany >>= clustering` a drop-in, with clustering oblivious to the
+The two facts that make `drawMany >>= clustering` a drop-in, with clustering oblivious to the
 draws:
 
 * `drawManyLaw_eq_pi` — (AGR) conditioned on all `m` draws hitting, the output law is exactly
   the `m`-fold product of `popLaw ((harvestLaw …).restrict Tᶜ)`.
 * `drawManyMiss_le` — (FAIL) the chance any draw misses is `≤ δₛ'`, by a union bound over the `m`
-  draws with each `harvestMiss ≤ δₛ'/m` at `N' = harvestN y (δₛ'/m)`.
-* `drawManyReads_card_le` — (COST) the sampler reads only what its `m` blocks of `N'` probes read,
-  `≤ m · N' · ((3 + clog₂ L) · |mids T|)`. -/
+  draws with each `harvestMiss ≤ δₛ'/m` at `N' = harvestN y (δₛ'/m)`. -/
 
 namespace OrthoDFA
 
@@ -24,12 +22,6 @@ open scoped ENNReal
 variable {α : Type*} [Fintype α]
 variable (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) (k : ℕ) (H : HypothesisDFA α)
   (site : Level3Site) (T : Set (FreeMonoid α)) {m N' : ℕ}
-
-open scoped Classical in
-/-- The strings the `m`-draw sampler reads: the union of `harvestFirstReads` over its `m` blocks. -/
-noncomputable def drawManyReads (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
-    {m N' : ℕ} (yss : Fin m → (Fin N' → FreeMonoid α)) : Finset (FreeMonoid α) :=
-  Finset.univ.biUnion fun i => harvestFirstReads read T E k (List.ofFn (yss i))
 
 /-- The value of `harvestCodeLaw` on `A`: the mass of the `N` i.i.d. probes that both hit and land
 their harvested string in `A`. -/
@@ -225,27 +217,6 @@ theorem drawManyMiss_le [IsProbabilityMeasure D] {y δₛ' : ℝ}
         rw [← ENNReal.ofReal_natCast m, ← ENNReal.ofReal_mul (Nat.cast_nonneg m)]
         congr 1
         field_simp
-
-/-- (COST) Cost.  When every probe in every block is at most `L` long, the sampler reads
-`≤ m · N' · ((3 + clog₂ L) · |mids T|)` strings: `m` blocks, each `harvestCode_reads_card_le` over
-its `N'` probes. -/
-theorem drawManyReads_card_le {L : ℕ} (yss : Fin m → (Fin N' → FreeMonoid α))
-    (hyss : ∀ i, ∀ x ∈ List.ofFn (yss i), x.toList.length ≤ L) :
-    (drawManyReads read H.tree H.edges k yss).card
-      ≤ m * (N' * ((3 + Nat.clog 2 L) * (mids H.tree).card)) := by
-  classical
-  unfold drawManyReads
-  calc (Finset.univ.biUnion fun i =>
-          harvestFirstReads read H.tree H.edges k (List.ofFn (yss i))).card
-      ≤ ∑ i : Fin m, (harvestFirstReads read H.tree H.edges k (List.ofFn (yss i))).card :=
-        Finset.card_biUnion_le
-    _ ≤ ∑ _i : Fin m, N' * ((3 + Nat.clog 2 L) * (mids H.tree).card) := by
-        apply Finset.sum_le_sum
-        intro i _
-        have h := harvestCode_reads_card_le read k H (List.ofFn (yss i)) (hyss i)
-        rwa [List.length_ofFn] at h
-    _ = m * (N' * ((3 + Nat.clog 2 L) * (mids H.tree).card)) := by
-        rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
 
 end Random
 

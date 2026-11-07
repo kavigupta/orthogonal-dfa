@@ -34,13 +34,13 @@ lemma length_mul (z v : FreeMonoid α) : (z * v).toList.length = z.toList.length
 variable (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
 
 /-- The prefixes a round's clustering reads, after the history `h`. -/
-def prefsOf (h : LoopHist α) (c : ClusterRest α K settings.level3.harvestReadCap) : Finset (FreeMonoid α) :=
+def prefsOf (h : SpecHist α) (c : ClusterRest α K settings.level3.harvestReadCap) : Finset (FreeMonoid α) :=
   roundPrefs (settings.schedule (loopPopulations K h.pops.length))
     (loopPopulations K h.pops.length)
     (((), runOf settings D Dsf h c) : Run Unit (FreeMonoid α) (Option (Fin K)))
 
 /-- The suffixes a round's clustering reads, after the history `h`, but `ε`. -/
-def suffsOf (h : LoopHist α) (c : ClusterRest α K settings.level3.harvestReadCap) : Finset (FreeMonoid α) :=
+def suffsOf (h : SpecHist α) (c : ClusterRest α K settings.level3.harvestReadCap) : Finset (FreeMonoid α) :=
   (roundSuffs (settings.schedule (loopPopulations K h.pops.length))
     (((), runOf settings D Dsf h c) : Run Unit (FreeMonoid α) (Option (Fin K)))).erase 1
 

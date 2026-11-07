@@ -101,7 +101,8 @@ theorem result_fin (C : Random.Level3Settings) (read : FreeMonoid α → ARU) {T
     ×ˢ (Finset.univ : Finset α)).finite_toSet.subset fun qc hqc => ?_
   rcases he : (Random.runProbes read C Random.initialState (List.ofFn draws)).1.edges qc with
     _ | ⟨t, w⟩
-  · exact absurd he hqc
+  · rw [Set.mem_ofPred_eq, Random.indecisiveLStarLevel3_edges] at hqc
+    exact absurd he hqc
   · simp only [Finset.coe_product, Finset.coe_univ, Set.prod_univ, Set.mem_preimage,
       Finset.mem_coe, List.mem_toFinset]
     exact hk qc t w he
@@ -171,43 +172,43 @@ abbrev HarvestCode (α : Type*) :=
     × Finset (FreeMonoid α × ARU) × Finset (FreeMonoid α) × Finset (FreeMonoid α)
 
 /-- A round's harvest, with its reads of the strings at most `N` long. -/
-def popCode (N : ℕ) (o : LoopRound α) : Option (HarvestCode α) :=
+def popCode (N : ℕ) (o : SpecRound α) : Option (HarvestCode α) :=
   o.result.ending.harvested.map fun site =>
     (site, (o.result.hypothesis.tree, edgeGraph o.result.hypothesis.edges),
       readGraph N o.read, o.prefs, o.suffs)
 
 /-- The sampler the data hand on. -/
-def decodePop (c : HarvestCode α) : HarvestSampler α :=
+def decodePop (c : HarvestCode α) : SpecSampler α :=
   ⟨decodeReads c.2.2.1, ⟨c.2.1.1, decodeEdges c.2.1.2⟩, c.1⟩
 
 /-- The history the data hand on. -/
-def decodeHist (cs : List (HarvestCode α)) : LoopHist α :=
+def decodeHist (cs : List (HarvestCode α)) : SpecHist α :=
   ⟨cs.map decodePop, cs.foldr (fun c T => c.2.2.2.1 ∪ T) ∅, cs.foldr (fun c T => c.2.2.2.2 ∪ T) ∅⟩
 
 /-- The data of the rounds' harvests, in order. -/
-def codesOf (N : ℕ) (rounds : List (LoopRound α)) : List (HarvestCode α) :=
+def codesOf (N : ℕ) (rounds : List (SpecRound α)) : List (HarvestCode α) :=
   rounds.filterMap (popCode N)
 
 /-- Two samplers alike on probes at most `L` long: the same hypothesis and site, and the same
 read of every string at most `L` long followed by a midfix of the hypothesis. -/
-def SamplerAlike (L : ℕ) (s s' : HarvestSampler α) : Prop :=
+def SamplerAlike (L : ℕ) (s s' : SpecSampler α) : Prop :=
   s.hyp = s'.hyp ∧ s.site = s'.site
     ∧ ∀ y : FreeMonoid α, y.toList.length ≤ L → ∀ m ∈ Random.mids s.hyp.tree,
       s.read (y * m) = s'.read (y * m)
 
 /-- Two histories alike on probes at most `L` long. -/
-def HistAlike (L : ℕ) (h h' : LoopHist α) : Prop :=
+def HistAlike (L : ℕ) (h h' : SpecHist α) : Prop :=
   List.Forall₂ (SamplerAlike L) h.pops h'.pops ∧ h.prefs = h'.prefs ∧ h.suffs = h'.suffs
 
 /-- A round's sampler is alike the one its data hand on, on probes at most `L` long, where
 `N ≥ L + T`, `T` its probes. -/
 theorem decodePop_alike {L N : ℕ} (C : Random.Level3Settings) (hN : L + C.probeBudget ≤ N)
-    (o : LoopRound α) (xs : Fin C.probeBudget → FreeMonoid α)
+    (o : SpecRound α) (xs : Fin C.probeBudget → FreeMonoid α)
     (ho : o.result = Random.indecisiveLStarLevel3 C o.read xs) {c : HarvestCode α}
-    {s : HarvestSampler α} (hc : popCode N o = some c) (hs : o.sampler = some s) :
+    {s : SpecSampler α} (hc : popCode N o = some c) (hs : o.sampler = some s) :
     SamplerAlike L (decodePop c) s := by
   unfold popCode at hc
-  unfold LoopRound.sampler at hs
+  unfold SpecRound.sampler at hs
   rcases hh : o.result.ending.harvested with _ | site
   · rw [hh] at hc; simp at hc
   rw [hh] at hc hs
@@ -225,7 +226,7 @@ theorem decodePop_alike {L N : ℕ} (C : Random.Level3Settings) (hN : L + C.prob
   have hmT : m.toList.length ≤ C.probeBudget := by
     have : o.result.hypothesis.tree
         = (Random.runProbes o.read C Random.initialState (List.ofFn xs)).1.tree := by
-      rw [ho]; rfl
+      rw [ho, Random.indecisiveLStarLevel3_tree]
     simp only [decodePop] at hm
     rw [this] at hm
     exact hmid m hm
@@ -235,11 +236,11 @@ theorem decodePop_alike {L N : ℕ} (C : Random.Level3Settings) (hN : L + C.prob
 
 /-- Where every round harvested, the rounds' history is alike the one their data hand on. -/
 theorem decodeHist_alike {L N : ℕ} (C : Random.Level3Settings) (hN : L + C.probeBudget ≤ N)
-    (rounds : List (LoopRound α))
+    (rounds : List (SpecRound α))
     (hr : ∀ o ∈ rounds, ∃ xs : Fin C.probeBudget → FreeMonoid α,
       o.result = Random.indecisiveLStarLevel3 C o.read xs)
     (hall : ∀ o ∈ rounds, o.result.ending.harvested ≠ none) :
-    HistAlike L (decodeHist (codesOf N rounds)) (histOf rounds) := by
+    HistAlike L (decodeHist (codesOf N rounds)) (specHistOf rounds) := by
   induction rounds with
   | nil => exact ⟨List.Forall₂.nil, rfl, rfl⟩
   | cons o rounds ih =>
@@ -248,11 +249,11 @@ theorem decodeHist_alike {L N : ℕ} (C : Random.Level3Settings) (hN : L + C.pro
         edgeGraph o.result.hypothesis.edges), readGraph N o.read, o.prefs, o.suffs) := by
       simp [popCode, hh]
     have hs : o.sampler = some ⟨o.read, o.result.hypothesis, site⟩ := by
-      simp [LoopRound.sampler, hh]
+      simp [SpecRound.sampler, hh]
     obtain ⟨xs, ho⟩ := hr o (by simp)
     obtain ⟨ih1, ih2, ih3⟩ := ih (fun o' ho' => hr o' (by simp [ho']))
       (fun o' ho' => hall o' (by simp [ho']))
-    simp only [decodeHist, codesOf, histOf, List.filterMap_cons, hc, hs, List.map_cons,
+    simp only [decodeHist, codesOf, specHistOf, List.filterMap_cons, hc, hs, List.map_cons,
       List.foldr_cons] at ih1 ih2 ih3 ⊢
     exact ⟨List.Forall₂.cons (decodePop_alike C hN o xs ho hc hs) ih1, by rw [ih2], by rw [ih3]⟩
 
@@ -267,7 +268,7 @@ theorem ae_lenBound {D : Measure (FreeMonoid α)} {L : ℕ} (h : ∀ᵐ x ∂D, 
 
 /-! ## Alike samplers draw alike -/
 
-lemma harvestFirst_congr_zone {s s' : HarvestSampler α} {L : ℕ} (hs : SamplerAlike L s s')
+lemma harvestFirst_congr_zone {s s' : SpecSampler α} {L : ℕ} (hs : SamplerAlike L s s')
     (k : ℕ) (T : Set (FreeMonoid α)) (xs : List (FreeMonoid α))
     (hxs : ∀ x ∈ xs, x.toList.length ≤ L) :
     Random.harvestFirst s.read k s.hyp s.site T xs
@@ -288,7 +289,7 @@ lemma harvestFirst_congr_zone {s s' : HarvestSampler α} {L : ℕ} (hs : Sampler
     rw [List.findSome?_cons, List.findSome?_cons, hx x (by simp),
       ih (fun y hy => hxs y (by simp [hy])) (fun y hy => hx y (by simp [hy]))]
 
-lemma harvestLaw_alike {s s' : HarvestSampler α} {L : ℕ} (hs : SamplerAlike L s s')
+lemma harvestLaw_alike {s s' : SpecSampler α} {L : ℕ} (hs : SamplerAlike L s s')
     (D : Measure (FreeMonoid α)) (hD : ∀ᵐ x ∂D, x.toList.length ≤ L) (k : ℕ) :
     Random.harvestLaw s.read D k s.hyp s.site = Random.harvestLaw s'.read D k s'.hyp s'.site := by
   obtain ⟨hH, hsite, hr⟩ := hs
@@ -300,13 +301,13 @@ lemma harvestLaw_alike {s s' : HarvestSampler α} {L : ℕ} (hs : SamplerAlike L
 variable {Ω : Type*} [MeasurableSpace Ω] {K : ℕ}
 
 omit [DecidableEq α] in
-lemma SamplerAlike.of_forall₂ {L : ℕ} {pops pops' : List (HarvestSampler α)}
+lemma SamplerAlike.of_forall₂ {L : ℕ} {pops pops' : List (SpecSampler α)}
     (hp : List.Forall₂ (SamplerAlike L) pops pops') {i : ℕ} (hi : i < pops.length) :
     SamplerAlike L pops[i] (pops'[i]'(hp.length_eq ▸ hi)) := by
   have := (List.forall₂_iff_get.1 hp).2 i hi (hp.length_eq ▸ hi)
   simpa using this
 
-lemma loopDistributions_alike {L : ℕ} {pops pops' : List (HarvestSampler α)}
+lemma loopDistributions_alike {L : ℕ} {pops pops' : List (SpecSampler α)}
     (hp : List.Forall₂ (SamplerAlike L) pops pops') (D : Measure (FreeMonoid α))
     (hD : ∀ᵐ x ∂D, x.toList.length ≤ L) (k : ℕ) (j : Option (Fin K)) :
     loopDistributions D k pops j = loopDistributions D k pops' j := by
@@ -319,7 +320,7 @@ lemma loopDistributions_alike {L : ℕ} {pops pops' : List (HarvestSampler α)}
     exact congrArg popLaw (harvestLaw_alike (SamplerAlike.of_forall₂ hp hi) D hD k)
   · rw [List.getElem?_eq_none (not_lt.1 hi), List.getElem?_eq_none (hlen ▸ not_lt.1 hi)]
 
-lemma fillDraw_alike {L : ℕ} {pops pops' : List (HarvestSampler α)}
+lemma fillDraw_alike {L : ℕ} {pops pops' : List (SpecSampler α)}
     (hp : List.Forall₂ (SamplerAlike L) pops pops') (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] (hD : ∀ᵐ x ∂D, x.toList.length ≤ L) (k N : ℕ)
     (T : Finset (FreeMonoid α)) (j : Option (Fin K)) (u : unitInterval × (Fin N → unitInterval)) :
@@ -338,7 +339,7 @@ lemma fillDraw_alike {L : ℕ} {pops pops' : List (HarvestSampler α)}
   · rw [List.getElem?_eq_none (not_lt.1 hi), List.getElem?_eq_none (hlen ▸ not_lt.1 hi)]
 
 /-- Alike histories make the same filled draws. -/
-theorem idealDraws_alike {L : ℕ} {h h' : LoopHist α} (hh : HistAlike L h h')
+theorem idealDraws_alike {L : ℕ} {h h' : SpecHist α} (hh : HistAlike L h h')
     (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (k N : ℕ) (c : ClusterDraws Ω α K N) :
     idealDraws D Dsf k N h c = idealDraws D Dsf k N h' c := by
@@ -347,14 +348,14 @@ theorem idealDraws_alike {L : ℕ} {h h' : LoopHist α} (hh : HistAlike L h h')
   rw [hpr, hsu]
   simp only [fillDraw_alike hp D hD, loopDistributions_alike hp D hD]
 
-theorem idealRun_alike {L : ℕ} {h h' : LoopHist α} (hh : HistAlike L h h')
+theorem idealRun_alike {L : ℕ} {h h' : SpecHist α} (hh : HistAlike L h h')
     (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (k N : ℕ) (c : ClusterDraws Ω α K N) :
     idealRun D Dsf k N h c = idealRun D Dsf k N h' c := by
   unfold idealRun
   rw [idealDraws_alike hh D Dsf hD k N c]
 
-theorem HistAlike.length {L : ℕ} {h h' : LoopHist α} (hh : HistAlike L h h') :
+theorem HistAlike.length {L : ℕ} {h h' : SpecHist α} (hh : HistAlike L h h') :
     h.pops.length = h'.pops.length :=
   hh.1.length_eq
 
