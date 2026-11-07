@@ -303,7 +303,8 @@ set_option maxHeartbeats 8000000 in -- the settings and the cap meet `LoopCore`'
 at most `ε + ε/96`, level 3 running at disagreement rate `ε`, and at most half of each `E q`, plus
 `ε + ε/96`, misled; its family misreads at most `(1025/1024) εcov` and leaves undecided at most
 `(3/8) εcov` of `P.D`. Every round the filled draws run is good, every round's tree has at most
-`|Q| + 2` leaves, and its harvested draws walk at most `⌈HB⌉₊` probes in all. -/
+`|Q| + 2` leaves, and its harvested populations' first `Nh` filled draws hold their samples and
+walk at most `⌈HB⌉₊` probes in all. -/
 theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*}
     [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
@@ -333,7 +334,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       * Fintype.card α)
     let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
     let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
-    let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
+    let SH : ℝ := 24 * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
+    let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
+    let Nh : ℕ := 2 * max (4 * (3 * ⌊RB⌋₊)) ⌈8 * Real.log (16 * J / δ')⌉₊
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     O.η ≤ η₀ → η₀ < 1 / 2 →
     0 < εcov → εcov ≤ 1 → 0 < ε → ε ≤ 1 / 2 → 0 < δ' → δ' < 1 → 0 < pAP → pAP ≤ 1 → 1 ≤ P.L →
@@ -367,9 +370,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
                   AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
                     RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
                       (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))
-                ∧ RoundsWalkWithin settings O P.D Dsf p ⌈HB⌉₊)}
+                ∧ RoundsWalkWithin settings O P.D Dsf p Nh ⌈HB⌉₊)}
           ≤ (Q + 1) * (4 * δ') := by
-  intro Q A L ι s τ J S B₃ Wm W PB FV RB cap Kc SC HN HB
+  intro Q A L ι s τ J S B₃ Wm W PB FV RB cap Kc SC HN SH HB Nh
     hL hη hη₀ hε hε1 hεd hεd12 hδ'0 hδ'1' hpAP hpAP1 hL1 hk0 hLε hk1 hk2 hk3
   have hδ'1 : δ' ≤ 1 := hδ'1'.le
   classical
@@ -799,28 +802,57 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     have : 0 < Q + 1 := by linarith
     rw [mul_div_assoc', div_le_div_iff₀ (by positivity) (by norm_num)]
     nlinarith only [this, hδ'0]
-  -- the walk total `Bp`: at most `δ'` that a round's harvested draws walk more
-  set Bp : ℕ := ⌈2 * ((((Fintype.card σ + 1) * Msc : ℕ) : ℝ) * Real.log 2 + Real.log (1 / δ'))
+  -- the harvested draws' count `Nh = 2 Th`: at most `δ' / 2` that the first `Nh` fall short
+  set Th : ℕ := max (4 * (3 * ⌊RB⌋₊)) ⌈8 * Real.log (16 * J / δ')⌉₊ with hThd
+  have hNh : Nh = 2 * Th := rfl
+  have hTh8 : 8 * Real.log (16 * J / δ') ≤ Th :=
+    (Nat.le_ceil _).trans (by exact_mod_cast le_max_right _ _)
+  have hThT : Th ≤ Tsc :=
+    max_le_max (Nat.mul_le_mul_left 4 (Nat.mul_le_mul_right _ (by omega))) le_rfl
+  have hρh : 32 * (Th : ℝ) * cap ≤ 1 :=
+    (mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left (by exact_mod_cast hThT)
+      (by norm_num)) hcap0.le).trans hρ
+  have hbh : (((Fintype.card σ + 1 : ℕ) : ℝ) + 1)
+      * (2 * ((Nh.choose Th : ℕ) * ((Th : ℝ) * (2 * cap)) ^ (Nh - Th))
+        + 2 * Real.exp (-((Th : ℝ) / 8))) ≤ δ' / 2 := by
+    have h := scan_tail_le (Kn := Fintype.card σ + 1) (δₘ := 0) hδ'0 hcap0.le hρh
+      (by rw [hK1]; exact hTh8) (by rw [mul_zero]; positivity)
+    rw [mul_zero, zero_add] at h
+    rw [hNh]
+    exact h
+  have hNhS : (Nh : ℝ) ≤ SH := by
+    have hT : Th ≤ 4 * (3 * ⌊RB⌋₊) + ⌈8 * Real.log (16 * J / δ')⌉₊ := by
+      simp only [hThd]; omega
+    have hTR : (Th : ℝ) ≤ 4 * (3 * ((⌊RB⌋₊ : ℕ) : ℝ))
+        + ((⌈8 * Real.log (16 * J / δ')⌉₊ : ℕ) : ℝ) := by exact_mod_cast hT
+    have hc := Nat.ceil_lt_add_one (show 0 ≤ 8 * Real.log (16 * J / δ') by positivity)
+    have hNP : ((⌊RB⌋₊ : ℕ) : ℝ) ≤ RB := Nat.floor_le hRB0
+    have hN : (Nh : ℝ) = 2 * Th := by rw [hNh]; push_cast; ring
+    show (Nh : ℝ) ≤ 24 * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
+    change (Nh : ℝ) ≤ 24 * RB + 16 * Real.log (16 * J / δ') + 2
+    linarith only [hTR, hc, hNP, hN]
+  -- the walk total `Bp`: at most `δ' / 2` that a round's harvested draws walk more
+  set Bp : ℕ := ⌈2 * ((((Fintype.card σ + 1) * Nh : ℕ) : ℝ) * Real.log 2 + Real.log (1 / (δ' / 2)))
     / yh⌉₊ with hBpd
-  have hwt : (2 : ℝ) ^ ((Fintype.card σ + 1) * Msc) * (1 - yh / 2) ^ (Bp + 1) ≤ δ' :=
-    walk_tail_le hyh0 (by rw [hyhd]; linarith) hδ'0
+  have hwt : (2 : ℝ) ^ ((Fintype.card σ + 1) * Nh) * (1 - yh / 2) ^ (Bp + 1) ≤ δ' / 2 :=
+    walk_tail_le hyh0 (by rw [hyhd]; linarith) (by positivity)
   have hBp : (Bp : ℝ) ≤ HB := by
     have hl2 : 0 ≤ Real.log 2 := Real.log_nonneg (by norm_num)
-    have hlδ : 0 ≤ Real.log (1 / δ') :=
-      Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; linarith)
-    have hn : ((((Fintype.card σ + 1) * Msc : ℕ) : ℝ)) ≤ (Q + 1) * SC := by
+    have hlδ : 0 ≤ Real.log (1 / (δ' / 2)) :=
+      Real.log_nonneg (by rw [le_div_iff₀ (by positivity)]; linarith)
+    have hn : ((((Fintype.card σ + 1) * Nh : ℕ) : ℝ)) ≤ (Q + 1) * SH := by
       push_cast
-      exact mul_le_mul_of_nonneg_left hMSC (by positivity)
-    have h0 : 0 ≤ 2 * ((((Fintype.card σ + 1) * Msc : ℕ) : ℝ) * Real.log 2 + Real.log (1 / δ'))
-        / yh :=
+      exact mul_le_mul_of_nonneg_left hNhS (by positivity)
+    have h0 : 0 ≤ 2 * ((((Fintype.card σ + 1) * Nh : ℕ) : ℝ) * Real.log 2
+        + Real.log (1 / (δ' / 2))) / yh :=
       div_nonneg (mul_nonneg (by norm_num) (add_nonneg (mul_nonneg (Nat.cast_nonneg _) hl2) hlδ))
         hyh0.le
     refine (Nat.ceil_lt_add_one h0).le.trans ?_
-    show _ ≤ 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
-    rw [hyhd, show ∀ x : ℝ, 2 * x / (ε / 192) = 384 / ε * x from fun x => by
+    show _ ≤ 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
+    rw [one_div_div, hyhd, show ∀ x : ℝ, 2 * x / (ε / 192) = 384 / ε * x from fun x => by
       field_simp [hεd.ne']; ring]
-    have h1 : (((Fintype.card σ + 1) * Msc : ℕ) : ℝ) * Real.log 2 + Real.log (1 / δ')
-        ≤ (Q + 1) * SC * Real.log 2 + Real.log (1 / δ') := by
+    have h1 : (((Fintype.card σ + 1) * Nh : ℕ) : ℝ) * Real.log 2 + Real.log (2 / δ')
+        ≤ (Q + 1) * SH * Real.log 2 + Real.log (2 / δ') := by
       have := mul_le_mul_of_nonneg_right hn hl2
       linarith
     have := mul_le_mul_of_nonneg_left h1 (by positivity : (0 : ℝ) ≤ 384 / ε)
@@ -828,7 +860,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hBpc : Bp ≤ ⌈HB⌉₊ := Nat.cast_le.1 (hBp.trans (Nat.le_ceil _))
   have hcore := loop_core_holds M O P E (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
     ⌊PB⌋₊ ⌊RB⌋₊ ⌊FV⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / 1536) ε
-    cross Tu C Msc yh δm Tsc Bp
+    cross Tu C Msc yh δm Tsc Th Nh Bp
   dsimp only at hcore
   rw [hcexp] at hcore
   obtain ⟨settings, -, -, -, -, hC3, hscan, hnp, hreads, hks, hmain⟩ := hcore hL hη hη₀ hι0
@@ -845,7 +877,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
     hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond rfl hyh0
     (by show ε / 192 ≤ ε / 48 / 4; linarith) (by show ε / 192 ≤ 1; linarith) hδm0 (by omega)
-    (le_max_left _ _) (by omega)
+    (le_max_left _ _) (by omega) (le_max_left _ _) (by rw [hNh]; omega)
   refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, by rw [hC3]; exact hHN,
     by rw [hscan]; exact hMSC, hnp, hreads, hks, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
@@ -855,7 +887,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     apply hd
     obtain ⟨⟨h1, o, ho, hag⟩, hlv, hfr, hrg, hwk⟩ := hgood
     exact ⟨⟨h1, o, ho, checks_mono (by linarith) (by linarith) (by linarith) (by linarith) hag⟩,
-      hlv, hfr, hrg, fun r hr hh => (hwk r hr hh).trans hBpc⟩
+      hlv, hfr, hrg, fun r hr hh => ⟨(hwk r hr hh).1, (hwk r hr hh).2.trans hBpc⟩⟩
   · have hδ8 := hshort
     have hQ0 : (0 : ℝ) ≤ (Fintype.card σ : ℝ) + 1 := by positivity
     have hb : ((Fintype.card σ + 1 : ℕ) : ℝ) * δm + (((Fintype.card σ + 1 : ℕ) : ℝ) + 1)
@@ -867,15 +899,21 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       + (((Fintype.card σ + 1 : ℕ) : ℝ) * δm + (((Fintype.card σ + 1 : ℕ) : ℝ) + 1)
         * (2 * ((Msc.choose Tsc : ℕ) * ((Tsc : ℝ) * (2 * cap)) ^ (Msc - Tsc))
           + 2 * Real.exp (-((Tsc : ℝ) / 8)))
-        + 2 ^ ((Fintype.card σ + 1) * Msc) * (1 - yh / 2) ^ (Bp + 1)))
+        + (((Fintype.card σ + 1 : ℕ) : ℝ) + 1)
+          * (2 * ((Nh.choose Th : ℕ) * ((Th : ℝ) * (2 * cap)) ^ (Nh - Th))
+            + 2 * Real.exp (-((Th : ℝ) / 8)))
+        + 2 ^ ((Fintype.card σ + 1) * Nh) * (1 - yh / 2) ^ (Bp + 1)))
         ≤ (Q + 1) * (4 * δ')
     have : δ' + δ' / 4 + (δ' + Q * A
         * misledTail budget (2 * prefixMax P.D k) (2 * (Q + 1) * cross) ε)
       + (((Fintype.card σ + 1 : ℕ) : ℝ) * δm + (((Fintype.card σ + 1 : ℕ) : ℝ) + 1)
         * (2 * ((Msc.choose Tsc : ℕ) * ((Tsc : ℝ) * (2 * cap)) ^ (Msc - Tsc))
           + 2 * Real.exp (-((Tsc : ℝ) / 8)))
-        + 2 ^ ((Fintype.card σ + 1) * Msc) * (1 - yh / 2) ^ (Bp + 1)) ≤ 4 * δ' := by
-      linarith only [hb, hδ8, hδ'0, hwt]
+        + (((Fintype.card σ + 1 : ℕ) : ℝ) + 1)
+          * (2 * ((Nh.choose Th : ℕ) * ((Th : ℝ) * (2 * cap)) ^ (Nh - Th))
+            + 2 * Real.exp (-((Th : ℝ) / 8)))
+        + 2 ^ ((Fintype.card σ + 1) * Nh) * (1 - yh / 2) ^ (Bp + 1)) ≤ 4 * δ' := by
+      linarith only [hb, hbh, hδ8, hδ'0, hwt]
     exact mul_le_mul_of_nonneg_left this hQ0
 
 end OrthoDFA

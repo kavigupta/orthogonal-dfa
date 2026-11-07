@@ -16,10 +16,12 @@ leaves and whose harvested draws find their strings within `W` probes in all ask
 
     f W (3 + ⌈log₂ L⌉)(n + 1) + a (b + 1) + f (T probeSifts L (n + 1) + n (n + 2)²|Σ|)
 
-strings (`card_reads_roundQ_le`): its harvested draws, its clustering and its level 3. A loop
+strings (`card_reads_roundQ_le`): its harvested draws, its clustering and its level 3. A population
+draws until its draws hold its samples, and only those draws are walked (`eval_popDrawsQ`). A loop
 returning rounds whose trees have at most `n + 2` leaves and that meet `HarvestProbesWithin` at
 `W` asks at most `K` times that (`card_reads_loopRoundsQ_le`); the loop's rounds meet it where
-every round is good and walks at most `W` probes (`harvestProbesWithin_of`).
+every round is good and its harvested populations' first `Nh` draws hold their samples and walk at
+most `W` probes in all (`harvestProbesWithin_of`), so each population stops within `Nh` draws.
 -/
 
 noncomputable section

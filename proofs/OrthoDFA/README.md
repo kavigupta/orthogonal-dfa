@@ -62,8 +62,10 @@ Each claim is proved from the explicit theorems below.
   suffixes and `O(|Q|³|Σ|(1/β + |Q|)(L + |Q|)R/ξ · log(|Q||Σ|/δ))` probes, `X'' = (L + |Q|)R/(β δ ξ
   s₀)`. A run that returns a result whose every round's tree has at most `|Q| + 2` leaves and whose
   harvested draws walk within `⌈totalWalk⌉₊` probes a round (`totalWalk` is `O` of `1/ρ` times the
-  prefix count) also asks the oracle at most `totalReads` strings, a sum of five terms (the clusterings', the counterexample
-  search's, its re-sifts', the harvest's and the start leaf's), and its output and questions depend
+  prefix count over `|Q|`: a harvested population draws only until its draws hold its samples, and
+  each draw walks about `1/ρ` probes) also asks the oracle at most `totalReads` strings, a sum of
+  five terms (the clusterings', the counterexample search's, its re-sifts', the harvest's and the
+  start leaf's), and its output and questions depend
   only on the answers at the strings it asks (`learnerQ`'s `eval` and `reads`). The prefixes' first
   term is the clustering's populations' group, whose log reads the suffix pool alone, so its log
   grows as `log log L`. The totals grow with `L` because the settings the proof picks hold each
@@ -242,7 +244,9 @@ mean over the strings, but for chance `4(|Q|+2)e^(−nξ²/32)` (`scoreBad_le`),
 
 `indecisiveLStarLoop` (`OrthoDFA/Code/LearnerLoop.lean`) clusters a family over the populations so
 far, runs level 3 with it, and adds a harvest's sampler, scaled to a probability, as a population of
-every later round. The whole run, every round's clustering and level 3, reads one noise. Each
+every later round. A harvested population draws one at a time until its draws hold every sample
+the schedule's states take from it (`DrawsHold`), as the Python's `split_draws` does, so only those
+draws walk probes. The whole run, every round's clustering and level 3, reads one noise. Each
 round's clustering draws its prefixes, certification prefixes and suffixes off every one the earlier
 rounds' clusterings read (`offLaw`), so no two rounds read the same string. Level 3 runs at
 disagreement rate `ε` and draws its probes from `D` conditioned on their first `k ≥ 1` letters
@@ -485,7 +489,8 @@ the time. Each level says what a state's chance of reading undecided is.
 - `OrthoDFA/LowLevelClaims/SuffixFamily.lean` — `SuffixFamily`: the oracle, DFA, family and band,
   with its reads and each state's read distribution.
 - `OrthoDFA/Code/LearnerLoop.lean` — the loop, `indecisiveLStarLoop`: each round clusters, runs
-  level 3 reading the family at the gate's cut, and hands its harvest's sampler on as a population.
+  level 3 reading the family at the gate's cut, and hands its harvest's sampler on as a population,
+  which later rounds draw from only until their draws hold its samples.
 - `OrthoDFA/Code/LoopDFA.lean` and `OrthoDFA/LowLevelClaims/LoopDFA.lean` — `LearnerLoopDFA`,
   `LearnerLoopDFASimple` and `LearnerLoopDFADist`, `pickLeaf` and `rerootedDFA` (in `Code/`), and
   `windowLaw` and `windowStrings`, the distributions the loop draws its probes from over an input
