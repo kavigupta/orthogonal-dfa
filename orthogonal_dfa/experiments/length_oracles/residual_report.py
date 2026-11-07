@@ -81,6 +81,9 @@ def minimize(table, accepts):
 
 
 def main():
+    if PRODUCTS.exists():
+        print(f"{PRODUCTS} exists; nothing to run.", flush=True)
+        return
     strings, labels = label.saved_labels()
     flat = labels["flat"].astype(bool)
     scores = saved_centred_scores(0, label.COUNT)

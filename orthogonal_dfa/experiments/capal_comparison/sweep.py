@@ -226,9 +226,7 @@ def run_sweep(
                 flush=True,
             )
             cached = previous.get((b.name, learner, eta, seed))
-            # An exclusion is free to redo, and reusing one would outlive the
-            # preconditions that produced it.
-            if cached is not None and cached.get("error_type") != "ExcludedOutOfRegime":
+            if cached is not None:
                 cell = Cell(**cached)
                 print(describe(cell) + "  [reused]", flush=True)
             else:

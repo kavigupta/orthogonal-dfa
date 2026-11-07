@@ -410,7 +410,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
     let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
     let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
-    let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+    let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
     2 ≤ Fintype.card α → A ≤ Ae →
@@ -546,7 +546,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     exact ciSup_le fun u => (windowLaw_prefix D (le_refl k) hkL₁ u).trans_le (hpre u)
   have hpm0 : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
   have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
-  obtain ⟨settings, hwalk, hdis, hbud, hHN, hSC, hcapN, hnp, hreads, hmain⟩ :=
+  obtain ⟨settings, hwalk, hdis, hbud, hHN, hSC, hnp, hreads, hmain⟩ :=
     loop_simple_checks M O P (shortAt M (L + 1)) η₀ εcov ε δ' pAP k
     hL hη hη₀ hεc0 hεcov1 hε0 hε12 hδ'0 hδ'1' hpAP hp1
     (by show 1 ≤ L + Fintype.card σ + 3; omega)
@@ -643,7 +643,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     obtain ⟨⟨hlen, o, ho, hch⟩, hfr, hrg⟩ := hlp'
     have hcons : o.result.ending = .consistent := hch.1.1
     obtain ⟨r, hr, -, tt, hst, hG, hOk, hB, hF, hread, hhyp⟩ :=
-      stageSel_last settings O P Dsf Ls hcapN q.1 hfr o ho hcons
+      stageSel_last settings O P Dsf Ls q.1 hfr o ho hcons
     refine Set.mem_iUnion.2 ⟨⟨r, hr⟩, ?_⟩
     by_contra hnot
     apply hq
@@ -731,7 +731,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       ≤ δ / 2 := by
     refine (loop_select_le settings O P Dsf (prefixLaw D L) Ls L n (Fintype.card σ + 2)
       ⌊RB⌋₊ t p₀ (by positivity) (prefixLaw_length D (hlong.mono fun x hx => hLLs.trans hx))
-      hpreL hcapN hnp).trans ?_
+      hpreL hnp).trans ?_
     have e1 : ((Fintype.card σ + 2 : ℕ) : ℝ) = Q + 2 := by push_cast; rfl
     have e2 : ((Fintype.card σ + 1 : ℕ) : ℝ) + 1 = Q + 2 := by push_cast; ring
     rw [e1, e2, htd]
@@ -774,7 +774,7 @@ theorem learner_loop_dfa_dist_counts {α : Type*} [Fintype α] [DecidableEq α] 
       * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
     let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
     let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
-    let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+    let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
     A ≤ Ae →
@@ -883,7 +883,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     let n : ℕ := ⌈32 * Real.log (16 * (Q + 2) / δ) / ξ ^ 2⌉₊
     let SC : ℝ := 8 * (Q + 4) * (((L₁ : ℝ) + 1) ^ 2 * (1 + Real.log ((L₁ : ℝ) + 1))
         * loopR₀ Q A Ae δ c ξ pAP η₀) + 16 * Real.log (16 * (Q + 2) / δ') + 2
-    let HN : ℝ := L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+    let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
     2 ≤ Fintype.card α → A ≤ Ae →
@@ -1108,9 +1108,9 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
       Real.log_le_log (by positivity) (div_le_div_of_nonneg_right
         (mul_le_mul_of_nonneg_left hSCle (by linarith only [hQ0])) hδ'0.le)
     have := mul_le_mul_of_nonneg_left hlog (by positivity : (0 : ℝ) ≤ 192 / ε)
-    show (L₁ : ℝ) + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1)
-      * (8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2) / δ')
-        ≤ L₁ + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+    show 192 / ε * Real.log (4 * (Q + 1)
+      * (8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2) / δ') + 1
+        ≤ 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
     linarith only [this]
   rw [hℓe]
   have hPBf : PB ≤ loopPool ℓ Q A Ae δ c ξ pAP η₀ :=
