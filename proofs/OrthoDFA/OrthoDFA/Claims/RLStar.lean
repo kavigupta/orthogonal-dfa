@@ -11,8 +11,9 @@ length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, whe
 start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
 letters, `1/p₀Tol` growing as `L⁴ log L`, and every round's tree has at most `|Q| + 2` leaves
 (`RLStarSucceeds`); over the whole run its clusterings read at most `totalPref` prefixes and
-`totalSuff` suffixes, its rounds draw at most `totalProbes` probes, whatever they draw, and a run
-that succeeds asks the oracle within `totalReads` strings, start leaf included (`ReadsWithin`).
+`totalSuff` suffixes, its rounds draw at most `totalProbes` probes, whatever they draw;
+and, but for chance `δ`, the run's output depends on at most `totalReads` of the oracle's answers,
+start leaf included.
 Every one is within the big-O shape below, with `s₀ = 1/2 − η₀` the signal. The settings the proof
 picks hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the
 window's `N = Θ(L)` lengths, so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes
@@ -70,30 +71,30 @@ structure RLStarDistRun extends RLStarDistInputs where
 
 def rlStarDistRunRegion : Set RLStarDistRun := {r | r.toRLStarDistInputs ∈ rlStarDistRegion}
 
-/-- `run` asks `oracle` at most `n` strings, and any answers agreeing with `oracle`'s on them give
-the same output and ask the same strings. -/
-def ReadsWithin {X : Type*} [DecidableEq X] {Y : Type*} (run : Query X ℝ Y) (oracle : X → ℝ)
-    (n : ℝ) : Prop :=
-  ((run.reads oracle).card : ℝ) ≤ n ∧
-    ∀ o : X → ℝ, (∀ w ∈ run.reads oracle, o w = oracle w) →
-      run.eval o = run.eval oracle ∧ run.reads o = run.reads oracle
+/-- `f`'s value at `oracle` depends only on `oracle`'s answers on `S`. -/
+def DependsOnlyOn {X Y : Type*} (f : (X → ℝ) → Y) (oracle : X → ℝ) (S : Finset X) : Prop :=
+  ∀ o : X → ℝ, (∀ w ∈ S, o w = oracle w) → f o = f oracle
 
-/-- Within the round and leaf caps, the loop ends consistent and errs on at most `ε` of `T`. -/
+/-- Within the round and leaf caps, the loop ends consistent and errs on at most `ε` of `T`, and
+its output depends on at most `totalReads` of the oracle's answers. -/
 def RLStarSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype Q] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K)
     (O : Oracle μ (FreeMonoid A)) (D Dsf T : Measure (FreeMonoid A)) (M : _root_.DFA A Q) (ε : ℝ)
-    {n : ℕ} (q : LoopDraws Ω A K settings.level3.harvestReadCap settings.level3.probeBudget
+    (totalReads : ℝ) {n : ℕ}
+    (q : LoopDraws Ω A K settings.level3.harvestReadCap settings.level3.probeBudget
       × (Fin n → FreeMonoid A)) : Prop :=
-  ∃ rounds, indecisiveLStarLoop settings O D Dsf q.1 = some rounds ∧
+  (∃ rounds, indecisiveLStarLoop settings O D Dsf q.1 = some rounds ∧
     (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
         o.result.ending = .consistent ∧ T.real {w | ¬
           o.result.hypothesis.rerootedDFA (o.read O q.1.1) q.2 w
             (M.eval w.toList ∈ M.accept)} ≤ ε) ∧
-    ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2
+    ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2) ∧
+  ∃ S : Finset (FreeMonoid A), (S.card : ℝ) ≤ totalReads ∧
+    DependsOnlyOn (fun o => (learnerQ settings D Dsf q.1.2 q.2).eval o) (fun w => O.mq w q.1.1) S
 
 /-- On every instance in `rlStarDistRegion`, for strings drawn from `D` whose first `k` letters
-`p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes`, which
-succeed but for chance `δ`, and whose successful runs ask the oracle within `totalReads`. -/
+`p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes`, and
+which but for chance `δ` succeed within `totalReads`. -/
 def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : RLStarDistRun → ℝ)
     (heldOut : RLStarDistInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
@@ -126,16 +127,11 @@ def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads :
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    (∀ q : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
-          settings.level3.probeBudget × (Fin (heldOut x) → FreeMonoid A),
-      RLStarSucceeds settings O (windowLaw D k L₁) (prefixLaw D Ls) (prefixLaw D L) M (γ + x.ξ) q →
-      ReadsWithin (learnerQ settings (windowLaw D k L₁) (prefixLaw D Ls) q.1.2 q.2)
-        (fun w => O.mq w q.1.1) (totalReads { x with L })) ∧
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => prefixLaw D L)).real
       {q | ¬ RLStarSucceeds settings O (windowLaw D k L₁) (prefixLaw D Ls) (prefixLaw D L) M
-        (γ + x.ξ) q}
+        (γ + x.ξ) (totalReads { x with L }) q}
       ≤ x.δ
 
 open Real in
@@ -194,8 +190,8 @@ def RLStarClaim.{u, v, w} : Prop :=
     RLStarWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes totalReads heldOut
 
 /-- On every instance in `rlStarRegion` with `L₀ x ≤ L`, settings whose run reads within
-`totalPref`, `totalSuff` and `totalProbes`, which succeed but for chance `δ`, and whose successful
-runs ask the oracle within `totalReads`. -/
+`totalPref`, `totalSuff` and `totalProbes`, and which but for chance `δ` succeed within
+`totalReads`. -/
 def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
     (totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ) (heldOut : RLStarInputs → ℕ) :
     Prop :=
@@ -222,19 +218,12 @@ def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    (∀ q : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
-          settings.level3.probeBudget × (Fin (heldOut x) → FreeMonoid A),
-      RLStarSucceeds settings O (windowStrings k L₁) (uniformStrings (L₁ + Fintype.card Q + 3))
-        (uniformStrings L) M (γ + x.ξ) q →
-      ReadsWithin
-        (learnerQ settings (windowStrings k L₁) (uniformStrings (L₁ + Fintype.card Q + 3))
-          q.1.2 q.2)
-        (fun w => O.mq w q.1.1) (totalReads { x with L })) ∧
     ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).prod
         (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
       {q | ¬ RLStarSucceeds settings O (windowStrings k L₁)
-        (uniformStrings (L₁ + Fintype.card Q + 3)) (uniformStrings L) M (γ + x.ξ) q}
+        (uniformStrings (L₁ + Fintype.card Q + 3)) (uniformStrings L) M (γ + x.ξ)
+        (totalReads { x with L }) q}
       ≤ x.δ
 
 open Real in
