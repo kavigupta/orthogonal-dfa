@@ -35,19 +35,8 @@ def Disagrees (read : FreeMonoid α → ARU) (H : HypothesisDFA α) (k : ℕ) (x
 
 section Split
 
-/-- The edges after the leaf `p` splits into `T'`: those into `p` sift their witness's successor
-again, those out of it are dropped. -/
-def retarget (read : FreeMonoid α → ARU) (T' : DTree α) (p : List Bool) (E : Edges α) :
-    Edges α := fun e =>
-  if p.isPrefixOf e.1 then none
-  else
-    match E e with
-    | some (t, w) =>
-      if t = p then
-        (T'.sift read (w * FreeMonoid.of e.2)).elim (fun t' => some (t', w)) fun _ => none
-      else some (t, w)
-    | none => none
-
+/-- The edge `e` after the leaf `p` splits into `T'`: an edge into `p` sifts its witness's
+successor again, an edge out of it is dropped. -/
 def retargetAtQ (T' : DTree α) (p : List Bool) (E : Edges α) (e : List Bool × α) :
     Query (FreeMonoid α) ARU (Option (List Bool × FreeMonoid α)) :=
   if p.isPrefixOf e.1 then .pure none
@@ -59,6 +48,10 @@ def retargetAtQ (T' : DTree α) (p : List Bool) (E : Edges α) (e : List Bool ×
           r.elim (fun t' => some (t', w)) fun _ => none
       else .pure (some (t, w))
     | none => .pure none
+
+def retarget (read : FreeMonoid α → ARU) (T' : DTree α) (p : List Bool) (E : Edges α) :
+    Edges α := fun e =>
+  (retargetAtQ T' p E e).eval read
 
 /-- Over the edges `es`, every other edge unlearned. -/
 def retargetQ [DecidableEq α] (T' : DTree α) (p : List Bool) (E : Edges α) :

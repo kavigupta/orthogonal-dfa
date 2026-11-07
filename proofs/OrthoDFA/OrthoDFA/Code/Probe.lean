@@ -35,35 +35,16 @@ section Search
 
 variable (read : FreeMonoid α → ARU) (T : DTree α) (x : FreeMonoid α) (st : ℕ → List Bool)
 
-def siftAgrees (p : ℕ) : Option Bool :=
-  (T.sift read (prefixOf x p)).elim (fun l => some (decide (l = st p))) fun _ => none
-
-def undecidedAt (p : ℕ) : List (FreeMonoid α) :=
-  (T.sift read (prefixOf x p)).elim (fun _ => []) fun z => [z]
-
-/-- The search's result as an outcome, against the walk's leaves `st`, with `hi` the search's
-upper end. `unlearned` is the letter and the successor's leaf of the unlearned edge the walk
-stopped at, if it stopped at one. The search does not recover, so it reports no pair or
-triple. -/
-def searchOutcome (unlearned : Option (α × List Bool)) (hi : ℕ) : SearchResult → Outcome α
-  | .undecidedHi => .undecided (undecidedAt read T x hi) true
-  | .allAgree =>
-    match unlearned with
-    | some (c, t) => .unlearnedEdge (st hi) c (prefixOf x hi) t
-    | none => .agree
-  | .edge p =>
-    match x.toList[p - 1]?, T.sift read (prefixOf x p) with
-    | some c, .inl t => .wrongEdge (st (p - 1)) c (prefixOf x (p - 1)) t
-    | _, _ => .undecided [] false
-  | .undecidedMid p => .undecided (undecidedAt read T x p) false
-  | _ => .undecided [] true
-
 def siftAgreesQ (p : ℕ) : Query (FreeMonoid α) ARU (Option Bool) :=
   (T.siftQ (prefixOf x p)).map fun r => r.elim (fun l => some (decide (l = st p))) fun _ => none
 
 def undecidedAtQ (p : ℕ) : Query (FreeMonoid α) ARU (List (FreeMonoid α)) :=
   (T.siftQ (prefixOf x p)).map fun r => r.elim (fun _ => []) fun z => [z]
 
+/-- The search's result as an outcome, against the walk's leaves `st`, with `hi` the search's
+upper end. `unlearned` is the letter and the successor's leaf of the unlearned edge the walk
+stopped at, if it stopped at one. The search does not recover, so it reports no pair or
+triple. -/
 def searchOutcomeQ (unlearned : Option (α × List Bool)) (hi : ℕ) :
     SearchResult → Query (FreeMonoid α) ARU (Outcome α)
   | .undecidedHi => (undecidedAtQ T x hi).map fun zs => .undecided zs true
@@ -81,28 +62,18 @@ def searchOutcomeQ (unlearned : Option (α × List Bool)) (hi : ℕ) :
   | .undecidedMid p => (undecidedAtQ T x p).map fun zs => .undecided zs false
   | _ => .pure (.undecided [] true)
 
+def siftAgrees (p : ℕ) : Option Bool := (siftAgreesQ T x st p).eval read
+
+def undecidedAt (p : ℕ) : List (FreeMonoid α) := (undecidedAtQ T x p).eval read
+
+def searchOutcome (unlearned : Option (α × List Bool)) (hi : ℕ) (r : SearchResult) : Outcome α :=
+  (searchOutcomeQ T x st unlearned hi r).eval read
+
 end Search
 
 /-- A probe of `x`: its first `k` letters sifted, then walked along the edges to `hi`, where the
 walk stops; the unlearned edge it stops at, if any, has its successor sifted; and the search finds
 where the sift and the walk part between `k` and `hi`, stopping at the first undecided read. -/
-def probe (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) :
-    Outcome α :=
-  match T.sift read (prefixOf x k) with
-  | .inr z => .undecidedStart z
-  | .inl a =>
-    let ss := walk E a (x.toList.drop k)
-    let st := fun p => ss.getD (p - k) []
-    let hi := k + ss.length - 1
-    let search := (tripartiteSearch false (siftAgrees read T x st) k hi).1
-    match x.toList[hi]? with
-    | some c =>
-      match T.sift read (prefixOf x (hi + 1)) with
-      | .inr z => .undecided [z] true
-      | .inl t => searchOutcome read T x st (some (c, t)) hi search
-    | none => searchOutcome read T x st none hi search
-
-/-- The sifts at `k` and past the walk first, then the search. -/
 def probeQ (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) :
     Query (FreeMonoid α) ARU (Outcome α) :=
   (T.siftQ (prefixOf x k)).bind fun
@@ -111,7 +82,7 @@ def probeQ (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) :
     let ss := walk E a (x.toList.drop k)
     let st := fun p => ss.getD (p - k) []
     let hi := k + ss.length - 1
-    let search := tripartiteQ false (siftAgreesQ T x st) k hi
+    let search := (tripartiteQ false k hi).subst (siftAgreesQ T x st)
     match x.toList[hi]? with
     | some c =>
       (T.siftQ (prefixOf x (hi + 1))).bind fun
@@ -119,13 +90,17 @@ def probeQ (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) :
       | .inl t => search.bind (searchOutcomeQ T x st (some (c, t)) hi)
     | none => search.bind (searchOutcomeQ T x st none hi)
 
-/-- A probe, which counts as agreeing where it is shorter than `k`. -/
-def probeOrAgree (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
-    (x : FreeMonoid α) : Outcome α :=
-  if x.toList.length < k then .agree else probe read T E k x
+def probe (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) :
+    Outcome α :=
+  (probeQ T E k x).eval read
 
+/-- A probe, which counts as agreeing where it is shorter than `k`. -/
 def probeOrAgreeQ (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) :
     Query (FreeMonoid α) ARU (Outcome α) :=
   if x.toList.length < k then .pure .agree else probeQ T E k x
+
+def probeOrAgree (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
+    (x : FreeMonoid α) : Outcome α :=
+  (probeOrAgreeQ T E k x).eval read
 
 end OrthoDFA
