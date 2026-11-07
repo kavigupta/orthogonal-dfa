@@ -25,13 +25,6 @@ without its seed, at the gate's cut: a string reads accept at `hi + 1` or more o
 votes and reject at `lo` or fewer. Without its seed the family is suffix draws of one length, so
 it is suffix-free.
 
-The whole run reads one noise, fixed per string as the Python's is. The loop is a program
-(`loopQ`) asking the oracle's answers `w ↦ MQ(w)` at that noise, and `indecisiveLStarLoop` is its
-run against them; every read of the oracle is a question of the program. The clustering asks
-every string its tests may read, each prefix it draws followed by each suffix it draws or by
-nothing, and computes its tests from the answers; level 3 and a sampler ask the family read at
-each string they read, and the family read asks that string followed by each of the family.
-
 Known modelling gap. The round draws its probes from `D` conditioned on their first `walkStart`
 letters avoiding those of every prefix the round's clustering read, so that it never reads a string
 the clustering read. The Python draws them from `D`.
@@ -249,8 +242,6 @@ def histOf (rounds : List (LoopRound α)) : LoopHist α :=
   ⟨rounds.filterMap fun o => o.sampler,
     rounds.foldr (fun o T => o.prefs ∪ T) ∅, rounds.foldr (fun o T => o.suffs ∪ T) ∅⟩
 
-/-- Every string the clustering asks at the states of `sched`: each prefix it reads followed by
-each suffix it reads or by nothing. -/
 def clusterReads {K : ℕ} (sched : Finset State) (pops : Finset (Option (Fin K)))
     (x : Run Ω (FreeMonoid α) (Option (Fin K))) : Finset (FreeMonoid α) :=
   (roundPrefs sched pops x ×ˢ insert 1 (roundSuffs sched x)).image fun z => z.1 * z.2
@@ -278,10 +269,8 @@ def DrawsHold (sched : Finset State) (g : FreeMonoid α → Bool) (U : ℕ → F
     ∧ 2 * B.npref ≤ ((l.filter fun s => !g s).toFinset \ U B.npref).card
 
 open scoped Classical in
-/-- Population `j`'s draws off `T`, draw `n` by `u n`: the probes' population's first `M`
-(`uniDraws`); a harvested one's by its sampler at cap `N` over the probes the block draws from
-`D`, its family read asked of the oracle, one at a time until `stop` holds of them, at most `M`.
-`none` if a harvested draw misses. -/
+/-- Population `j`'s draws off `T`: the probes' population's first `M`, a harvested one's one at a
+time until `stop` holds of them, at most `M`; `none` if a harvested draw misses. -/
 def popDrawsQ {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ) (pops : List (HarvestSampler α))
     (T : Finset (FreeMonoid α)) (stop : List (FreeMonoid α) → Prop) (j : Option (Fin K))
     (u : ℕ → unitInterval × (Fin N → unitInterval)) :
@@ -295,9 +284,8 @@ def popDrawsQ {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ) (pops : List
           (familyReadQ s.family s.kl s.kh)
     | none => .pure (some [])
 
-/-- Each population's draws after the history `h` (`popDrawsQ`) off the earlier rounds' prefixes,
-a harvested one's until they hold every sample a state of `sched` takes (`DrawsHold`). `none` if a
-draw misses. -/
+/-- Each population's draws after the history `h`, a harvested one's until they hold every sample
+a state of `sched` takes; `none` if a draw misses. -/
 def drawListsQ {K : ℕ} (D : Measure (FreeMonoid α)) (k N M : ℕ) (sched : Finset State)
     (h : LoopHist α) (c : ClusterRest α K N) :
     Query (FreeMonoid α) ℝ (Option (Option (Fin K) → List (FreeMonoid α))) :=
@@ -317,12 +305,7 @@ def drawsOf {K N : ℕ} (ω : Ω) (D Dsf : Measure (FreeMonoid α)) (M : ℕ)
     c.2.2.2)
 
 open scoped Classical in
-/-- The round after the history `h`: each population's draws off what the earlier rounds read
-(`drawListsQ`); the clustering on them (`drawsOf`), which asks `clusterReads` and returns at a
-state of the schedule where `ret` holds of the answers, its family `clusterAt` there; then level 3
-over probes drawn by `d.2` from `D` avoiding the first `walkStart` letters of the prefixes the
-clustering read, reading the family. `none` if a harvested draw misses, the clustering would read
-past the draws, or no state of the schedule returns. -/
+/-- The round after the history `h`; `none` if it fails. -/
 def roundQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     Query (FreeMonoid α) ℝ (Option (LoopRound α)) :=

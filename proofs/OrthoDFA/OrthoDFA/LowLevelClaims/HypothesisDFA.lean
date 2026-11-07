@@ -37,14 +37,18 @@ def SplitAndLearnCorrect : Prop :=
         H.tree.sift read (u * FreeMonoid.of c) = .inl t →
         EdgesOK read H.tree (Function.update H.edges (s, c) (some (t, u))))
 
-/-- Every learned edge along a level-3 run is at a leaf, so the leaf restriction in
+/-- Every learned edge along a level-2 or level-3 run is at a leaf, so the leaf restriction in
 `HypothesisDFA.splitQ` drops none, and the split is hypothesis_dfa.HypothesisDFA.split_leaf's,
 which retargets every edge. -/
-def Level3EdgesAtLeaves : Prop :=
+def RunsKeepEdgesAtLeaves : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU)
-    (C : Random.Level3Settings) (xs : List (FreeMonoid α)),
+    (xs : List (FreeMonoid α)),
     -- Each state a run splits at ends the run over the probes before it.
-    let s := (Random.runProbes read C Random.initialState xs).1
-    EdgesAtLeaves ⟨s.tree, s.edges⟩
+    (∀ C : Level2.Settings,
+      let s := (Level2.runProbes read C Level2.initialState xs).1
+      EdgesAtLeaves ⟨s.tree, s.edges⟩)
+    ∧ ∀ C : Random.Level3Settings,
+      let s := (Random.runProbes read C Random.initialState xs).1
+      EdgesAtLeaves ⟨s.tree, s.edges⟩
 
 end OrthoDFA

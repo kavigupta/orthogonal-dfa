@@ -23,7 +23,8 @@ from ..capal_comparison.core import REPO_ROOT
 from . import label
 from .oracles import VOCAB, oracle
 
-RUNS = REPO_ROOT / "data" / "neural" / "length_oracles" / "runs.json"
+RUNS = REPO_ROOT / "data" / "neural" / "length_oracles" / "runs"
+SEEDS = range(4)
 
 
 def end_states(table, strings):
@@ -56,12 +57,14 @@ def saved_centred_scores(seed, n):
     return centred_scores(flat, label.strings(n), seed)
 
 
+def run_restarts(kind, seed):
+    with open(RUNS / f"{kind}_s{seed}" / "restarts.json") as f:
+        return json.load(f)
+
+
 def first_stage(seed):
-    """Flat seed ``seed``'s kept DFA in runs.json."""
-    with open(RUNS) as f:
-        restarts = json.load(f)["restarts"]
-    rows = [r for r in restarts if (r["oracle"], r["seed"]) == ("flat", seed)]
-    return max(rows, key=lambda r: r["pick_score"])["dfa"]
+    """Flat seed ``seed``'s kept DFA."""
+    return max(run_restarts("flat", seed), key=lambda r: r["pick_score"])["dfa"]
 
 
 def offsets(table):

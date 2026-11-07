@@ -228,21 +228,6 @@ omit instQ in
     · exact ih
     · rfl
 
-lemma mem_reads_findSome {xs : List δ} {q : Q} (hq : q ∈ (findSome f xs).reads o) :
-    ∃ x ∈ xs, q ∈ (f x).reads o := by
-  induction xs with
-  | nil => simp [findSome] at hq
-  | cons x xs ih =>
-    simp only [findSome, reads_bind, Finset.mem_union] at hq
-    rcases hq with hq | hq
-    · exact ⟨x, by simp, hq⟩
-    · rcases hx : (f x).eval o with _ | y
-      · rw [hx] at hq
-        obtain ⟨x', hx', hq'⟩ := ih hq
-        exact ⟨x', by simp [hx'], hq'⟩
-      · rw [hx] at hq
-        simp at hq
-
 /-- A search that finds its value in `l₁` asks nothing of `l₂`. -/
 lemma findSome_append_of_eval {l₁ : List δ} (l₂ : List δ) {y : ε}
     (h : (findSome f l₁).eval o = some y) :

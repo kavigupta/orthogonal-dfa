@@ -3,9 +3,9 @@ import OrthoDFA.Proofs.BandKappa
 import OrthoDFA.Proofs.Allowance
 import OrthoDFA.Proofs.BitSum
 import OrthoDFA.Proofs.Budget
-import OrthoDFA.Proofs.ClaimClustering
-import OrthoDFA.Proofs.ClaimLevels
-import OrthoDFA.Proofs.ClaimLoop
+import OrthoDFA.Proofs.ClaimTrainFamily
+import OrthoDFA.Proofs.ClaimCounterexSynth
+import OrthoDFA.Proofs.ClaimRLStar
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.CoveredStart
 import OrthoDFA.Proofs.DTree
@@ -53,50 +53,38 @@ The supporting claims are stated under `OrthoDFA.LowLevelClaims`: `AdaptiveReads
 `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
 `CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
-`Level3EdgesAtLeaves`.
+`RunsKeepEdgesAtLeaves`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `OrthoDFA.Claims`:
-`ClusteringClaim`, `ClusteringClaimSimple`, `Level2Claim` to `Level5Claim`, `LoopClaim`,
-`LoopClaimUniform` and `LoopClaimSimple`.
+`TrainFamilyClaim`, `TrainFamilyClaimSimple`, `CounterexSynthClaim`, `RLStarClaim`,
+`RLStarClaimUniform` and `RLStarClaimUniformSimple`.
 -/
 
 namespace OrthoDFA
 
-theorem clustering_claim : ClusteringClaim := clusteringClaim_holds
+theorem train_family_claim : TrainFamilyClaim := trainFamilyClaim_holds
 
-#print axioms clustering_claim
+#print axioms train_family_claim
 
-theorem clustering_claim_simple : ClusteringClaimSimple := clusteringClaimSimple_holds
+theorem train_family_claim_simple : TrainFamilyClaimSimple := trainFamilyClaimSimple_holds
 
-#print axioms clustering_claim_simple
+#print axioms train_family_claim_simple
 
-theorem level2_claim : Level2Claim := level2Claim_holds
+theorem counterex_synth_claim : CounterexSynthClaim := counterexSynthClaim_holds
 
-#print axioms level2_claim
+#print axioms counterex_synth_claim
 
-theorem level3_claim : Level3Claim := level3Claim_holds
+theorem rl_star_claim : RLStarClaim := rlStarClaim_holds
 
-#print axioms level3_claim
+#print axioms rl_star_claim
 
-theorem level4_claim : Level4Claim := level4Claim_holds
+theorem rl_star_claim_uniform : RLStarClaimUniform := rlStarClaimUniform_holds
 
-#print axioms level4_claim
+#print axioms rl_star_claim_uniform
 
-theorem level5_claim : Level5Claim := level5Claim_holds
+theorem rl_star_claim_uniform_simple : RLStarClaimUniformSimple := rlStarClaimUniformSimple_holds
 
-#print axioms level5_claim
-
-theorem loop_claim : LoopClaim := loopClaim_holds
-
-#print axioms loop_claim
-
-theorem loop_claim_uniform : LoopClaimUniform := loopClaimUniform_holds
-
-#print axioms loop_claim_uniform
-
-theorem loop_claim_simple : LoopClaimSimple := loopClaimSimple_holds
-
-#print axioms loop_claim_simple
+#print axioms rl_star_claim_uniform_simple
 
 theorem clustering_guarantee : ClusteringGuarantee := clustering_guarantee_of_correct
 
@@ -152,9 +140,9 @@ theorem split_and_learn_correct : SplitAndLearnCorrect := splitAndLearnCorrect
 
 #print axioms split_and_learn_correct
 
-theorem level3_edges_at_leaves : Level3EdgesAtLeaves := level3EdgesAtLeaves_holds
+theorem runs_keep_edges_at_leaves : RunsKeepEdgesAtLeaves := runsKeepEdgesAtLeaves_holds
 
-#print axioms level3_edges_at_leaves
+#print axioms runs_keep_edges_at_leaves
 
 theorem probe_correct : ProbeCorrect := probeCorrect
 

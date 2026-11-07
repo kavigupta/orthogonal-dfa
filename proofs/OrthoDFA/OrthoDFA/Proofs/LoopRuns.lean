@@ -1,6 +1,7 @@
 import OrthoDFA.Proofs.KappaCount
 import OrthoDFA.Proofs.ProbeKeys
 import OrthoDFA.LowLevelClaims.HypothesisDFA
+import OrthoDFA.Proofs.Level2Steps
 
 /-!
 # Level 3's run, whatever it reads
@@ -377,7 +378,8 @@ end Harvest
 
 end Random
 
-theorem level3EdgesAtLeaves_holds : Level3EdgesAtLeaves :=
-  fun read C xs => Random.edgesAtLeaves_runProbes read C xs
+theorem runsKeepEdgesAtLeaves_holds : RunsKeepEdgesAtLeaves :=
+  fun read xs => ⟨fun C => Level2.edgesAtLeaves_runProbes read C xs,
+    fun C => Random.edgesAtLeaves_runProbes read C xs⟩
 
 end OrthoDFA
