@@ -118,7 +118,11 @@ def describe(cell: Cell) -> str:
     )
 
 
-def reusable_cells(out_path: Path) -> Dict[tuple, dict]:
+def cell_key(cell: dict) -> tuple:
+    return (cell["benchmark"], cell["learner"], cell["eta"], cell["seed"])
+
+
+def reusable_cells(out_path: Path, key: Callable[[dict], tuple]) -> Dict[tuple, dict]:
     """Cells from an earlier run of this experiment, keyed by identity.
 
     A cell is written only once it has finished, so a crashed run's cells are
@@ -139,14 +143,12 @@ def reusable_cells(out_path: Path) -> Dict[tuple, dict]:
             flush=True,
         )
         return {}
-    return {
-        (c["benchmark"], c["learner"], c["eta"], c["seed"]): c
-        for c in payload.get("cells", [])
-    }
+    return {key(c): c for c in payload.get("cells", [])}
 
 
 def run_sweep(
-    benchmarks: Sequence[Benchmark],
+    names: Sequence[str],
+    build_benchmarks: Callable[[], Sequence[Benchmark]],
     *,
     experiment: str,
     description: str,
@@ -156,9 +158,17 @@ def run_sweep(
     `data/capal/<experiment>.json`.
 
     Cells already present in that file are reused rather than re-run, so an
-    interrupted sweep resumes and an unchanged one is nearly free.
+    interrupted sweep resumes. `build_benchmarks`, which needs the CAPAL checkout,
+    is not called if no cell is missing.
     """
     out_path = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
+    previous = reusable_cells(out_path, cell_key)
+    if not set(itertools.product(names, LEARNERS, ETAS, SEEDS)) - previous.keys():
+        print(f"{out_path} has every cell; nothing to run.", flush=True)
+        return out_path
+
+    benchmarks = build_benchmarks()
+    assert [b.name for b in benchmarks] == list(names)
     config = {
         "etas": list(ETAS),
         "seeds": list(SEEDS),
@@ -166,7 +176,6 @@ def run_sweep(
         "benchmarks": [b.name for b in benchmarks],
     }
 
-    previous = reusable_cells(out_path)
     if previous:
         print(f"Reusing up to {len(previous)} cells from {out_path}.", flush=True)
 
@@ -217,9 +226,7 @@ def run_sweep(
                 flush=True,
             )
             cached = previous.get((b.name, learner, eta, seed))
-            # An exclusion is free to redo, and reusing one would outlive the
-            # preconditions that produced it.
-            if cached is not None and cached.get("error_type") != "ExcludedOutOfRegime":
+            if cached is not None:
                 cell = Cell(**cached)
                 print(describe(cell) + "  [reused]", flush=True)
             else:

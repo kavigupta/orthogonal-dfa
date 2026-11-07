@@ -273,30 +273,6 @@ lemma scan_tail_le {Kn T : ℕ} {cap δ δₘ : ℝ} (hδ : 0 < δ) (hcap0 : 0 �
   rw [show ((Kn : ℝ) + 1) * (δ / (4 * ((Kn : ℝ) + 1))) = δ / 4 by field_simp] at h5
   linarith
 
-/-- At `y = min e (log x / Lb)`, `x > 1`, the count `⌈log x / y⌉` is at least `Lb` and at most
-`Lb + 1 + log x / e`. -/
-lemma ceil_log_div_min {Lb : ℕ} {e x : ℝ} (hLb : 1 ≤ Lb) (he : 0 < e) (hx : 1 < x) :
-    0 < min e (Real.log x / Lb)
-      ∧ Lb ≤ ⌈Real.log x / min e (Real.log x / Lb)⌉₊
-      ∧ (⌈Real.log x / min e (Real.log x / Lb)⌉₊ : ℝ) ≤ Lb + 1 + Real.log x / e := by
-  have hl : 0 < Real.log x := Real.log_pos hx
-  have hL0 : (0 : ℝ) < Lb := by exact_mod_cast hLb
-  have hy0 : 0 < min e (Real.log x / Lb) := lt_min he (div_pos hl hL0)
-  have hle : (Lb : ℝ) ≤ Real.log x / min e (Real.log x / Lb) := by
-    rw [le_div_iff₀ hy0]
-    have := min_le_right e (Real.log x / Lb)
-    rw [le_div_iff₀ hL0] at this
-    linarith
-  refine ⟨hy0, by exact_mod_cast hle.trans (Nat.le_ceil _), ?_⟩
-  have hc := Nat.ceil_lt_add_one (hL0.le.trans hle)
-  have hd : Real.log x / min e (Real.log x / Lb) ≤ Lb + Real.log x / e := by
-    rcases min_cases e (Real.log x / Lb) with ⟨h, -⟩ | ⟨h, -⟩
-    · rw [h]; linarith
-    · rw [h, div_div_cancel₀ hl.ne']
-      have : 0 ≤ Real.log x / e := (div_pos hl he).le
-      linarith
-  linarith
-
 set_option maxHeartbeats 8000000 in -- the settings and the cap meet `LoopCore`'s conditions
 /-- The loop's claim with each round's failure `δ'` free and the last round's disagreeing probes
 at most `ε + ε/96`, level 3 running at disagreement rate `ε`, and at most half of each `E q`, plus
@@ -329,7 +305,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ * (Q + 3) ^ ((Fintype.card σ + 2)
       * Fintype.card α)
     let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
-    let HN : ℝ := L + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+    let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     O.η ≤ η₀ → η₀ < 1 / 2 →
     0 < εcov → εcov ≤ 1 → 0 < ε → ε ≤ 1 / 2 → 0 < δ' → δ' < 1 → 0 < pAP → pAP ≤ 1 → 1 ≤ P.L →
@@ -341,7 +317,6 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
       (settings.scanCap : ℝ) ≤ SC ∧
-      P.L + settings.level3.probeBudget + 2 ≤ settings.level3.harvestReadCap ∧
       (∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * ⌊RB⌋₊) ∧
       (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin (Fintype.card σ + 1)))),
         (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊
@@ -467,16 +442,11 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hδm1 : δm < 1 := by
     rw [hδmd, div_lt_one (by positivity)]; linarith
   have hx1 : 1 < Msc / δm := by rw [one_lt_div hδm0]; linarith
-  set Lb : ℕ := P.L + budget + 2 with hLbd
-  set yh : ℝ := min (ε / 192) (Real.log (Msc / δm) / Lb) with hyhd
-  obtain ⟨hyh0, hLbN, hNub⟩ := ceil_log_div_min (Lb := Lb) (by omega) (by positivity : 0 < ε / 192)
-    hx1
+  set yh : ℝ := ε / 192 with hyhd
+  have hyh0 : 0 < yh := by positivity
   have hhN : Random.harvestN yh (δm / Msc) = ⌈Real.log (Msc / δm) / yh⌉₊ := by
     rw [Random.harvestN, one_div_div]
   set C : Random.Level3Settings := ⟨k, δ', ε, budget, Random.harvestN yh (δm / Msc)⟩ with hCd
-  have hcapC : P.L + C.probeBudget + 2 ≤ C.harvestReadCap := by
-    show Lb ≤ Random.harvestN yh (δm / Msc)
-    rw [hhN]; exact hLbN
   have hMSC : (Msc : ℝ) ≤ SC := by
     have hT : Tsc ≤ 4 * ((Fintype.card σ + 1 + 3) * ⌊RB⌋₊) + ⌈8 * Real.log (16 * J / δ')⌉₊ := by
       simp only [hTscd]; omega
@@ -495,19 +465,19 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   have hHN : (C.harvestReadCap : ℝ) ≤ HN := by
     show (Random.harvestN yh (δm / Msc) : ℝ) ≤ _
     rw [hhN]
-    refine hNub.trans ?_
-    have hLbR : (Lb : ℝ) = P.L + budget + 2 := by rw [hLbd]; push_cast; ring
+    have hl0 : 0 ≤ Real.log (Msc / δm) / yh := div_nonneg (Real.log_pos hx1).le hyh0.le
+    refine (Nat.ceil_lt_add_one hl0).le.trans ?_
     have hlg : Real.log (Msc / δm) ≤ Real.log (4 * (Q + 1) * SC / δ') := by
       refine Real.log_le_log (by positivity) ?_
       rw [hδmd, div_div_eq_mul_div, show (Msc : ℝ) * (4 * (Q + 1)) / δ'
         = 4 * (Q + 1) * Msc / δ' by ring]
       exact div_le_div_of_nonneg_right
         (mul_le_mul_of_nonneg_left hMSC (by linarith only [hQ1])) hδ'0.le
-    rw [show Real.log (Msc / δm) / (ε / 192) = 192 / ε * Real.log (Msc / δm) by
-      field_simp]
-    show _ ≤ (P.L : ℝ) + B₃ + 3 + 192 / ε * Real.log (4 * (Q + 1) * SC / δ')
+    rw [show Real.log (Msc / δm) / yh = 192 / ε * Real.log (Msc / δm) by
+      rw [hyhd]; field_simp]
+    show _ ≤ 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
     have := mul_le_mul_of_nonneg_left hlg (by positivity : (0 : ℝ) ≤ 192 / ε)
-    linarith only [hLbR, hbud, this]
+    linarith only [this]
   have hJ0 : 0 < J := by show 0 < Q + 2; linarith
   have hτ0 : 0 < τ := by
     have ha : 0 < (1 - 2 * η₀) / (1 - η₀) := gateA_pos hη0 hη₀
@@ -796,12 +766,11 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       exact Nat.le_floor (hcounts pops hpops).2)
     hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
-    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond hcapC rfl hyh0
-    (by show yh ≤ ε / 48 / 4; linarith [min_le_left (ε / 192) (Real.log (Msc / δm) / Lb)])
-    (by linarith [min_le_left (ε / 192) (Real.log (Msc / δm) / Lb)]) hδm0 (by omega)
+    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond rfl hyh0
+    (by show ε / 192 ≤ ε / 48 / 4; linarith) (by show ε / 192 ≤ 1; linarith) hδm0 (by omega)
     (le_max_left _ _) (by omega)
   refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, by rw [hC3]; exact hHN,
-    by rw [hscan]; exact hMSC, by rw [hC3]; exact hcapC, hnp, hreads, ?_⟩
+    by rw [hscan]; exact hMSC, hnp, hreads, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf (by simpa using hlen) hpAPD hatom
   refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans ?_)
