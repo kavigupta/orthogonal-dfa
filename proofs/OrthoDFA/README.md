@@ -381,8 +381,7 @@ the time. Each level says what a state's chance of reading undecided is.
 - `OrthoDFA/Code/TripartiteSearch.lean` — `tripartiteSearch`, a bisection for where `agrees` turns
   from agreeing to disagreeing that steps past undecided positions, the eval of the program
   `tripartiteQ`, whose reads set is the positions asked.
-  `orthogonal_dfa/l_star/tripartite_search.py` is the same search; it returns
-  `(kind, position, queried)` where Lean returns the result.
+  `orthogonal_dfa/l_star/tripartite_search.py` is the same search.
 - `OrthoDFA/Code/Query.lean` — `Query`, the free monad whose programs record the strings they ask;
   the `Q`-suffixed definitions in `Code/` are the algorithm's pieces as such programs.
 - `OrthoDFA/Code/DTree.lean` — the discrimination tree, and `DTree.siftWithPath`, sifting a string
@@ -392,9 +391,8 @@ the time. Each level says what a state's chance of reading undecided is.
 - `OrthoDFA/Code/HypothesisDFA.lean` — a hypothesis DFA: a tree and learned edges between its
   leaves, and the walk a string takes along them; `walkEnd` is its last leaf when it follows every
   letter. `HypothesisDFA.split` splits a leaf and re-sifts the witnesses of the edges into it,
-  keeping only the edges at the tree's leaves; along a level-3 run every learned edge is at one,
-  so the run is the one whose splits keep every edge (`indecisiveLStarLevel3_eq_all`), as
-  `hypothesis_dfa.HypothesisDFA.split_leaf` does.
+  keeping only the edges at the leaves of the tree before the split. Along a level-3 run
+  `hypothesis_dfa.HypothesisDFA.split_leaf` is the same split (`Level3EdgesAtLeaves`).
 - `OrthoDFA/Code/Probe.lean` and `OrthoDFA/LowLevelClaims/Probe.lean` — `probe`: a string walked
   along the edges from its first `k` letters' leaf and sifted, and where the two part, found by
   `tripartiteSearch` without recovery (`counterexample_probe.locate`). `ProbeCorrect`: with the
@@ -567,7 +565,8 @@ probability rather than the algorithm. They are proved under `OrthoDFA/Proofs/` 
 - `OrthoDFA/LowLevelClaims/HypothesisDFA.lean` — `WalkCorrect`: the walk starts at its leaf, follows
   one learned edge per letter, stops short only at an unlearned one, and stays on the leaves when
   the edges do. `SplitAndLearnCorrect`: splitting a leaf, or learning an edge from a witness, keeps
-  every learned edge witnessed (`EdgesOK`).
+  every learned edge witnessed (`EdgesOK`). `Level3EdgesAtLeaves`: along a level-3 run every
+  learned edge is at a leaf.
 
 - `OrthoDFA/LowLevelClaims/RateTest.lean` — `RateTestSound`: over independent draws `rateSide` says
   above with chance at most its failure chance when the true rate is at most the tested one, and
