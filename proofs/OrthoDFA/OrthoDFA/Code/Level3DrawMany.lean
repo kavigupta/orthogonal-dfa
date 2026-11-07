@@ -28,7 +28,6 @@ noncomputable def drawManyFirst (read : FreeMonoid α → ARU) (k : ℕ) (H : Hy
     some fun i => (harvestFirst read k H site T (List.ofFn (yss i))).getD 1
   else none
 
-/-- `drawManyFirst` as a program: every block's `harvestFirstQ`. -/
 noncomputable def drawManyFirstQ (k : ℕ) (H : HypothesisDFA α) (site : Level3Site)
     (T : Set (FreeMonoid α)) {m N' : ℕ} (yss : Fin m → (Fin N' → FreeMonoid α)) :
     Query (FreeMonoid α) ARU (Option (Fin m → FreeMonoid α)) :=

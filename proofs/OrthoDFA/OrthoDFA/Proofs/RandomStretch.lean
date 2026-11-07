@@ -238,14 +238,14 @@ theorem stInv_countProbe {ys : List (FreeMonoid α)} {s : Level3State α}
   classical
   obtain ⟨htree, hedges, hhyp, hn, hdis, hst', hpt⟩ := hst
   subst htree hedges
-  refine ⟨rfl, rfl, hhyp, by simp [countProbe, hn], ?_, ?_, ?_⟩
-  · simp only [countProbe, hdis, countP_snoc]
+  refine ⟨rfl, rfl, hhyp, by simp [countProbe, countOutcome, hn], ?_, ?_, ?_⟩
+  · simp only [countProbe, countOutcome, hdis, countP_snoc]
     cases hb : searches (probeOrAgree read s.tree s.edges C.walkStart x) <;> simp [fS, hb]
-  · simp only [countProbe, List.length_append, hst', countP_snoc]
+  · simp only [countProbe, countOutcome, List.length_append, hst', countP_snoc]
     rw [length_le_one_eq _ (endsString_length _)]
     cases hb : (endsString (probeOrAgree read s.tree s.edges C.walkStart x)).isEmpty <;>
       simp [fE, hb]
-  · simp only [countProbe, List.length_append, hpt, countP_snoc]
+  · simp only [countProbe, countOutcome, List.length_append, hpt, countP_snoc]
     rw [length_le_one_eq _ (middleString_length _)]
     cases hb : (middleString (probeOrAgree read s.tree s.edges C.walkStart x)).isEmpty <;>
       simp [fP, hb]

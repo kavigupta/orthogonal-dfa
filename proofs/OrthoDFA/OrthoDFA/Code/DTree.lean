@@ -47,7 +47,6 @@ def sift (read : FreeMonoid α → ARU) : DTree α → FreeMonoid α → List Bo
     | .reject => (r.sift read z).map (false :: ·) id
     | .undecided => .inr (z * m)
 
-/-- `sift` as a program asking the read at each string it reads. -/
 def siftQ : DTree α → FreeMonoid α → Query (FreeMonoid α) ARU (List Bool ⊕ FreeMonoid α)
   | leaf, _ => .pure (.inl [])
   | node m r a, z => .ask (z * m) fun

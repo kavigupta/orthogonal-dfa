@@ -48,7 +48,6 @@ def retarget (read : FreeMonoid α → ARU) (T' : DTree α) (p : List Bool) (E :
       else some (t, w)
     | none => none
 
-/-- `retarget` at the edge `e`, as a program. -/
 def retargetAtQ (T' : DTree α) (p : List Bool) (E : Edges α) (e : List Bool × α) :
     Query (FreeMonoid α) ARU (Option (List Bool × FreeMonoid α)) :=
   if p.isPrefixOf e.1 then .pure none
@@ -61,7 +60,7 @@ def retargetAtQ (T' : DTree α) (p : List Bool) (E : Edges α) (e : List Bool ×
       else .pure (some (t, w))
     | none => .pure none
 
-/-- `retarget` as a program over the edges `es`, every other edge unlearned. -/
+/-- Over the edges `es`, every other edge unlearned. -/
 def retargetQ [DecidableEq α] (T' : DTree α) (p : List Bool) (E : Edges α) :
     List (List Bool × α) → Query (FreeMonoid α) ARU (Edges α)
   | [] => .pure fun _ => none

@@ -13,7 +13,7 @@ the probe budget, `M` the scan cap, `N` the harvest cap, each round's clustering
 `a` prefixes and `b` suffixes and each family at most `f` members, a round whose tree and whose
 samplers' trees have at most `n + 2` leaves asks at most
 
-    K f M N (3 + ⌈log₂ L⌉)(n + 1) + a (b + 1) + f (T probeSifts L (n + 1) + (n + 1)(n + 2)²|Σ|)
+    K f M N (3 + ⌈log₂ L⌉)(n + 1) + a (b + 1) + f (T probeSifts L (n + 1) + n (n + 2)²|Σ|)
 
 strings (`card_reads_roundQ_le`): its harvested draws, its clustering and its level 3. A loop
 whose rounds' trees have at most `n + 2` leaves asks at most `K` times that
@@ -271,7 +271,7 @@ lemma ae_popLaw {ν : Measure (FreeMonoid α)} {P : FreeMonoid α → Prop} (hν
 /-- The bound on a round's reads, its trees at most `n + 2` leaves. -/
 def roundCallBound (K a b f T M N L A n : ℕ) : ℕ :=
   K * (f * (M * (N * ((3 + Nat.clog 2 L) * (n + 1))))) + a * (b + 1)
-    + f * (T * (Random.Kappa.probeSifts L * (n + 1)) + (n + 1) * ((n + 2) * A * (n + 2)))
+    + f * (T * (Random.Kappa.probeSifts L * (n + 1)) + n * ((n + 2) * A * (n + 2)))
 
 /-- The family has at most `k - 1` members. -/
 lemma card_clusterAt_le (mq : FreeMonoid α → Ω → ℝ) (pops : Finset (Option (Fin K)))

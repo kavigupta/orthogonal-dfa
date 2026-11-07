@@ -104,14 +104,17 @@ section
 
 variable (read : FreeMonoid α → ARU) (C : Level3Settings)
 
-/-- A probe counted into the stretch. -/
-def countProbe (s : Level3State α) (x : FreeMonoid α) : Level3State α :=
-  let o := probeOrAgree read s.tree s.edges C.walkStart x
+/-- The probe with outcome `o` counted into the stretch. -/
+def countOutcome (s : Level3State α) (o : Outcome α) : Level3State α :=
   { s with
     probeCount := s.probeCount + 1
     searchCount := s.searchCount + if searches o then 1 else 0
     endsUndecided := s.endsUndecided ++ endsString o
     middleUndecided := s.middleUndecided ++ middleString o }
+
+/-- A probe counted into the stretch. -/
+def countProbe (s : Level3State α) (x : FreeMonoid α) : Level3State α :=
+  countOutcome s (probeOrAgree read s.tree s.edges C.walkStart x)
 
 open scoped Classical in
 /-- The tests, in turn: the probes stopping undecided at their start or end sift, the undecided
@@ -180,24 +183,14 @@ section Query
 
 variable (C : Level3Settings)
 
-/-- The probe with outcome `o` counted into the stretch. -/
-def countOutcome (s : Level3State α) (o : Outcome α) : Level3State α :=
-  { s with
-    probeCount := s.probeCount + 1
-    searchCount := s.searchCount + if searches o then 1 else 0
-    endsUndecided := s.endsUndecided ++ endsString o
-    middleUndecided := s.middleUndecided ++ middleString o }
-
 variable [Fintype α]
 
-/-- `splitLeaf` as a program. -/
 noncomputable def splitLeafQ (s : Level3State α) (p : List Bool) (c : α) (t t₀ : List Bool) :
     Query (FreeMonoid α) ARU (Level3State α) :=
   let T' := s.tree.splitAt (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p
   (retargetQ T' p s.edges (s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).toList).map
     fun E' => newHypothesis T' E' (s.hypotheses + 1)
 
-/-- `applyProbe` as a program. -/
 noncomputable def applyProbeQ (s : Level3State α) (x : FreeMonoid α) :
     Query (FreeMonoid α) ARU (Level3State α ⊕ RoundEnd Level3Site) :=
   (probeOrAgreeQ s.tree s.edges C.walkStart x).bind fun o =>
@@ -211,7 +204,6 @@ noncomputable def applyProbeQ (s : Level3State α) (x : FreeMonoid α) :
       | none => .pure (applyTests C (countOutcome s o))
     | _ => .pure (applyTests C (countOutcome s o))
 
-/-- `runProbes` as a program. -/
 noncomputable def runProbesQ :
     Level3State α → List (FreeMonoid α) → Query (FreeMonoid α) ARU
       (Level3State α × RoundEnd Level3Site)
@@ -221,7 +213,6 @@ noncomputable def runProbesQ :
     | .inl s' => runProbesQ s' xs
     | .inr e => .pure (s, e)
 
-/-- `indecisiveLStarLevel3` as a program. -/
 noncomputable def level3Q (settings : Level3Settings) {P : ℕ} (draws : Fin P → FreeMonoid α) :
     Query (FreeMonoid α) ARU (Level3Result α) :=
   (runProbesQ settings initialState (List.ofFn draws)).map fun r => ⟨⟨r.1.tree, r.1.edges⟩, r.2⟩

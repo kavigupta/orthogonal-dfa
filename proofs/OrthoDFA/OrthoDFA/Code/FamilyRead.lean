@@ -33,7 +33,6 @@ noncomputable def familyRead (mq : S → Ω → ℝ) (F : Finset S) (kl kh : ℕ
     ARU :=
   readOf kl kh (voteCount mq F w ω)
 
-/-- `familyRead` as a program: it asks `w·v` for each `v` of `F`. -/
 noncomputable def familyReadQ (F : Finset S) (kl kh : ℕ) (w : S) : Query S ℝ ARU :=
   (Query.table (F.toList.map (w * ·))).map fun t =>
     readOf kl kh (voteCount (fun z (_ : Unit) => t z) F w ())

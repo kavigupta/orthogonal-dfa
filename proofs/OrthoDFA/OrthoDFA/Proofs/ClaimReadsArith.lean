@@ -748,10 +748,11 @@ lemma search_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
 lemma resift_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :
     0 ≤ readsResift (r.Q + 1) (distFam r) r.Q r.A
       ∧ readsResift (r.Q + 1) (distFam r) r.Q r.A
-        ≤ 2 * (2 ^ 14 * (2 * (3 * 1 * 3))) * shResift r := by
+        ≤ 2 * (2 ^ 14 * (1 * (3 * 1 * 3))) * shResift r := by
   have hA : 0 ≤ (r.A : ℝ) ∧ (r.A : ℝ) ≤ 1 * r.A := ⟨Nat.cast_nonneg _, by linarith⟩
+  have hQ : 0 ≤ (r.Q : ℝ) ∧ (r.Q : ℝ) ≤ 1 * r.Q := ⟨Nat.cast_nonneg _, by linarith⟩
   rw [show shResift r = r.Q * (shFam r * (r.Q * (r.Q * r.A * r.Q))) by unfold shResift; ring]
-  exact pw_mul (k_pw hr) (pw_mul (fam_pw hr) (pw_mul (k_pw hr)
+  exact pw_mul (k_pw hr) (pw_mul (fam_pw hr) (pw_mul hQ
     (pw_mul (pw_mul (leaves_pw hr) hA) (leaves_pw hr))))
 
 lemma harvest_pw {r : LoopDistRun} (hr : r ∈ loopDistRunRegion) :

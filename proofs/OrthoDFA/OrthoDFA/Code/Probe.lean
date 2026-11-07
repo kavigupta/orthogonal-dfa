@@ -64,7 +64,6 @@ def siftAgreesQ (p : ℕ) : Query (FreeMonoid α) ARU (Option Bool) :=
 def undecidedAtQ (p : ℕ) : Query (FreeMonoid α) ARU (List (FreeMonoid α)) :=
   (T.siftQ (prefixOf x p)).map fun r => r.elim (fun _ => []) fun z => [z]
 
-/-- `searchOutcome` as a program. -/
 def searchOutcomeQ (unlearned : Option (α × List Bool)) (hi : ℕ) :
     SearchResult → Query (FreeMonoid α) ARU (Outcome α)
   | .undecidedHi => (undecidedAtQ T x hi).map fun zs => .undecided zs true
@@ -103,7 +102,7 @@ def probe (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k : ℕ)
       | .inl t => searchOutcome read T x st (some (c, t)) hi search
     | none => searchOutcome read T x st none hi search
 
-/-- `probe` as a program: the sifts at `k` and past the walk first, then the search. -/
+/-- The sifts at `k` and past the walk first, then the search. -/
 def probeQ (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) :
     Query (FreeMonoid α) ARU (Outcome α) :=
   (T.siftQ (prefixOf x k)).bind fun
@@ -125,7 +124,6 @@ def probeOrAgree (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) (k
     (x : FreeMonoid α) : Outcome α :=
   if x.toList.length < k then .agree else probe read T E k x
 
-/-- `probeOrAgree` as a program. -/
 def probeOrAgreeQ (T : DTree α) (E : Edges α) (k : ℕ) (x : FreeMonoid α) :
     Query (FreeMonoid α) ARU (Outcome α) :=
   if x.toList.length < k then .pure .agree else probeQ T E k x

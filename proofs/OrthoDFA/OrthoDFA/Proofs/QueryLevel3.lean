@@ -12,7 +12,7 @@ Each program returns what its function returns (`eval_siftQ`, `eval_probeOrAgree
 `eval_harvestFirstQ`, `eval_drawManyFirstQ`, `eval_familyReadQ`, `eval_level3Q`), and asks the
 read at no more strings than the function's reads, so that with probes at most `L` long a level-3
 run over `T` probes whose final tree has at most `n + 2` leaves asks at most
-`T probeSifts L (n + 1) + (n + 1)(n + 2)|Σ|(n + 2)` strings, a split's re-sifts charged to the leaf
+`T probeSifts L (n + 1) + n (n + 2)|Σ|(n + 2)` strings, a split's re-sifts charged to the leaf
 it adds (`card_reads_level3Q_le`), and a harvest
 draw over `N` probes at most `N (3 + ⌈log₂ L⌉)|mids|` (`card_reads_harvestFirstQ_le`). A split asks only at the tree's leaves' edges, where a run keeps
 every learned edge, so the program's run is the function's only along a run (`RunInv`).
@@ -509,14 +509,14 @@ theorem splitReads_eq_empty_or {X : List (FreeMonoid α)} {s : Level3State α}
 
 /-- A run from `s` over probes at most `L` long, its final tree at most `n + 2` leaves, asks at most
 `probeSifts L (n + 1)` strings in each probe and `(n + 2)|Σ|(n + 2)` in each split, of which there
-are at most `n + 3 - |leaves s|`: no step loses a leaf. -/
+are at most `n + 2 - |leaves s|`: no step loses a leaf. -/
 theorem card_reads_runProbesQ_le {L : ℕ} (n : ℕ) (X : List (FreeMonoid α)) :
     ∀ (xs : List (FreeMonoid α)) (s : Level3State α), (∀ y ∈ xs, y ∈ X) →
       (∀ y ∈ xs, y.toList.length ≤ L) → RunInv read C X s →
       (runProbes read C s xs).1.tree.leaves.length ≤ n + 2 →
       ((runProbesQ C s xs).reads read).card
         ≤ xs.length * (probeSifts L * (n + 1))
-          + (n + 3 - s.tree.leaves.length) * ((n + 2) * Fintype.card α * (n + 2))
+          + (n + 2 - s.tree.leaves.length) * ((n + 2) * Fintype.card α * (n + 2))
   | [], _, _, _, _, _ => by simp [runProbesQ]
   | x :: xs, s, hX, hL, hs, hfin => by
     have hc : s.tree.leaves.length ≤ n + 2 :=
@@ -549,12 +549,12 @@ theorem card_reads_runProbesQ_le {L : ℕ} (n : ℕ) (X : List (FreeMonoid α)) 
         simp only
         generalize probeSifts L * (n + 1) = P at hprobe hrec ⊢
         generalize (n + 2) * Fintype.card α * (n + 2) = R at hrec ⊢
-        have hR : (n + 3 - s'.tree.leaves.length) * R
-            ≤ (n + 3 - s.tree.leaves.length) * R := Nat.mul_le_mul_right _ (by omega)
-        calc _ ≤ P + (xs.length * P + (n + 3 - s'.tree.leaves.length) * R) :=
+        have hR : (n + 2 - s'.tree.leaves.length) * R
+            ≤ (n + 2 - s.tree.leaves.length) * R := Nat.mul_le_mul_right _ (by omega)
+        calc _ ≤ P + (xs.length * P + (n + 2 - s'.tree.leaves.length) * R) :=
               Nat.add_le_add (hhead.trans hprobe) hrec
-          _ ≤ P + (xs.length * P + (n + 3 - s.tree.leaves.length) * R) := by omega
-          _ = (xs.length + 1) * P + (n + 3 - s.tree.leaves.length) * R := by ring
+          _ ≤ P + (xs.length * P + (n + 2 - s.tree.leaves.length) * R) := by omega
+          _ = (xs.length + 1) * P + (n + 2 - s.tree.leaves.length) * R := by ring
       · simp only [reads_pure, Finset.card_empty, add_zero]
         calc _ ≤ probeSifts L * (n + 1) := hhead.trans hprobe
           _ ≤ (xs.length + 1) * (probeSifts L * (n + 1)) :=
@@ -565,9 +565,9 @@ theorem card_reads_runProbesQ_le {L : ℕ} (n : ℕ) (X : List (FreeMonoid α)) 
       have hrec := card_reads_runProbesQ_le n X xs s' hX' hL' hs' (hfin' s' hap)
       have hs'le := (leaves_le_runProbes read C xs s' hX' hs').trans (hfin' s' hap)
       simp only
-      obtain ⟨m, hm⟩ : ∃ m, n + 3 - s.tree.leaves.length = m + 1 :=
-        ⟨n + 2 - s.tree.leaves.length, by omega⟩
-      rw [hlen, show n + 3 - (s.tree.leaves.length + 1) = m by omega] at hrec
+      obtain ⟨m, hm⟩ : ∃ m, n + 2 - s.tree.leaves.length = m + 1 :=
+        ⟨n + 1 - s.tree.leaves.length, by omega⟩
+      rw [hlen, show n + 2 - (s.tree.leaves.length + 1) = m by omega] at hrec
       rw [hm]
       generalize probeSifts L * (n + 1) = P at hprobe hrec ⊢
       generalize (n + 2) * Fintype.card α * (n + 2) = R at hsplit hrec ⊢
@@ -576,13 +576,13 @@ theorem card_reads_runProbesQ_le {L : ℕ} (n : ℕ) (X : List (FreeMonoid α)) 
         _ = (xs.length + 1) * P + (m + 1) * R := by ring
 
 /-- Level 3's run over `T` probes at most `L` long, its final tree at most `n + 2` leaves, asks at
-most `probeSifts L (n + 1)` strings in each probe and `(n + 2)|Σ|(n + 2)` in each of at most `n + 1`
+most `probeSifts L (n + 1)` strings in each probe and `(n + 2)|Σ|(n + 2)` in each of at most `n`
 splits. -/
 theorem card_reads_level3Q_le {L T : ℕ} (n : ℕ) (xs : Fin T → FreeMonoid α)
     (hL : ∀ i, (xs i).toList.length ≤ L)
     (hn : (indecisiveLStarLevel3 C read xs).hypothesis.tree.leaves.length ≤ n + 2) :
     ((level3Q C xs).reads read).card
-      ≤ T * (probeSifts L * (n + 1)) + (n + 1) * ((n + 2) * Fintype.card α * (n + 2)) := by
+      ≤ T * (probeSifts L * (n + 1)) + n * ((n + 2) * Fintype.card α * (n + 2)) := by
   unfold level3Q
   rw [reads_map]
   have h := card_reads_runProbesQ_le read C n (List.ofFn xs) (List.ofFn xs) initialState
@@ -591,7 +591,7 @@ theorem card_reads_level3Q_le {L T : ℕ} (n : ℕ) (xs : Fin T → FreeMonoid �
       exact hL i) (runInv_start read C _) hn
   have h0 : (initialState : Level3State α).tree.leaves.length = 2 := by
     simp [initialState, newHypothesis, DTree.leaves]
-  rwa [List.length_ofFn, h0, show n + 3 - 2 = n + 1 by omega] at h
+  rwa [List.length_ofFn, h0, show n + 2 - 2 = n by omega] at h
 
 end Level3Card
 

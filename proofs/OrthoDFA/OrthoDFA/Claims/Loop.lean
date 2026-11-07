@@ -11,16 +11,16 @@ length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, whe
 a start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
 letters, `1/p₀Tol` growing as `L⁴ log L`, and every round's tree has at most `|Q| + 2` leaves;
 over the whole run its clusterings read at most `totalPref` prefixes and `totalSuff` suffixes, its
-rounds draw at most `totalProbes` probes, whatever they draw, and, start leaf included, it asks the
-oracle at most `totalReads` strings whenever every round's tree has at most `|Q| + 2` leaves, its
-output the same against any answers that agree on those strings. Every one is within the big-O
+rounds draw at most `totalProbes` probes, whatever they draw, and a run that returns a result whose
+every round's tree has at most `|Q| + 2` leaves asks the oracle at most `totalReads` strings, start
+leaf included, its output the same against any answers that agree on those strings. Every one is within the big-O
 shape below, with `s₀ = 1/2 − η₀` the signal. The settings the proof picks hold each round's
 disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the window's `N = Θ(L)` lengths,
 so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes grow as `(L + |Q|)²` and the
 suffixes as `log L`. The prefix total's populations' group reads its log off the suffix pool alone,
 so that log grows as `log log L`. The strings asked are five sources' sum: the clusterings'
 prefixes against their suffixes; level 3's probes, each a family read of `|V̂|` strings at the
-`log L` mids of a sift at most `|Q| + 1` deep; its splits, at most `|Q| + 1` a round, each
+`log L` mids of a sift at most `|Q| + 1` deep; its splits, at most `|Q|` a round, each
 re-sifting at most `|Q| + 2` leaves' edges over `|Σ|` letters down at most `|Q| + 2` midfixes; the
 `|Q| + 1` populations' scans, each walk a family read at the sifts of up to the harvest cap's
 probes, that cap `1/ρ` times `log X`; and the start leaf's family read at each held-out string.
@@ -73,8 +73,9 @@ def loopDistRunRegion : Set LoopDistRun := {r | r.toLoopDistInputs ∈ loopDistR
 
 /-- On every instance in `loopDistRegion`, for strings drawn from `D` whose first `k` letters
 `p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes`, asks
-the oracle at most `totalReads` strings if every round's tree has at most `|Q| + 2` leaves, is
-right but for `γ + ξ` on `heldOut` strings and keeps every round's tree within `|Q| + 2` leaves. -/
+the oracle at most `totalReads` strings in a run that returns a result whose every round's tree has
+at most `|Q| + 2` leaves, is right but for `γ + ξ` on `heldOut` strings and keeps every round's
+tree within `|Q| + 2` leaves. -/
 def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : LoopDistRun → ℝ)
     (heldOut : LoopDistInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
@@ -106,9 +107,9 @@ def LoopWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : L
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
         ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    -- If every round's tree has at most `|Q| + 2` leaves, the learner asks the oracle at most
-    -- `totalReads` strings, and any answers agreeing with the oracle's on them give the same output
-    -- and ask the same strings.
+    -- A run that returns a result whose every round's tree has at most `|Q| + 2` leaves asks the
+    -- oracle at most `totalReads` strings, and any answers agreeing with the oracle's on them give
+    -- the same output and ask the same strings.
     (∀ (p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget) (xs : Fin (heldOut x) → FreeMonoid A) rounds s,
       indecisiveLStar settings O (windowLaw D k L₁) (prefixLaw D Ls) p xs = some (rounds, s) →
@@ -185,9 +186,9 @@ def LoopClaim.{u, v, w} : Prop :=
     LoopWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes totalReads heldOut
 
 /-- On every instance in `loopRegion` with `L₀ x ≤ L`, settings whose run reads within
-`totalPref`, `totalSuff` and `totalProbes`, asks the oracle at most `totalReads` strings if every
-round's tree has at most `|Q| + 2` leaves, is right but for `γ + ξ` on `heldOut` strings and keeps
-every round's tree within `|Q| + 2` leaves. -/
+`totalPref`, `totalSuff` and `totalProbes`, asks the oracle at most `totalReads` strings in a run
+that returns a result whose every round's tree has at most `|Q| + 2` leaves, is right but for
+`γ + ξ` on `heldOut` strings and keeps every round's tree within `|Q| + 2` leaves. -/
 def LoopWithinUniform.{u, v, w} (L₀ : LoopInputs → ℝ)
     (totalPref totalSuff totalProbes totalReads : LoopRun → ℝ) (heldOut : LoopInputs → ℕ) :
     Prop :=
