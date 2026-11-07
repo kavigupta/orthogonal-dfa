@@ -378,20 +378,8 @@ theorem eval_drawManyFirstQ {m N' : ℕ} (yss : Fin m → (Fin N' → FreeMonoid
   unfold drawManyFirstQ drawManyFirst
   simp only [eval_map, eval_pi, eval_harvestFirstQ]
 
-theorem card_reads_drawManyFirstQ_le {L m N' : ℕ} (yss : Fin m → (Fin N' → FreeMonoid α))
-    (hL : ∀ i t, (yss i t).toList.length ≤ L) :
-    ((drawManyFirstQ k H site T yss).reads read).card
-      ≤ m * (N' * ((3 + Nat.clog 2 L) * (mids H.tree).card)) := by
-  unfold drawManyFirstQ
-  rw [reads_map, reads_pi]
-  refine (Finset.card_biUnion_le_card_mul _ _
-    (N' * ((3 + Nat.clog 2 L) * (mids H.tree).card)) fun i _ => ?_).trans (by simp)
-  have := card_reads_harvestFirstQ_le read k H site T (List.ofFn (yss i)) (L := L) fun y hy => by
-    obtain ⟨t, rfl⟩ := List.mem_ofFn.1 hy
-    exact hL i t
-  rwa [List.length_ofFn] at this
-
-/-- Draw `i` harvesting within its first `t i` probes, the draws ask at most `∑ᵢ t i` sifts. -/
+/-- Draw `i` harvesting within its first `t i` probes, the draws sift `∑ᵢ t i` probes, each asking
+at most `3 + ⌈log₂ L⌉` strings at each mid. -/
 theorem card_reads_drawManyFirstQ_take_le {L m N' : ℕ} (yss : Fin m → (Fin N' → FreeMonoid α))
     (hL : ∀ i t, (yss i t).toList.length ≤ L) (t : Fin m → ℕ)
     (ht : ∀ i, (harvestFirst read k H site T ((List.ofFn (yss i)).take (t i))).isSome) :

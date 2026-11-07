@@ -34,7 +34,8 @@ import OrthoDFA.Proofs.TripartiteSearch
 
 The headline: `LearnerLoopDFA`, stated in `OrthoDFA.LowLevelClaims.LoopDFA`, holds: the learner's
 loop outputs a hypothesis that agrees with the target DFA, with every round's tree within `|Q| + 2`
-leaves, but for chance `δ`.
+leaves and each round's harvested draws within `⌈HB⌉₊` probes (`HarvestProbesWithin`), but for
+chance `δ`.
 
 The claims it rests on are `ClusteringGuarantee`, stated in `OrthoDFA.LowLevelClaims.Clustering`,
 `ClusteringQualityGuarantee`, stated in `OrthoDFA.LowLevelClaims.ClusteringQuality`, the family-read
