@@ -1,12 +1,18 @@
 """Sources of the prefixes a round's populations draw from."""
 
 from dataclasses import dataclass
+from math import isqrt
 from typing import Callable, List
 
 import numpy as np
 
 from .counterexample_probe import Charges
 from .counterexample_search import CounterexampleSearch
+from .dfa_utils import (
+    count_paths_to_state,
+    sample_string_reaching_state,
+    uniform_weights,
+)
 from .fallbacks.score_patience import SCORE_STALLED, ScorePatience
 from .rejection_source import RejectionSource, proving_attempts
 from .round_end import HARVEST_ENDS, HARVEST_STUCK, Ending
@@ -100,6 +106,34 @@ class Replay:
 
     def sample(self) -> List[bytes]:
         return self.read(self.round.probe(self.draw())[1])
+
+
+def aim_at(pst, dfa, leaf):
+    """
+    Attempt to aim at a leaf, returning a source that draws on it or ``None`` if the leaf is
+    unreachable from the starting state, or if too few strings of the sampler's
+    length reach it to draw from without redrawing what it has already drawn.
+
+    Aims are drawn with replacement, so a leaf that holds
+
+        sqrt(alphabet_size ** length)
+
+    of the strings of that length repeats one only after the fourth root of
+    them have been drawn.  Scaled to the space rather than to the draws asked
+    for: a leaf is thin compared to what the sampler could have put there.
+    """
+    weights = pst.sampler.symbol_weights(pst.alphabet_size)
+    length = pst.sampler.length
+    # Counted evenly rather than off the mass below: the sampler's weights are
+    # read as ratios, so its mass is on no scale a threshold could name.
+    reaching = count_paths_to_state(dfa, leaf, length, uniform_weights(dfa))
+    if reaching[length][dfa.initial_state] < isqrt(pst.alphabet_size**length):
+        return None
+    mass = count_paths_to_state(dfa, leaf, length, weights)
+    # A symbol the sampler never places can leave a well-reached leaf with none.
+    if mass[length][dfa.initial_state] == 0:
+        return None
+    return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
 
 
 def draw_many(source, wanted: int) -> list:
