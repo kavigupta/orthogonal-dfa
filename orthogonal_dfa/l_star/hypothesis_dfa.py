@@ -29,7 +29,7 @@ class HypothesisDFA:
         self.version += 1
 
     def split_leaf(self, leaf: Path, midfix: bytes):
-        """HypothesisDFA.split of OrthoDFA/Code/HypothesisDFA.lean, which keeps every learned
+        """HypothesisDFA.split of RLStar/Code/HypothesisDFA.lean, which keeps every learned
         edge witnessed (SplitAndLearnCorrect). This retargets every edge; the Lean split keeps
         only edges at leaves, and along a run drops none (RunsKeepEdgesAtLeaves).
         """

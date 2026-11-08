@@ -1,6 +1,6 @@
 """Ending a round's search on a held-out score: it keeps the best hypothesis it
 saw, and stops once the score has not improved for a number of probes.  Not
-covered by the proof: OrthoDFA/Code/Level3.lean has no score."""
+covered by the proof: RLStar/Code/Level3.lean has no score."""
 
 import copy
 from typing import TYPE_CHECKING, Callable, List, NamedTuple, Optional
