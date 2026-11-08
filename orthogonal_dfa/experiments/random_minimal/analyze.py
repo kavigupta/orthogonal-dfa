@@ -33,7 +33,7 @@ from .run import DATA_DIR, RESULT_SCHEMA_VERSION
 OUT_DIR = REPO_ROOT / "figures" / "random-minimal"
 
 # the paper's dark blue, orange, pink and purple (frame-alignment-checks' line colors)
-PAPER_COLORS = ["#3AA2E6", "#E07F14", "#E63A7C", "#8C3AE6"]
+PAPER_COLORS = ["#3AA2E6", "#E07F14", "#E63A7C", "#7731C3"]
 # Type 3 fonts, matplotlib's default, are rejected by ACM
 PAPER_RC = {"font.size": 7, "legend.fontsize": 6, "pdf.fonttype": 42}
 
