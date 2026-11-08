@@ -4,8 +4,6 @@
   returns a suffix family that cuts all but `εcov + ε_s` of the pool as the noiseless oracle does,
   every state's band reading its rarer side at most `κ` times as often as undecided, with its band
   width, suffix pool, prefix count and atom tolerances each within a stated big-O shape.
-- `TrainFamilyClaimSimple` (`Claims/TrainFamily.lean`): `TrainFamilyClaim` with each shape a single
-  product.
 - `CounterexSynthClaim` (`Claims/CounterexSynth.lean`): but for chance `δ`, one L\* round whose
   reads are wrong at most `κ` times as often as undecided ends well within a stated big-O probe
   budget, harvest slope and slack, given stated bounds on how spread the walk starts and how small
