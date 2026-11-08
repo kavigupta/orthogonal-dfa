@@ -57,7 +57,7 @@ The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBo
 `RunsKeepEdgesAtLeaves`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`:
-`TrainFamilyClaim`, `TrainFamilyClaimSimple`, `CounterexSynthClaim`, `RLStarClaim`,
+`TrainFamilyClaim`, `CounterexSynthClaim`, `RLStarClaim`,
 `RLStarClaimUniform` and `RLStarClaimUniformSimple`.
 -/
 
@@ -66,10 +66,6 @@ namespace OrthoDFA
 theorem train_family_claim : TrainFamilyClaim := trainFamilyClaim_holds
 
 #print axioms train_family_claim
-
-theorem train_family_claim_simple : TrainFamilyClaimSimple := trainFamilyClaimSimple_holds
-
-#print axioms train_family_claim_simple
 
 theorem counterex_synth_claim : CounterexSynthClaim := counterexSynthClaim_holds
 

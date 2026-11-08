@@ -5,15 +5,14 @@ import RLStar.LowLevelClaims.Clustering
 /-!
 # The clustering's costs, asymptotically
 
-`TrainFamilyClaim`: with no strings harvested, the clustering stops at a state whose band width
-`k`, suffix pool `nsuff` and prefix count `npref` are within the big-O shapes below, and returns a
-family as `ClusteringGuarantee` says but for chance `δ`, wherever the tame populations' atoms are
-under `atomTol` and the suffix measure's collision mass under `collTol`; how small those must be is
-bounded below the same way. Each bound has one constant over all of `trainFamilyRegion`.
-`TrainFamilyClaimSimple` states the same with each shape a single product. The algorithm runs at
-`η₀ = 1/2 − s₀`, `s₀` the signal, at `α = δ/2` and at cross limit `κ⁴`; `ε_s` is the share of the
-cut its redraws and hash may cost, `ε_u` the indecision limit, and every state's band reads its
-rarer decided side at most `κ` times as often as undecided.
+`TrainFamilyClaim`: with no strings harvested, the clustering stops at a state whose band width `k`,
+suffix pool `nsuff` and prefix count `npref` are within the big-O shapes below, and returns a family
+as `ClusteringGuarantee` says but for chance `δ`, wherever the tame populations' atoms are under
+`atomTol` and the suffix measure's collision mass under `collTol`; how small those must be is
+bounded below the same way. Each bound has one constant over all of `trainFamilyRegion`. The
+algorithm runs at `η₀ = 1/2 − s₀`, `s₀` the signal, at `α = δ/2` and at cross limit `κ⁴`; `ε_s` is
+the share of the cut its redraws and hash may cost, `ε_u` the indecision limit, and every state's
+band reads its rarer decided side at most `κ` times as often as undecided.
 -/
 
 namespace OrthoDFA
@@ -116,23 +115,6 @@ def TrainFamilyClaim.{u, v, w} : Prop :=
         + x.nJ * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.κ * x.s₀)) / x.ε_s ^ 2) ∧
     (fun x => 1 / collTol x) =O[𝓟 trainFamilyRegion] (fun x =>
       1 / (x.δ * x.pAP) * (x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP)) ∧
-    TrainFamilyWithin.{u, v, w} k nsuff npref atomTol collTol
-
-open Real in
-/-- `TrainFamilyClaim` with each shape a single product. -/
-def TrainFamilyClaimSimple.{u, v, w} : Prop :=
-  ∃ k nsuff npref atomTol collTol : TrainFamilyInputs → ℝ,
-    k =O[𝓟 trainFamilyRegion] (fun x => x.ℓ_conf / x.s₀ ^ 2) ∧
-    nsuff =O[𝓟 trainFamilyRegion] (fun x =>
-      (x.ℓ_conf + log (1 / x.δ)) / (x.pAP * x.s₀ ^ 2)) ∧
-    npref =O[𝓟 trainFamilyRegion] (fun x =>
-      x.nJ * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.κ * x.s₀))
-        / (x.εcov ^ 2 * x.ε_s * x.ε_u ^ 2 * x.s₀ ^ 4)) ∧
-    (fun x => 1 / atomTol x) =O[𝓟 trainFamilyRegion] (fun x =>
-      x.nJ ^ 2 * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.κ * x.s₀))
-        / (x.εcov ^ 3 * x.ε_s ^ 2 * x.ε_u ^ 3 * x.s₀ ^ 6)) ∧
-    (fun x => 1 / collTol x) =O[𝓟 trainFamilyRegion] (fun x =>
-      (x.ℓ_conf + log (1 / x.δ)) / (x.δ * x.pAP ^ 2 * x.s₀ ^ 2)) ∧
     TrainFamilyWithin.{u, v, w} k nsuff npref atomTol collTol
 
 end OrthoDFA

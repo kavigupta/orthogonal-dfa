@@ -9,8 +9,7 @@ import RLStar.Proofs.BigO
 The witnesses are `ClusteringGuarantee`'s bounds at its `δ = α = δ/2`, the prefix count's log
 taken at the pool's ceiling; the tolerances are its per-state atom and collision conditions at the
 ceilings, and `1` off the parameters' range. They are stated and bounded on `toVec x`, the counts
-and the rates' reciprocals, and carried back to `TrainFamilyInputs`. `TrainFamilyClaimSimple`
-follows from `TrainFamilyClaim`, each tight shape bounded by its product.
+and the rates' reciprocals, and carried back to `TrainFamilyInputs`.
 -/
 
 noncomputable section
@@ -766,221 +765,6 @@ private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 vecRegion]
   have : 0 ≤ iδ * ip * G := by positivity
   linarith
 
-private lemma nsuff_le {iδ ip ie iu iw is : ℝ} (hiδ : 2 ≤ iδ) (hip : 1 ≤ ip) (his : 2 ≤ is) :
-    log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip
-      ≤ (log (max (ie * is) (max iu iw)) + log iδ) * ip * is ^ 2 := by
-  have hΛ : 0 ≤ log iδ := Real.log_nonneg (by linarith)
-  have his2 : 1 ≤ is ^ 2 := one_le_pow₀ (by linarith)
-  have e2 : log iδ * ip ≤ log iδ * ip * is ^ 2 :=
-    le_mul_of_one_le_right (by positivity) his2
-  linarith
-
-private lemma logZ_nonneg {iδ ip ie iu iw is : ℝ} (hiδ : 2 ≤ iδ) (hip : 1 ≤ ip) (hie : 2 ≤ ie)
-    (his : 2 ≤ is) : 0 ≤ log (log (max (ie * is) (max iu iw)) * iδ * ip * is) := by
-  have : 1 ≤ log (max (ie * is) (max iu iw)) :=
-    one_le_log_of_three_le (le_max_of_le_left (by nlinarith))
-  exact Real.log_nonneg (by linarith [Z_ge this hiδ hip his])
-
-private lemma npref_le {nJ iδ ip ie iu iw is nH : ℝ} (hJ : 1 ≤ nJ) (hiδ : 2 ≤ iδ) (hip : 1 ≤ ip)
-    (hie : 2 ≤ ie) (hiu : 2 ≤ iu) (hiw : 1 ≤ iw) (his : 2 ≤ is) (hnH : 0 ≤ nH) :
-    nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is) * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
-        + log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 4 + iu ^ 2)
-        + nH * (ie * is ^ 2 + iu)
-      ≤ 8 * (nJ * (nH + 1) * log (nJ * iδ * ip * ie * iu * iw * is)
-        * ie ^ 2 * iu ^ 2 * is ^ 4) := by
-  obtain ⟨-, -, hP⟩ := prods hJ hiδ hip hie hiu hiw his
-  have hL : 1 ≤ log (nJ * iδ * ip * ie * iu * iw * is) := one_le_log_of_three_le (by linarith)
-  have hK : 1 ≤ nJ * log (nJ * iδ * ip * ie * iu * iw * is) :=
-    one_le_mul' hJ hL
-  have he : 1 ≤ ie := by linarith
-  have hu : 1 ≤ iu := by linarith
-  have hs : 1 ≤ is := by linarith
-  have hM4 : 4 ≤ max (ie * is) (max iu iw) := le_max_of_le_left (by nlinarith)
-  have hℓ1 : 1 ≤ log (max (ie * is) (max iu iw)) := one_le_log_of_three_le (by linarith)
-  have hℓ : log (max (ie * is) (max iu iw)) ≤ ie * is * iu * iw := by
-    refine (Real.log_le_self (by linarith)).trans (max_le ?_ (max_le ?_ ?_))
-    · exact le_of_one_le_mul (by positivity) (one_le_mul' hu hiw) (by ring)
-    · exact le_of_one_le_mul (by positivity) (one_le_mul' (one_le_mul' he hs) hiw) (by ring)
-    · exact le_of_one_le_mul (by positivity) (one_le_mul' (one_le_mul' he hs) hu) (by ring)
-  have hZ : log (max (ie * is) (max iu iw)) * iδ * ip * is
-      ≤ (nJ * iδ * ip * ie * iu * iw * is) ^ 2 := by
-    have hc1 : 1 ≤ nJ * iδ * ip * ie * iu * iw := one_le_mul' (one_le_mul' (one_le_mul'
-      (one_le_mul' (one_le_mul' hJ (by linarith)) hip) he) hu) hiw
-    have : is ≤ nJ * iδ * ip * ie * iu * iw * is := le_mul_of_one_le_left (by linarith) hc1
-    calc log (max (ie * is) (max iu iw)) * iδ * ip * is
-        ≤ ie * is * iu * iw * iδ * ip * is := by gcongr
-      _ = (iδ * ip * ie * iu * iw * is) * is := by ring
-      _ ≤ (nJ * iδ * ip * ie * iu * iw * is) * is := by
-          gcongr; exact le_of_one_le_mul (by positivity) hJ (by ring)
-      _ ≤ (nJ * iδ * ip * ie * iu * iw * is) ^ 2 := by rw [sq]; gcongr
-  have hlZ : log (log (max (ie * is) (max iu iw)) * iδ * ip * is)
-      ≤ 2 * log (nJ * iδ * ip * ie * iu * iw * is) :=
-    log_le_mul_log_of_le_pow 2 (by linarith [Z_ge hℓ1 hiδ hip his]) hZ
-  have m1 : ie ^ 2 * is ^ 4 ≤ ie ^ 2 * iu ^ 2 * is ^ 4 :=
-    le_of_one_le_mul (by positivity) (one_le_pow₀ (n := 2) hu) (by ring)
-  have m2 : iu ^ 2 * is ^ 4 ≤ ie ^ 2 * iu ^ 2 * is ^ 4 := le_of_one_le_mul (by positivity)
-    (one_le_pow₀ (n := 2) he) (by ring)
-  have m2' : ie ^ 2 * is ^ 4 ≤ ie ^ 2 * iu ^ 2 * is ^ 4 := m1
-  have m2'' : iu ^ 2 ≤ ie ^ 2 * iu ^ 2 * is ^ 4 := le_of_one_le_mul (by positivity)
-    (one_le_mul' (one_le_pow₀ (n := 2) he) (one_le_pow₀ (n := 4) hs)) (by ring)
-  have m3 : ie * is ^ 2 ≤ ie ^ 2 * iu ^ 2 * is ^ 4 := le_of_one_le_mul (by positivity)
-    (one_le_mul' (one_le_mul' he (one_le_pow₀ (n := 2) hu)) (one_le_pow₀ (n := 2) hs)) (by ring)
-  have m4 : iu ≤ ie ^ 2 * iu ^ 2 * is ^ 4 := le_of_one_le_mul (by positivity)
-    (one_le_mul' (one_le_mul' (one_le_pow₀ (n := 2) he) hu) (one_le_pow₀ (n := 4) hs)) (by ring)
-  set L7 := log (nJ * iδ * ip * ie * iu * iw * is)
-  set M := ie ^ 2 * iu ^ 2 * is ^ 4
-  have hlZ0 : 0 ≤ log (log (max (ie * is) (max iu iw)) * iδ * ip * is) :=
-    Real.log_nonneg (by linarith [Z_ge hℓ1 hiδ hip his])
-  have e1 : nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is)
-      * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4) ≤ nJ * (2 * L7) * (2 * M) := by
-    gcongr; linarith
-  have e2 : L7 * (ie ^ 2 * is ^ 4 + iu ^ 2) ≤ nJ * L7 * (2 * M) := by
-    calc L7 * (ie ^ 2 * is ^ 4 + iu ^ 2) ≤ L7 * (2 * M) := by gcongr; linarith
-      _ ≤ nJ * L7 * (2 * M) := by
-          rw [mul_assoc nJ]; exact le_mul_of_one_le_left (by positivity) hJ
-  have e3 : nH * (ie * is ^ 2 + iu) ≤ nH * (2 * M) := mul_le_mul_of_nonneg_left (by linarith) hnH
-  have e4 : nH * M ≤ nH * M * (nJ * L7) := le_mul_of_one_le_right (by positivity) hK
-  have : 0 ≤ nJ * L7 * M := by positivity
-  have : 0 ≤ nH * M * (nJ * L7) := by positivity
-  have e : 8 * (nJ * (nH + 1) * L7 * ie ^ 2 * iu ^ 2 * is ^ 4)
-      = 8 * (nJ * L7 * M) + 8 * (nH * M * (nJ * L7)) := by ring
-  rw [e]
-  nlinarith
-
-private lemma nsuff_dom : (fun (_, iδ, ip, ie, _, iu, iw, is, _) =>
-    log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip : ClusterVec → ℝ)
-    =O[𝓟 vecRegion] (fun (_, iδ, ip, ie, _, iu, iw, is, _) =>
-      (log (max (ie * is) (max iu iw)) + log iδ) * ip * is ^ 2 : ClusterVec → ℝ) := by
-  refine isBigO_on 1 fun b hb => ?_
-  obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := b
-  obtain ⟨-, hiδ, hip, hie, -, -, -, his, -⟩ := region hb
-  have := logM_nonneg (iu := iu) (iw := iw) hie his
-  have : 0 ≤ log iδ := Real.log_nonneg (by linarith)
-  dsimp only
-  exact ⟨by positivity, by positivity, by rw [one_mul]; exact nsuff_le hiδ hip his⟩
-
-private lemma npref_dom : (fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
-    nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is) * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
-      + log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 4 + iu ^ 2)
-      + isl * log (nJ * iδ) + nH * (ie * is ^ 2 + iu) : ClusterVec → ℝ)
-    =O[𝓟 vecRegion] (fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
-      nJ * (nH + 1) * log (nJ * iδ * ip * ie * isl * iu * iw * is) * ie ^ 2 * isl * iu ^ 2
-        * is ^ 4 : ClusterVec → ℝ) := by
-  refine isBigO_on 9 fun b hb => ?_
-  obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := b
-  obtain ⟨hJ, hiδ, hip, hie, hisl, hiu, hiw, his, hnH⟩ := region hb
-  obtain ⟨-, hx, hP⟩ := prods hJ hiδ hip hie hiu hiw his
-  have he : 1 ≤ ie := by linarith
-  have hu : 1 ≤ iu := by linarith
-  have hs : 1 ≤ is := by linarith
-  have hl : 1 ≤ isl := by linarith
-  have hP78 : nJ * iδ * ip * ie * iu * iw * is ≤ nJ * iδ * ip * ie * isl * iu * iw * is :=
-    le_of_one_le_mul (by positivity) hl (by ring)
-  have hx7 : nJ * iδ ≤ nJ * iδ * ip * ie * iu * iw * is :=
-    le_of_one_le_mul (by positivity) (one_le_mul' (one_le_mul' (one_le_mul' (one_le_mul' hip he)
-      hu) hiw) hs) (by ring)
-  have hL7 : 0 ≤ log (nJ * iδ * ip * ie * iu * iw * is) := Real.log_nonneg (by linarith)
-  have hL78 : log (nJ * iδ * ip * ie * iu * iw * is)
-      ≤ log (nJ * iδ * ip * ie * isl * iu * iw * is) := Real.log_le_log (by positivity) hP78
-  have hL8 : 0 ≤ log (nJ * iδ * ip * ie * isl * iu * iw * is) := by linarith
-  have hΛ0 : 0 ≤ log (nJ * iδ) := Real.log_nonneg (by linarith)
-  have hΛ : log (nJ * iδ) ≤ log (nJ * iδ * ip * ie * isl * iu * iw * is) :=
-    (Real.log_le_log (by positivity) hx7).trans hL78
-  have hK : 1 ≤ nJ * (nH + 1) * ie ^ 2 * iu ^ 2 * is ^ 4 :=
-    one_le_mul' (one_le_mul' (one_le_mul' (one_le_mul' hJ (by linarith))
-      (one_le_pow₀ he)) (one_le_pow₀ hu)) (one_le_pow₀ hs)
-  have hZ0 := logZ_nonneg (iu := iu) (iw := iw) hiδ hip hie his
-  have h1 := npref_le hJ hiδ hip hie hiu hiw his hnH
-  have h2 : nJ * (nH + 1) * log (nJ * iδ * ip * ie * iu * iw * is) * ie ^ 2 * iu ^ 2 * is ^ 4
-      ≤ nJ * (nH + 1) * log (nJ * iδ * ip * ie * isl * iu * iw * is) * ie ^ 2 * isl
-        * iu ^ 2 * is ^ 4 :=
-    calc _ ≤ nJ * (nH + 1) * log (nJ * iδ * ip * ie * isl * iu * iw * is) * ie ^ 2 * iu ^ 2
-          * is ^ 4 := by gcongr
-      _ ≤ _ := le_of_one_le_mul (by positivity) hl (by ring)
-  have h3 : isl * log (nJ * iδ) ≤ nJ * (nH + 1) * log (nJ * iδ * ip * ie * isl * iu * iw * is)
-      * ie ^ 2 * isl * iu ^ 2 * is ^ 4 :=
-    calc isl * log (nJ * iδ) ≤ isl * log (nJ * iδ * ip * ie * isl * iu * iw * is) := by gcongr
-      _ ≤ _ := le_of_one_le_mul (by positivity) hK (by ring)
-  dsimp only
-  exact ⟨by positivity, by positivity, by linarith⟩
-
-private lemma atom_dom : (fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
-    (nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is)
-            * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
-        + log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 4 + iu ^ 2)
-        + nH * (ie * is ^ 2 + iu)) * (nJ * (iu + isl) + ie * is ^ 2 + iu * is)
-      + nJ * log (nJ * iδ * ip * ie * isl * iu * iw * is * (nH + 1)) * isl ^ 2
-    : ClusterVec → ℝ)
-    =O[𝓟 vecRegion] (fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
-      nJ ^ 2 * (nH + 1) * log (nJ * iδ * ip * ie * isl * iu * iw * is * (nH + 1))
-        * ie ^ 3 * isl ^ 2 * iu ^ 3 * is ^ 6 : ClusterVec → ℝ) := by
-  refine isBigO_on 64 fun b hb => ?_
-  obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := b
-  obtain ⟨hJ, hiδ, hip, hie, hisl, hiu, hiw, his, hnH⟩ := region hb
-  obtain ⟨-, -, hP⟩ := prods hJ hiδ hip hie hiu hiw his
-  have he : 1 ≤ ie := by linarith
-  have hu : 1 ≤ iu := by linarith
-  have hs : 1 ≤ is := by linarith
-  have hl : 1 ≤ isl := by linarith
-  have hP79 : nJ * iδ * ip * ie * iu * iw * is
-      ≤ nJ * iδ * ip * ie * isl * iu * iw * is * (nH + 1) :=
-    le_of_one_le_mul (by positivity) (one_le_mul' hl (by linarith : 1 ≤ nH + 1)) (by ring)
-  have hL7 : 0 ≤ log (nJ * iδ * ip * ie * iu * iw * is) := Real.log_nonneg (by linarith)
-  have hL9 : 0 ≤ log (nJ * iδ * ip * ie * isl * iu * iw * is * (nH + 1)) :=
-    Real.log_nonneg (by linarith)
-  have hZ0 := logZ_nonneg (iu := iu) (iw := iw) hiδ hip hie his
-  have hF := (npref_le hJ hiδ hip hie hiu hiw his hnH).trans (by gcongr : 8 * (nJ * (nH + 1)
-    * log (nJ * iδ * ip * ie * iu * iw * is) * ie ^ 2 * iu ^ 2 * is ^ 4) ≤ 8 * (nJ * (nH + 1)
-    * log (nJ * iδ * ip * ie * isl * iu * iw * is * (nH + 1)) * ie ^ 2 * iu ^ 2 * is ^ 4))
-  have t1 : ie * is ^ 2 ≤ ie * isl * iu * is ^ 2 :=
-    le_of_one_le_mul (by positivity) (one_le_mul' hl hu) (by ring)
-  have t2 : iu * is ≤ ie * isl * iu * is ^ 2 :=
-    le_of_one_le_mul (by positivity) (one_le_mul' (one_le_mul' he hl) (one_le_pow₀ (n := 1) hs))
-      (by ring)
-  have t3 : isl ≤ ie * isl * iu * is ^ 2 :=
-    le_of_one_le_mul (by positivity) (one_le_mul' (one_le_mul' he hu) (one_le_pow₀ (n := 2) hs))
-      (by ring)
-  have t0 : iu ≤ ie * isl * iu * is ^ 2 :=
-    le_of_one_le_mul (by positivity) (one_le_mul' (one_le_mul' he hl) (one_le_pow₀ (n := 2) hs))
-      (by ring)
-  have hX0 : 0 ≤ ie * isl * iu * is ^ 2 := by positivity
-  have hJX := le_mul_of_one_le_left hX0 hJ
-  have hA := mul_le_mul hF
-    (show nJ * (iu + isl) + ie * is ^ 2 + iu * is ≤ 4 * nJ * (ie * isl * iu * is ^ 2) by nlinarith)
-    (by positivity) (by positivity)
-  have hZ := le_mul_of_one_le_right (show 0 ≤ nJ ^ 2 * (nH + 1)
-    * log (nJ * iδ * ip * ie * isl * iu * iw * is * (nH + 1)) * ie ^ 3 * isl * iu ^ 3 * is ^ 6
-    by positivity) hl
-  have t4 : isl ^ 2 ≤ ie ^ 3 * isl ^ 2 * iu ^ 3 * is ^ 6 := le_of_one_le_mul (by positivity)
-    (one_le_mul' (one_le_mul' (one_le_pow₀ (n := 3) he) (one_le_pow₀ (n := 3) hu))
-      (one_le_pow₀ (n := 6) hs)) (by ring)
-  have hB := mul_le_mul_of_nonneg_left t4
-    (show 0 ≤ nJ * log (nJ * iδ * ip * ie * isl * iu * iw * is * (nH + 1)) by positivity)
-  have hB2 := le_mul_of_one_le_right (show 0 ≤ nJ
-    * log (nJ * iδ * ip * ie * isl * iu * iw * is * (nH + 1))
-    * (ie ^ 3 * isl ^ 2 * iu ^ 3 * is ^ 6) by positivity)
-    (one_le_mul' hJ (by linarith : 1 ≤ nH + 1))
-  have : 0 ≤ nJ ^ 2 * (nH + 1) * log (nJ * iδ * ip * ie * isl * iu * iw * is * (nH + 1))
-      * ie ^ 3 * isl ^ 2 * iu ^ 3 * is ^ 6 := by positivity
-  dsimp only
-  exact ⟨by positivity, by positivity, by linarith⟩
-
-private lemma coll_dom : (fun (_, iδ, ip, ie, _, iu, iw, is, _) =>
-    iδ * ip * (log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip)
-    : ClusterVec → ℝ)
-    =O[𝓟 vecRegion] (fun (_, iδ, ip, ie, _, iu, iw, is, _) =>
-      (log (max (ie * is) (max iu iw)) + log iδ) * iδ * ip ^ 2 * is ^ 2
-      : ClusterVec → ℝ) := by
-  refine isBigO_on 1 fun b hb => ?_
-  obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := b
-  obtain ⟨hJ, hiδ, hip, hie, -, -, -, his, -⟩ := region hb
-  have := logM_nonneg (iu := iu) (iw := iw) hie his
-  have : 0 ≤ log iδ := Real.log_nonneg (by linarith)
-  have := mul_le_mul_of_nonneg_left (nsuff_le (ie := ie) (iu := iu) (iw := iw) hiδ hip his)
-    (show 0 ≤ iδ * ip by positivity)
-  dsimp only
-  exact ⟨by positivity, by positivity, by linarith⟩
-
 /-- No strings harvested. -/
 private def toVec (x : TrainFamilyInputs) : ClusterVec :=
   (x.nJ, 1 / x.δ, 1 / x.pAP, 1 / x.εcov, 1 / x.ε_s, 1 / x.ε_u, 1 / x.κ, 1 / x.s₀, 0)
@@ -997,11 +781,6 @@ private lemma toVec_mem {x : TrainFamilyInputs} (hx : x ∈ trainFamilyRegion) :
 private lemma transfer {f g : ClusterVec → ℝ} {g' : TrainFamilyInputs → ℝ} (h : f =O[𝓟 vecRegion] g)
     (hg : ∀ x, g (toVec x) = g' x) : (fun x => f (toVec x)) =O[𝓟 trainFamilyRegion] g' :=
   (isBigO_comp_on h fun _ hx => toVec_mem hx).congr_right hg
-
-private lemma dominate {f g : ClusterVec → ℝ} {f' g' : TrainFamilyInputs → ℝ}
-    (h : f =O[𝓟 vecRegion] g) (hf : ∀ x, f (toVec x) = f' x) (hg : ∀ x, g (toVec x) = g' x) :
-    f' =O[𝓟 trainFamilyRegion] g' :=
-  (transfer h hg).congr_left hf
 
 private lemma half_eq (a : ℝ) : 1 / (2 * (1 / a)) = a / 2 := by
   rw [one_div, one_div, mul_inv, inv_inv, mul_comm, div_eq_mul_inv]
@@ -1145,18 +924,5 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
         ≤ 2 ^ 13 * max 1 (nsuffW v) * collisionMass Dsf := by
           gcongr; exact (hks B hB).2.trans (le_max_right _ _)
       _ ≤ _ := by linarith
-
-theorem trainFamilyClaimSimple_holds : TrainFamilyClaimSimple := by
-  obtain ⟨k, nsuff, npref, atomTol, collTol, hk, hs, hp, ha, hc, hw⟩ :=
-    trainFamilyClaim_holds
-  exact ⟨k, nsuff, npref, atomTol, collTol, hk,
-    hs.trans (dominate nsuff_dom (fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf)
-      fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf),
-    hp.trans (dominate npref_dom (fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf)
-      fun x => by simp only [toVec]; ring_nf),
-    ha.trans (dominate atom_dom (fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf)
-      fun x => by simp only [toVec]; ring_nf),
-    hc.trans (dominate coll_dom (fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf)
-      fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf), hw⟩
 
 end OrthoDFA
