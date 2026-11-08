@@ -394,18 +394,22 @@ small enough for level 5's premises at `f = 0`. The last round has at most
 `C.disagreementRate + mr` of the probes in `disagreeSet`, and at most half of each `E q`, plus
 `u + mr`, misled, `mr` bounding the mass the round's probes avoid. Every round the filled draws
 run is good but for chance `K δₘ` of a miss at the cap `harvestN y (δₘ / scanCap)` and the scan
-tail at `4 (K + 3) NP ≤ Tsc ≤ scanCap`, and its harvested draws walk at most `B` probes in all but
-for chance `2^(K scanCap) (1 - y/2)^(B + 1)`. Every round's tree has at most `|Q| + 2` leaves. -/
+tail at `4 (K + 3) NP ≤ Tsc ≤ scanCap`. Its harvested populations' first `Nh` filled draws hold
+their samples (`DrawsWithin`) but for the scan tail at `4 · 3 NP ≤ Th ≤ Nh`, and walk at most `B`
+probes in all but for chance `2^(K Nh) (1 - y/2)^(B + 1)`. Every round's tree has at most
+`|Q| + 2` leaves. -/
 def LoopCore : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
     (E : σ → Set (FreeMonoid α)) (K Ls NS NP NF : ℕ)
     (η₀ indecisionLimit gateLevel εcov δc slack pAP cap m ms mr u cross Tu : ℝ)
-    (C : Random.Level3Settings) (scanCap : ℕ) (y δₘ : ℝ) (Tsc B : ℕ),
+    (C : Random.Level3Settings) (scanCap : ℕ) (y δₘ : ℝ) (Tsc Th Nh B : ℕ),
   let c : ℝ := cross ^ 4
   let bsc : ℝ := K * δₘ + (K + 1) * (2 * (scanCap.choose Tsc * (Tsc * (2 * cap)) ^ (scanCap - Tsc))
-    + 2 * Real.exp (-(Tsc / 8 : ℝ))) + 2 ^ (K * scanCap) * (1 - y / 2) ^ (B + 1)
+    + 2 * Real.exp (-(Tsc / 8 : ℝ)))
+    + (K + 1) * (2 * (Nh.choose Th * (Th * (2 * cap)) ^ (Nh - Th)) + 2 * Real.exp (-(Th / 8 : ℝ)))
+    + 2 ^ (K * Nh) * (1 - y / 2) ^ (B + 1)
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 →
   0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
@@ -444,7 +448,7 @@ def LoopCore : Prop :=
     + mr / (C.harvestRate / 2) + Fintype.card σ * (2 * indecisionLimit + slack) / Tu < 1 →
   C.harvestReadCap = Random.harvestN y (δₘ / scanCap) →
   0 < y → y ≤ C.harvestRate / 4 → y ≤ 1 → 0 < δₘ → 0 < scanCap →
-  4 * ((K + 3) * NP) ≤ Tsc → Tsc ≤ scanCap →
+  4 * ((K + 3) * NP) ≤ Tsc → Tsc ≤ scanCap → 4 * (3 * NP) ≤ Th → Th ≤ Nh →
   ∃ settings : LoopSettings K,
     settings.η₀ = η₀ ∧ settings.indecisionLimit = indecisionLimit ∧ settings.εcov = εcov ∧
     settings.gateLevel = gateLevel ∧ settings.level3 = C ∧ settings.scanCap = scanCap ∧
@@ -468,7 +472,7 @@ def LoopCore : Prop :=
               ∧ (∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
                 RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
                   (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))
-              ∧ RoundsWalkWithin settings O P.D Dsf p B)}
+              ∧ RoundsWalkWithin settings O P.D Dsf p Nh B)}
         ≤ (Fintype.card σ + 1) * (δc + gateLevel
           + (C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
             (2 * prefixMax P.D C.walkStart) (2 * (Fintype.card σ + 1) * cross) u) + bsc)
@@ -476,9 +480,9 @@ def LoopCore : Prop :=
 set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
 theorem loop_core_holds : LoopCore := by
   intro α _ _ _ σ _ Ω _ μ _ M O P E K Ls NS NP NF η₀ ι gate εcov δc slack pAP cap m ms mr u cross
-    Tu C scanCap y δₘ Tsc B c bsc hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hL1 hK hLs hcap
+    Tu C scanCap y δₘ Tsc Th Nh B c bsc hL hη hη₀ hι hι1 hg hg1 hε hε1 hδc hδc1 hsl hpAP hL1 hK hLs hcap
     hmsl hm1 hmsp hms1 hNSb hNPb hNFb hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0 hk1 hu hy0 hmr hmr1
-    hcr hprem hT hcond hcapN hyp hyr hyl1 hδₘ hsc hTsc hTM
+    hcr hprem hT hcond hcapN hyp hyr hyl1 hδₘ hsc hTsc hTM hThA hThN
   classical
   have hδ : 0 < C.δ := hprem.1
   have hc : cross ^ 4 = c := rfl
@@ -765,7 +769,10 @@ theorem loop_core_holds : LoopCore := by
           ∨ ScanShort (loopPopulations K r) settings.scanCap Tsc ((K + 3) * NP)
             (idealDraws P.D Dsf k settings.level3.harvestReadCap
               (dec (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))
-          ∨ B < harvestWalk P.D k settings.level3.harvestReadCap settings.scanCap
+          ∨ ScanShort (loopPopulations K r) Nh Th (3 * NP)
+            (idealDraws P.D Dsf k settings.level3.harvestReadCap
+              (dec (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))
+          ∨ B < harvestWalk P.D k settings.level3.harvestReadCap Nh
             (dec (histCodes settings O P.D Dsf p.1 p.2 r)).pops
             (dec (histCodes settings O P.D Dsf p.1 p.2 r)).prefs (p.2 ⟨r, hr⟩).1.2.1)}
   have h1 : ∀ r (hr : r < K), μL.real (E1 r hr) ≤ δc + gate := fun r hr =>
@@ -781,7 +788,7 @@ theorem loop_core_holds : LoopCore := by
       ENNReal.toReal_zero]
   have h4 : ∀ r (hr : r < K), μL.real (E4 r hr) ≤ bsc := fun r hr =>
     loop_good_round_le_persist settings O P Dsf cap m y δₘ B hcapN hyp hyl1 hδₘ hsc hm1 hTsc hTM
-      hDat r hr
+      hThA hThN hDat r hr
   set Ev : ℕ → Set (Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap T)) := fun r =>
     if hr : r < K then ((E1 r hr ∪ E2 r hr) ∪ E3 r hr) ∪ E4 r hr else ∅ with hEvd
   have hbsc : 0 ≤ bsc := by
@@ -818,7 +825,7 @@ theorem loop_core_holds : LoopCore := by
         ∧ (∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
           RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
             (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))
-        ∧ RoundsWalkWithin settings O P.D Dsf p B)}
+        ∧ RoundsWalkWithin settings O P.D Dsf p Nh B)}
       ⊆ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r := by
     intro p hp
     by_contra hno
@@ -835,7 +842,9 @@ theorem loop_core_holds : LoopCore := by
           ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 i) p.2 i hK)
         ∧ RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i))
           (persistDraws p ⟨i, hK⟩)
-        ∧ roundWalk settings O P.D Dsf p i hK ≤ B := by
+        ∧ DrawsWithin settings P.D Dsf
+            (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i))
+            (persistDraws p ⟨i, hK⟩) Nh B := by
       intro i
       induction i using Nat.strong_induction_on with
       | _ i ih =>
@@ -968,10 +977,13 @@ theorem loop_core_holds : LoopCore := by
             ∨ ScanShort (loopPopulations K i) settings.scanCap Tsc ((K + 3) * NP)
               (idealDraws P.D Dsf k settings.level3.harvestReadCap (dec cH)
                 (p.1, (p.2 ⟨i, hK'⟩).1))
-            ∨ B < harvestWalk P.D k settings.level3.harvestReadCap settings.scanCap (dec cH).pops
+            ∨ ScanShort (loopPopulations K i) Nh Th (3 * NP)
+              (idealDraws P.D Dsf k settings.level3.harvestReadCap (dec cH)
+                (p.1, (p.2 ⟨i, hK'⟩).1))
+            ∨ B < harvestWalk P.D k settings.level3.harvestReadCap Nh (dec cH).pops
               (dec cH).prefs (p.2 ⟨i, hK'⟩).1.2.1) :=
           fun h => hn4 ⟨hok, hlen, fun ν hν => (hpops ν hν).1, hyl2, hmP, h⟩
-        rw [not_or, not_or] at hn4'
+        rw [not_or, not_or, not_or] at hn4'
         have hti := take_idealRounds settings O P.D Dsf (persistDraws p) hK'.le
         have hl : (specHistOf (Lr.take i)).pops.length = i := by rw [← hdec.length]; exact hpl
         have hgood : RoundGood settings O P.D Dsf
@@ -986,10 +998,15 @@ theorem loop_core_holds : LoopCore := by
             unfold idealRunAt at h3
             rw [← hti] at h3
             exact h3
-        have hwalk : roundWalk settings O P.D Dsf p i hK' ≤ B := by
-          unfold roundWalk
-          rw [← hti, ← harvestWalk_alike hdec.1 P.D hlenB, ← hdec.2.1]
-          exact not_lt.1 hn4'.2.2
+        have hwalk : DrawsWithin settings P.D Dsf
+            (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i))
+            (persistDraws p ⟨i, hK'⟩) Nh B := by
+          rw [← hti]
+          refine drawsWithin_of settings P.D Dsf _ _ (NP := NP) (Th := Th)
+            (fun B hB => (hsizes _ B hB).2.1) ?_ ?_
+          · rw [hl, ← idealDraws_alike hdec P.D Dsf hlenB]; exact hn4'.2.2.1
+          · rw [← harvestWalk_alike hdec.1 P.D hlenB, ← hdec.2.1]
+            exact not_lt.1 hn4'.2.2.2
         rw [e]
         exact ⟨⟨hcs', h4⟩, ⟨hok, hcs.1, hnc⟩, hgood, hwalk⟩
     have hag := loop_agrees_of_specs M O hL P Dsf settings (persistDraws p) k rfl

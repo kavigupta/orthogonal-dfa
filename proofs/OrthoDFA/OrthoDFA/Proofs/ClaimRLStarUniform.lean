@@ -281,19 +281,18 @@ lemma uniform_factors {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
 lemma reads_dom {Q P P' S S' F Pr lg A ρ Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ P) (hPP : P ≤ 4 * P')
     (hS : 0 ≤ S) (hSS : S ≤ 2 * S') (hF : 0 ≤ F) (hPr : 0 ≤ Pr) (hlg : 0 ≤ lg) (hA : 0 ≤ A)
     (hρ : 0 ≤ ρ) (hHd : 0 ≤ Hd) :
-    0 ≤ P * S / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q ^ 2 * P * F * lg * ρ + Hd * F
-      ∧ 0 ≤ P' * S' / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q ^ 2 * P' * F * lg * ρ + Hd * F
-      ∧ P * S / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q ^ 2 * P * F * lg * ρ + Hd * F
-        ≤ 8 * (P' * S' / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q ^ 2 * P' * F * lg * ρ
+    0 ≤ P * S / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q * P * F * lg * ρ + Hd * F
+      ∧ 0 ≤ P' * S' / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q * P' * F * lg * ρ + Hd * F
+      ∧ P * S / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q * P * F * lg * ρ + Hd * F
+        ≤ 8 * (P' * S' / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q * P' * F * lg * ρ
           + Hd * F) := by
   have hP' : 0 ≤ P' := by linarith
   have hS' : 0 ≤ S' := by linarith
   set G := F * lg * ρ with hG
   have hG0 : 0 ≤ G := mul_nonneg (mul_nonneg hF hlg) hρ
-  have e : ∀ P, Q ^ 2 * P * F * lg * ρ = Q * P * (Q * G) := fun P => by
+  have e : ∀ P, Q * P * F * lg * ρ = Q * P * G := fun P => by
     rw [hG]; ring
   rw [e, e]
-  have hG0' : 0 ≤ Q * G := mul_nonneg hQ.le hG0
   have hT2 : 0 ≤ Pr * F * Q * lg := mul_nonneg (mul_nonneg (mul_nonneg hPr hF) hQ.le) hlg
   have hT3 : 0 ≤ Q ^ 4 * A * F := mul_nonneg (mul_nonneg (pow_nonneg hQ.le 4) hA) hF
   have hT4 : 0 ≤ Hd * F := mul_nonneg hHd hF
@@ -303,13 +302,13 @@ lemma reads_dom {Q P P' S S' F Pr lg A ρ Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ P) 
   have hPS' : P * S / Q ≤ 8 * (P' * S' / Q) := by
     rw [← mul_div_assoc]
     exact div_le_div_of_nonneg_right hPS hQ.le
-  have hQPG : Q * P * (Q * G) ≤ 4 * (Q * P' * (Q * G)) := by
-    have := mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hPP hQ.le) hG0'
+  have hQPG : Q * P * G ≤ 4 * (Q * P' * G) := by
+    have := mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hPP hQ.le) hG0
     linarith
   have n1 : 0 ≤ P * S / Q := div_nonneg (mul_nonneg hP hS) hQ.le
   have n2 : 0 ≤ P' * S' / Q := div_nonneg (mul_nonneg hP' hS') hQ.le
-  have n3 : 0 ≤ Q * P * (Q * G) := mul_nonneg (mul_nonneg hQ.le hP) hG0'
-  have n4 : 0 ≤ Q * P' * (Q * G) := mul_nonneg (mul_nonneg hQ.le hP') hG0'
+  have n3 : 0 ≤ Q * P * G := mul_nonneg (mul_nonneg hQ.le hP) hG0
+  have n4 : 0 ≤ Q * P' * G := mul_nonneg (mul_nonneg hQ.le hP') hG0
   refine ⟨by linarith, by linarith, by linarith⟩
 
 theorem rlStarClaimUniformSimple_of_claim (h : RLStarClaimUniform.{u, v, w}) :

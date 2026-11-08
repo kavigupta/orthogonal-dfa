@@ -79,14 +79,18 @@ def windowStrings (lo hi : ℕ) : Measure (FreeMonoid α) :=
 def windowLaw (D : Measure (FreeMonoid α)) (lo hi : ℕ) : Measure (FreeMonoid α) :=
   ((hi + 1 - lo : ℕ) : ℝ≥0∞)⁻¹ • ∑ n ∈ Finset.Icc lo hi, prefixLaw D n
 
-/-- Each round's harvested draws find their strings within `B` probes in all. -/
+/-- Each round's harvested draws, the populations drawing `tabs`, find their strings within `B`
+probes in all. -/
 def HarvestProbesWithin {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
     (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
     (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
     (rounds : List (LoopRound α)) (B : ℕ) : Prop :=
-  ∀ r (hr : r < K), r < rounds.length →
-    ∃ t : Fin K → Fin settings.scanCap → ℕ, ∑ i, ∑ n, t i n ≤ B ∧
-      ∀ i s, (histOf (rounds.take r)).pops[i.val]? = some s → ∀ n : Fin settings.scanCap,
+  ∀ r (hr : r < K), r < rounds.length → ∀ tabs,
+    (drawListsQ D settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap
+      (settings.schedule (loopPopulations K (histOf (rounds.take r)).pops.length))
+      (histOf (rounds.take r)) (p.2 ⟨r, hr⟩).1).eval (fun w => O.mq w p.1) = some tabs →
+    ∃ t : Fin K → ℕ → ℕ, ∑ i, ∑ n ∈ Finset.range (tabs (some i)).length, t i n ≤ B ∧
+      ∀ i s, (histOf (rounds.take r)).pops[i.val]? = some s → ∀ n < (tabs (some i)).length,
         (Random.harvestFirst (fun z => familyRead O.mq s.family s.kl s.kh z p.1)
           settings.level3.walkStart s.hyp s.site ↑(histOf (rounds.take r)).prefs
           ((List.ofFn fun j => drawFrom D (((p.2 ⟨r, hr⟩).1.2.1 (some i) n).2 j)).take
@@ -187,8 +191,10 @@ def LearnerLoopDFASimple : Prop :=
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the draws a harvested population makes in a round, but for chance `δ'`.
+  let SH : ℝ := 24 * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
-  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
+  let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -283,8 +289,11 @@ def LearnerLoopDFA : Prop :=
     + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the draws a harvested population makes in a round, but for chance `δ'`.
+  let SH : ℝ := 24 * ((L₁ + 1) ^ 2 * (1 + Real.log (L₁ + 1)) * R₀)
+    + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
-  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
+  let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →
@@ -377,8 +386,10 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the draws a harvested population makes in a round, but for chance `δ'`.
+  let SH : ℝ := 24 * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
-  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
+  let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -480,8 +491,11 @@ def LearnerLoopDFARelative : Prop :=
     + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the draws a harvested population makes in a round, but for chance `δ'`.
+  let SH : ℝ := 24 * ((L₁ + 1) ^ 2 * (1 + Real.log (L₁ + 1)) * R₀)
+    + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
-  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
+  let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < R → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → ξ ≤ 1 →
@@ -576,8 +590,10 @@ def LearnerLoopDFADist : Prop :=
   let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- The harvested draws' probe cap: enough tries that the draws miss but rarely.
   let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
+  -- Bounds the draws a harvested population makes in a round, but for chance `δ'`.
+  let SH : ℝ := 24 * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
   -- Bounds the probes a round's harvested draws walk in all, but for chance `δ'`.
-  let HB : ℝ := 384 / ε * ((Q + 1) * SC * Real.log 2 + Real.log (1 / δ')) + 1
+  let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
   -- The oracle's language is the target's.
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 2 ≤ Fintype.card α →

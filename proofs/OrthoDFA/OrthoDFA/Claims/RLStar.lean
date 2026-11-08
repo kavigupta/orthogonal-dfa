@@ -23,8 +23,8 @@ sum: the clusterings' prefixes against their suffixes; level 3's probes, each a 
 `|V̂|` strings at the `log L` mids of a sift at most `|Q| + 1` deep; its splits, at most `|Q|` a
 round, each re-sifting at most `|Q| + 2` leaves' edges over `|Σ|` letters down at most `|Q| + 2`
 midfixes; the harvested draws' walks, a family read at the sifts of each probe, about `1/ρ` probes
-a draw; and the start leaf's family read at each held-out string. Each bound has one constant over
-all of `rlStarDistRegion`.
+a draw taken; and the start leaf's family read at each held-out string. Each bound has one
+constant over all of `rlStarDistRegion`.
 
 `RLStarClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
 `L` is at least `L₀`; the bounds have one constant over all of `rlStarRegion`.
@@ -183,7 +183,7 @@ def RLStarClaim.{u, v, w} : Prop :=
       let lg : ℝ := log (r.L + r.Q + 1)
       -- clusterings, counterexample search, its re-sifts, harvest, start leaf
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q ^ 2 * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
+        + r.Q * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarDistRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     (∀ r, 0 < p₀Tol r) ∧
     RLStarWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes totalReads heldOut
@@ -260,7 +260,7 @@ def RLStarClaimUniform.{u, v, w} : Prop :=
       let lg : ℝ := log (r.L + r.Q + 1)
       -- clusterings, counterexample search, its re-sifts, harvest, start leaf
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q ^ 2 * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
+        + r.Q * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut
 
@@ -292,7 +292,7 @@ def RLStarClaimUniformSimple.{u, v, w} : Prop :=
       let lg : ℝ := log (r.L + r.Q + 1)
       -- clusterings, counterexample search, its re-sifts, harvest, start leaf
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q ^ 2 * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
+        + r.Q * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut
 

@@ -7,7 +7,8 @@ import OrthoDFA.Proofs.LoopQuery
 `learnerReads` is `K` rounds of `roundCallBound` and the start leaf's `n f` reads, split by
 source, `3 + ⌈log₂ L⌉` standing for the sifts of a probe (`reads_le_learnerReads`). `loopSC` and
 `loopHB` bound `LearnerLoopDFASimple`'s scan cap and the probes a round's harvested draws walk at
-`ℓ = L₁ + 1`, the prefix count `RB` at `loopCount`.
+`ℓ = L₁ + 1`, the prefix count `RB` at `loopCount`, and `loopSH` the draws a harvested
+population makes in a round.
 -/
 
 noncomputable section
@@ -73,11 +74,16 @@ def loopSC (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
   8 * (Q + 4) * loopCount ℓ Q A Ae δ c ξ pAP η₀
     + 16 * Real.log (16 * (Q + 2) / (δ / (8 * (Q + 1)))) + 2
 
+/-- The draws a harvested population of `LearnerLoopDFASimple` makes in a round, its prefix count
+at `loopCount ℓ`. -/
+def loopSH (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
+  24 * loopCount ℓ Q A Ae δ c ξ pAP η₀ + 16 * Real.log (16 * (Q + 2) / (δ / (8 * (Q + 1)))) + 2
+
 /-- The probes a round of `LearnerLoopDFASimple`'s harvested draws walk, its window's `N` lengths
-at most `ℓ` and its scan cap at `loopSC ℓ`. -/
+at most `ℓ` and each harvested population's draws at most `loopSH ℓ`. -/
 def loopHB (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
-  384 * (4 * (Ae + 1) * ℓ / c) * ((Q + 1) * loopSC ℓ Q A Ae δ c ξ pAP η₀ * Real.log 2
-    + Real.log (1 / (δ / (8 * (Q + 1))))) + 1
+  384 * (4 * (Ae + 1) * ℓ / c) * ((Q + 1) * loopSH ℓ Q A Ae δ c ξ pAP η₀ * Real.log 2
+    + Real.log (2 / (δ / (8 * (Q + 1))))) + 1
 
 end OrthoDFA
 

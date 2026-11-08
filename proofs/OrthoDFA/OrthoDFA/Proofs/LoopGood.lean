@@ -218,21 +218,59 @@ lemma harvestLaw_compl_ge (s : SpecSampler α) (D : Measure (FreeMonoid α))
   rw [measureReal_compl (Finset.measurableSet _)]
   nlinarith
 
+/-- Each harvested population's first `Nh` filled draws hold every sample a state of the schedule
+takes from it (`DrawsHold`), and they walk at most `B` probes in all. -/
+def DrawsWithin (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
+    (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (Nh B : ℕ) : Prop :=
+  (∀ i : Fin K, i.val < h.pops.length →
+    DrawsHold (settings.schedule (loopPopulations K h.pops.length)) d.2.1.2.2.2
+      (uniTable D settings.scanCap h.prefs (d.2.1.2.1 none))
+      ((List.range Nh).map ((idealDraws D Dsf settings.level3.walkStart
+        settings.level3.harvestReadCap h (d.1, d.2.1)).1.2.1.2 (some i))))
+    ∧ harvestWalk D settings.level3.walkStart settings.level3.harvestReadCap Nh h.pops h.prefs
+      d.2.1.2.1 ≤ B
+
+/-- No population's sides falling short of `3 NP` among its first `Nh` draws, every state reading
+at most `NP` prefixes, and those draws walking at most `B` probes, the round's draws are within. -/
+lemma drawsWithin_of (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
+    (h : SpecHist α)
+    (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    {NP Th Nh B : ℕ}
+    (hNP : ∀ B ∈ settings.schedule (loopPopulations K h.pops.length), B.npref ≤ NP)
+    (hs : ¬ ScanShort (loopPopulations K h.pops.length) Nh Th (3 * NP)
+      (idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)))
+    (hw : harvestWalk D settings.level3.walkStart settings.level3.harvestReadCap Nh h.pops h.prefs
+      d.2.1.2.1 ≤ B) :
+    DrawsWithin settings D Dsf h d Nh B := by
+  refine ⟨fun i hi => ?_, hw⟩
+  have hmem : some i ∈ loopPopulations K h.pops.length := by
+    simp only [loopPopulations, Finset.mem_insert, reduceCtorEq, false_or, Finset.mem_image,
+      Finset.mem_filter, Finset.mem_univ, true_and, Option.some.injEq]
+    exact ⟨i, hi, rfl⟩
+  exact drawsHold_of_not_popShort _ hNP le_rfl (fun m => by
+    simp only [uniTable]; exact card_freshDraws_le _ _ _)
+    (idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)) i
+    fun h' => hs ⟨some i, hmem, h'⟩
+
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
   (Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf]
 
 /-- Round `r`'s draws, after any history the earlier rounds hand on whose populations hold at
 most `cap` on a string, yield at least `2y` before the earlier prefixes and hold at most `m` of
-them, miss, fall short or walk more than `B` probes in all with chance at most
+them, miss, fall short within `M` or within `Nh`, or walk more than `B` probes in all within `Nh`,
+with chance at most
 
-    K δₘ + (K + 1) (2 C(M, T) (2 T cap)^(M-T) + 2 exp(-T/8)) + 2^(K M) (1 - y/2)^(B + 1),
+    K δₘ + (K + 1) (2 C(M, T) (2 T cap)^(M-T) + 2 exp(-T/8))
+      + (K + 1) (2 C(Nh, Th) (2 Th cap)^(Nh-Th) + 2 exp(-Th/8)) + 2^(K Nh) (1 - y/2)^(B + 1),
 
-at the cap `harvestN y (δₘ / M)`, `M` the scan cap and `4 (K + 3) NP ≤ T ≤ M`. -/
-theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ} (B : ℕ)
+at the cap `harvestN y (δₘ / M)`, `M` the scan cap, `4 (K + 3) NP ≤ T ≤ M` and
+`12 NP ≤ Th ≤ Nh`. -/
+theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP Th Nh : ℕ} (B : ℕ)
     (hcap : settings.level3.harvestReadCap = Random.harvestN y (δₘ / settings.scanCap))
     (hy0 : 0 < y) (hy1 : y ≤ 1) (hδ : 0 < δₘ) (hM : 0 < settings.scanCap) (hm : m ≤ 1 / 2)
-    (hA : 4 * ((K + 3) * NP) ≤ T) (hT : T ≤ settings.scanCap)
-    (hDat : ∀ t, P.D.real {t} ≤ cap) (r : ℕ) (hr : r < K) :
+    (hA : 4 * ((K + 3) * NP) ≤ T) (hT : T ≤ settings.scanCap) (hAh : 4 * (3 * NP) ≤ Th)
+    (hTh : Th ≤ Nh) (hDat : ∀ t, P.D.real {t} ≤ cap) (r : ℕ) (hr : r < K) :
     (loopMeasure μ α K settings.level3.harvestReadCap settings.level3.probeBudget).real
       {p | HistOK settings O P.D Dsf p.1 p.2 r
         ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
@@ -250,11 +288,16 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ} (B : ℕ)
           ∨ ScanShort (loopPopulations K r) settings.scanCap T ((K + 3) * NP)
             (idealDraws P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap
               (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))
+          ∨ ScanShort (loopPopulations K r) Nh Th (3 * NP)
+            (idealDraws P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap
+              (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))
           ∨ B < harvestWalk P.D settings.level3.walkStart settings.level3.harvestReadCap
-            settings.scanCap (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).pops
+            Nh (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).pops
             (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).prefs (p.2 ⟨r, hr⟩).1.2.1)}
       ≤ K * δₘ + (K + 1) * (2 * (settings.scanCap.choose T * (T * (2 * cap)) ^ (settings.scanCap - T))
-          + 2 * Real.exp (-(T / 8 : ℝ))) + 2 ^ (K * settings.scanCap) * (1 - y / 2) ^ (B + 1) := by
+          + 2 * Real.exp (-(T / 8 : ℝ)))
+        + (K + 1) * (2 * (Nh.choose Th * (Th * (2 * cap)) ^ (Nh - Th))
+          + 2 * Real.exp (-(Th / 8 : ℝ))) + 2 ^ (K * Nh) * (1 - y / 2) ^ (B + 1) := by
   classical
   set k := settings.level3.walkStart
   set N := settings.level3.harvestReadCap
@@ -263,7 +306,9 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ} (B : ℕ)
   set PB := settings.level3.probeBudget
   set dec := decodeHist (α := α) with hdec
   set b : ℝ := K * δₘ + (K + 1) * (2 * (M.choose T * (T * (2 * cap)) ^ (M - T))
-    + 2 * Real.exp (-(T / 8 : ℝ))) + 2 ^ (K * M) * (1 - y / 2) ^ (B + 1)
+    + 2 * Real.exp (-(T / 8 : ℝ)))
+    + (K + 1) * (2 * (Nh.choose Th * (Th * (2 * cap)) ^ (Nh - Th))
+      + 2 * Real.exp (-(Th / 8 : ℝ))) + 2 ^ (K * Nh) * (1 - y / 2) ^ (B + 1)
   have hcap0 : 0 ≤ cap := le_trans measureReal_nonneg (hDat 1)
   have hy2 : 0 ≤ 1 - y / 2 := by linarith
   have hb0 : 0 ≤ b := add_nonneg (by positivity) (mul_nonneg (by positivity) (pow_nonneg hy2 _))
@@ -284,7 +329,9 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ} (B : ℕ)
   set Bad : Y → Set (Ω × RoundDraws α K N PB) := fun y => match y with
     | some c => {q | Good c ∧ (MissAt P.D k N M (dec c).pops (dec c).prefs q.2.1.2.1
         ∨ ScanShort (loopPopulations K r) M T A (idealDraws P.D Dsf k N (dec c) (q.1, q.2.1))
-        ∨ B < harvestWalk P.D k N M (dec c).pops (dec c).prefs q.2.1.2.1)}
+        ∨ ScanShort (loopPopulations K r) Nh Th (3 * NP)
+          (idealDraws P.D Dsf k N (dec c) (q.1, q.2.1))
+        ∨ B < harvestWalk P.D k N Nh (dec c).pops (dec c).prefs q.2.1.2.1)}
     | none => ∅
   have hmarg : MeasurePreserving (fun q : Ω × RoundDraws α K N PB =>
       ((q.1, q.2.1) : ClusterDraws Ω α K N)) (μ.prod ν) (clusterLaw μ α K N) :=
@@ -310,14 +357,16 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ} (B : ℕ)
           ((measurable_fst.comp (measurable_snd.comp (measurable_fst.comp measurable_snd))
             (measurableSet_missAt P.D k N M (dec c).pops (dec c).prefs)).union
           ((hmid c (measurableSet_scanShort (loopPopulations K r) M T A)).union
-            (((measurable_harvestWalk P.D k N M (dec c).pops (dec c).prefs).comp
+            ((hmid c (measurableSet_scanShort (loopPopulations K r) Nh Th (3 * NP))).union
+            (((measurable_harvestWalk P.D k N Nh (dec c).pops (dec c).prefs).comp
               (measurable_fst.comp (measurable_snd.comp (measurable_fst.comp measurable_snd))))
-              (MeasurableSet.of_discrete (s := Set.Ioi B))))))
+              (MeasurableSet.of_discrete (s := Set.Ioi B)))))))
     (fun _ _ => ∅) (fun y d ω ω' _ hq => by
       rcases y with _ | c
       · exact hq
       · exact ⟨hq.1, hq.2.imp id fun h' =>
-          h'.imp (fun h' => (scanShort_noise _ _ _ _ _ _ _ _ _ _ rfl rfl).1 h') id⟩)
+          h'.imp (fun h' => (scanShort_noise _ _ _ _ _ _ _ _ _ _ rfl rfl).1 h') fun h' =>
+            h'.imp (fun h' => (scanShort_noise _ _ _ _ _ _ _ _ _ _ rfl rfl).1 h') id⟩)
     (fun _ => Set.univ) (fun _ => MeasurableSet.univ)
     (fun y x _ _ => Finset.disjoint_empty_right _)
     (ENNReal.ofReal b) (fun y => by
@@ -365,6 +414,8 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ} (B : ℕ)
         rw [← hcap] at hmiss
         have hscan := clusterLaw_scanShort_le (μ := μ) P.D Dsf k N h (loopPopulations K r)
           (M := M) (T := T) (A := A) hat hA hT
+        have hscan' := clusterLaw_scanShort_le (μ := μ) P.D Dsf k N h (loopPopulations K r)
+          (M := Nh) (T := Th) (A := 3 * NP) hat hAh hTh
         have hcard : ((loopPopulations K r).card : ℝ) ≤ K + 1 := by
           exact_mod_cast card_loopPopulations_le K r
         have hmissE : (μ.prod ν) {q : Ω × RoundDraws α K N PB |
@@ -374,19 +425,19 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ} (B : ℕ)
               (restLaw α K N) := measurePreserving_fst.comp measurePreserving_snd
           exact hp.measure_preimage (((measurable_fst.comp measurable_snd) (measurableSet_missAt
             P.D k N M h.pops h.prefs)).nullMeasurableSet)
-        have hscanE : (μ.prod ν) {q : Ω × RoundDraws α K N PB |
-            ScanShort (loopPopulations K r) M T A (idealDraws P.D Dsf k N h (q.1, q.2.1))}
-            = clusterLaw μ α K N {c | ScanShort (loopPopulations K r) M T A
-              (idealDraws P.D Dsf k N h c)} :=
+        have hscanE : ∀ M' T' A' : ℕ, (μ.prod ν) {q : Ω × RoundDraws α K N PB |
+            ScanShort (loopPopulations K r) M' T' A' (idealDraws P.D Dsf k N h (q.1, q.2.1))}
+            = clusterLaw μ α K N {c | ScanShort (loopPopulations K r) M' T' A'
+              (idealDraws P.D Dsf k N h c)} := fun M' T' A' =>
           hmarg.measure_preimage (((measurable_idealDraws P.D Dsf k N h)
-            (measurableSet_scanShort (loopPopulations K r) M T A)).nullMeasurableSet)
-        have hwalk := restLaw_harvestWalk_le (K := K) P.D k N M h.pops h.prefs hy0 hy1 hyield B
+            (measurableSet_scanShort (loopPopulations K r) M' T' A')).nullMeasurableSet)
+        have hwalk := restLaw_harvestWalk_le (K := K) P.D k N Nh h.pops h.prefs hy0 hy1 hyield B
         have hwalkE : (μ.prod ν) {q : Ω × RoundDraws α K N PB |
-            B < harvestWalk P.D k N M h.pops h.prefs q.2.1.2.1}
-            = restLaw α K N {e | B < harvestWalk P.D k N M h.pops h.prefs e.2.1} := by
+            B < harvestWalk P.D k N Nh h.pops h.prefs q.2.1.2.1}
+            = restLaw α K N {e | B < harvestWalk P.D k N Nh h.pops h.prefs e.2.1} := by
           have hp : MeasurePreserving (fun q : Ω × RoundDraws α K N PB => q.2.1) (μ.prod ν)
               (restLaw α K N) := measurePreserving_fst.comp measurePreserving_snd
-          exact hp.measure_preimage ((((measurable_harvestWalk P.D k N M h.pops h.prefs).comp
+          exact hp.measure_preimage ((((measurable_harvestWalk P.D k N Nh h.pops h.prefs).comp
             (measurable_fst.comp measurable_snd)) (MeasurableSet.of_discrete
               (s := Set.Ioi B))).nullMeasurableSet)
         calc (μ.prod ν) (Bad (some c))
@@ -394,25 +445,37 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP : ℕ} (B : ℕ)
                 MissAt P.D k N M h.pops h.prefs q.2.1.2.1}
               + ((μ.prod ν) {q : Ω × RoundDraws α K N PB |
                 ScanShort (loopPopulations K r) M T A (idealDraws P.D Dsf k N h (q.1, q.2.1))}
+              + ((μ.prod ν) {q : Ω × RoundDraws α K N PB |
+                ScanShort (loopPopulations K r) Nh Th (3 * NP)
+                  (idealDraws P.D Dsf k N h (q.1, q.2.1))}
               + (μ.prod ν) {q : Ω × RoundDraws α K N PB |
-                B < harvestWalk P.D k N M h.pops h.prefs q.2.1.2.1}) :=
+                B < harvestWalk P.D k N Nh h.pops h.prefs q.2.1.2.1})) :=
               (measure_mono fun q hq => hq.2).trans ((measure_union_le _ _).trans
-                (add_le_add le_rfl (measure_union_le _ _)))
+                (add_le_add le_rfl ((measure_union_le _ _).trans
+                  (add_le_add le_rfl (measure_union_le _ _)))))
           _ = ENNReal.ofReal ((restLaw α K N).real {e | MissAt P.D k N M h.pops h.prefs e.2.1})
               + (ENNReal.ofReal ((clusterLaw μ α K N).real {c | ScanShort (loopPopulations K r) M T A
                 (idealDraws P.D Dsf k N h c)})
+              + (ENNReal.ofReal ((clusterLaw μ α K N).real {c | ScanShort (loopPopulations K r)
+                Nh Th (3 * NP) (idealDraws P.D Dsf k N h c)})
               + ENNReal.ofReal ((restLaw α K N).real
-                {e | B < harvestWalk P.D k N M h.pops h.prefs e.2.1})) := by
-              rw [hmissE, hscanE, hwalkE, ofReal_measureReal (measure_ne_top _ _),
-                ofReal_measureReal (measure_ne_top _ _), ofReal_measureReal (measure_ne_top _ _)]
+                {e | B < harvestWalk P.D k N Nh h.pops h.prefs e.2.1}))) := by
+              rw [hmissE, hscanE, hscanE, hwalkE, ofReal_measureReal (measure_ne_top _ _),
+                ofReal_measureReal (measure_ne_top _ _), ofReal_measureReal (measure_ne_top _ _),
+                ofReal_measureReal (measure_ne_top _ _)]
           _ ≤ ENNReal.ofReal b := by
               rw [← ENNReal.ofReal_add measureReal_nonneg measureReal_nonneg,
                 ← ENNReal.ofReal_add measureReal_nonneg
-                  (add_nonneg measureReal_nonneg measureReal_nonneg)]
+                  (add_nonneg measureReal_nonneg measureReal_nonneg),
+                ← ENNReal.ofReal_add measureReal_nonneg
+                  (add_nonneg measureReal_nonneg (add_nonneg measureReal_nonneg measureReal_nonneg))]
               refine ENNReal.ofReal_le_ofReal ?_
               have hq0 : 0 ≤ 2 * (M.choose T * (T * (2 * cap)) ^ (M - T))
                   + 2 * Real.exp (-(T / 8 : ℝ)) := by positivity
+              have hq0' : 0 ≤ 2 * (Nh.choose Th * (Th * (2 * cap)) ^ (Nh - Th))
+                  + 2 * Real.exp (-(Th / 8 : ℝ)) := by positivity
               have := mul_le_mul_of_nonneg_right hcard hq0
+              have := mul_le_mul_of_nonneg_right hcard hq0'
               linarith)
   refine ENNReal.toReal_le_of_le_ofReal hb0 ((measure_mono ?_).trans hmain)
   rintro p ⟨hok, hlen, hpg, hyl, hpm, hbad⟩
@@ -468,6 +531,7 @@ lemma loopRounds_roundOf (n : ℕ) : ∀ rounds, loopRounds settings O D Dsf dra
         subst h1
         unfold loopRound at ho
         obtain ⟨dr, -, hdr⟩ := Option.mem_bind_iff.1 ho
+        dsimp only at hdr
         split_ifs at hdr
         · exact ⟨_, _, _, (Option.mem_some_iff.1 hdr).symm⟩
         · cases hdr
@@ -503,23 +567,15 @@ end Reads
 
 section Walk
 
-/-- Round `r`'s harvested draws' probes in all. -/
-def roundWalk {μ : Measure Ω}
-    (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
-    (r : ℕ) (hr : r < K) : ℕ :=
-  harvestWalk D settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap
-    (specHistOf (idealRounds settings O D Dsf (persistDraws p) r)).pops
-    (specHistOf (idealRounds settings O D Dsf (persistDraws p) r)).prefs
-    (persistDraws p ⟨r, hr⟩).2.1.2.1
-
-/-- Every round whose harvested draws all land walks at most `B` probes in all. -/
+/-- Every round whose harvested draws all land has its harvested populations' first `Nh` filled
+draws hold their samples and walk at most `B` probes in all (`DrawsWithin`). -/
 def RoundsWalkWithin {μ : Measure Ω}
     (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
     (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
-    (B : ℕ) : Prop :=
+    (Nh B : ℕ) : Prop :=
   ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf (persistDraws p) r) →
-    roundWalk settings O D Dsf p r hr ≤ B
+    DrawsWithin settings D Dsf (specHistOf (idealRounds settings O D Dsf (persistDraws p) r))
+      (persistDraws p ⟨r, hr⟩) Nh B
 
 end Walk
 

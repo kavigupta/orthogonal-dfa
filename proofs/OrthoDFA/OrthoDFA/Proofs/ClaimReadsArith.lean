@@ -5,7 +5,8 @@ import OrthoDFA.Proofs.LoopReadsArith
 # The strings the loop asks, asymptotically: the arithmetic
 
 Each factor of `learnerReads` is within a constant of a shape in the claim's coordinates: the
-family size of `|V̂|` (`rel_fam_le`), `K` times the scan cap of `totalPref` (`rel_sc_le`), the
+family size of `|V̂|` (`rel_fam_le`), `K` times the scan cap of `totalPref` (`rel_sc_le`), `|Q|`
+times `K` times a harvested population's draws of `totalPref` too (`rel_sh_le`), `|Q|` times the
 probes a round's harvested draws walk of `1/ρ` times that (`rel_hb_le`), the sifts of
 `log (L + |Q| + 1)` (`lg_le`), and a sift's depth `|Q| + 1` and leaf bound `|Q| + 2` of `|Q|`. Each
 source's reads is the product of its factors' bounds (`pw_mul`), so each is within its shape on its
@@ -26,13 +27,21 @@ lemma loopSC_inv (ℓ Q A Ae iδ c ξ pAP η₀ : ℝ) :
   rw [show 16 * (Q + 2) / (1 / iδ / (8 * (Q + 1))) = 16 * (Q + 2) * (8 * (Q + 1) * iδ) by
     field_simp]
 
+lemma loopSH_inv (ℓ Q A Ae iδ c ξ pAP η₀ : ℝ) :
+    loopSH ℓ Q A Ae (1 / iδ) c ξ pAP η₀
+      = 24 * loopCount ℓ Q A Ae (1 / iδ) c ξ pAP η₀
+        + 16 * log (16 * (Q + 2) * (8 * (Q + 1) * iδ)) + 2 := by
+  unfold loopSH
+  rw [show 16 * (Q + 2) / (1 / iδ / (8 * (Q + 1))) = 16 * (Q + 2) * (8 * (Q + 1) * iδ) by
+    field_simp]
+
 lemma loopHB_inv (ℓ Q A Ae iδ ic ξ pAP η₀ : ℝ) :
     loopHB ℓ Q A Ae (1 / iδ) (1 / ic) ξ pAP η₀
       = 384 * (4 * (Ae + 1) * ℓ * ic)
-          * ((Q + 1) * loopSC ℓ Q A Ae (1 / iδ) (1 / ic) ξ pAP η₀ * log 2
-            + log (8 * (Q + 1) * iδ)) + 1 := by
+          * ((Q + 1) * loopSH ℓ Q A Ae (1 / iδ) (1 / ic) ξ pAP η₀ * log 2
+            + log (2 * (8 * (Q + 1)) * iδ)) + 1 := by
   unfold loopHB
-  rw [div_inv_coord, one_div_div, div_inv_coord]
+  rw [div_inv_coord, div_div_eq_mul_div, div_inv_coord]
 
 private lemma pmul {a b x y : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) (hx : a ≤ x) (hy : b ≤ y) :
     a * b ≤ x * y :=
@@ -126,6 +135,37 @@ lemma rel_fam_le {L Q A Ae iδ R iξ is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (hA
     le_of_mul_le_mul_left hQF (by linarith)
   linarith
 
+private lemma scan_log_le {L Q Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (hAe : 2 ≤ Ae)
+    (hiδ : 2 ≤ iδ) (hR : 1 ≤ R) (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 2 ≤ is) :
+    log (16 * (Q + 2) * (8 * (Q + 1) * iδ)) ≤ 4 * log ((L + Q) * Ae * iδ * R * iξ * ip * is) := by
+  have hX4 := four_le_X hL hQ hAe hiδ hR hiξ hip his
+  have hQδ : 2 ≤ Q * iδ :=
+    (show (2 : ℝ) = 1 * 2 by norm_num).trans_le (pmul zero_le_one zero_le_two hQ hiδ)
+  have hb : 16 * (Q + 2) * (8 * (Q + 1) * iδ) ≤ ((L + Q) * Ae * iδ * R * iξ * ip * is) ^ 4 := by
+    have a : (Q + 2) * (Q + 1) ≤ 6 * Q ^ 2 := by
+      linarith [mul_nonneg (by linarith : (0 : ℝ) ≤ 5 * Q + 2) (by linarith : (0 : ℝ) ≤ Q - 1)]
+    have b : iδ ≤ iδ ^ 2 := by
+      linarith [mul_nonneg (by linarith : (0 : ℝ) ≤ iδ) (by linarith : (0 : ℝ) ≤ iδ - 1)]
+    have h1 : 16 * (Q + 2) * (8 * (Q + 1) * iδ) ≤ 768 * (Q * iδ) ^ 2 :=
+      calc 16 * (Q + 2) * (8 * (Q + 1) * iδ) = 128 * ((Q + 2) * (Q + 1)) * iδ := by ring
+        _ ≤ 128 * (6 * Q ^ 2) * iδ ^ 2 :=
+          mul_le_mul (mul_le_mul_of_nonneg_left a (by norm_num)) b (by linarith) (by positivity)
+        _ = 768 * (Q * iδ) ^ 2 := by ring
+    have x2 : (2 : ℝ) ^ 2 ≤ (Q * iδ) ^ 2 := pow_le_pow_left₀ (by norm_num) hQδ 2
+    have h2 : 768 * (Q * iδ) ^ 2 ≤ (4 * (Q * iδ)) ^ 4 :=
+      calc 768 * (Q * iδ) ^ 2 ≤ 256 * ((Q * iδ) ^ 2 * (Q * iδ) ^ 2) := by
+            linarith [mul_le_mul_of_nonneg_right x2 (sq_nonneg (Q * iδ)), sq_nonneg (Q * iδ)]
+        _ = (4 * (Q * iδ)) ^ 4 := by ring
+    have h3 : (4 * (Q * iδ)) ^ 4 ≤ ((L + Q) * Ae * iδ * R * iξ * ip * is) ^ 4 :=
+      pow_le_pow_left₀ (by linarith) hX4 4
+    linarith
+  have hpos : 0 < 16 * (Q + 2) * (8 * (Q + 1) * iδ) :=
+    mul_pos (mul_pos (by norm_num) (by linarith)) (mul_pos (mul_pos (by norm_num) (by linarith))
+      (by linarith))
+  calc log (16 * (Q + 2) * (8 * (Q + 1) * iδ))
+      ≤ log (((L + Q) * Ae * iδ * R * iξ * ip * is) ^ 4) := Real.log_le_log hpos hb
+    _ = 4 * log ((L + Q) * Ae * iδ * R * iξ * ip * is) := by rw [Real.log_pow]; push_cast; rfl
+
 /-- The populations' prefix count times the scan cap, against `totalPref`'s shape. -/
 lemma rel_sc_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (hA : 2 ≤ A)
     (hAAe : A ≤ Ae) (hiδ : 2 ≤ iδ) (hR : 1 ≤ R) (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 2 ≤ is) :
@@ -139,6 +179,7 @@ lemma rel_sc_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (
             * log ((L + Q) * Ae * iδ * R * iξ * ip * is)) := by
   obtain ⟨hP0, hP⟩ := rel_pref_le hL hQ hA hAAe hiδ hR hiξ hip his
   have hM1 := rel_sc_ge hL hQ hA hAAe hiδ hR hiξ hip his
+  have hlog := scan_log_le hL hQ (hA.trans hAAe) hiδ hR hiξ hip his
   rw [loopSC_inv] at hM1 ⊢
   set C := loopCount (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
     (1 / 2 - 1 / is)
@@ -177,32 +218,6 @@ lemma rel_sc_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (
       mul_nonneg (mul_nonneg (mul_nonneg (mul_nonneg (mul_nonneg (pow_nonneg hQ0 7)
         (sq_nonneg _)) (sq_nonneg _)) (sq_nonneg _)) (sq_nonneg _)) (by positivity)
     rw [hT1]; exact mul_nonneg h0 hlog
-  -- the scan's log against `lY`
-  have hlog : log (16 * (Q + 2) * (8 * (Q + 1) * iδ)) ≤ 4 * lY := by
-    have hb : 16 * (Q + 2) * (8 * (Q + 1) * iδ) ≤ ((L + Q) * Ae * iδ * R * iξ * ip * is) ^ 4 := by
-      have a : (Q + 2) * (Q + 1) ≤ 6 * Q ^ 2 := by
-        linarith [mul_nonneg (by linarith : (0 : ℝ) ≤ 5 * Q + 2) (by linarith : (0 : ℝ) ≤ Q - 1)]
-      have b : iδ ≤ iδ ^ 2 := by
-        linarith [mul_nonneg (by linarith : (0 : ℝ) ≤ iδ) (by linarith : (0 : ℝ) ≤ iδ - 1)]
-      have h1 : 16 * (Q + 2) * (8 * (Q + 1) * iδ) ≤ 768 * (Q * iδ) ^ 2 :=
-        calc 16 * (Q + 2) * (8 * (Q + 1) * iδ) = 128 * ((Q + 2) * (Q + 1)) * iδ := by ring
-          _ ≤ 128 * (6 * Q ^ 2) * iδ ^ 2 :=
-            mul_le_mul (mul_le_mul_of_nonneg_left a (by norm_num)) b (by linarith) (by positivity)
-          _ = 768 * (Q * iδ) ^ 2 := by ring
-      have x2 : (2 : ℝ) ^ 2 ≤ (Q * iδ) ^ 2 := pow_le_pow_left₀ (by norm_num) hQδ 2
-      have h2 : 768 * (Q * iδ) ^ 2 ≤ (4 * (Q * iδ)) ^ 4 :=
-        calc 768 * (Q * iδ) ^ 2 ≤ 256 * ((Q * iδ) ^ 2 * (Q * iδ) ^ 2) := by
-              linarith [mul_le_mul_of_nonneg_right x2 (sq_nonneg (Q * iδ)), sq_nonneg (Q * iδ)]
-          _ = (4 * (Q * iδ)) ^ 4 := by ring
-      have h3 : (4 * (Q * iδ)) ^ 4 ≤ ((L + Q) * Ae * iδ * R * iξ * ip * is) ^ 4 :=
-        pow_le_pow_left₀ (by linarith) hX4 4
-      linarith
-    have hpos : 0 < 16 * (Q + 2) * (8 * (Q + 1) * iδ) :=
-      mul_pos (mul_pos (by norm_num) (by linarith)) (mul_pos (mul_pos (by norm_num) (by linarith))
-        (by linarith))
-    calc log (16 * (Q + 2) * (8 * (Q + 1) * iδ))
-        ≤ log (((L + Q) * Ae * iδ * R * iξ * ip * is) ^ 4) := Real.log_le_log hpos hb
-      _ = 4 * lY := by rw [Real.log_pow]; push_cast; rfl
   have hQlY : Q * lY ≤ T2 := by
     have h1 : 1 ≤ Q * (L + Q) ^ 2 * R ^ 2 * iξ ^ 2 * (is ^ 4 + Q ^ 4 * (Ae + Q) ^ 2) := by
       have a1 : 1 ≤ (L + Q) ^ 2 := one_le_pow₀ hP1
@@ -235,22 +250,110 @@ lemma rel_sc_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (
   have hT2n : 0 ≤ T2 := le_trans (mul_nonneg hQ0 (by linarith)) hQlY
   linarith
 
-/-- The probes a round's harvested draws walk at the summed rates, the scan caps' total at most
-`2^92 P`: `1/ε` times `P`. -/
+/-- `|Q|` times the populations' count times a harvested population's draws, against `totalPref`'s
+shape. -/
+lemma rel_sh_le {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (hA : 2 ≤ A)
+    (hAAe : A ≤ Ae) (hiδ : 2 ≤ iδ) (hR : 1 ≤ R) (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 2 ≤ is) :
+    1 ≤ loopSH (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
+        (1 / 2 - 1 / is)
+      ∧ Q * ((Q + 1) * loopSH (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ))
+        (1 / (4 * iξ)) (1 / ip) (1 / 2 - 1 / is))
+        ≤ 2 ^ 93 * (Q ^ 7 * (Ae + Q) ^ 2 * R ^ 2 * iξ ^ 2 * (L + Q) ^ 2 * is ^ 4
+            * log (Q * iδ * ip * is * log ((L + Q) * Ae * iδ * R * iξ * is))
+          + Q ^ 2 * (L + Q) ^ 2 * R ^ 2 * iξ ^ 2 * (is ^ 4 + Q ^ 4 * (Ae + Q) ^ 2)
+            * log ((L + Q) * Ae * iδ * R * iξ * ip * is)) := by
+  obtain ⟨hP0, hP⟩ := rel_pref_le hL hQ hA hAAe hiδ hR hiξ hip his
+  have hAe : 2 ≤ Ae := hA.trans hAAe
+  have hlog := scan_log_le hL hQ hAe hiδ hR hiξ hip his
+  rw [loopSH_inv]
+  set C := loopCount (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
+    (1 / 2 - 1 / is)
+  set lin := log ((L + Q) * Ae * iδ * R * iξ * is) with hlin
+  set lY := log ((L + Q) * Ae * iδ * R * iξ * ip * is) with hlY
+  set T1 := Q ^ 7 * (Ae + Q) ^ 2 * R ^ 2 * iξ ^ 2 * (L + Q) ^ 2 * is ^ 4
+    * log (Q * iδ * ip * is * lin) with hT1
+  set T2 := Q ^ 2 * (L + Q) ^ 2 * R ^ 2 * iξ ^ 2 * (is ^ 4 + Q ^ 4 * (Ae + Q) ^ 2) * lY with hT2
+  set D := log (16 * (Q + 2) * (8 * (Q + 1) * iδ)) with hD
+  have m := @one_le_mul_of_one_le_of_one_le ℝ _
+  have z : (0 : ℝ) ≤ 1 := zero_le_one
+  have t : (0 : ℝ) ≤ 2 := zero_le_two
+  have hQ0 : 0 ≤ Q := by linarith
+  have hC0 : 0 ≤ C := by
+    have e : (Q + 1) * (6 * (Q + 2) * C) = (6 * (Q + 1) * (Q + 2)) * C := by ring
+    exact nonneg_of_mul_nonneg_right (e ▸ hP0) (by positivity)
+  have hP1 : 1 ≤ L + Q := by linarith
+  have hQδ : 2 ≤ Q * iδ := (show (2 : ℝ) = 1 * 2 by norm_num).trans_le (pmul z t hQ hiδ)
+  have hD0 : 0 ≤ D := Real.log_nonneg
+    (m (m (by norm_num) (by linarith)) (m (m (by norm_num) (by linarith)) (by linarith)))
+  have hlY1 : 1 ≤ lY := by
+    have h : 1 * 2 * 2 * 1 * 1 * 1 * 2 ≤ (L + Q) * Ae * iδ * R * iξ * ip * is :=
+      pmul (by norm_num) t (pmul (by norm_num) z (pmul (by norm_num) z (pmul (by norm_num) z
+        (pmul (by norm_num) t (pmul z t hP1 hAe) hiδ) hR) hiξ) hip) his
+    rw [hlY, Real.le_log_iff_exp_le (by linarith)]
+    have := Real.exp_one_lt_d9
+    linarith
+  have hlin1 : 1 ≤ lin := by
+    have h : 1 * 2 * 2 * 1 * 1 * 2 ≤ (L + Q) * Ae * iδ * R * iξ * is :=
+      pmul (by norm_num) t (pmul (by norm_num) z (pmul (by norm_num) z
+        (pmul (by norm_num) t (pmul z t hP1 hAe) hiδ) hR) hiξ) his
+    rw [hlin, Real.le_log_iff_exp_le (by linarith)]
+    have := Real.exp_one_lt_d9
+    linarith
+  have hT1n : 0 ≤ T1 := by
+    have hlog : 0 ≤ log (Q * iδ * ip * is * lin) :=
+      Real.log_nonneg (m (m (m (by linarith) hip) (by linarith)) hlin1)
+    have h0 : 0 ≤ Q ^ 7 * (Ae + Q) ^ 2 * R ^ 2 * iξ ^ 2 * (L + Q) ^ 2 * is ^ 4 :=
+      mul_nonneg (mul_nonneg (mul_nonneg (mul_nonneg (mul_nonneg (pow_nonneg hQ0 7)
+        (sq_nonneg _)) (sq_nonneg _)) (sq_nonneg _)) (sq_nonneg _)) (by positivity)
+    rw [hT1]; exact mul_nonneg h0 hlog
+  have hQlY : Q ^ 2 * lY ≤ T2 := by
+    have h1 : 1 ≤ (L + Q) ^ 2 * R ^ 2 * iξ ^ 2 * (is ^ 4 + Q ^ 4 * (Ae + Q) ^ 2) := by
+      have a1 : 1 ≤ (L + Q) ^ 2 := one_le_pow₀ hP1
+      have a2 : 1 ≤ R ^ 2 := one_le_pow₀ hR
+      have a3 : 1 ≤ iξ ^ 2 := one_le_pow₀ hiξ
+      have a4 : 1 ≤ is ^ 4 + Q ^ 4 * (Ae + Q) ^ 2 := by
+        have : 1 ≤ is ^ 4 := one_le_pow₀ (by linarith)
+        have : 0 ≤ Q ^ 4 * (Ae + Q) ^ 2 := by positivity
+        linarith
+      exact m (m (m a1 a2) a3) a4
+    have e : T2 = Q ^ 2 * lY * ((L + Q) ^ 2 * R ^ 2 * iξ ^ 2 * (is ^ 4 + Q ^ 4 * (Ae + Q) ^ 2)) :=
+      by rw [hT2]; ring
+    rw [e]
+    exact le_mul_of_one_le_right (mul_nonneg (sq_nonneg _) (by linarith)) h1
+  have hT2n : 0 ≤ T2 := le_trans (mul_nonneg (sq_nonneg _) (by linarith)) hQlY
+  refine ⟨by linarith [mul_nonneg (by norm_num : (0 : ℝ) ≤ 24) hC0], ?_⟩
+  have h1 : Q * ((Q + 1) * (24 * C)) ≤ 4 * ((Q + 1) * (6 * (Q + 2) * C)) := by
+    have : 0 ≤ (Q + 1) * C := mul_nonneg (by linarith) hC0
+    linarith
+  have h2 : Q * ((Q + 1) * (16 * D + 2)) ≤ 132 * T2 := by
+    have a : 16 * D + 2 ≤ 66 * lY := by linarith
+    have b := mul_le_mul_of_nonneg_left
+      (mul_le_mul_of_nonneg_left a (by linarith : (0 : ℝ) ≤ Q + 1)) hQ0
+    have c : Q * ((Q + 1) * (66 * lY)) ≤ 132 * (Q ^ 2 * lY) := by
+      nlinarith [mul_nonneg (mul_nonneg hQ0 (by linarith : (0 : ℝ) ≤ Q - 1))
+        (by linarith : (0 : ℝ) ≤ lY)]
+    linarith
+  have e : Q * ((Q + 1) * (24 * C + 16 * D + 2))
+      = Q * ((Q + 1) * (24 * C)) + Q * ((Q + 1) * (16 * D + 2)) := by ring
+  rw [e]
+  linarith
+
+/-- `|Q|` times the probes a round's harvested draws walk at the summed rates, `|Q|` times its
+populations' draws at most `2^93 P`: `1/ε` times `P`. -/
 lemma rel_hb_le {L Q A Ae iδ R iξ ip is P : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (hA : 2 ≤ A)
     (hAAe : A ≤ Ae) (hiδ : 2 ≤ iδ) (hR : 1 ≤ R) (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 2 ≤ is)
-    (hP : (Q + 1) * loopSC (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ))
-        (1 / ip) (1 / 2 - 1 / is) ≤ 2 ^ 92 * P) :
+    (hP : Q * ((Q + 1) * loopSH (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ))
+        (1 / (4 * iξ)) (1 / ip) (1 / 2 - 1 / is)) ≤ 2 ^ 93 * P) :
     1 ≤ loopHB (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
         (1 / 2 - 1 / is)
-      ∧ loopHB (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
-        (1 / 2 - 1 / is) ≤ 2 ^ 108 * (R * (Ae + Q) * (L + Q) * iξ * P) := by
-  have hM1 := rel_sc_ge hL hQ hA hAAe hiδ hR hiξ hip his
+      ∧ Q * loopHB (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
+        (1 / 2 - 1 / is) ≤ 2 ^ 109 * (R * (Ae + Q) * (L + Q) * iξ * P) := by
+  obtain ⟨hM1, -⟩ := rel_sh_le hL hQ hA hAAe hiδ hR hiξ hip his
   obtain ⟨hP0, -⟩ := rel_pref_le hL hQ hA hAAe hiδ hR hiξ hip his
-  have hMe := loopSC_inv (L + Q + 4) Q A (Ae + Q) iδ (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
+  have hMe := loopSH_inv (L + Q + 4) Q A (Ae + Q) iδ (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
     (1 / 2 - 1 / is)
   rw [loopHB_inv]
-  set M := loopSC (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
+  set M := loopSH (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
     (1 / 2 - 1 / is)
   set C := loopCount (L + Q + 4) Q A (Ae + Q) (1 / iδ) (1 / (2 * R * iξ)) (1 / (4 * iξ)) (1 / ip)
     (1 / 2 - 1 / is)
@@ -259,13 +362,15 @@ lemma rel_hb_le {L Q A Ae iδ R iξ ip is P : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q)
   have hC0 : 0 ≤ C := by
     have e : (Q + 1) * (6 * (Q + 2) * C) = (6 * (Q + 1) * (Q + 2)) * C := by ring
     exact nonneg_of_mul_nonneg_right (e ▸ hP0) (by positivity)
-  have hy : 1 ≤ 8 * (Q + 1) * iδ := m (by linarith) (by linarith)
-  have hlD : 0 ≤ log (8 * (Q + 1) * iδ) := Real.log_nonneg hy
-  -- the walk tail's log is within the scan cap's
-  have hlDM : log (8 * (Q + 1) * iδ) ≤ M := by
-    have h1 : log (8 * (Q + 1) * iδ) ≤ log (16 * (Q + 2) * (8 * (Q + 1) * iδ)) :=
-      Real.log_le_log (by linarith) (le_mul_of_one_le_left (by linarith) (by linarith))
-    have h2 : 0 ≤ 8 * (Q + 4) * C := mul_nonneg (by linarith) hC0
+  have hy : 1 ≤ 2 * (8 * (Q + 1)) * iδ := m (m (by norm_num) (by linarith)) (by linarith)
+  have hlD : 0 ≤ log (2 * (8 * (Q + 1)) * iδ) := Real.log_nonneg hy
+  -- the walk tail's log is within a population's draws
+  have hlDM : log (2 * (8 * (Q + 1)) * iδ) ≤ M := by
+    have h1 : log (2 * (8 * (Q + 1)) * iδ) ≤ log (16 * (Q + 2) * (8 * (Q + 1) * iδ)) :=
+      Real.log_le_log (by linarith) (by
+        nlinarith [mul_nonneg (mul_nonneg (by linarith : (0 : ℝ) ≤ Q + 1)
+          (by linarith : (0 : ℝ) ≤ iδ)) (by linarith : (0 : ℝ) ≤ 8 * Q + 15)])
+    have h2 : 0 ≤ 24 * C := mul_nonneg (by norm_num) hC0
     rw [hMe]
     linarith
   have hl2 : log 2 ≤ 1 := by have := Real.log_two_lt_d9; linarith
@@ -273,7 +378,7 @@ lemma rel_hb_le {L Q A Ae iδ R iξ ip is P : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q)
   set Y := (Q + 1) * M with hYd
   have hMY : M ≤ Y := le_mul_of_one_le_left (by linarith) (by linarith)
   have hY1 : 1 ≤ Y := m (by linarith) hM1
-  set S := Y * log 2 + log (8 * (Q + 1) * iδ) with hSd
+  set S := Y * log 2 + log (2 * (8 * (Q + 1)) * iδ) with hSd
   have hS : S ≤ 2 * Y := by
     have := mul_le_mul_of_nonneg_left hl2 (by linarith : 0 ≤ Y)
     linarith
@@ -298,7 +403,10 @@ lemma rel_hb_le {L Q A Ae iδ R iξ ip is P : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q)
   have h1 : 384 * ρc * S ≤ 384 * (80 * ρ) * (2 * Y) :=
     mul_le_mul (mul_le_mul_of_nonneg_left hρ (by norm_num)) hS hS0 (by linarith)
   have hρY : 1 ≤ ρ * Y := m hρ1 hY1
-  have h2 : ρ * Y ≤ ρ * (2 ^ 92 * P) := mul_le_mul_of_nonneg_left hP (by linarith)
+  have hQ1 : Q * (384 * ρc * S) ≤ Q * (384 * (80 * ρ) * (2 * Y)) :=
+    mul_le_mul_of_nonneg_left h1 hQ0
+  have hQρY : Q ≤ Q * (ρ * Y) := le_mul_of_one_le_right hQ0 hρY
+  have h2 : ρ * (Q * Y) ≤ ρ * (2 ^ 93 * P) := mul_le_mul_of_nonneg_left hP (by linarith)
   have h0 := mul_nonneg (mul_nonneg (by norm_num : (0 : ℝ) ≤ 384) hρ0) hS0
   refine ⟨by linarith, ?_⟩
   linarith
@@ -374,7 +482,7 @@ def shSearch (r : RLStarDistRun) : ℝ := shProbe r * shFam r * r.Q * shLg r
 
 def shResift (r : RLStarDistRun) : ℝ := r.Q ^ 4 * r.A * shFam r
 
-def shHarvest (r : RLStarDistRun) : ℝ := r.Q ^ 2 * shPref r * shFam r * shLg r * shRho r
+def shHarvest (r : RLStarDistRun) : ℝ := r.Q * shPref r * shFam r * shLg r * shRho r
 
 def shStart (r : RLStarDistRun) : ℝ := shHeld r * shFam r
 
@@ -455,19 +563,23 @@ lemma sc_pw : 0 ≤ (r.Q + 1) * distSC r ∧ (r.Q + 1) * distSC r ≤ 2 ^ 92 * s
   simp only [one_div_one_div, summed_inv, quarter_inv] at h
   exact ⟨h.1, h.2.trans_eq (by unfold shPref; ring_nf)⟩
 
-lemma hb_pw : 1 ≤ distHB r ∧ distHB r ≤ 2 ^ 108 * (shRho r * shPref r) := by
+lemma hb_pw : 1 ≤ distHB r ∧ r.Q * distHB r ≤ 2 ^ 109 * (shRho r * shPref r) := by
   obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, hip, his, -, -⟩ := dist_coords hr
   have h := rel_hb_le hL hQ hA hAAe hiδ hR hiξ hip his
-    (rel_sc_le hL hQ hA hAAe hiδ hR hiξ hip his).2
+    (rel_sh_le hL hQ hA hAAe hiδ hR hiξ hip his).2
   simp only [one_div_one_div, summed_inv, quarter_inv] at h
   exact ⟨h.1, h.2.trans_eq (by unfold shRho shPref; ring_nf)⟩
 
 lemma hbc_pw :
-    0 ≤ (⌈distHB r⌉₊ : ℝ) ∧ (⌈distHB r⌉₊ : ℝ) ≤ 2 ^ 109 * (shRho r * shPref r) := by
+    0 ≤ ((r.Q : ℝ) + 1) * (⌈distHB r⌉₊ : ℝ)
+      ∧ ((r.Q : ℝ) + 1) * (⌈distHB r⌉₊ : ℝ) ≤ 2 ^ 111 * (shRho r * shPref r) := by
   obtain ⟨h1, h2⟩ := hb_pw hr
-  have := Nat.ceil_lt_add_one (show 0 ≤ distHB r by linarith)
-  refine ⟨Nat.cast_nonneg _, ?_⟩
-  linarith
+  have hQ : (1 : ℝ) ≤ r.Q := by exact_mod_cast hr.1.1
+  have hc := Nat.ceil_lt_add_one (show 0 ≤ distHB r by linarith)
+  have hc0 : (0 : ℝ) ≤ ⌈distHB r⌉₊ := Nat.cast_nonneg _
+  have a : ((r.Q : ℝ) + 1) * ⌈distHB r⌉₊ ≤ (2 * r.Q) * (2 * distHB r) :=
+    mul_le_mul (by linarith) (by linarith) hc0 (by linarith)
+  exact ⟨mul_nonneg (by linarith) hc0, by linarith⟩
 
 lemma lg_pw : 0 ≤ distLg r ∧ distLg r ≤ 14 * shLg r :=
   ⟨Nat.cast_nonneg _, lg_le hr.1.1⟩
@@ -531,10 +643,13 @@ lemma resift_pw {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion) :
 lemma harvest_pw {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion) :
     0 ≤ readsHarvest (r.Q + 1) (distFam r) r.Q (⌈distHB r⌉₊ : ℝ) (distLg r)
       ∧ readsHarvest (r.Q + 1) (distFam r) r.Q (⌈distHB r⌉₊ : ℝ) (distLg r)
-        ≤ 2 * (2 ^ 14 * (2 ^ 109 * (14 * 2))) * shHarvest r := by
-  rw [show shHarvest r = r.Q * (shFam r * ((shRho r * shPref r) * (shLg r * r.Q))) by
+        ≤ 2 ^ 14 * (2 ^ 111 * (14 * 2)) * shHarvest r := by
+  rw [show readsHarvest (r.Q + 1) (distFam r) r.Q (⌈distHB r⌉₊ : ℝ) (distLg r)
+      = distFam r * ((((r.Q : ℝ) + 1) * ⌈distHB r⌉₊) * (distLg r * (r.Q + 1))) by
+    unfold readsHarvest; ring,
+    show shHarvest r = shFam r * ((shRho r * shPref r) * (shLg r * r.Q)) by
     unfold shHarvest; ring]
-  exact pw_mul (k_pw hr) (pw_mul (fam_pw hr) (pw_mul (hbc_pw hr) (pw_mul (lg_pw hr) (k_pw hr))))
+  exact pw_mul (fam_pw hr) (pw_mul (hbc_pw hr) (pw_mul (lg_pw hr) (k_pw hr)))
 
 lemma start_pw {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion) :
     0 ≤ readsStart (distHeldOut r.toRLStarDistInputs) (distFam r)

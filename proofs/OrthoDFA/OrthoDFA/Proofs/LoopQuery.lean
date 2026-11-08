@@ -16,10 +16,12 @@ leaves and whose harvested draws find their strings within `W` probes in all ask
 
     f W (3 + ⌈log₂ L⌉)(n + 1) + a (b + 1) + f (T probeSifts L (n + 1) + n (n + 2)²|Σ|)
 
-strings (`card_reads_roundQ_le`): its harvested draws, its clustering and its level 3. A loop
+strings (`card_reads_roundQ_le`): its harvested draws, its clustering and its level 3. A population
+draws until its draws hold its samples, and only those draws are walked (`eval_popDrawsQ`). A loop
 returning rounds whose trees have at most `n + 2` leaves and that meet `HarvestProbesWithin` at
 `W` asks at most `K` times that (`card_reads_loopRoundsQ_le`); the loop's rounds meet it where
-every round is good and walks at most `W` probes (`harvestProbesWithin_of`).
+every round is good and its harvested populations' first `Nh` draws hold their samples and walk at
+most `W` probes in all (`harvestProbesWithin_of`), so each population stops within `Nh` draws.
 -/
 
 noncomputable section
@@ -70,38 +72,40 @@ lemma specHistOf_eq {rs : List (SpecRound α)} (h : ∀ o ∈ rs, o.ReadsAt O ω
     List.foldr_map]
   rfl
 
+lemma allSome_eq_some {ι β : Type*} {f : ι → Option β} {g : ι → β} (h : allSome f = some g)
+    (i : ι) : f i = some (g i) := by
+  unfold allSome at h
+  split_ifs at h with hall
+  · rw [Option.some.injEq] at h
+    subst h
+    exact (Option.some_get _).symm
+
 lemma eval_popDrawsQ (D : Measure (FreeMonoid α)) (k N M : ℕ) (pops : List (HarvestSampler α))
-    (T : Finset (FreeMonoid α)) (j : Option (Fin K))
+    (T : Finset (FreeMonoid α)) (stop : List (FreeMonoid α) → Prop) (j : Option (Fin K))
     (u : ℕ → unitInterval × (Fin N → unitInterval)) :
-    (popDrawsQ D k N M pops T j u).eval (fun w => O.mq w ω)
-      = popDraws D k N M (pops.map (HarvestSampler.spec O ω)) T j u := by
+    (popDrawsQ D k N M pops T stop j u).eval (fun w => O.mq w ω)
+      = popDrawList D k N M (pops.map (HarvestSampler.spec O ω)) T stop j u := by
   rcases j with _ | i
   · rfl
-  simp only [popDrawsQ, popDraws, List.getElem?_map]
+  simp only [popDrawsQ, popDrawList, List.getElem?_map]
   rcases pops[i.val]? with _ | s
   · rfl
-  simp only [Option.map_some, eval_subst]
-  rw [← eval_drawManyFirstQ]
-  congr 1
+  have hr : (fun z => (familyReadQ s.family s.kl s.kh z).eval fun w => O.mq w ω)
+      = (s.spec O ω).read := funext fun z => rfl
+  simp only [Option.map_some, eval_subst, eval_extendUntil, eval_harvestFirstQ, hr]
+  rfl
+
+lemma eval_drawListsQ (D : Measure (FreeMonoid α)) (k N M : ℕ) (sched : Finset State)
+    (h : LoopHist α) (c : ClusterRest α K N) :
+    (drawListsQ D k N M sched h c).eval (fun w => O.mq w ω)
+      = drawLists D k N M sched (h.spec O ω) c := by
+  unfold drawListsQ drawLists
+  rw [eval_map, eval_pi]
+  simp only [eval_popDrawsQ]
+  rfl
 
 /-- A draw's noise folded away. -/
 def Draws.flat {S J : Type*} (dr : Draws Ω S J) : Draws Unit S J := (((), dr.1.2), dr.2)
-
-lemma eval_clusterDrawsQ (D Dsf : Measure (FreeMonoid α)) (k N M : ℕ) (h : LoopHist α)
-    (c : ClusterRest α K N) :
-    (clusterDrawsQ D Dsf k N M h c).eval (fun w => O.mq w ω)
-      = (clusterDraws D Dsf k N M (h.spec O ω) (ω, c)).map Draws.flat := by
-  unfold clusterDrawsQ clusterDraws
-  rw [eval_map, eval_pi]
-  simp only [eval_popDrawsQ, Option.map_map]
-  rfl
-
-lemma clusterDraws_noise {D Dsf : Measure (FreeMonoid α)} {k N M : ℕ} {h : SpecHist α}
-    {c : ClusterDraws Ω α K N} {dr : Draws Ω (FreeMonoid α) (Option (Fin K))}
-    (hdr : clusterDraws D Dsf k N M h c = some dr) : dr.1.1 = c.1 := by
-  unfold clusterDraws at hdr
-  obtain ⟨tab, -, rfl⟩ := Option.map_eq_some_iff.1 hdr
-  rfl
 
 open scoped Classical in
 lemma eval_roundQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
@@ -112,22 +116,27 @@ lemma eval_roundQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) 
   have hlen : (h.spec O ω).pops.length = h.pops.length := by simp [LoopHist.spec]
   unfold roundQ loopRound
   simp only [hlen]
-  rw [eval_bind, eval_clusterDrawsQ]
-  rcases hdr : clusterDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap
-    settings.scanCap (h.spec O ω) (ω, d.1) with _ | dr
+  rw [eval_bind, eval_drawListsQ]
+  rcases hdr : drawLists D settings.level3.walkStart settings.level3.harvestReadCap
+    settings.scanCap (settings.schedule (loopPopulations K h.pops.length)) (h.spec O ω) d.1
+    with _ | tabs
   · simp
-  have hω : dr.1.1 = ω := clusterDraws_noise hdr
-  simp only [Option.map_some, Option.bind_some]
+  simp only [Option.bind_some]
   set ps := loopPopulations K h.pops.length
   set sched := settings.schedule ps
+  set dr := drawsOf ω D Dsf settings.scanCap h.prefs h.suffs d.1 tabs with hdrd
+  have hflat : drawsOf () D Dsf settings.scanCap h.prefs h.suffs d.1 tabs = dr.flat := rfl
+  have hspec : drawsOf (ω, d).1 D Dsf settings.scanCap (h.spec O ω).prefs (h.spec O ω).suffs
+      (ω, d).2.1 tabs = dr := rfl
+  rw [hflat, hspec]
   set xs := streams (fun _ => ∅) none dr with hxs
   set xc := streams (fun _ => ∅) none dr.flat with hxc
   have hx : xc = ((), xs.2) := rfl
-  have hxs1 : xs.1 = ω := hω
-  have hscan :
-      ScanWithin sched ps settings.scanCap dr.flat ↔ ScanWithin sched ps settings.scanCap dr :=
+  have hxs1 : xs.1 = ω := rfl
+  have hscan : ScanWithin sched ps (fun j => (tabs j).length) dr.flat
+      ↔ ScanWithin sched ps (fun j => (tabs j).length) dr :=
     Iff.rfl
-  by_cases hsc : ScanWithin sched ps settings.scanCap dr
+  by_cases hsc : ScanWithin sched ps (fun j => (tabs j).length) dr
   swap
   · simp only [hscan, hsc, false_and, ↓reduceIte]
     simp
@@ -283,54 +292,71 @@ lemma card_clusterAt_le (mq : FreeMonoid α → Ω → ℝ) (pops : Finset (Opti
 
 variable (o : FreeMonoid α → ℝ)
 
-/-- Draw `n` harvesting within its first `t n` probes, a harvested population's draws sift
-`∑ₙ t n` probes, each a family read of at most `f` strings at `3 + ⌈log₂ L⌉` reads of each mid. -/
+/-- Draw `n` harvesting within its first `t n` probes, a harvested population's draws `l` sift
+`∑_{n < |l|} t n` probes, each a family read of at most `f` strings at `3 + ⌈log₂ L⌉` reads of
+each mid. -/
 theorem card_reads_popDrawsQ_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (k N M : ℕ) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α)) (i : Fin K)
+    (k N M : ℕ) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α))
+    (stop : List (FreeMonoid α) → Prop) (i : Fin K)
     (u : ℕ → unitInterval × (Fin N → unitInterval)) {L f P : ℕ}
     (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hpops : ∀ s ∈ pops, (Random.mids s.hyp.tree).card ≤ P + 1 ∧ s.family.card ≤ f)
-    (t : Fin M → ℕ)
-    (ht : ∀ s, pops[i.val]? = some s → ∀ n : Fin M,
+    {l : List (FreeMonoid α)} (hl : (popDrawsQ D k N M pops T stop (some i) u).eval o = some l)
+    (t : ℕ → ℕ)
+    (ht : ∀ s, pops[i.val]? = some s → ∀ n < l.length,
       (Random.harvestFirst (fun z => (familyReadQ s.family s.kl s.kh z).eval o) k s.hyp s.site ↑T
         ((List.ofFn fun j => drawFrom D ((u n).2 j)).take (t n))).isSome) :
-    ((popDrawsQ D k N M pops T (some i) u).reads o).card
-      ≤ f * ((∑ n, t n) * ((3 + Nat.clog 2 L) * (P + 1))) := by
-  simp only [popDrawsQ]
+    ((popDrawsQ D k N M pops T stop (some i) u).reads o).card
+      ≤ f * ((∑ n ∈ Finset.range l.length, t n) * ((3 + Nat.clog 2 L) * (P + 1))) := by
+  classical
+  simp only [popDrawsQ] at hl ⊢
   rcases hs : pops[i.val]? with _ | s
   · simp
+  rw [hs] at hl
   obtain ⟨hm, hb⟩ := hpops s (List.mem_of_getElem? hs)
+  simp only at hl ⊢
+  rw [eval_subst] at hl
   refine (card_reads_subst_le o _ _ (n := f)
     fun q _ => (card_reads_familyReadQ_le _ _ _ q o).trans hb).trans ?_
   rw [Nat.mul_comm _ f]
-  refine Nat.mul_le_mul_left _ ((card_reads_drawManyFirstQ_take_le _ _ _ _ _ _
-    (fun n j => drawFrom_length_le _ hD _) t (ht s hs)).trans ?_)
-  gcongr
+  refine Nat.mul_le_mul_left _ ?_
+  have := card_reads_extendUntil_le _ _ _ (fun n => t n * ((3 + Nat.clog 2 L) * (P + 1))) M [] l
+    hl fun m _ hml => (card_reads_harvestFirstQ_take_le _ _ _ _ _ _ (t m)
+      (fun y hy => by obtain ⟨j, rfl⟩ := List.mem_ofFn.1 hy; exact drawFrom_length_le _ hD _)
+      (ht s hs m hml)).trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hm))
+  rwa [List.length_nil, ← Finset.range_eq_Ico, ← Finset.sum_mul] at this
 
-theorem card_reads_clusterDrawsQ_le (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (k N M : ℕ) (h : LoopHist α) (c : ClusterRest α K N) {L f P W : ℕ}
+/-- The draws `tabs`, draw `n` of population `i` harvesting within its first `t i n` probes, ask at
+most `f W` sifts, `W` the probes in all. -/
+theorem card_reads_drawListsQ_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (k N M : ℕ) (sched : Finset State) (h : LoopHist α) (c : ClusterRest α K N) {L f P W : ℕ}
     (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hpops : ∀ s ∈ h.pops, (Random.mids s.hyp.tree).card ≤ P + 1 ∧ s.family.card ≤ f)
-    (t : Fin K → Fin M → ℕ) (hW : ∑ i, ∑ n, t i n ≤ W)
-    (ht : ∀ i s, h.pops[i.val]? = some s → ∀ n : Fin M,
+    {tabs : Option (Fin K) → List (FreeMonoid α)}
+    (htabs : (drawListsQ D k N M sched h c).eval o = some tabs)
+    (t : Fin K → ℕ → ℕ) (hW : ∑ i, ∑ n ∈ Finset.range (tabs (some i)).length, t i n ≤ W)
+    (ht : ∀ i s, h.pops[i.val]? = some s → ∀ n < (tabs (some i)).length,
       (Random.harvestFirst (fun z => (familyReadQ s.family s.kl s.kh z).eval o) k s.hyp s.site
         ↑h.prefs ((List.ofFn fun j => drawFrom D ((c.2.1 (some i) n).2 j)).take (t i n))).isSome) :
-    ((clusterDrawsQ D Dsf k N M h c).reads o).card
+    ((drawListsQ D k N M sched h c).reads o).card
       ≤ f * (W * ((3 + Nat.clog 2 L) * (P + 1))) := by
-  unfold clusterDrawsQ
+  unfold drawListsQ at htabs ⊢
+  rw [eval_map, eval_pi] at htabs
   rw [reads_map, reads_pi]
   refine (Finset.card_biUnion_le).trans ?_
   rw [Fintype.sum_option]
-  have h0 : ((popDrawsQ (K := K) D k N M h.pops h.prefs none (c.2.1 none)).reads o).card = 0 := by
+  have h0 : ((popDrawsQ (K := K) D k N M h.pops h.prefs
+      (DrawsHold sched c.2.2.2 (uniTable D M h.prefs (c.2.1 none))) none (c.2.1 none)).reads o).card
+      = 0 := by
     simp [popDrawsQ]
   rw [h0, zero_add]
-  refine (Finset.sum_le_sum fun i _ => card_reads_popDrawsQ_le o D k N M h.pops h.prefs i
-    (c.2.1 (some i)) hD hpops (t i) (ht i)).trans ?_
+  refine (Finset.sum_le_sum fun i _ => card_reads_popDrawsQ_le o D k N M h.pops h.prefs _ i
+    (c.2.1 (some i)) hD hpops (allSome_eq_some htabs (some i)) (t i) (ht i)).trans ?_
   rw [← Finset.mul_sum, ← Finset.sum_mul]
   exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hW)
 
 open scoped Classical in
-/-- A round whose tree, against the answers `o`, has at most `n + 2` leaves reads at most
+/-- A round that returns, against the answers `o`, a tree of at most `n + 2` leaves reads at most
 `roundCallBound` strings. -/
 theorem card_reads_roundQ_le (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] (h : LoopHist α)
@@ -341,31 +367,38 @@ theorem card_reads_roundQ_le (settings : LoopSettings K) (D Dsf : Measure (FreeM
         ∧ (roundSuffs (settings.schedule pops) x).card ≤ b)
     (hk : ∀ pops, ∀ B ∈ settings.schedule pops, B.k ≤ f + 1) {n : ℕ}
     (hpops : ∀ s ∈ h.pops, (Random.mids s.hyp.tree).card ≤ n + 1 ∧ s.family.card ≤ f) {W : ℕ}
-    (t : Fin K → Fin settings.scanCap → ℕ) (hW : ∑ i, ∑ n, t i n ≤ W)
-    (ht : ∀ i s, h.pops[i.val]? = some s → ∀ n : Fin settings.scanCap,
-      (Random.harvestFirst (fun z => (familyReadQ s.family s.kl s.kh z).eval o)
-        settings.level3.walkStart s.hyp s.site ↑h.prefs
-        ((List.ofFn fun j => drawFrom D ((d.1.2.1 (some i) n).2 j)).take (t i n))).isSome)
+    (hW : ∀ tabs, (drawListsQ D settings.level3.walkStart settings.level3.harvestReadCap
+        settings.scanCap (settings.schedule (loopPopulations K h.pops.length)) h d.1).eval o
+        = some tabs →
+      ∃ t : Fin K → ℕ → ℕ, ∑ i, ∑ n ∈ Finset.range (tabs (some i)).length, t i n ≤ W
+        ∧ ∀ i s, h.pops[i.val]? = some s → ∀ n < (tabs (some i)).length,
+          (Random.harvestFirst (fun z => (familyReadQ s.family s.kl s.kh z).eval o)
+            settings.level3.walkStart s.hyp s.site ↑h.prefs
+            ((List.ofFn fun j => drawFrom D ((d.1.2.1 (some i) n).2 j)).take (t i n))).isSome)
+    (hsome : ((roundQ settings D Dsf h d).eval o).isSome)
     (hleaf : ∀ r ∈ (roundQ settings D Dsf h d).eval o,
       r.result.hypothesis.tree.leaves.length ≤ n + 2) :
     ((roundQ settings D Dsf h d).reads o).card
       ≤ roundCallBound a b f settings.level3.probeBudget W L (Fintype.card α) n := by
-  have hA := card_reads_clusterDrawsQ_le o D Dsf settings.level3.walkStart
-    settings.level3.harvestReadCap settings.scanCap h d.1 hD hpops t hW ht
-  unfold roundQ at hleaf
+  unfold roundQ at hleaf hsome
   unfold roundQ roundCallBound
-  rw [eval_bind] at hleaf
+  rw [eval_bind] at hleaf hsome
   rw [reads_bind]
   refine (Finset.card_union_le _ _).trans ?_
   rw [Nat.add_assoc]
-  refine Nat.add_le_add hA ?_
-  rcases hdr : (clusterDrawsQ D Dsf settings.level3.walkStart settings.level3.harvestReadCap
-    settings.scanCap h d.1).eval o with _ | dr
-  · simp
+  rcases hdr : (drawListsQ D settings.level3.walkStart settings.level3.harvestReadCap
+    settings.scanCap (settings.schedule (loopPopulations K h.pops.length)) h d.1).eval o
+    with _ | tabs
+  · rw [hdr] at hsome
+    simp at hsome
+  obtain ⟨t, htW, ht⟩ := hW tabs hdr
+  refine Nat.add_le_add (card_reads_drawListsQ_le o D settings.level3.walkStart
+    settings.level3.harvestReadCap settings.scanCap _ h d.1 hD hpops hdr t htW ht) ?_
   rw [hdr] at hleaf
   simp only at hleaf ⊢
   set ps := loopPopulations K h.pops.length
   set sched := settings.schedule ps
+  set dr := drawsOf () D Dsf settings.scanCap h.prefs h.suffs d.1 tabs
   set x := streams (fun _ => ∅) none dr
   obtain ⟨hpa, hsb⟩ := hab ps x
   split_ifs at hleaf ⊢ with hsc
@@ -424,12 +457,15 @@ lemma loopRounds_small {f : ℕ} (hk : ∀ pops, ∀ B ∈ settings.schedule pop
       · rw [List.mem_singleton] at h1
         subst h1
         unfold loopRound at ho
-        obtain ⟨dr, -, hdr⟩ := Option.mem_bind_iff.1 ho
+        obtain ⟨tabs, -, hdr⟩ := Option.mem_bind_iff.1 ho
+        dsimp only at hdr
         split_ifs at hdr with hcond
         · rw [← Option.mem_some_iff.1 hdr]
           obtain ⟨B, hB, hr⟩ := hcond.2
           have hBs := (Classical.epsilon_spec (p := fun B => B ∈ settings.schedule
-            (loopPopulations K (specHistOf rs).pops.length) ∧ streams (fun _ => ∅) none dr ∈ ret
+            (loopPopulations K (specHistOf rs).pops.length) ∧ streams (fun _ => ∅) none
+              (drawsOf (draws ⟨r, hc.1⟩).1 D Dsf settings.scanCap (specHistOf rs).prefs
+                (specHistOf rs).suffs (draws ⟨r, hc.1⟩).2.1 tabs) ∈ ret
               O.mq (loopPopulations K (specHistOf rs).pops.length) none settings.η₀
               settings.indecisionLimit settings.εcov settings.gateLevel B) ⟨B, hB, hr⟩).1
           exact (card_clusterAt_le _ _ _ _).trans (Nat.sub_le_of_le_add (hk _ _ hBs))
@@ -548,40 +584,44 @@ theorem card_reads_loopRoundsQ_le (O : Oracle μ (FreeMonoid α)) (ω : Ω)
       have := hpre.length_le
       rw [List.length_append, List.length_singleton, hlen] at this
       omega
-    obtain ⟨t, htW, ht⟩ := hW r hc.1 hlt
-    rw [htake] at ht
+    have hWr := hW r hc.1 hlt
+    rw [htake] at hWr
     have e := (eval_loopRoundsQ O ω settings D Dsf rd r).1
     rw [hrs] at e
     obtain ⟨rs0, hrs0, rfl⟩ := Option.map_eq_some_iff.1 e.symm
     have hsm := loopRounds_small settings O D Dsf _ hk r rs0 hrs0
     rw [reads_map]
     refine card_reads_roundQ_le _ settings D Dsf _ _ hD (fun pops x => hab pops (ω, x.2)) hk
-      (fun s hs => ?_) t htW (fun i s hs m => ?_) fun x hx => ?_
+      (fun s hs => ?_) (fun tabs htabs => ?_) (by rw [hoo]; rfl) fun x hx => ?_
     · obtain ⟨o, ho, hos⟩ := List.mem_filterMap.1 hs
       obtain ⟨o', ho', rfl⟩ := List.mem_map.1 ho
       obtain ⟨site, -, rfl⟩ := Option.map_eq_some_iff.1 hos
       exact ⟨Nat.le_of_succ_le_succ ((Random.mids_card _).trans
         (hlv _ (hpre.subset (List.mem_append_left _ ho)))), hsm o' ho'⟩
-    · have h1 := ht i s hs m
+    · obtain ⟨t, htW, ht⟩ := hWr tabs htabs
+      refine ⟨t, htW, fun i s hs m hm => ?_⟩
+      have h1 := ht i s hs m hm
       rwa [show (fun z => (familyReadQ s.family s.kl s.kh z).eval fun w => O.mq w ω)
         = fun z => familyRead O.mq s.family s.kl s.kh z ω from rfl]
     · rw [Option.mem_def, hoo, Option.some.injEq] at hx
       subst hx
       exact hlv _ (hpre.subset (List.mem_append_right _ (List.mem_singleton_self _)))
 
-/-- Where every round the filled draws run is good and its harvested draws walk at most `B`
-probes, the loop's rounds meet `HarvestProbesWithin` at `B`. -/
+/-- Where every round the filled draws run is good and its harvested populations' first `Nh`
+filled draws hold their samples and walk at most `B` probes (`DrawsWithin`), the loop's rounds meet
+`HarvestProbesWithin` at `B`. -/
 theorem harvestProbesWithin_of (O : Oracle μ (FreeMonoid α)) (settings : LoopSettings K)
     (D Dsf : Measure (FreeMonoid α))
     (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
-    (B : ℕ)
+    (Nh B : ℕ)
     (hg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf (persistDraws p) r) →
       RoundGood settings O D Dsf (specHistOf (idealRounds settings O D Dsf (persistDraws p) r))
         (persistDraws p ⟨r, hr⟩))
-    (hw : RoundsWalkWithin settings O D Dsf p B) :
+    (hw : RoundsWalkWithin settings O D Dsf p Nh B) :
     HarvestProbesWithin settings O D p
       ((idealRounds settings O D Dsf (persistDraws p) K).map SpecRound.data) B := by
-  intro r hr hlt
+  classical
+  intro r hr hlt tabs htabs
   rw [List.length_map] at hlt
   have htk : (idealRounds settings O D Dsf (persistDraws p) K).take r
       = idealRounds settings O D Dsf (persistDraws p) r :=
@@ -599,26 +639,24 @@ theorem harvestProbesWithin_of (O : Oracle μ (FreeMonoid α)) (settings : LoopS
     specHistOf_eq O p.1 fun o ho =>
       loopRounds_read O settings D Dsf p (ir K) hloop o
         (List.mem_of_mem_take (by rw [htk]; exact ho))
-  rw [← List.map_take, htk]
+  rw [← List.map_take, htk] at htabs ⊢
   set h := histOf ((ir r).map SpecRound.data) with hhd
   set u := (p.2 ⟨r, hr⟩).1.2.1 with hud
-  have hwr := hw r hr hall
-  unfold roundWalk at hwr
-  rw [hspec] at hwr
+  have hlen : (h.spec O p.1).pops.length = h.pops.length := by simp [LoopHist.spec]
+  obtain ⟨hdw, hwr⟩ := hw r hr hall
+  rw [hspec] at hdw hwr
   have hc := (hg r hr hall).1
   rw [hspec] at hc
-  refine ⟨fun i n => match h.pops[i.val]? with
-    | some s => walkLen (hitSet (s.spec O p.1) settings.level3.walkStart h.prefs)
-        (List.ofFn (probeBlocks D settings.level3.harvestReadCap settings.scanCap (u (some i)) n))
-    | none => 0, le_trans (le_of_eq ?_) hwr, fun i s hs n => ?_⟩
-  · unfold harvestWalk
-    refine Finset.sum_congr rfl fun i _ => ?_
-    simp only [LoopHist.spec, List.getElem?_map]
-    rcases h.pops[i.val]? with _ | s
-    · simp [popWalk]
-    · rfl
-  · simp only [hs]
-    refine harvestFirst_take_walkLen _ _ _ _ _ _ ?_
+  rw [eval_drawListsQ, ← hlen] at htabs
+  obtain ⟨tabs', hdl, hag, -, hpop⟩ := drawLists_of_hit
+    (sched := settings.schedule (loopPopulations K (h.spec O p.1).pops.length)) hc
+  obtain rfl : tabs = tabs' := (Option.some.inj (hdl.symm.trans htabs)).symm
+  have hstep : ∀ (i : Fin K) (s : HarvestSampler α), h.pops[i.val]? = some s →
+      ∀ n < settings.scanCap,
+      (Random.harvestFirst (fun z => familyRead O.mq s.family s.kl s.kh z p.1)
+        settings.level3.walkStart s.hyp s.site ↑h.prefs
+        (List.ofFn fun j => drawFrom D ((u (some i) n).2 j))).isSome := by
+    intro i s hs n hn
     unfold clusterDraws at hc
     rw [Option.isSome_map] at hc
     unfold allSome at hc
@@ -627,9 +665,48 @@ theorem harvestProbesWithin_of (O : Oracle μ (FreeMonoid α)) (settings : LoopS
       simp only [popDraws, LoopHist.spec, List.getElem?_map, hs, Option.map_some] at hj
       unfold Random.drawManyFirst at hj
       split_ifs at hj with hd
-      · exact hd n
+      · exact hd ⟨n, hn⟩
       · simp at hj
     · simp at hc
+  have hspi : ∀ (i : Fin K) (s : HarvestSampler α), h.pops[i.val]? = some s →
+      (h.spec O p.1).pops[i.val]? = some (s.spec O p.1) := fun i s hs => by
+    simp [LoopHist.spec, hs]
+  have hcount : ∀ (i : Fin K) (s : HarvestSampler α), h.pops[i.val]? = some s →
+      (tabs (some i)).length ≤ Nh := by
+    intro i s hs
+    by_contra hlt'
+    push_neg at hlt'
+    have hi : i.val < (h.spec O p.1).pops.length := by
+      rw [hlen]; exact (List.getElem?_eq_some_iff.1 hs).1
+    refine (hpop i _ (hspi i s hs)).2.2 Nh hlt' ?_
+    have e : (tabs (some i)).take Nh = (List.range Nh).map
+        ((idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap (h.spec O p.1)
+          ((persistDraws p ⟨r, hr⟩).1, (persistDraws p ⟨r, hr⟩).2.1)).1.2.1.2 (some i)) := by
+      refine List.ext_getElem (by simp; omega) fun n h1 h2 => ?_
+      simp only [List.length_take] at h1
+      have hn : n < (tabs (some i)).length := by omega
+      rw [List.getElem_take, List.getElem_map, List.getElem_range, ← hag.2.2.2.1 (some i) n hn]
+      simp only [drawsOf, padList]
+      rw [List.getD_eq_getElem _ _ hn]
+    rw [e]
+    exact hdw i hi
+  refine ⟨fun i n => match h.pops[i.val]? with
+    | some s => walkLen (hitSet (s.spec O p.1) settings.level3.walkStart h.prefs)
+        (List.ofFn fun j => drawFrom D ((u (some i) n).2 j))
+    | none => 0, le_trans ?_ hwr, fun i s hs n hn => ?_⟩
+  · unfold harvestWalk
+    refine Finset.sum_le_sum fun i _ => ?_
+    simp only [LoopHist.spec, List.getElem?_map]
+    rcases hs : h.pops[i.val]? with _ | s
+    · simp
+    simp only [Option.map_some, popWalk]
+    exact (Finset.sum_le_sum_of_subset (Finset.range_mono (hcount i s hs))).trans
+      (Fin.sum_univ_eq_sum_range (fun n => walkLen (hitSet (s.spec O p.1)
+        settings.level3.walkStart h.prefs) (List.ofFn fun j => drawFrom D ((u (some i) n).2 j)))
+        Nh).symm.le
+  · simp only [hs]
+    exact harvestFirst_take_walkLen _ _ _ _ _ _ (hstep i s hs n
+      (hn.trans_le (hpop i _ (hspi i s hs)).1))
 
 end Reads
 
