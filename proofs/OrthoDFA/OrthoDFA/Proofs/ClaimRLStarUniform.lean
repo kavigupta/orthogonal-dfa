@@ -251,7 +251,7 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
 
 /-- The reads' factors other than the prefix and suffix totals, at uniform strings. -/
 lemma uniform_factors {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
-    0 < (r.Q : ℝ) ∧ 0 ≤ (r.A : ℝ)
+    0 < (r.Q : ℝ)
       ∧ 0 ≤ log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       ∧ 0 ≤ r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
       ∧ 0 ≤ log (r.L + r.Q + 1)
@@ -271,20 +271,20 @@ lemma uniform_factors {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
   have l3 : 0 ≤ log ((r.Q : ℝ) * r.A / r.δ) :=
     Real.log_nonneg ((one_le_div hδ).2 (by linarith))
   have l4 : 0 ≤ log ((r.Q : ℝ) / r.δ) := Real.log_nonneg ((one_le_div hδ).2 (by linarith))
-  refine ⟨by linarith, Nat.cast_nonneg _, div_nonneg l1 (sq_nonneg _),
+  refine ⟨by linarith, div_nonneg l1 (sq_nonneg _),
     mul_nonneg (div_nonneg (mul_nonneg (by positivity) (by linarith)) hξ.le) l3,
     Real.log_nonneg (by linarith),
     div_nonneg (mul_nonneg (mul_nonneg (by linarith) (by positivity)) (by positivity)) hξ.le,
     div_nonneg l4 (sq_nonneg _)⟩
 
 /-- The reads' shape is monotone in its prefix and suffix totals. -/
-lemma reads_dom {Q P P' S S' F Pr lg A ρ Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ P) (hPP : P ≤ 4 * P')
-    (hS : 0 ≤ S) (hSS : S ≤ 2 * S') (hF : 0 ≤ F) (hPr : 0 ≤ Pr) (hlg : 0 ≤ lg) (hA : 0 ≤ A)
+lemma reads_dom {Q P P' S S' F Pr lg ρ Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ P) (hPP : P ≤ 4 * P')
+    (hS : 0 ≤ S) (hSS : S ≤ 2 * S') (hF : 0 ≤ F) (hPr : 0 ≤ Pr) (hlg : 0 ≤ lg)
     (hρ : 0 ≤ ρ) (hHd : 0 ≤ Hd) :
-    0 ≤ P * S / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q * P * F * lg * ρ + Hd * F
-      ∧ 0 ≤ P' * S' / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q * P' * F * lg * ρ + Hd * F
-      ∧ P * S / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q * P * F * lg * ρ + Hd * F
-        ≤ 8 * (P' * S' / Q + Pr * F * Q * lg + Q ^ 4 * A * F + Q * P' * F * lg * ρ
+    0 ≤ P * S / Q + Pr * F * Q * lg + Q * P * F * lg * ρ + Hd * F
+      ∧ 0 ≤ P' * S' / Q + Pr * F * Q * lg + Q * P' * F * lg * ρ + Hd * F
+      ∧ P * S / Q + Pr * F * Q * lg + Q * P * F * lg * ρ + Hd * F
+        ≤ 8 * (P' * S' / Q + Pr * F * Q * lg + Q * P' * F * lg * ρ
           + Hd * F) := by
   have hP' : 0 ≤ P' := by linarith
   have hS' : 0 ≤ S' := by linarith
@@ -294,7 +294,6 @@ lemma reads_dom {Q P P' S S' F Pr lg A ρ Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ P) 
     rw [hG]; ring
   rw [e, e]
   have hT2 : 0 ≤ Pr * F * Q * lg := mul_nonneg (mul_nonneg (mul_nonneg hPr hF) hQ.le) hlg
-  have hT3 : 0 ≤ Q ^ 4 * A * F := mul_nonneg (mul_nonneg (pow_nonneg hQ.le 4) hA) hF
   have hT4 : 0 ≤ Hd * F := mul_nonneg hHd hF
   have hPS : P * S ≤ 8 * (P' * S') := by
     have := mul_le_mul hPP hSS hS (by linarith)
@@ -320,9 +319,9 @@ theorem rlStarClaimUniformSimple_of_claim (h : RLStarClaimUniform.{u, v, w}) :
     hrd.trans (isBigO_on 8 fun r hr => ?_), hh, hw⟩
   obtain ⟨hp0, -, hp1⟩ := loop_pref_dom hr
   obtain ⟨hs0, -, hs1⟩ := loop_suff_dom hr
-  obtain ⟨hQ, hA, hF, hPr, hlg, hρ, hHd⟩ := uniform_factors hr
+  obtain ⟨hQ, hF, hPr, hlg, hρ, hHd⟩ := uniform_factors hr
   dsimp only
-  exact reads_dom hQ hp0 hp1 hs0 hs1 hF hPr hlg hA hρ hHd
+  exact reads_dom hQ hp0 hp1 hs0 hs1 hF hPr hlg hρ hHd
 
 end OrthoDFA
 

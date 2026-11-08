@@ -18,13 +18,13 @@ Every one is within the big-O shape below, with `s₀ = 1/2 − η₀` the signa
 picks hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the
 window's `N = Θ(L)` lengths, so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes
 grow as `(L + |Q|)²` and the suffixes as `log L`. The prefix total's populations' group reads its
-log off the suffix pool alone, so that log grows as `log log L`. The strings asked are five sources'
+log off the suffix pool alone, so that log grows as `log log L`. The strings asked are four sources'
 sum: the clusterings' prefixes against their suffixes; level 3's probes, each a family read of
-`|V̂|` strings at the `log L` mids of a sift at most `|Q| + 1` deep; its splits, at most `|Q|` a
-round, each re-sifting at most `|Q| + 2` leaves' edges over `|Σ|` letters down at most `|Q| + 2`
-midfixes; the harvested draws' walks, a family read at the sifts of each probe, about `1/ρ` probes
-a draw taken; and the start leaf's family read at each held-out string. Each bound has one
-constant over all of `rlStarDistRegion`.
+`|V̂|` strings at the `log L` mids of a sift at most `|Q| + 1` deep, with its splits' re-sifts (at
+most `|Q|` a round, each over at most `|Q| + 2` leaves' edges, `|Σ|` letters and `|Q| + 2`
+midfixes) within that term; the harvested draws' walks, a family read at the sifts of each probe,
+about `1/ρ` probes a draw taken; and the start leaf's family read at each held-out string. Each
+bound has one constant over all of `rlStarDistRegion`.
 
 `RLStarClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
 `L` is at least `L₀`; the bounds have one constant over all of `rlStarRegion`.
@@ -181,9 +181,9 @@ def RLStarClaim.{u, v, w} : Prop :=
       let nFam : ℝ := log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (1 / r.β + r.Q) * (r.L + r.Q) / r.ξ
       let lg : ℝ := log (r.L + r.Q + 1)
-      -- clusterings, counterexample search, its re-sifts, harvest, start leaf
-      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
+      -- clusterings, counterexample search (with its re-sifts), harvest, start leaf
+      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q * nPref * nFam * lg * ρInv
+        + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarDistRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     (∀ r, 0 < p₀Tol r) ∧
     RLStarWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes totalReads heldOut
@@ -258,9 +258,9 @@ def RLStarClaimUniform.{u, v, w} : Prop :=
       let nFam : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
       let lg : ℝ := log (r.L + r.Q + 1)
-      -- clusterings, counterexample search, its re-sifts, harvest, start leaf
-      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
+      -- clusterings, counterexample search (with its re-sifts), harvest, start leaf
+      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q * nPref * nFam * lg * ρInv
+        + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut
 
@@ -290,9 +290,9 @@ def RLStarClaimUniformSimple.{u, v, w} : Prop :=
       let nFam : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
       let lg : ℝ := log (r.L + r.Q + 1)
-      -- clusterings, counterexample search, its re-sifts, harvest, start leaf
-      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q ^ 4 * r.A * nFam
-        + r.Q * nPref * nFam * lg * ρInv + nHeld * nFam) ∧
+      -- clusterings, counterexample search (with its re-sifts), harvest, start leaf
+      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q * nPref * nFam * lg * ρInv
+        + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut
 
