@@ -54,8 +54,8 @@ Known modelling gap. Under a sampler other than the uniform one, the Python esti
 `non_start_zone_states` and `non_start_zone_accuracy_ceiling` on sampled strings; here they are
 exact probabilities.
 
-Known modelling gap. The Python starts its DFA at the leaf the empty string sifts to; here the
-start is picked on held-out strings.
+Known modelling gap. The Python picks the start on held-out strings only under
+`counterexample_reroot`, which is off by default.
 
 Known modelling gap. The Python draws its probes, prefixes and suffixes from one sampler of length
 `L`; `LearnerLoopDFADist` draws its suffixes as `D`'s first `L + 2|Q| + 6` letters, so `D`'s strings
