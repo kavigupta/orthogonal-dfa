@@ -28,7 +28,8 @@ bound has one constant over all of `rlStarDistRegion`.
 
 `RLStarClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
 `L` is at least `L₀`; the bounds have one constant over all of `rlStarRegion`.
-`RLStarClaimUniformSimple` states the same with the prefix and suffix totals each a single product.
+`RLStarClaimUniformSimple` states the same with the prefix and suffix totals each a single product,
+and the reads as the paper's two terms, clusterings and harvest.
 -/
 
 namespace OrthoDFA
@@ -265,7 +266,8 @@ def RLStarClaimUniform.{u, v, w} : Prop :=
     RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut
 
 open Real in
-/-- The uniform claim with the prefix and suffix totals each a single product. -/
+/-- The uniform claim with the prefix and suffix totals each a single product, and the reads
+    N_pref (N_suff / |Q| + |Q| |V̂| log(L + |Q| + 1) / ρ). -/
 def RLStarClaimUniformSimple.{u, v, w} : Prop :=
   ∃ (L₀ : RLStarInputs → ℝ) (totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ)
     (heldOut : RLStarInputs → ℕ),
@@ -284,15 +286,11 @@ def RLStarClaimUniformSimple.{u, v, w} : Prop :=
         * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
         / (r.ξ ^ 2 * r.s₀ ^ 4)
       let nSuff : ℝ := r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
-      let nProbe : ℝ :=
-        r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
-      let nHeld : ℝ := log (r.Q / r.δ) / r.ξ ^ 2
       let nFam : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
       let lg : ℝ := log (r.L + r.Q + 1)
-      -- clusterings, counterexample search (with its re-sifts), harvest, start leaf
-      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q * nPref * nFam * lg * ρInv
-        + nHeld * nFam) ∧
+      -- clusterings and harvest; the search's and start leaf's reads are within the harvest's
+      nPref * (nSuff / r.Q + r.Q * nFam * lg * ρInv)) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut
 
