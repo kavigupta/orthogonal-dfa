@@ -4,41 +4,14 @@ import RLStar.LowLevelClaims.LoopDFA
 
 /-!
 # The learner's costs, asymptotically
-
-`RLStarClaim`: over an input distribution `D`, with `β` the least rate at which `D` extends a prefix
-by any one letter, the loop's re-rooted DFA misclassifies at most `γ + ξ` of `D`'s strings cut at
-length `L`, but for chance `δ`, its start leaf picked on `heldOut` strings, when the target admits a
-start by the relative rule at visit ratio `R` and `D` holds at most `p₀Tol` on any first `k`
-letters, `1/p₀Tol` growing as `L⁴ log L`, and every round's tree has at most `|Q| + 2` leaves
-(`RLStarSucceeds`); over the whole run its clusterings read at most `totalPref` prefixes and
-`totalSuff` suffixes, its rounds draw at most `totalProbes` probes, whatever they draw;
-and, but for chance `δ`, the run's output depends on at most `totalReads` of the oracle's answers,
-start leaf included.
-Every one is within the big-O shape below, with `s₀ = 1/2 − η₀` the signal. The settings the proof
-picks hold each round's disagreement rate at `m/(3(1/β + |Q| + 1)N)`, `m = 3ξ/(8R)`, over the
-window's `N = Θ(L)` lengths, so its inverse enters the shapes as `R(1/β + |Q|)N/ξ`: the prefixes
-grow as `(L + |Q|)²` and the suffixes as `log L`. The prefix total's populations' group reads its
-log off the suffix pool alone, so that log grows as `log log L`. The strings asked are four sources'
-sum: the clusterings' prefixes against their suffixes; level 3's probes, each a family read of
-`|V̂|` strings at the `log L` mids of a sift at most `|Q| + 1` deep, with its splits' re-sifts (at
-most `|Q|` a round, each over at most `|Q| + 2` leaves' edges, `|Σ|` letters and `|Q| + 2`
-midfixes) within that term; the harvested draws' walks, a family read at the sifts of each probe,
-about `1/ρ` probes a draw taken; and the start leaf's family read at each held-out string. Each
-bound has one constant over all of `rlStarDistRegion`.
-
-`RLStarClaimUniform` is it at `D` uniform, where `β = 1/|Σ|` and `|Σ|^-k ≤ p₀Tol` once the length
-`L` is at least `L₀`; the bounds have one constant over all of `rlStarRegion`.
-`RLStarClaimUniformSimple` states the same with the prefix and suffix totals each a single product,
-and the reads as the paper's two terms, clusterings and harvest.
 -/
 
 namespace OrthoDFA
 
 open MeasureTheory Asymptotics Filter
 
-/-- The learner's inputs: `Q` states, `A` letters, the failure chance `δ`, the visit ratio `R` of
-`nonStartZoneStates`, the accuracy slack `ξ`, `pAP` the share of suffixes that preserve
-membership, and the signal `s₀ = 1/2 − η₀`. -/
+/-- `Q` states, `A` letters, `R` the visit ratio of `nonStartZoneStates`, `ξ` the accuracy slack,
+`pAP` the share of suffixes that preserve membership, and the signal `s₀ = 1/2 − η₀`. -/
 structure RLStarInputs where
   Q : ℕ
   A : ℕ
@@ -48,19 +21,18 @@ structure RLStarInputs where
   pAP : ℝ
   s₀ : ℝ
 
-/-- A ratio `R < 1` asks more of the target than `R = 1`: fewer non-start-zone states. -/
+/-- A target admitted at `R < 1` is admitted at `R = 1`. -/
 def rlStarRegion : Set RLStarInputs :=
   {x | 1 ≤ x.Q ∧ 2 ≤ x.A ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 1 ≤ x.R ∧ 0 < x.ξ ∧ x.ξ ≤ 1 ∧
     0 < x.pAP ∧ x.pAP ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2}
 
-/-- The inputs with the Python's length `L`, which the totals grow with. -/
+/-- `L` the Python's length. -/
 structure RLStarRun extends RLStarInputs where
   L : ℕ
 
 def rlStarRunRegion : Set RLStarRun := {r | r.toRLStarInputs ∈ rlStarRegion}
 
-/-- `RLStarInputs` with `β`, the least rate at which the input distribution extends a prefix by any
-one letter: `1/|Σ|` for uniform strings. -/
+/-- `β` the least rate at which the input distribution extends a prefix by any one letter. -/
 structure RLStarDistInputs extends RLStarInputs where
   β : ℝ
 
@@ -72,12 +44,9 @@ structure RLStarDistRun extends RLStarDistInputs where
 
 def rlStarDistRunRegion : Set RLStarDistRun := {r | r.toRLStarDistInputs ∈ rlStarDistRegion}
 
-/-- `f`'s value at `oracle` depends only on `oracle`'s answers on `S`. -/
 def DependsOnlyOn {X Y : Type*} (f : (X → ℝ) → Y) (oracle : X → ℝ) (S : Finset X) : Prop :=
   ∀ o : X → ℝ, (∀ w ∈ S, o w = oracle w) → f o = f oracle
 
-/-- Within the round and leaf caps, the loop ends consistent and errs on at most `ε` of `T`, and
-its output depends on at most `totalReads` of the oracle's answers. -/
 def RLStarSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype Q] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K)
     (O : Oracle μ (FreeMonoid A)) (D Dsf T : Measure (FreeMonoid A)) (M : _root_.DFA A Q) (ε : ℝ)
@@ -93,9 +62,6 @@ def RLStarSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype 
   ∃ S : Finset (FreeMonoid A), (S.card : ℝ) ≤ totalReads ∧
     DependsOnlyOn (fun o => (learnerQ settings D Dsf q.1.2 q.2).eval o) (fun w => O.mq w q.1.1) S
 
-/-- On every instance in `rlStarDistRegion`, for strings drawn from `D` whose first `k` letters
-`p₀Tol` bounds, settings whose run reads within `totalPref`, `totalSuff` and `totalProbes`, and
-which but for chance `δ` succeed within `totalReads`. -/
 def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : RLStarDistRun → ℝ)
     (heldOut : RLStarDistInputs → ℕ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
@@ -103,8 +69,6 @@ def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads :
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (x : RLStarDistInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L : ℕ) (γ : ℝ)
     (D : Measure (FreeMonoid A)) [IsProbabilityMeasure D],
-  -- Probes are `D`'s strings cut at a length uniform over `k` to `L₁`, suffixes their first `Ls`
-  -- letters, and the coverage, error and held-out strings are over their first `L`.
   let k : ℕ := (L + 1) / 2
   let L₁ : ℕ := L + Fintype.card Q + 3
   let Ls : ℕ := L₁ + Fintype.card Q + 3
@@ -136,8 +100,6 @@ def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads :
       ≤ x.δ
 
 open Real in
-/-- The learner's costs over an input distribution `D`: `p₀Tol` bounds the most `D` may hold on any
-first `k` letters, and `β` is the rate edges are crossed at. -/
 def RLStarClaim.{u, v, w} : Prop :=
   ∃ (p₀Tol totalPref totalSuff totalProbes totalReads : RLStarDistRun → ℝ)
     (heldOut : RLStarDistInputs → ℕ),
@@ -182,16 +144,13 @@ def RLStarClaim.{u, v, w} : Prop :=
       let nFam : ℝ := log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (1 / r.β + r.Q) * (r.L + r.Q) / r.ξ
       let lg : ℝ := log (r.L + r.Q + 1)
-      -- clusterings, counterexample search (with its re-sifts), harvest, start leaf
+      -- clusterings, counterexample search, harvest, start leaf
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q * nPref * nFam * lg * ρInv
         + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarDistRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     (∀ r, 0 < p₀Tol r) ∧
     RLStarWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes totalReads heldOut
 
-/-- On every instance in `rlStarRegion` with `L₀ x ≤ L`, settings whose run reads within
-`totalPref`, `totalSuff` and `totalProbes`, and which but for chance `δ` succeed within
-`totalReads`. -/
 def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
     (totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ) (heldOut : RLStarInputs → ℕ) :
     Prop :=
@@ -199,7 +158,6 @@ def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
     [Fintype Q] {Ω : Type w}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (x : RLStarInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L : ℕ) (γ : ℝ),
-  -- Probes are walked from half the Python's length, uniform over the lengths `k` to `L₁`.
   let k : ℕ := (L + 1) / 2
   let L₁ : ℕ := L + Fintype.card Q + 3
   x ∈ rlStarRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
@@ -259,15 +217,13 @@ def RLStarClaimUniform.{u, v, w} : Prop :=
       let nFam : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       let ρInv : ℝ := r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
       let lg : ℝ := log (r.L + r.Q + 1)
-      -- clusterings, counterexample search (with its re-sifts), harvest, start leaf
+      -- clusterings, counterexample search, harvest, start leaf
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q * nPref * nFam * lg * ρInv
         + nHeld * nFam) ∧
     (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
     RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut
 
 open Real in
-/-- The uniform claim with the prefix and suffix totals each a single product, and the reads
-    N_pref (N_suff / |Q| + |Q| |V̂| log(L + |Q| + 1) / ρ). -/
 def RLStarClaimUniformSimple.{u, v, w} : Prop :=
   ∃ (L₀ : RLStarInputs → ℝ) (totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ)
     (heldOut : RLStarInputs → ℕ),

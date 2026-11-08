@@ -5,21 +5,13 @@ import RLStar.LowLevelClaims.Level5Claim
 
 /-!
 # One L\* round's costs, asymptotically
-
-`CounterexSynthClaim`: one L\* round, its reads wrong at most `κ` times as often as undecided, ends
-well, but for chance `δ`, at a probe budget, harvest slope and slack within big-O shapes, its
-harvest rate fixed at `ε/48`. It needs the probes' walk starts spread, every one holding at most
-`p₀Tol` of the probes' law, and `κ` at most `κTol`; how small those must be is bounded the same
-way. One wrong read is tolerated, its tree within `|Q| + 2` leaves. Each bound has one constant
-over all of `counterexSynthRegion`.
 -/
 
 namespace OrthoDFA
 
 open MeasureTheory Asymptotics Filter Random Random.Kappa
 
-/-- A round's inputs: `Q` states, `A` letters, the disagreement rate `ε`, the failure chance `δ`,
-and `L` the probes' longest length. -/
+/-- `Q` states, `A` letters, the disagreement rate `ε`, and `L` the probes' longest length. -/
 structure CounterexSynthInputs where
   Q : ℕ
   A : ℕ
@@ -31,9 +23,6 @@ def counterexSynthRegion : Set CounterexSynthInputs :=
   {x | 1 ≤ x.Q ∧ 1 ≤ x.A ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 0 < x.ε ∧ x.ε < 1 ∧ 2 ≤ x.L}
 
 open Real in
-/-- Level 5, with reads wrong at most `κ` times as often as undecided: its budget, harvest slope
-and slack, the largest `p₀` and `κ` it tolerates, and its round ending well at them within
-`|Q| + 2` leaves. -/
 def CounterexSynthClaim.{u, v, w} : Prop :=
   ∃ (nprobes : CounterexSynthInputs → ℕ)
     (slope slackRate p₀Tol κTol : CounterexSynthInputs → ℝ),
