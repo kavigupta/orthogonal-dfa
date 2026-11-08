@@ -55,7 +55,9 @@ Known modelling gap. Under a sampler other than the uniform one, the Python esti
 exact probabilities.
 
 Known modelling gap. The Python starts its DFA at the leaf the empty string sifts to; here the
-start is picked on held-out strings.
+start is picked on held-out strings. Its `counterexample_reroot`, off by default, re-roots every
+round's DFA at the leaf of best held-out phi against single-query labels, the empty string's leaf
+keeping ties.
 
 Known modelling gap. The Python draws its probes, prefixes and suffixes from one sampler of length
 `L`; `LearnerLoopDFADist` draws its suffixes as `D`'s first `L + 2|Q| + 6` letters, so `D`'s strings

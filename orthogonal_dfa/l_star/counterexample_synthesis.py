@@ -365,9 +365,8 @@ def _reroot_pick(pst, selection):
 
 
 def _reroot_start(pst, hypothesis, dfa, reroot_pick):
-    """``dfa`` restarted at the leaf of best held-out phi on ``reroot_pick``, the port
-    of ``LoopDFA.lean``'s ``pickLeaf``; ``dfa``'s own start keeps ties. ``reroot_pick``
-    is ``None`` with re-rooting off."""
+    """dfa restarted at the leaf of best held-out phi on reroot_pick; dfa's own start
+    keeps ties. reroot_pick is None with re-rooting off."""
     if reroot_pick is None:
         return dfa
     best, best_phi = dfa, held_out_phi(dfa, *reroot_pick)
