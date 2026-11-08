@@ -10,8 +10,8 @@ import OrthoDFA.LowLevelClaims.Level5Claim
 well, but for chance `δ`, at a probe budget, harvest slope and slack within big-O shapes, its
 harvest rate fixed at `ε/48`. It needs the probes' walk starts spread, every one holding at most
 `p₀Tol` of the probes' law, and `κ` at most `κTol`; how small those must be is bounded the same
-way. It may grow its tree `spurious = O(log(1/δ))` leaves past `|Q| + 2`, its costs growing with
-`|Q| + log(1/δ)` in place of `|Q|`. Each bound has one constant over all of `counterexSynthRegion`.
+way. One wrong read is tolerated, its tree within `|Q| + 2` leaves. Each bound has one constant
+over all of `counterexSynthRegion`.
 -/
 
 namespace OrthoDFA
@@ -33,20 +33,19 @@ def counterexSynthRegion : Set CounterexSynthInputs :=
 open Real in
 /-- Level 5, with reads wrong at most `κ` times as often as undecided: its budget, harvest slope
 and slack, the largest `p₀` and `κ` it tolerates, and its round ending well at them within
-`spurious` leaves past `|Q| + 2`. -/
+`|Q| + 2` leaves. -/
 def CounterexSynthClaim.{u, v, w} : Prop :=
-  ∃ (nprobes spurious : CounterexSynthInputs → ℕ)
+  ∃ (nprobes : CounterexSynthInputs → ℕ)
     (slope slackRate p₀Tol κTol : CounterexSynthInputs → ℝ),
     (fun x => (nprobes x : ℝ)) =O[𝓟 counterexSynthRegion] (fun x =>
-      (x.Q + log (1 / x.δ)) ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
-    slope =O[𝓟 counterexSynthRegion] (fun x => (x.Q + log (1 / x.δ)) * (1 / x.ε + log x.L)) ∧
+      x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ∧
+    slope =O[𝓟 counterexSynthRegion] (fun x => x.Q * (1 / x.ε + log x.L)) ∧
     slackRate =O[𝓟 counterexSynthRegion] (fun x =>
-      (x.Q + log (1 / x.δ)) * x.A * log (x.Q + log (1 / x.δ) + 1) / x.ε) ∧
+      (x.Q * x.A * log (x.Q + 1) + log (1 / x.δ)) / x.ε) ∧
     (fun x => 1 / p₀Tol x) =O[𝓟 counterexSynthRegion] (fun x =>
-      ((x.Q + log (1 / x.δ)) ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ^ 2 / x.δ) ∧
+      (x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ^ 2 / x.δ) ∧
     (fun x => 1 / κTol x) =O[𝓟 counterexSynthRegion] (fun x =>
-      (x.Q + log (1 / x.δ)) ^ 2 * x.A * log (x.Q * x.A / x.δ) / log (1 / x.δ)) ∧
-    (fun x => (spurious x : ℝ)) =O[𝓟 counterexSynthRegion] (fun x => log (1 / x.δ)) ∧
+      x.Q ^ 2 * x.A * log (x.Q * x.A / x.δ) / Real.sqrt x.δ) ∧
     (∀ x, 0 < p₀Tol x ∧ 0 < κTol x) ∧
     (∀ {A : Type u} [Fintype A] [DecidableEq A] {Q : Type v} [Fintype Q]
       (M : DFA A Q)
@@ -75,7 +74,7 @@ def CounterexSynthClaim.{u, v, w} : Prop :=
                 harvestLaw := harvestLaw (R.read · ω) P.D C.walkStart result.hypothesis,
                 yield := y,
                 ending := result.ending }
-            ∨ Fintype.card Q + spurious x + 2 < result.hypothesis.tree.leaves.length} ∂μ
+            ∨ Fintype.card Q + 2 < result.hypothesis.tree.leaves.length} ∂μ
         ≤ ENNReal.ofReal δ)
 
 end OrthoDFA
