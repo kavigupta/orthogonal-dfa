@@ -21,6 +21,9 @@ OUT = REPO_ROOT / "data" / "neural" / "length_oracles" / "random_strings.json"
 
 
 def main():
+    if OUT.exists():
+        print(f"{OUT} exists; nothing to run.", flush=True)
+        return
     model = load_spliceai(400, 0)
     saw, flat = (oracle(kind, default_exon, model) for kind in ("saw", "flat"))
     rows = []

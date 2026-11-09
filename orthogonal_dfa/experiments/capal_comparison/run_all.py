@@ -4,7 +4,9 @@
 Each experiment reuses whatever its JSON already holds; see
 `sweep.reusable_cells` for when that reuse is not what you want.
 
-    python -m orthogonal_dfa.experiments.capal_comparison.run_all
+    python -m orthogonal_dfa.experiments.capal_comparison.run_all --processes 4
+
+Each experiment reads `--processes` from these arguments.
 """
 
 from __future__ import annotations
