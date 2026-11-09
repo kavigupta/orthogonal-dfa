@@ -848,7 +848,7 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
   obtain ⟨states, hnp, -, hkn, hband, hκ, hmain⟩ := clustering_guarantee_of_correct O
     populations tame uni (fun _ => ∅) Pre Suf η₀ ε_u εcov ε_s (δ / 2) (δ / 2) pAP (κ ^ 4) hgap
     hη₀ huni htame hflat (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hu hu1
-    (by positivity) (by linarith) he he1 hsl (by positivity) (by linarith) (by positivity)
+    (by positivity) (by linarith) he he1 hsl hsl1 (by positivity) (by linarith) (by positivity)
     (pow_le_one₀ hw.le hw1)
   simp only [hH0, CharP.cast_eq_zero] at hnp
   have hs0 : 0 < 1 / 2 - η₀ := by linarith

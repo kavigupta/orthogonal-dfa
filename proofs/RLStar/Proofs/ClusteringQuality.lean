@@ -381,6 +381,7 @@ def ClusteringQualitySized : Prop :=
   0 < εcov →
   εcov ≤ 1 / 2 →
   0 < εs →
+  εs ≤ εcov →
   0 < δ →
   δ ≤ 1 →
   0 < crossLimit →
@@ -436,7 +437,7 @@ miscut and undecided masses are within `slack/2` of their means off the table's 
 carry little mass, except on an event the populations' collision masses hold to `δ/2`. -/
 theorem clustering_quality_sized : ClusteringQualitySized := by
   intro Ω _ μ _ S _ J _ O populations tame uni H Pre Suf η₀ iL εcov εs α δ pAP crossLimit
-    slack hgap hη₀ huni htame hflat hH hpAP hind' hind1 hα hα1 hε hε1 hεs hδ hδ1 hstr hslack
+    slack hgap hη₀ huni htame hflat hH hpAP hind' hind1 hα hα1 hε hε1 hεs hεsc hδ hδ1 hstr hslack
   set hsz : ℕ := (allHarvest H).card with hhsz
   have hpop : populations.Nonempty := ⟨uni, htame huni⟩
   classical
@@ -587,7 +588,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hcc := clustering_correct O populations tame uni H D Dsf Pre Suf η₀ iL εcov εs α δ'
     ρ₀ pAP crossLimit (3 * 2 ^ 25) hgap hη₀ huni hbalL hbalN htame hflat hH hsupp hsuppSf hcaps
     hpAP hpAPBound
-    hind' hind1 hα hα1 hε (by linarith) hεs hδ' hbudget le_rfl hcapsf
+    hind' hind1 hα hα1 hε (by linarith) hεs hεsc hδ' hbudget le_rfl hcapsf
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=
     fun j => exists_finset_tail (D j) Pre (by positivity)
@@ -769,11 +770,11 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
 
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   intro Ω _ μ _ S _ J _ O populations tame uni H Pre Suf η₀ indecisionLimit εcov εs α δ pAP
-    crossLimit slack hgap hη₀ huni htame hflat hH hpAP hind hind1 hα hα1 hε hε1 hεs hδ hδ1 hcr
+    crossLimit slack hgap hη₀ huni htame hflat hH hpAP hind hind1 hα hα1 hε hε1 hεs hεsc hδ hδ1 hcr
     hslack
   obtain ⟨states, h1, -, h⟩ := clustering_quality_sized O populations tame uni H Pre Suf η₀
     indecisionLimit εcov εs α δ pAP crossLimit slack hgap hη₀ huni htame hflat hH hpAP hind hind1
-    hα hα1 hε hε1 hεs hδ hδ1 hcr hslack
+    hα hα1 hε hε1 hεs hεsc hδ hδ1 hcr hslack
   exact ⟨states, h1, h⟩
 
 end OrthoDFA

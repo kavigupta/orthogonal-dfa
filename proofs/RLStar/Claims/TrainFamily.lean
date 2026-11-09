@@ -26,7 +26,7 @@ structure TrainFamilyInputs where
 
 def trainFamilyRegion : Set TrainFamilyInputs :=
   {x | 1 ≤ x.nJ ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 0 < x.pAP ∧ x.pAP ≤ 1 ∧
-    0 < x.εcov ∧ x.εcov ≤ 1 / 2 ∧ 0 < x.ε_s ∧ x.ε_s ≤ 1 / 2 ∧ 0 < x.ε_u ∧ x.ε_u ≤ 1 / 2 ∧
+    0 < x.εcov ∧ x.εcov ≤ 1 / 2 ∧ 0 < x.ε_s ∧ x.ε_s ≤ x.εcov ∧ 0 < x.ε_u ∧ x.ε_u ≤ 1 / 2 ∧
     0 < x.κ ∧ x.κ ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2}
 
 open Real in

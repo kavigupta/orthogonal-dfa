@@ -586,8 +586,8 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     (εcov α δ ρ pAP crossLimit : ℝ)
     (hgap : 4 * sig η₀ ≤ O.gap) (hη₀ : η₀ < 1 / 2)
     (hbal : ∀ b, 2 * εcov ≤ (D uni).real {p | O.label p = sideClass b})
-    (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hεs : 0 < εs) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
-    (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
+    (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hεs : 0 < εs) (hεsc : εs ≤ εcov) (hδ : 0 < δ)
+    (hδ1 : δ ≤ 1) (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
     (hind1 : indecisionLimit ≤ 1 / 2) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hρu : ∀ t, (D uni).real {t} ≤ ρ)
@@ -622,10 +622,12 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
   have hstr : O.Straddles B.centre η₀ := straddles_of_mid O hη₀.le hgap hcm
   obtain ⟨hcf, hcf0, hcdev, hcκ, hcEs, hctails⟩ := solved_centre (εs := εs)
     (crossLimit := crossLimit) (hsz := (allHarvest H).card) (α := α) (pAP := pAP) O populations
-    hη₀ hgap hεcov hε4 hεs hindLim hαpos (by linarith) hδ hpAPPositive hcard1 B hBm hBk hstr
+    hη₀ hgap hεcov hε4 hεs hindLim hind1 hαpos (by linarith) hδ hpAPPositive hcard1 B hBm hBk
+    hstr
   set Δ : ℝ := shiftBudget η₀ indecisionLimit εcov with hΔdef
   set c : ℝ := tabFrac η₀ indecisionLimit εcov with hcdef
-  obtain ⟨tap, qa, qr, E, u, x, a, e1, e2, lF, lG, lmis, cC, t, L, θ, r, rC, rs, G, hmpos, hkpos,
+  set cC : ℝ := certFrac indecisionLimit εs with hcCdef
+  obtain ⟨tap, qa, qr, E, u, x, a, e1, e2, lF, lG, lmis, t, L, θ, r, rC, rs, G, hmpos, hkpos,
     hindLim', hind1', htap, hΔ, hg, hgΔ, hpAP0, hlmis, hc0, hr, hrC, hpAPBound', hρsf', hUF, hUG,
     hL, hθ,
     hN2, hszG, hNF, hNG, hlF, hscreen, hu, hx, hsignal, ha, hκa, hmass, hE1, hE2,
@@ -723,11 +725,16 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
       (clusterBy (nearestClusterer B.centre) O.mq populations y B)
       (certOf (prefixesAt populations B.npref y) uni B.npref y) (oracleNoise y)} with hFitdef
   set Zc : Set (Run Ω S J) := centreBad (nearestClusterer B.centre) O populations uni (D uni) η₀
-    εcov Δ c Δ (εcov / 20) (δ / 128) B with hZcdef
+    εcov Δ c Δ (εcov / 20) (δ / 128) B rC with hZcdef
   have hZcm : MeasurableSet Zc :=
-    measurableSet_centreBad O populations uni (D uni) η₀ εcov Δ c Δ _ _ B
+    measurableSet_centreBad O populations uni (D uni) η₀ εcov Δ c Δ _ _ B rC
+  have hcC0 : 0 ≤ cC := (certFrac_pos hεs hindLim).le
+  have hcCs : cC ≤ εcov / 4 := by
+    have := (certFrac_le (indecisionLimit := indecisionLimit) (εs := εs)).2
+    rw [← hcCdef] at this
+    linarith
   have hcsmall : c ≤ εcov / 1024 := by
-    have h1 := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).1
+    have h1 := (tabFrac_le (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).1
     have hs1 : sig η₀ ≤ 1 / 2 := by linarith [gap_le_one O]
     have hs0 := sig_pos η₀ hη₀
     have h2 : min εcov (1 / 2) ≤ εcov := min_le_left _ _
@@ -776,7 +783,8 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
         simp only [stalled, Set.mem_setOf_eq, not_not] at hst
         omega
       refine centreFits_of_clean O populations uni (D uni) B (Y x) (e := εcov / 20)
-        (h := εcov / 40) (aT := δ / 128) hη₀ hgap hcm hεcov hbal hmpos hc0 hr hΔ.le hΔ.le hcg hfull
+        (h := εcov / 40) (aT := δ / 128) hη₀ hgap hcm hεcov hbal hmpos hc0 hcC0 hrC hΔ.le hΔ.le
+        hcg hfull
         (fun b => ?_) hZ' hcf (by linarith) (by linarith) hcdev
       by_contra hd
       cases b
@@ -792,7 +800,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
     set Pc := sideLawC H uni D g'
     refine le_trans (measureReal_union_le _ _) (add_le_add ?_ (le_trans
       (measureReal_centreBad_le hflat O populations Pp Pc Dsf (hsT g') (hsC g') hsuppSf uni huni
-        (D uni) (sideLawC_uni H uni D g') B hη₀ hgap hcm hcκ hεcov.le
+        (D uni) (sideLawC_uni H uni D g') B rC hη₀ hgap hcm hcκ hεcov.le (by linarith)
         (le_trans hcEs (by linarith)) (by positivity) (by linarith) hcf0) hctails))
     have hcertB : (streamMeasure μ Pp Pc Dsf).real {x | ¬ certGood populations uni B.npref rC x}
         ≤ rejTail (2 * B.npref + rC)

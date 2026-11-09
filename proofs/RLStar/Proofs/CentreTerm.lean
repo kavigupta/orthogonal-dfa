@@ -55,25 +55,26 @@ noncomputable def flipQ (O : Oracle μ S) (ctr Δ c g : ℝ) (b : Bool) : ℝ :=
 open scoped Classical in
 /-- The uniform pool's counts the centre check reads, any of them astray. -/
 noncomputable def centreBad (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J)
-    (uni : J) (Du : Measure S) (η₀ εcov Δ c g e aT : ℝ) (B : State) : Set (Run Ω S J) :=
-  (heavyHits rule O populations Du uni B (fun _ p => O.label p = sideClass false) (1 - 2 * εcov)
-      εcov
-    ∪ heavyHits rule O populations Du uni B (fun _ p => O.label p = sideClass true)
+    (uni : J) (Du : Measure S) (η₀ εcov Δ c g e aT : ℝ) (B : State) (r : ℕ) :
+    Set (Run Ω S J) :=
+  (heavyHits rule O populations Du uni B (B.npref + r) (fun _ p => O.label p = sideClass false)
+      (1 - 2 * εcov) εcov
+    ∪ heavyHits rule O populations Du uni B (B.npref + r) (fun _ p => O.label p = sideClass true)
       (1 - 2 * εcov) εcov)
-  ∪ (heavyHits rule O populations Du uni B (flipHeavy O true (1 / 20))
+  ∪ (heavyHits rule O populations Du uni B (B.npref + r) (flipHeavy O true (1 / 20))
       (flipQ O B.centre Δ c g true) (flipQ O B.centre Δ c g true / 32)
-    ∪ heavyHits rule O populations Du uni B (flipHeavy O false (1 / 20))
+    ∪ heavyHits rule O populations Du uni B (B.npref + r) (flipHeavy O false (1 / 20))
       (flipQ O B.centre Δ c g false) (flipQ O B.centre Δ c g false / 32))
   ∪ checkMiss rule O populations uni η₀ B e
   ∪ livesBad rule O populations uni η₀ B aT
 
 lemma measurableSet_centreBad (O : Oracle μ S) (populations : Finset J) (uni : J)
-    (Du : Measure S) (η₀ εcov Δ c g e aT : ℝ) (B : State) :
-    MeasurableSet (centreBad rule O populations uni Du η₀ εcov Δ c g e aT B) :=
-  ((((measurableSet_heavyHits O populations Du uni B _ _ _).union
-      (measurableSet_heavyHits O populations Du uni B _ _ _)).union
-    ((measurableSet_heavyHits O populations Du uni B _ _ _).union
-      (measurableSet_heavyHits O populations Du uni B _ _ _))).union
+    (Du : Measure S) (η₀ εcov Δ c g e aT : ℝ) (B : State) (r : ℕ) :
+    MeasurableSet (centreBad rule O populations uni Du η₀ εcov Δ c g e aT B r) :=
+  ((((measurableSet_heavyHits O populations Du uni B _ _ _ _).union
+      (measurableSet_heavyHits O populations Du uni B _ _ _ _)).union
+    ((measurableSet_heavyHits O populations Du uni B _ _ _ _).union
+      (measurableSet_heavyHits O populations Du uni B _ _ _ _))).union
     (measurableSet_checkMiss O populations uni η₀ B e)).union
     (measurableSet_livesBad O populations uni η₀ B aT)
 
@@ -83,18 +84,18 @@ set_option maxHeartbeats 1000000 in
 near the true one unless the uniform pool's counts stray. -/
 theorem centreFits_of_clean (O : Oracle μ S) (populations : Finset J) (uni : J)
     (Du : Measure S) [IsProbabilityMeasure Du] (B : State) (x : Run Ω S J)
-    {η₀ εcov Δ c g e h a aT : ℝ} {r : ℕ}
+    {η₀ εcov Δ c cC g e h a aT : ℝ} {r : ℕ}
     (hη₀ : η₀ < 1 / 2) (hg : 4 * sig η₀ ≤ O.gap) (hcm : |B.centre - O.cmid| ≤ sig η₀ / 5)
     (hεcov : 0 < εcov) (hbal : ∀ b, 2 * εcov ≤ Du.real {p | O.label p = sideClass b})
-    (hmpos : 0 < B.npref) (hc0 : 0 ≤ c) (hr : (r : ℝ) ≤ c * B.npref) (hΔ : 0 ≤ Δ)
-    (hg0 : 0 ≤ g)
+    (hmpos : 0 < B.npref) (hc0 : 0 ≤ c) (hcC0 : 0 ≤ cC) (hr : (r : ℝ) ≤ cC * B.npref)
+    (hΔ : 0 ≤ Δ) (hg0 : 0 ≤ g)
     (hgood : certGood populations uni B.npref r x)
     (hfull : (clusterBy rule O.mq populations x B).card = B.k - 1)
     (hdirty : ∀ b, ∑ v ∈ clusterBy rule O.mq populations x B, wMass O Du (clsW O B.centre b) v
         ≤ ((clusterBy rule O.mq populations x B).card : ℝ) * (Δ + c * clsShift O B.centre b + g))
-    (hbad : x ∉ centreBad rule O populations uni Du η₀ εcov Δ c g e aT B)
-    (hh : ∀ b, flipQ O B.centre Δ c g b * (33 / 32) + c ≤ h)
-    (hsize : εcov / 2 ≤ εcov - c - h - e) (hcont : h + e ≤ 3 * εcov / 40)
+    (hbad : x ∉ centreBad rule O populations uni Du η₀ εcov Δ c g e aT B r)
+    (hh : ∀ b, flipQ O B.centre Δ c g b * (33 / 32) * (1 + cC) ≤ h)
+    (hsize : εcov / 2 ≤ εcov - cC - h - e) (hcont : h + e ≤ 3 * εcov / 40)
     (hdev : ∀ s : ℕ, (B.npref : ℝ) * εcov / 2 ≤ s →
       hoeffDev s a + hoeffDev s aT ≤ O.gap / 20 * s) :
     centreFits O.mq η₀ a B (clusterBy rule O.mq populations x B)
@@ -110,18 +111,18 @@ theorem centreFits_of_clean (O : Oracle μ S) (populations : Finset J) (uni : J)
   have hAn : (A.card : ℝ) = n := by rw [hAdef, hCn]
   simp only [centreBad, Set.mem_union, not_or] at hbad
   obtain ⟨⟨⟨⟨hCf, hCt⟩, ⟨hHt, hHf⟩⟩, hM⟩, hL⟩ := hbad
-  have hC : ∀ b, x ∉ heavyHits rule O populations Du uni B
+  have hC : ∀ b, x ∉ heavyHits rule O populations Du uni B (B.npref + r)
       (fun _ p => O.label p = sideClass (!b)) (1 - 2 * εcov) εcov := by
     intro b; cases b
     · exact hCt
     · exact hCf
-  have hH : ∀ b, x ∉ heavyHits rule O populations Du uni B (flipHeavy O b (1 / 20))
+  have hH : ∀ b, x ∉ heavyHits rule O populations Du uni B (B.npref + r) (flipHeavy O b (1 / 20))
       (flipQ O B.centre Δ c g b) (flipQ O B.centre Δ c g b / 32) := by
     intro b; cases b
     · exact hHf
     · exact hHt
-  -- each class holds at least `εcov − c` of the sample
-  have hcls : ∀ b, n * (εcov - c) ≤ ((A.filter (fun p => O.label p = sideClass b)).card : ℝ) := by
+  -- each class holds at least `εcov − cC` of the sample
+  have hcls : ∀ b, n * (εcov - cC) ≤ ((A.filter (fun p => O.label p = sideClass b)).card : ℝ) := by
     intro b
     have hmass : Du.real {p | O.label p = sideClass (!b)} ≤ 1 - 2 * εcov := by
       have hcompl : {p : S | O.label p = sideClass (!b)} = {p | O.label p = sideClass b}ᶜ := by
@@ -134,9 +135,16 @@ theorem centreFits_of_clean (O : Oracle μ S) (populations : Finset J) (uni : J)
       (fun _ p => O.label p = sideClass (!b)) hgood hmass (hC b)
     have h2 := card_class_add O A b
     rw [hAn] at h2
-    have hrn : (r : ℝ) ≤ c * n := hr
-    change ((A.filter (fun p => O.label p = sideClass (!b))).card : ℝ)
-      ≤ n * (1 - 2 * εcov + εcov) + r at h1
+    have hrn : (r : ℝ) ≤ cC * n := hr
+    have hε1 : εcov ≤ 1 := by
+      have := hbal b
+      have : Du.real {p | O.label p = sideClass b} ≤ 1 := measureReal_le_one
+      linarith
+    have hr1 : (r : ℝ) * (1 - εcov) ≤ r :=
+      mul_le_of_le_one_right (Nat.cast_nonneg _) (by linarith)
+    have e : (((B.npref + r : ℕ) : ℝ)) * (1 - 2 * εcov + εcov)
+        = n * (1 - εcov) + (r : ℝ) * (1 - εcov) := by rw [hndef]; push_cast; ring
+    rw [e] at h1
     nlinarith
   -- flip-heavy prefixes are within their Markov mass
   have hheavy : ∀ b, ((A.filter (flipHeavy O b (1 / 20) F)).card : ℝ) ≤ n * h := by
@@ -148,9 +156,13 @@ theorem centreFits_of_clean (O : Oracle μ S) (populations : Finset J) (uni : J)
       hmass (hH b)
     have hq0 : 0 ≤ flipQ O B.centre Δ c g b := by unfold flipQ; positivity
     have h2 := mul_le_mul_of_nonneg_left (hh b) hn0.le
-    change ((A.filter (flipHeavy O b (1 / 20) F)).card : ℝ)
-      ≤ n * (flipQ O B.centre Δ c g b + flipQ O B.centre Δ c g b / 32) + r at h1
-    have hrn : (r : ℝ) ≤ c * n := hr
+    have hrn : (r : ℝ) ≤ cC * n := hr
+    have e : (((B.npref + r : ℕ) : ℝ))
+        * (flipQ O B.centre Δ c g b + flipQ O B.centre Δ c g b / 32)
+        = (n + r) * (flipQ O B.centre Δ c g b * (33 / 32)) := by rw [hndef]; push_cast; ring
+    replace h1 := h1.trans (le_of_eq e)
+    have h3 := mul_le_mul_of_nonneg_right hrn
+      (by positivity : (0 : ℝ) ≤ flipQ O B.centre Δ c g b * (33 / 32))
     nlinarith
   -- the misses
   have hmiss : ((A.filter (fun p => missRej O η₀ B F p (oracleNoise x))).card : ℝ) ≤ n * e
@@ -173,7 +185,7 @@ theorem centreFits_of_clean (O : Oracle μ S) (populations : Finset J) (uni : J)
     rw [e1, e2, hAn] at hnot
     exact ⟨by linarith [hnot.1], by linarith [hnot.2]⟩
   obtain ⟨hliveR, hliveA⟩ := readsLive_of_not_livesBad O populations uni η₀ B aT hL
-  refine centreFits_of_counts O (n := n) (εb := εcov - c) (h := h) (e := e)
+  refine centreFits_of_counts O (n := n) (εb := εcov - cC) (h := h) (e := e)
     (Smin := n * εcov / 2) hfull hη₀.le hg hcm hAn hcls hheavy hmiss.1 hmiss.2 hliveR hliveA
     (by positivity) ?_ ?_ (fun s hs' => hdev s hs')
   · have := mul_le_mul_of_nonneg_left hsize hn0.le
@@ -191,12 +203,12 @@ theorem measureReal_centreBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
     (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
     (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
     (uni : J) (huni : uni ∈ populations) (Du : Measure S) [IsProbabilityMeasure Du]
-    (hPc : Pc uni = iidStream Du) (B : State) {η₀ εcov Δ c g e aT : ℝ}
+    (hPc : Pc uni = iidStream Du) (B : State) (r : ℕ) {η₀ εcov Δ c g e aT : ℝ}
     (hη₀ : η₀ < 1 / 2) (hg : 4 * sig η₀ ≤ O.gap) (hcm : |B.centre - O.cmid| ≤ sig η₀ / 5)
-    (hκ : 10 ≤ ((B.k - 1 : ℕ) : ℝ) * sig η₀) (hεcov : 0 ≤ εcov)
+    (hκ : 10 ≤ ((B.k - 1 : ℕ) : ℝ) * sig η₀) (hεcov : 0 ≤ εcov) (hε1 : 2 * εcov ≤ 1)
     (hEe : Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (2 * sig η₀ / 5) ^ 2) ≤ e)
     (haT0 : 0 < aT) (haT1 : aT ≤ 1) (hq : ∀ b, 0 ≤ flipQ O B.centre Δ c g b) :
-    (streamMeasure μ Pp Pc Dsf).real (centreBad rule O populations uni Du η₀ εcov Δ c g e aT B)
+    (streamMeasure μ Pp Pc Dsf).real (centreBad rule O populations uni Du η₀ εcov Δ c g e aT B r)
       ≤ 2 * Real.exp (-((B.npref : ℝ) * relRate (1 - 2 * εcov + εcov) (1 - 2 * εcov)))
         + (Real.exp (-((B.npref : ℝ) * relRate (flipQ O B.centre Δ c g true
               + flipQ O B.centre Δ c g true / 32) (flipQ O B.centre Δ c g true)))
@@ -207,11 +219,18 @@ theorem measureReal_centreBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
         + 2 * aT := by
   classical
   set ν := streamMeasure μ Pp Pc Dsf
-  have hC := fun b => measureReal_heavyHits_le (rule := rule) Pp Pc Dsf O populations uni Du hPc
-    B (fun _ p => O.label p = sideClass b) (1 - 2 * εcov) εcov hεcov
-  have hH := fun b => measureReal_heavyHits_le (rule := rule) Pp Pc Dsf O populations uni Du hPc
-    B (flipHeavy O b (1 / 20)) (flipQ O B.centre Δ c g b) (flipQ O B.centre Δ c g b / 32)
-    (by have := hq b; positivity)
+  have hn : (B.npref : ℝ) ≤ ((B.npref + r : ℕ) : ℝ) := by exact_mod_cast Nat.le_add_right _ _
+  have hstretch : ∀ l E : ℝ, 0 ≤ l →
+      Real.exp (-(((B.npref + r : ℕ) : ℝ) * relRate l E)) ≤ Real.exp (-((B.npref : ℝ) * relRate l E))
+      := fun l E hl => Real.exp_le_exp.2 (neg_le_neg (mul_le_mul_of_nonneg_right hn
+        (by unfold relRate; positivity)))
+  have hC := fun b => (measureReal_heavyHits_le (rule := rule) Pp Pc Dsf O populations uni Du hPc
+    B (B.npref + r) (fun _ p => O.label p = sideClass b) (1 - 2 * εcov) εcov hεcov).trans
+    (hstretch _ _ (by have : 2 * εcov ≤ 1 := hε1; linarith))
+  have hH := fun b => (measureReal_heavyHits_le (rule := rule) Pp Pc Dsf O populations uni Du hPc
+    B (B.npref + r) (flipHeavy O b (1 / 20)) (flipQ O B.centre Δ c g b)
+    (flipQ O B.centre Δ c g b / 32) (by have := hq b; positivity)).trans
+    (hstretch _ _ (by have := hq b; positivity))
   have hM := measureReal_checkMiss_le (rule := rule) hflat O populations Pp Pc Dsf hsuppP hsuppC
     hsuppSf uni huni η₀ B e _ (Real.exp_pos _).le hEe (fun F p _ hF => by
       have hFR : (F.card : ℝ) = ((B.k - 1 : ℕ) : ℝ) := by rw [hF]
@@ -323,8 +342,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     (hρsfcap : ρsf ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
     ∃ B : State, B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ
       ∧ PassableAt O η₀ populations Dsf indecisionLimit εcov α δ ρ ρsf pAP
-          (shiftBudget η₀ indecisionLimit εcov) (rejFrac η₀ indecisionLimit εcov εs)
-          (shiftBudget η₀ indecisionLimit εcov) hsz B
+          (shiftBudget η₀ indecisionLimit εcov) (tabFrac η₀ indecisionLimit εcov)
+          (certFrac indecisionLimit εs) (shiftBudget η₀ indecisionLimit εcov) hsz B
       ∧ |B.centre - O.cmid| ≤ sig η₀ / 5
       ∧ B.npref = prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
       ∧ B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit
@@ -405,8 +424,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     have : 1 ≤ populations.card := by exact_mod_cast hcard
     exact_mod_cast this
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
-  have hgate := solved_gate (crossLimit := crossLimit) (hsz := hsz) (pAP := pAP) (δ := δ) η₀
-    populations hη₀ hη0' hεcov hεs hindLim hαpos (by linarith) hcard1 B hBm hBM hBk
+  have hgate := solved_gate (crossLimit := crossLimit) (hsz := hsz) (pAP := pAP) (δ := δ)
+    (εs := εs) η₀ populations hη₀ hη0' hεcov hindLim hαpos (by linarith) hcard1 B hBm hBM hBk
   have hcB : B.centre = (mc : ℝ) / κ :=
     centre_solvedStateAt (pAP := pAP) m mc hη₀ hεcov hindLim hη0' hmc
   have hcm : |B.centre - O.cmid| ≤ sig η₀ / 5 := by rw [hcB]; exact hmmid
@@ -417,12 +436,12 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   rw [← hmdef] at hheavyN
   have hcdirty : Real.log (128 * (populations.card : ℝ)
         * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-        / dirtyRate η₀ indecisionLimit εcov εs
+        / dirtyRate η₀ indecisionLimit εcov
       ≤ (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ) := by
     refine le_trans (Nat.le_ceil _) ?_
     have hle : ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-        / dirtyRate η₀ indecisionLimit εcov εs⌉₊
+        / dirtyRate η₀ indecisionLimit εcov⌉₊
         ≤ prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
       rw [prefCount]; omega
     exact_mod_cast hle
@@ -433,17 +452,19 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   rw [← hmdef] at hsignal
   rw [← hκdef] at hE1 hE2
   have hround := solved_roundFail (crossLimit := crossLimit) (α := α) (ρ := ρ) (ρsf := ρsf)
-      η₀ populations hη₀ hη0' hεcov hεs hδ hδ1 hpAPPositive hpAP1 hindLim
+      η₀ populations hη₀ hη0' hεcov hεs hδ hδ1 hpAPPositive hpAP1 hindLim hind1
       hcard hρ0 hρsf0 hρcap hρsfcap B hBm hBM (cutBudget η₀ indecisionLimit εcov / 2)
       (by positivity) le_rfl
-  have hshare := solved_share η₀ populations hη₀ hη0' hεcov hεs hindLim hδ hδ1
+  have hshare := solved_share η₀ populations hη₀ hη0' hεcov hεs hindLim hind1 hδ hδ1
       hpAPPositive hpAP1 hcard hρ0 hρcap B hBm hBk
   have hsched : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz :=
     mem_schedule.2 ⟨0, ladderLen_pos _ _ _ _ _ _, mc, hmC, by rw [pow_zero, Nat.div_one]⟩
   clear_value B κ m
-  have hc0 : 0 < rejFrac η₀ indecisionLimit εcov εs := rejFrac_pos η₀ hη₀ hεcov hεs hindLim
-  obtain ⟨hcm', hcu, -⟩ := rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀
-    (εcov := εcov)
+  have hc0 : 0 < tabFrac η₀ indecisionLimit εcov := tabFrac_pos η₀ hη₀ hεcov hindLim
+  obtain ⟨hcm', hcu⟩ := tabFrac_le (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)
+  have hcC : certFrac indecisionLimit εs ≤ 1 / 256 := by
+    have := (certFrac_le (indecisionLimit := indecisionLimit) (εs := εs)).1
+    linarith
   have hΔ0 := shiftBudget_pos η₀ hη₀ hεcov hindLim
   have hs1 : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
   have hβ := shiftScale_pos hεcov hindLim
@@ -466,12 +487,12 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     Real.log (128 * (populations.card : ℝ)
       * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ),
     cutBudget η₀ indecisionLimit εcov / 1024,
-    rejCount η₀ indecisionLimit εcov εs m,
+    tabCount η₀ indecisionLimit εcov m, certCount indecisionLimit εs m,
     poolRej pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit),
     ⌈Real.sqrt ((m : ℝ) * Real.log (128 * (populations.card : ℝ) / δ))⌉₊,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, hcm, hBm, hBM, hBk⟩
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, hcm, hBm, hBM, hBk⟩
   -- Capped
   · rw [hBlo, hBhi]
     exact hlohi
@@ -497,19 +518,19 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
   · exact hc0.le
   · rw [hBm]
     exact Nat.floor_le (by positivity)
+  · rw [hBm]
+    exact Nat.floor_le (mul_nonneg (certFrac_pos hεs hindLim).le (Nat.cast_nonneg _))
   · exact hpAPBound
   · exact hρsf
   -- each class's heavy prefixes at the uniform pool
   · intro b
-    exact (uni_share_le hs hs1 hβ (min_le_right _ _) (min_le_left _ _) rfl hc0.le hcm' hcu
+    exact (uni_share_le hs hβ (min_le_right _ _) (min_le_left _ _) rfl hc0.le hcm' hcu hcC
       (clsShift_pos O hstr hη₀ b) (clsShift_le_one O hstr hη₀ b) (clsSig_ge O hstr hη₀ b)
-      (clsShift_div_clsSig_le O hstr hη₀ b) (sideCharge_nonneg O B.centre η₀ _) (hsc' b)
-      (sideCharge_le_gateA O hstr hη₀ _) (two_sig_le_gateA hη0' hη₀)).1
+      (clsShift_div_clsSig_le O hstr hη₀ b) (sideCharge_nonneg O B.centre η₀ _) (hsc' b)).1
   · intro b
-    exact (uni_share_le hs hs1 hβ (min_le_right _ _) (min_le_left _ _) rfl hc0.le hcm' hcu
+    exact (uni_share_le hs hβ (min_le_right _ _) (min_le_left _ _) rfl hc0.le hcm' hcu hcC
       (clsShift_pos O hstr hη₀ b) (clsShift_le_one O hstr hη₀ b) (clsSig_ge O hstr hη₀ b)
-      (clsShift_div_clsSig_le O hstr hη₀ b) (sideCharge_nonneg O B.centre η₀ _) (hsc' b)
-      (sideCharge_le_gateA O hstr hη₀ _) (two_sig_le_gateA hη0' hη₀)).2
+      (clsShift_div_clsSig_le O hstr hη₀ b) (sideCharge_nonneg O B.centre η₀ _) (hsc' b)).2
   · exact Real.log_nonneg (by
       rw [le_div_iff₀ hδ]
       have : (0 : ℝ) ≤ (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) :=
@@ -540,9 +561,9 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     rw [div_le_iff₀ hpAPPositive, hBM] at hceil
     linarith
   · -- a member's shift on a class read off its draws, against the table budget
-    have hdr : dirtyRate η₀ indecisionLimit εcov εs
+    have hdr : dirtyRate η₀ indecisionLimit εcov
         = shiftBudget η₀ indecisionLimit εcov ^ 2
-          / (4 * (shiftBudget η₀ indecisionLimit εcov + rejFrac η₀ indecisionLimit εcov εs)) :=
+          / (4 * (shiftBudget η₀ indecisionLimit εcov + tabFrac η₀ indecisionLimit εcov)) :=
       rfl
     have hcd := hcdirty
     rw [← hmdef, hdr, div_div_eq_mul_div, div_le_iff₀ (by positivity)] at hcd
@@ -666,34 +687,34 @@ misses' `εcov/20` fits the contamination the check allows, the deviations fit `
 misses' rate sits under half of `εcov/20`, and the tails sum to `δ/16`. -/
 lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP : ℝ}
     (hη₀ : η₀ < 1 / 2) (hgap : 4 * sig η₀ ≤ O.gap) (hεcov : 0 < εcov) (hε4 : εcov ≤ 1 / 4)
-    (hεs : 0 < εs) (hind : 0 < indecisionLimit) (hα : 0 < α) (hα1 : α ≤ 1) (hδ : 0 < δ)
-    (hpAP : 0 < pAP) (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) (B : State)
+    (hεs : 0 < εs) (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2) (hα : 0 < α)
+    (hα1 : α ≤ 1) (hδ : 0 < δ) (hpAP : 0 < pAP) (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) (B : State)
     (hBm : B.npref = prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
     (hBk : B.k = famCount η₀ populations indecisionLimit εcov δ crossLimit + 1)
     (hstr : O.Straddles B.centre η₀) :
     (∀ b, flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
-        (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) b * (33 / 32)
-        + rejFrac η₀ indecisionLimit εcov εs ≤ εcov / 40)
+        (tabFrac η₀ indecisionLimit εcov) (shiftBudget η₀ indecisionLimit εcov) b * (33 / 32)
+        * (1 + certFrac indecisionLimit εs) ≤ εcov / 40)
     ∧ (∀ b, 0 ≤ flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
-        (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) b)
+        (tabFrac η₀ indecisionLimit εcov) (shiftBudget η₀ indecisionLimit εcov) b)
     ∧ (∀ s : ℕ, (B.npref : ℝ) * εcov / 2 ≤ s →
         hoeffDev s (gateLevel α populations B) + hoeffDev s (δ / 128) ≤ O.gap / 20 * s)
     ∧ 10 ≤ ((B.k - 1 : ℕ) : ℝ) * sig η₀
     ∧ Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (2 * sig η₀ / 5) ^ 2) ≤ εcov / 40
     ∧ 2 * Real.exp (-((B.npref : ℝ) * relRate (1 - 2 * εcov + εcov) (1 - 2 * εcov)))
         + (Real.exp (-((B.npref : ℝ) * relRate (flipQ O B.centre (shiftBudget η₀ indecisionLimit
-              εcov) (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) true
+              εcov) (tabFrac η₀ indecisionLimit εcov) (shiftBudget η₀ indecisionLimit εcov) true
               + flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
-                (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) true / 32)
+                (tabFrac η₀ indecisionLimit εcov) (shiftBudget η₀ indecisionLimit εcov) true / 32)
               (flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
-                (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) true)))
+                (tabFrac η₀ indecisionLimit εcov) (shiftBudget η₀ indecisionLimit εcov) true)))
           + Real.exp (-((B.npref : ℝ) * relRate (flipQ O B.centre (shiftBudget η₀ indecisionLimit
-              εcov) (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) false
+              εcov) (tabFrac η₀ indecisionLimit εcov) (shiftBudget η₀ indecisionLimit εcov) false
               + flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
-                (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov) false
+                (tabFrac η₀ indecisionLimit εcov) (shiftBudget η₀ indecisionLimit εcov) false
                 / 32)
               (flipQ O B.centre (shiftBudget η₀ indecisionLimit εcov)
-                (rejFrac η₀ indecisionLimit εcov εs) (shiftBudget η₀ indecisionLimit εcov)
+                (tabFrac η₀ indecisionLimit εcov) (shiftBudget η₀ indecisionLimit εcov)
                 false))))
         + 2 * Real.exp (-((B.npref : ℝ) * relRate (εcov / 20)
             (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (2 * sig η₀ / 5) ^ 2))))
@@ -706,9 +727,12 @@ lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP 
   set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
   set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκdef
   set Δ : ℝ := shiftBudget η₀ indecisionLimit εcov with hΔdef
-  set c : ℝ := rejFrac η₀ indecisionLimit εcov εs with hcdef
+  set c : ℝ := tabFrac η₀ indecisionLimit εcov with hcdef
+  have hcC : certFrac indecisionLimit εs ≤ 1 / 256 := by
+    have := (certFrac_le (indecisionLimit := indecisionLimit) (εs := εs)).1
+    linarith
   have hΔ0 : 0 < Δ := shiftBudget_pos η₀ hη₀ hεcov hind
-  have hc0 : 0 < c := rejFrac_pos η₀ hη₀ hεcov hεs hind
+  have hc0 : 0 < c := tabFrac_pos η₀ hη₀ hεcov hind
   have hNR : (B.npref : ℝ) = N := by rw [hBm]
   have hN1 : (1 : ℝ) ≤ N := by
     have := prefCount_pos (εs := εs) (indecisionLimit := indecisionLimit)
@@ -728,7 +752,7 @@ lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP 
     have := mul_le_mul_of_nonneg_left h1 (sq_nonneg (sig η₀))
     linarith
   have hcle : c ≤ εcov / 16384 := by
-    have h1 := (rejFrac_le (εs := εs) (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).1
+    have h1 := (tabFrac_le (indecisionLimit := indecisionLimit) η₀ (εcov := εcov)).1
     have h2 : min εcov (1 / 2) ≤ εcov := min_le_left _ _
     have h3 : 0 ≤ min εcov (1 / 2) := le_min hεcov.le (by norm_num)
     have := mul_le_mul hs2 h2 h3 (by norm_num)
@@ -828,6 +852,11 @@ lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP 
     linarith
   refine ⟨fun b => ?_, hq0, ?_, by rw [hkκ]; exact hκs, ?_, ?_⟩
   · have := hq b
+    have hq1 : flipQ O B.centre Δ c Δ b * (33 / 32) ≤ 33 / 32 * (5 * εcov / 256 + 20 * c) := by
+      linarith
+    have hq2 : 0 ≤ flipQ O B.centre Δ c Δ b * (33 / 32) := by have := hq0 b; positivity
+    have h3 := mul_le_mul hq1 (by linarith : 1 + certFrac indecisionLimit εs ≤ 257 / 256)
+      (by linarith [(certFrac_pos hεs hind).le]) (by positivity)
     nlinarith [hcle]
   · -- the deviations
     intro s hs'

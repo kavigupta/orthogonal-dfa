@@ -1250,7 +1250,7 @@ carry their share at the collision cap, which the top rung always does; the stat
 hypotheses at the top rung are the caps. -/
 theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   intro Ω _ μ _ S _ J _ O populations tame uni H Pre Suf η₀ indecisionLimit εcov εs α δ pAP
-    crossLimit hgap hη₀ huni htame hflat hH hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hεs hδ
+    crossLimit hgap hη₀ huni htame hflat hH hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hεs hεsc hδ
     hδ1 hζ hζ1
   classical
   set hz : ℕ := (allHarvest H).card with hhz
@@ -1448,7 +1448,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   refine le_trans (clustering_correct O populations tame uni H D Dsf Pre Suf η₀
     indecisionLimit εcov εs α δ ρ₀ pAP crossLimit (3 * 2 ^ 25) hgap hη₀ huni hbalL hbalN htame hflat
     hH hsupp
-    hsuppSf hcaps hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov (by linarith) hεs hδ hbudget
+    hsuppSf hcaps hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov (by linarith) hεs hεsc hδ hbudget
     le_rfl hcapsf)
     (measureReal_mono ?_ (measure_ne_top _ _))
   have hrej : 2 * certFrac indecisionLimit εs ≤ εs / 2 := by

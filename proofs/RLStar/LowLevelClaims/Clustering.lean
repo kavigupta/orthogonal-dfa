@@ -106,6 +106,7 @@ def ClusteringGuarantee : Prop :=
   0 < εcov →
   εcov ≤ 1 / 2 →
   0 < εs →
+  εs ≤ εcov →
   0 < δ →
   δ ≤ 1 →
   0 < crossLimit →

@@ -15,7 +15,7 @@ open MeasureTheory ProbabilityTheory
 theorem clustering_correct : ClusteringCorrect := by
   intro Ω _ μ _ S _ J _ O populations tame uni H D Dsf _ _ Pre Suf η₀ indecisionLimit εcov
     εs α δ ρ pAP crossLimit k hgap hη₀ huni hbalL hbalN htame hflat hH hsupp hsuppSf hρ
-    hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov hε1 hεs hδ _hbudget hρcap hρsf
+    hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov hε1 hεs hεsc hδ _hbudget hρcap hρsf
   classical
   have hgap' : 4 * sig η₀ ≤ O.gap := hgap
   have hg0 : 0 ≤ O.gap := by have := sig_pos η₀ hη₀; linarith
@@ -37,7 +37,7 @@ theorem clustering_correct : ClusteringCorrect := by
     populations tame uni huni htame H D Dsf hsupp hH hsuppSf εcov α δ ρ pAP hg0 hη0 hη₀ hindLim
     hind1 hαpos (by linarith) hεcov hεs hδ hδ1 hpAPPositive hpAPBound hρ hρcap hρsf
   have hterm := raw_terminates hflat O populations uni (htame huni) H D Dsf hsupp
-    hH hsuppSf εcov α δ ρ pAP crossLimit hgap' hη₀ hbal hεcov hε1 hεs hδ hδ1 hαpos hα hindLim
+    hH hsuppSf εcov α δ ρ pAP crossLimit hgap' hη₀ hbal hεcov hε1 hεs hεsc hδ hδ1 hαpos hα hindLim
     hind1 hpAPPositive hpAPBound (hρ uni huni) hρcap hρsf
   set st := stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
     (allHarvest H).card ρ with hst

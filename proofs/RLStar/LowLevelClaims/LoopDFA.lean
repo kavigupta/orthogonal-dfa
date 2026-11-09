@@ -246,6 +246,7 @@ def LearnerLoopDFA : Prop :=
   let N : ℝ := L₁ + 1 - k
   -- Each round's disagreement rate, low enough to catch a wrong edge out of any covered state.
   let ε : ℝ := c / (4 * (A + 1) * N)
+  let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   let s : ℝ := 1 / 2 - η₀
@@ -450,6 +451,7 @@ def LearnerLoopDFARelative : Prop :=
   -- Each round's disagreement rate, low enough that the wrong states occupy the window less
   -- than `m`.
   let ε : ℝ := m / (3 * (A + Q + 1) * N)
+  let εcov : ℝ := min (ξ / (20 * R * N)) (ξ / (32 * N))
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   let s : ℝ := 1 / 2 - η₀

@@ -32,6 +32,7 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 
 /-! ## The clustering's schedule -/
 
+set_option maxHeartbeats 400000 in
 /-- One schedule serves every set of the loop's populations: every state of it reads a family of
 at most `k - 1` members at a band whose read, whatever its two rates, is on its rarer decided side
 at most `ζ = crossLimit` times as often as undecided. It draws the one pool and
@@ -102,7 +103,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     clustering_quality_sized O pops pops none (fun _ => ∅) Pre Suf η₀ indecisionLimit εcov
       (εcov / 512) gateLevel δc pAP c slack hgap hη₀ hpops subset_rfl hflat
       (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hι hι1 hg hg1 hε hε1 (by positivity)
-      hδc hδc1 hc0 hslack
+      (by linarith) hδc hδc1 hc0 hslack
   refine ⟨fun pops => if h : none ∈ pops then Classical.choose (hq pops h) else ∅, ?_, ?_, ?_, ?_⟩
   · intro pops B hB
     dsimp only at hB

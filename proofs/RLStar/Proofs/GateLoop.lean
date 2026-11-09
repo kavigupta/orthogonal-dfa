@@ -538,7 +538,7 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (hgap : 0 ≤ O.gap) (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2) (hα0 : 0 < α) (hα1 : α ≤ 1)
     (ρ ρsf : ℝ) (hρ : ∀ j ∈ tame, ∀ t, (Dc j).real {t} ≤ 3 * ρ ∧ (Dp j).real {t} ≤ 3 * ρ)
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
-    (hεs : 0 < εs) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
+    (hεcov : 0 < εcov) (hεs : 0 < εs) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (pAP : ℝ) (hpAP0 : 0 < pAP) (hpAP1 : pAP ≤ 1)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hcoll : ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit
@@ -2500,8 +2500,8 @@ the oracle's rates, the suffix distribution's findability and the error budget; 
 enters.  The count rule's heavy rows are charged at `θ = 15/16` of the table budget `Δ`, in the
 count rule's own shift units, and each class's heavy prefixes at that class's rates. -/
 def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (Dsf : Measure S)
-    (indecisionLimit εcov α δ ρ ρsf pAP Δ c g : ℝ) (hsz : ℕ) (B : State) : Prop :=
-  ∃ (tap qa qr E u x a e1 e2 lF lG lmis cC t L θ : ℝ) (r rC rs G : ℕ),
+    (indecisionLimit εcov α δ ρ ρsf pAP Δ c cC g : ℝ) (hsz : ℕ) (B : State) : Prop :=
+  ∃ (tap qa qr E u x a e1 e2 lF lG lmis t L θ : ℝ) (r rC rs G : ℕ),
     0 < B.npref ∧ 2 ≤ B.k ∧ 0 < indecisionLimit ∧ indecisionLimit ≤ 1 / 2
     ∧ 0 ≤ tap ∧ 0 < Δ ∧ 0 < g ∧ g ≤ Δ ∧ 0 ≤ pAP ∧ 0 ≤ lmis
     -- the table sampler redraws at most a `c` fraction of its draws, the certification sampler

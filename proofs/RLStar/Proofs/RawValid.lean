@@ -404,7 +404,7 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
             if_neg (show ¬ (D j (onSide (allHarvest H) false g) = 0) from hR0 j hj)]
           exact ⟨cond_atom_le (D j) (hρ j hj) _ (hthird j hj).2 t,
             cond_atom_le (D j) (hρ j hj) _ (hthird j hj).1 t⟩)
-      le_rfl (tsum_nonneg (fun a => sq_nonneg _)) hεs δ hδ hδ1 pAP hpAP0 hpAP1 hpAPBound
+      le_rfl (tsum_nonneg (fun a => sq_nonneg _)) hεcov hεs δ hδ hδ1 pAP hpAP0 hpAP1 hpAPBound
       hcoll
     exact h
   -- off the bad events, a family bad for a population's law is bad for its reserve side's

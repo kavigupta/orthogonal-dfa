@@ -328,7 +328,7 @@ lemma SameReads.clusterAt (h : SameReads sched pops r r') (mq : FreeMonoid α �
 
 omit [DecidableEq α] [MeasurableSpace Ω] in
 lemma SameReads.ret (h : SameReads sched pops r r') (mq : FreeMonoid α → Ω → ℝ)
-    (uni : Option (Fin K)) (η₀ ι εc a : ℝ) {B : State} (hB : B ∈ sched) :
+    (uni : Option (Fin K)) (huni : uni ∈ pops) (η₀ ι εc a : ℝ) {B : State} (hB : B ∈ sched) :
     r ∈ OrthoDFA.ret mq pops uni η₀ ι εc a B ↔ r' ∈ OrthoDFA.ret mq pops uni η₀ ι εc a B := by
   have hcl := h.clusterAt mq hB
   have hP := h.prefixesAt hB
@@ -349,7 +349,7 @@ lemma SameReads.ret (h : SameReads sched pops r r') (mq : FreeMonoid α → Ω �
   · rw [hkept j hj, hc0 j hj]
   · rw [hkept j hj]
     exact imp_congr_right fun _ => exists_congr fun e => and_congr_right fun he => by
-      rw [hc j hj e he]
+      rw [hc j hj e he, hc0 uni huni]
 
 omit [DecidableEq α] [MeasurableSpace Ω] in
 lemma SameReads.roundPrefs (h : SameReads sched pops r r') :
@@ -389,7 +389,7 @@ theorem roundOf_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
       = fun B => B ∈ sched ∧ r' ∈ ret O.mq ps none settings.η₀ settings.indecisionLimit
         settings.εcov settings.gateLevel B := by
     funext B
-    exact propext (and_congr_right fun hB => hr.ret O.mq none _ _ _ _ hB)
+    exact propext (and_congr_right fun hB => hr.ret O.mq none (Finset.mem_insert_self _ _) _ _ _ _ hB)
   have hB := (Classical.epsilon_spec (p := fun B => B ∈ sched ∧ r ∈ ret O.mq ps none
     settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
     (let ⟨B, hB, hx⟩ := hret; ⟨B, hB, hx⟩)).1
@@ -463,7 +463,7 @@ theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
   have hret' : ∃ B ∈ sched, streams (fun _ => ∅) none dr ∈ ret O.mq ps none settings.η₀
       settings.indecisionLimit settings.εcov settings.gateLevel B := by
     obtain ⟨B, hB, hx⟩ := hret
-    exact ⟨B, hB, (hsr.ret O.mq none _ _ _ _ hB).1 hx⟩
+    exact ⟨B, hB, (hsr.ret O.mq none (Finset.mem_insert_self _ _) _ _ _ _ hB).1 hx⟩
   have hro := roundOf_congr settings O D h hsr' hret' d.2.2
   unfold loopRound
   change (drawLists D settings.level3.walkStart settings.level3.harvestReadCap M sched h

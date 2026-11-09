@@ -500,6 +500,7 @@ def ClusteringCorrect : Prop :=
   0 < εcov →
   εcov ≤ 1 →
   0 < εs →
+  εs ≤ εcov →
   0 < δ →
   -- The budget the schedule is built from costs no more than `k` buys: a count that is
   -- logarithmic in the failure probability and polynomial in the rates it resolves.
