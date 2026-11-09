@@ -46,5 +46,6 @@ class Benchmark:
         return preconditions.satisfies_preconditions(
             to_automata_dfa(self.target),
             length=DEFAULT_SAMPLE_LENGTH,
+            min_non_start_zone_accuracy=0.0,
             short_circuit=False,
         )
