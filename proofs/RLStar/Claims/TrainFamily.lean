@@ -5,7 +5,7 @@ import RLStar.LowLevelClaims.Clustering
 /-!
 # The clustering's costs, asymptotically
 
-No strings are harvested. The clustering runs at `η₀ = 1/2 − s₀`, `α = δ/2` and cross limit `κ⁴`;
+No strings are harvested. The clustering runs at `η₀ = 1/2 − s₀/4`, `α = δ/2` and cross limit `κ⁴`;
 `ε_s` is the share of the cut its redraws and hash may cost, and `ε_u` the indecision limit.
 -/
 
@@ -59,9 +59,9 @@ def TrainFamilyOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
     1 - x.δ ≤ (runMeasure μ D Dsf).real
       {r | let R := streams (fun _ : J => (∅ : Finset S)) uni r
         (∃ B : {B : State // B ∈ states},
-            R ∈ ret O.mq populations uni (1 / 2 - x.s₀) x.ε_u x.εcov (x.δ / 2) B.val)
+            R ∈ ret O.mq populations uni (1 / 2 - x.s₀ / 4) x.ε_u x.εcov (x.δ / 2) B.val)
         ∧ ∀ B : {B : State // B ∈ states},
-          R ∈ ret O.mq populations uni (1 / 2 - x.s₀) x.ε_u x.εcov (x.δ / 2) B.val →
+          R ∈ ret O.mq populations uni (1 / 2 - x.s₀ / 4) x.ε_u x.εcov (x.δ / 2) B.val →
           1 - x.εcov - x.ε_s
             ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyAt O.mq populations R B.val) p (oracleNoise r.1)}
@@ -80,7 +80,7 @@ def TrainFamilyWithin.{u, v, w} (k nsuff npref atomTol collTol : TrainFamilyInpu
       (Pre Suf : Set S),
     x ∈ trainFamilyRegion →
     populations.card = x.nJ →
-    4 * x.s₀ ≤ O.gap →
+    x.s₀ ≤ O.gap →
     uni ∈ tame →
     tame ⊆ populations →
     Flat Pre Suf →
