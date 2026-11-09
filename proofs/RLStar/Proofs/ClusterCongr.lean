@@ -111,6 +111,30 @@ lemma certifiesAt_eqOn {c yAcc yRej lim a : ℝ} {lo hi : ℕ} {F R P : Finset S
   unfold certifiesAt
   rw [miscutBound_eqOn hF hR hs]
 
+lemma centreFits_eqOn {η₀ a : ℝ} {B : State} {F P : Finset S}
+    (hF : ∀ p ∈ P, ∀ v ∈ F, (mq (p * v) ω = 1 ↔ mq' (p * v) ω = 1))
+    (hs : ∀ p ∈ P, (mq p ω = 1 ↔ mq' p ω = 1)) :
+    centreFits mq η₀ a B F P ω ↔ centreFits mq' η₀ a B F P ω := by
+  classical
+  have hv : ∀ p ∈ P, voteCount mq F p ω = voteCount mq' F p ω := fun p hp =>
+    voteCount_eqOn (hF p hp)
+  have hR : strongReject mq η₀ B F P ω = strongReject mq' η₀ B F P ω := by
+    unfold strongReject; exact Finset.filter_congr fun p hp => by rw [hv p hp]
+  have hA : strongAccept mq η₀ B F P ω = strongAccept mq' η₀ B F P ω := by
+    unfold strongAccept; exact Finset.filter_congr fun p hp => by rw [hv p hp]
+  have hb : ∀ (accept : Bool) (A : Finset S), A ⊆ P →
+      readBound mq accept A a ω = readBound mq' accept A a ω := by
+    intro accept A hA'
+    have h1 : againstOn mq accept A ω = againstOn mq' accept A ω := by
+      unfold againstOn
+      congr 1
+      exact Finset.filter_congr fun p hp => by rw [hs p (hA' hp)]
+    unfold readBound
+    rw [h1]
+  unfold centreFits
+  rw [hR, hA, hb false _ (by unfold strongReject; exact Finset.filter_subset _ _),
+    hb true _ (by unfold strongAccept; exact Finset.filter_subset _ _)]
+
 omit [Stringlike S] in
 lemma card_filter_le_congr {s : Finset S} {p q : S → Prop} [DecidablePred p] [DecidablePred q]
     (h : ∀ x ∈ s, p x ↔ q x) (c : ℝ) :
@@ -150,8 +174,8 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {K : ℕ}
 
 /-- `ret` at a state of `sched` reads only `clusterReads sched`. -/
 lemma ret_eqOn (mq mq' : FreeMonoid α → Ω → ℝ) (sched : Finset State)
-    (pops : Finset (Option (Fin K))) (uni : Option (Fin K)) (η₀ ι εc a : ℝ) {B : State}
-    (hB : B ∈ sched) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
+    (pops : Finset (Option (Fin K))) (uni : Option (Fin K)) (huni : uni ∈ pops) (η₀ ι εc a : ℝ)
+    {B : State} (hB : B ∈ sched) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
     (h : ∀ w ∈ clusterReads sched pops x, (mq w x.1 = 1 ↔ mq' w x.1 = 1)) :
     x ∈ ret mq pops uni η₀ ι εc a B ↔ x ∈ ret mq' pops uni η₀ ι εc a B := by
   classical
@@ -195,10 +219,14 @@ lemma ret_eqOn (mq mq' : FreeMonoid α → Ω → ℝ) (sched : Finset State)
   · refine forall₂_congr fun j hj => imp_congr_right fun _ =>
       exists_congr fun e => and_congr_right fun he => ?_
     have hc := hcert j hj e he
-    exact certifiesAt_eqOn
+    have hcu : certOf P uni B.npref x ⊆ roundPrefs sched pops x := by
+      have := hcert uni huni 0 (Nat.zero_le _); simpa using this
+    exact and_congr (certifiesAt_eqOn
       (fun p hp v hv => hread _ hc p hp v (Finset.mem_insert_of_mem hv))
       (fun p hp v hv => h _ (hrs hc hCs p hp v (Finset.mem_sdiff.1 hv).1))
-      (fun p hp => hseed _ hc p hp)
+      (fun p hp => hseed _ hc p hp))
+      (centreFits_eqOn (fun p hp v hv => hread _ hcu p hp v (Finset.mem_insert_of_mem hv))
+        (fun p hp => hseed _ hcu p hp))
 
 /-- The cluster at a state of `sched` reads only `clusterReads sched`. -/
 lemma clusterAt_eqOn_sched (mq mq' : FreeMonoid α → Ω → ℝ) (sched : Finset State)

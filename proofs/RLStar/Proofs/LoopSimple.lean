@@ -811,7 +811,22 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         linarith only [hc, hlg, hΛ1]
       have h1 := mul_le_mul_of_nonneg_right hce hcap0.le
       have h2 : 0 ≤ Λ * cap := mul_nonneg (by linarith only [hΛ1]) hcap0.le
-      have h3 : 2 ^ 28 * Λ * cap ≤ ι ^ 2 := hhash
+      have hΛP : Λ ≤ Real.log (128 * J * ((((⌊PB⌋₊ : ℕ) : ℝ)) + 1)
+          * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') := by
+        rw [hΛd]
+        refine Real.log_le_log (by positivity) (div_le_div_of_nonneg_right ?_ hδ'0.le)
+        have hP1 : (1 : ℝ) ≤ ((⌊PB⌋₊ : ℕ) : ℝ) + 1 := by
+          linarith [(Nat.cast_nonneg ⌊PB⌋₊ : (0 : ℝ) ≤ ((⌊PB⌋₊ : ℕ) : ℝ))]
+        have hX0 : 0 ≤ 128 * J * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) := by positivity
+        calc 128 * J * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ))
+            = 128 * J * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) * 1 := by ring
+          _ ≤ 128 * J * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) * (((⌊PB⌋₊ : ℕ) : ℝ) + 1) :=
+            mul_le_mul_of_nonneg_left hP1 hX0
+          _ = 128 * J * ((((⌊PB⌋₊ : ℕ) : ℝ)) + 1) * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) := by
+            ring
+      have h3 : 2 ^ 28 * Λ * cap ≤ ι ^ 2 :=
+        le_trans (mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hΛP (by norm_num))
+          hcap0.le) hhash
       nlinarith only [h1, h2, h3, hι2]
     · rw [hTscd, max_eq_left h]
       push_cast
