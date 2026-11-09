@@ -28,6 +28,8 @@ import RLStar.Proofs.SpurAccount
 import RLStar.Proofs.SpurCount
 import RLStar.Proofs.SuccessiveDraws
 import RLStar.Proofs.TripartiteSearch
+import RLStar.Proofs.Trie
+import RLStar.Claims.RLStarTrie
 
 /-!
 # The theorem
@@ -52,13 +54,19 @@ both. The loop runs level 5.
 
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
 `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
-`CoveredStartCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
+`CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `Level3TrieRootOne`,
+`RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
 `RunsKeepEdgesAtLeaves`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`:
 `TrainFamilyClaim`, `CounterexSynthClaim`, `RLStarClaim`,
 `RLStarClaimUniform` and `RLStarClaimUniformSimple`.
+
+Open, stated but not proved: `RLStarTrieClaim`, stated in `RLStar.Claims.RLStarTrie`, the learner
+with local walk starts and no start premise, and `Level3TrieConsistentSound`, stated in
+`RLStar.LowLevelClaims.Trie`. What is proved of it: `TrieProbeAgreeCorrect`,
+`TrieSinglePieceCorrect` and `Level3TrieRootOne`.
 -/
 
 namespace OrthoDFA
@@ -200,5 +208,17 @@ theorem family_kappa_oracle : FamilyKappaOracle := familyKappaOracle_holds
 theorem covered_start_correct : CoveredStartCorrect := coveredStartCorrect_holds
 
 #print axioms covered_start_correct
+
+theorem trie_probe_agree_correct : TrieProbeAgreeCorrect := trieProbeAgreeCorrect
+
+#print axioms trie_probe_agree_correct
+
+theorem trie_single_piece_correct : TrieSinglePieceCorrect := trieSinglePieceCorrect
+
+#print axioms trie_single_piece_correct
+
+theorem level3_trie_root_one : Level3TrieRootOne := level3TrieRootOne
+
+#print axioms level3_trie_root_one
 
 end OrthoDFA
