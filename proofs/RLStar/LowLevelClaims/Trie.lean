@@ -12,6 +12,7 @@ the DFA then misjudges at most the probes that disagree plus the strings the roo
 (`TrieSinglePieceCorrect`), with no start, zone or edge argument.
 
 `Level3TrieRootOne`: every tree a round grows reads `ε` at its root, as level 3's do.
+`Level3TrieExpandedCard`: a round expands at most `cap` prefixes of each probe.
 
 `Level3TrieConsistentSound` is the open half: a consistent ending certifies its rate, for any
 fixed reads.
@@ -56,16 +57,22 @@ def TrieSinglePieceCorrect : Prop :=
       ≤ D.real (trieDisagreeSet read X H) + D.real (misreadSet read L)
 
 def Level3TrieRootOne : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (read : FreeMonoid α → ARU)
-    {P : ℕ} (draws : Fin P → FreeMonoid α),
-    ∃ r a, (indecisiveLStarLevel3Trie C read draws).hypothesis.tree = .node 1 r a
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (cap : ℕ)
+    (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α),
+    ∃ r a, (indecisiveLStarLevel3Trie C cap read draws).hypothesis.tree = .node 1 r a
+
+def Level3TrieExpandedCard : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (cap : ℕ)
+    (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α),
+    (indecisiveLStarLevel3Trie C cap read draws).expanded.card ≤ P * cap
 
 /-- For any fixed reads, `P(consistent ∧ P_D(probe disagrees) > ε) ≤ δ` over the probes. -/
 def Level3TrieConsistentSound : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (read : FreeMonoid α → ARU)
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D], 0 < C.δ → 0 < C.disagreementRate →
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (cap : ℕ)
+    (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D],
+    0 < C.δ → 0 < C.disagreementRate →
     (Measure.pi fun _ : Fin C.probeBudget => D).real
-      {draws | let r := indecisiveLStarLevel3Trie C read draws
+      {draws | let r := indecisiveLStarLevel3Trie C cap read draws
         r.ending = .consistent
           ∧ C.disagreementRate < D.real (trieDisagreeSet read r.expanded r.hypothesis)}
       ≤ C.δ

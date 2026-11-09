@@ -7,10 +7,9 @@ Level 3 (`indecisiveLStarLevel3`) with each probe walked from its own start: pas
 it the round has expanded (`walkStartIn`), none at first.
 * Before level 3's tests, the starts test fires on the probes stopping undecided at their start
   sift, at the ends' rate.
-* Where a harvest test fires, each string it would harvest that it counted twice or more, and
-  that makes up at least a quarter of its strings, has the walk starts of the probes that read it
-  expanded in place of the harvest; the harvest stands only where there is no such string.
-Every expansion, like every split and every edge learned, is a new hypothesis: the counts restart.
+* A probe whose harvest string (`harvestString`) was read before since the hypothesis last changed
+  is skipped, and the probe that first read it is uncounted; the walk starts of both are expanded,
+  those shorter than `cap`. The other counts stand, and no test runs on a skip.
 
 Known modelling gap. The starts test runs at the ends' rate and alternative, where the Python's runs
 at its stuck rate.
@@ -39,33 +38,35 @@ def startString : Outcome α → List (FreeMonoid α)
   | .undecidedStart z => [z]
   | _ => []
 
+def harvestString (o : Outcome α) : List (FreeMonoid α) := endsString o ++ middleString o
+
 /-- The counts are since the hypothesis last changed; `hypotheses` counts the changes before.
-`origins` pairs each string counted at the ends or the middles with the walk start of the probe
-that read it. -/
+`counted` holds the outcomes of the probes counted, and `seen` each harvest string read with the
+walk start of the probe that first read it. -/
 structure TrieState (α : Type*) where
   tree : DTree α
   edges : Edges α
   expanded : Finset (FreeMonoid α)
   hypotheses : ℕ
-  probeCount : ℕ
-  searchCount : ℕ
-  endsUndecided : List (FreeMonoid α)
-  middleUndecided : List (FreeMonoid α)
-  startsUndecided : List (FreeMonoid α)
-  origins : List (FreeMonoid α × FreeMonoid α)
+  counted : List (Outcome α)
+  seen : List (FreeMonoid α × FreeMonoid α)
 
 def newTrieHypothesis (T : DTree α) (E : Edges α) (X : Finset (FreeMonoid α)) (j : ℕ) :
     TrieState α :=
-  ⟨T, E, X, j, 0, 0, [], [], [], []⟩
+  ⟨T, E, X, j, [], []⟩
 
 /-- The root reads at `ε`; no edge is learned and no prefix expanded. -/
 def trieInitialState : TrieState α := newTrieHypothesis (.node 1 .leaf .leaf) (fun _ => none) ∅ 0
 
+def TrieState.probeCount (s : TrieState α) : ℕ := s.counted.length
+
+def TrieState.searchCount (s : TrieState α) : ℕ := s.counted.countP searches
+
 /-- The strings a harvest at the site takes. -/
 def TrieState.siteStrings (s : TrieState α) : TrieSite → List (FreeMonoid α)
-  | .starts => s.startsUndecided
-  | .ends => s.endsUndecided
-  | .middles => s.middleUndecided
+  | .starts => s.counted.flatMap startString
+  | .ends => s.counted.flatMap endsString
+  | .middles => s.counted.flatMap middleString
 
 section
 
@@ -74,49 +75,39 @@ variable (C : Level3Settings)
 /-- The probe with outcome `o`, walked from `u`, counted into the stretch. -/
 def countTrieOutcome (s : TrieState α) (o : Outcome α) (u : FreeMonoid α) : TrieState α :=
   { s with
-    probeCount := s.probeCount + 1
-    searchCount := s.searchCount + if searches o then 1 else 0
-    endsUndecided := s.endsUndecided ++ endsString o
-    middleUndecided := s.middleUndecided ++ middleString o
-    startsUndecided := s.startsUndecided ++ startString o
-    origins := s.origins ++ (endsString o ++ middleString o).map fun z => (z, u) }
+    counted := s.counted ++ [o]
+    seen := s.seen ++ (harvestString o).map fun z => (z, u) }
+
+open scoped Classical in
+/-- The probe with outcome `o`, walked from `u`, skipped: the probe that first read its harvest
+string uncounted, and both walk starts shorter than `cap` expanded. -/
+noncomputable def TrieState.skipRepeat (cap : ℕ) (s : TrieState α) (o : Outcome α)
+    (u : FreeMonoid α) : TrieState α :=
+  let R := harvestString o
+  { s with
+    counted := s.counted.filter fun o' => ∀ z ∈ harvestString o', z ∉ R
+    expanded := s.expanded ∪ ((u :: (s.seen.filter fun p => p.1 ∈ R).map Prod.snd).filter
+      fun v => v.toList.length < cap).toFinset }
 
 open scoped Classical in
 /-- The tests, in turn: the probes stopping undecided at their start sift, then level 3's. -/
 noncomputable def runTrieTests (s : TrieState α) : Option (RoundEnd TrieSite) :=
   if seqRate C.endsRate C.endsAlternative (C.level s.hypotheses) s.probeCount
-      s.startsUndecided.length then
+      (s.siteStrings .starts).length then
     some (.harvest .starts)
   else if seqRate C.endsRate C.endsAlternative (C.level s.hypotheses) s.probeCount
-      s.endsUndecided.length then
+      (s.siteStrings .ends).length then
     some (.harvest .ends)
   else if C.searchShare * s.probeCount ≤ s.searchCount
       ∧ seqRate C.middleRate C.middleAlternative (C.level s.hypotheses) s.searchCount
-        s.middleUndecided.length then
+        (s.siteStrings .middles).length then
     some (.harvest .middles)
   else if seqRate C.disagreementRate C.disagreementAlternative (C.level s.hypotheses)
-      s.probeCount (s.searchCount + s.endsUndecided.length) then some .consistent
+      s.probeCount (s.searchCount + (s.siteStrings .ends).length) then some .consistent
   else none
 
-open scoped Classical in
-/-- The walk starts of the probes that read a string the site counted at least twice and as at
-least a quarter of its strings. -/
-noncomputable def harvestExpands (s : TrieState α) (site : TrieSite) : Finset (FreeMonoid α) :=
-  ((s.origins.filter fun p => 2 ≤ (s.siteStrings site).count p.1
-      ∧ (s.siteStrings site).length ≤ 4 * (s.siteStrings site).count p.1).map Prod.snd).toFinset
-
-open scoped Classical in
-/-- `X` expanded: a new hypothesis. -/
-noncomputable def TrieState.expand (s : TrieState α) (X : Finset (FreeMonoid α)) : TrieState α :=
-  newTrieHypothesis s.tree s.edges (s.expanded ∪ X) (s.hypotheses + 1)
-
-open scoped Classical in
-/-- The tests' verdict, a harvest giving way to the walk starts it expands. -/
 noncomputable def applyTrieTests (s : TrieState α) : TrieState α ⊕ RoundEnd TrieSite :=
   match runTrieTests C s with
-  | some (.harvest site) =>
-    if (harvestExpands s site).Nonempty then .inl (s.expand (harvestExpands s site))
-    else .inr (.harvest site)
   | some e => .inr e
   | none => .inl s
 
@@ -129,7 +120,7 @@ end
 
 section Query
 
-variable [DecidableEq α] [Fintype α] (C : Level3Settings)
+variable [DecidableEq α] [Fintype α] (C : Level3Settings) (cap : ℕ)
 
 /-- The leaf `p` split on `c` and the midfix where the leaves `t` and `t₀` part. -/
 noncomputable def splitTrieLeafQ (s : TrieState α) (p : List Bool) (c : α) (t t₀ : List Bool) :
@@ -143,6 +134,9 @@ noncomputable def applyTrieProbeQ (s : TrieState α) (x : FreeMonoid α) :
     Query (FreeMonoid α) ARU (TrieState α ⊕ RoundEnd TrieSite) :=
   let k := walkStartIn s.expanded x
   (probeOrAgreeQ s.tree s.edges k x).bind fun o =>
+    if ∃ z ∈ harvestString o, z ∈ s.seen.map Prod.fst then
+      .pure (.inl (s.skipRepeat cap o (prefixOf x k)))
+    else
     match o with
     | .unlearnedEdge p c u t =>
       .pure (.inl (newTrieHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
@@ -158,18 +152,18 @@ noncomputable def runTrieProbesQ :
     TrieState α → List (FreeMonoid α) → Query (FreeMonoid α) ARU (TrieState α × RoundEnd TrieSite)
   | s, [] => .pure (s, .failed)
   | s, x :: xs =>
-    (applyTrieProbeQ C s x).bind fun
+    (applyTrieProbeQ C cap s x).bind fun
     | .inl s' => runTrieProbesQ s' xs
     | .inr e => .pure (s, e)
 
 noncomputable def level3TrieQ {P : ℕ} (draws : Fin P → FreeMonoid α) :
     Query (FreeMonoid α) ARU (TrieResult α) :=
-  (runTrieProbesQ C trieInitialState (List.ofFn draws)).map fun r =>
+  (runTrieProbesQ C cap trieInitialState (List.ofFn draws)).map fun r =>
     ⟨⟨r.1.tree, r.1.edges⟩, r.1.expanded, r.2⟩
 
 noncomputable def indecisiveLStarLevel3Trie (read : FreeMonoid α → ARU) {P : ℕ}
     (draws : Fin P → FreeMonoid α) : TrieResult α :=
-  (level3TrieQ C draws).eval read
+  (level3TrieQ C cap draws).eval read
 
 end Query
 
@@ -194,12 +188,22 @@ noncomputable def trieSiteHarvest (read : FreeMonoid α → ARU) (X : Finset (Fr
   (trieSiteHarvestQ X H site x).eval read
 
 open scoped Classical in
-/-- The probes in turn, up to the first that harvests a string outside `T`. -/
-noncomputable def trieHarvestFirstQ (X : Finset (FreeMonoid α)) (H : HypothesisDFA α)
-    (site : TrieSite) (T : Set (FreeMonoid α)) (xs : List (FreeMonoid α)) :
-    Query (FreeMonoid α) ARU (Option (FreeMonoid α)) :=
-  Query.findSome
-    (fun x => (trieSiteHarvestQ X H site x).map fun l => l.head?.filter fun z => z ∉ T) xs
+/-- The probes in turn, from the expanded prefixes `X`, up to the first that harvests a string
+outside `T`; a probe harvesting one inside `T` has its walk start, if shorter than `cap`,
+expanded. The string, and the expanded prefixes after. -/
+noncomputable def trieHarvestFirstQ (cap : ℕ) (H : HypothesisDFA α) (site : TrieSite)
+    (T : Set (FreeMonoid α)) :
+    Finset (FreeMonoid α) → List (FreeMonoid α) →
+      Query (FreeMonoid α) ARU (Option (FreeMonoid α) × Finset (FreeMonoid α))
+  | X, [] => .pure (none, X)
+  | X, x :: xs => (trieSiteHarvestQ X H site x).bind fun l =>
+    match l.head? with
+    | none => trieHarvestFirstQ cap H site T X xs
+    | some z =>
+      if z ∈ T then
+        let u := prefixOf x (walkStartIn X x)
+        trieHarvestFirstQ cap H site T (if u.toList.length < cap then insert u X else X) xs
+      else .pure (some z, X)
 
 open MeasureTheory in
 /-- The law of what the harvest's sampler finds, each string as often as a probe drawn from `D`

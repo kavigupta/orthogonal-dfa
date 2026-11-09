@@ -7,12 +7,17 @@ import RLStar.Code.TrieDFA
 `indecisiveLStarLoop` with level 3 run with local walk starts (`indecisiveLStarLevel3Trie`): each
 round clusters a suffix family over the populations so far, as there, and runs the round's probes
 from `D` off the clustering's keys at `walkStart` letters, each walked past the prefixes its round
-has expanded. A harvest's sampler walks its fresh probes past its round's expanded prefixes. The
-loop stops at the first round that does not end in a harvest, and its DFA is that round's
-hypothesis with its expanded prefixes spelled out (`HypothesisDFA.TrieClassifies`).
+has expanded, each shorter than `cap`. A harvest's sampler walks its fresh probes past its
+round's expanded prefixes; a probe that harvests a string the clusterings read or the population
+drew before has its walk start expanded for the population's later draws. The loop stops at the
+first round that does not end in a harvest, and its DFA is that round's hypothesis with its
+expanded prefixes spelled out (`HypothesisDFA.TrieClassifies`).
 
 The modelling gaps of `RLStar.Code.LearnerLoop` stand, but the held-out start pick, which this loop
 does not make.
+
+Known modelling gap. The walk starts a population's draws expand are kept here for that round's
+draws only, where the Python keeps them in the harvested round for every later draw.
 -/
 
 noncomputable section
@@ -61,8 +66,22 @@ def trieHistOf (rounds : List (TrieLoopRound α)) : TrieLoopHist α :=
     rounds.foldr (fun o T => o.prefs ∪ T) ∅, rounds.foldr (fun o T => o.suffs ∪ T) ∅⟩
 
 open scoped Classical in
+/-- A harvested population's draws `l`, extended from the `l.length`-th batch `xs l.length` until
+`stop` holds of them or `M` more are drawn, each the first string harvested off `T` and `l`, past
+the expanded prefixes `X`; `none` if a batch finds none. -/
+noncomputable def trieTopUpQ (cap : ℕ) (s : TrieHarvestSampler α) (T : Finset (FreeMonoid α))
+    (stop : List (FreeMonoid α) → Prop) (xs : ℕ → List (FreeMonoid α)) :
+    ℕ → Finset (FreeMonoid α) → List (FreeMonoid α) →
+      Query (FreeMonoid α) ARU (Option (List (FreeMonoid α)))
+  | 0, _, l => .pure (some l)
+  | M + 1, X, l => if stop l then .pure (some l) else
+    (Random.trieHarvestFirstQ cap s.hyp s.site (↑T ∪ {z | z ∈ l}) X (xs l.length)).bind fun
+    | (some z, X') => trieTopUpQ cap s T stop xs M X' (l ++ [z])
+    | (none, _) => .pure none
+
+open scoped Classical in
 /-- `popDrawsQ` with the harvested populations walked past their expanded prefixes. -/
-def triePopDrawsQ {K : ℕ} (D : Measure (FreeMonoid α)) (N M : ℕ)
+def triePopDrawsQ {K : ℕ} (cap : ℕ) (D : Measure (FreeMonoid α)) (N M : ℕ)
     (pops : List (TrieHarvestSampler α)) (T : Finset (FreeMonoid α))
     (stop : List (FreeMonoid α) → Prop) (j : Option (Fin K))
     (u : ℕ → unitInterval × (Fin N → unitInterval)) :
@@ -71,26 +90,27 @@ def triePopDrawsQ {K : ℕ} (D : Measure (FreeMonoid α)) (N M : ℕ)
   | none => .pure (some (uniDraws D M T u))
   | some i =>
     match pops[i.val]? with
-    | some s => (Query.extendUntil (fun n => Random.trieHarvestFirstQ s.expanded s.hyp s.site ↑T
-        (List.ofFn fun t : Fin N => drawFrom D ((u n).2 t))) stop M []).subst
-          (familyReadQ s.family s.kl s.kh)
+    | some s =>
+      (trieTopUpQ cap s T stop (fun n => List.ofFn fun t : Fin N => drawFrom D ((u n).2 t)) M
+        s.expanded []).subst (familyReadQ s.family s.kl s.kh)
     | none => .pure (some [])
 
-def trieDrawListsQ {K : ℕ} (D : Measure (FreeMonoid α)) (N M : ℕ) (sched : Finset State)
+def trieDrawListsQ {K : ℕ} (cap : ℕ) (D : Measure (FreeMonoid α)) (N M : ℕ)
+    (sched : Finset State)
     (h : TrieLoopHist α) (c : ClusterRest α K N) :
     Query (FreeMonoid α) ℝ (Option (Option (Fin K) → List (FreeMonoid α))) :=
-  (Query.pi fun j => triePopDrawsQ D N M h.pops h.prefs
+  (Query.pi fun j => triePopDrawsQ cap D N M h.pops h.prefs
       (DrawsHold sched c.2.2.2 (uniTable D M h.prefs (c.2.1 none))) j (c.2.1 j)).map allSome
 
 open scoped Classical in
 /-- `roundQ` with level 3 run with local walk starts. -/
-def trieRoundQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
+def trieRoundQ {K : ℕ} (settings : LoopSettings K) (cap : ℕ) (D Dsf : Measure (FreeMonoid α))
     (h : TrieLoopHist α)
     (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     Query (FreeMonoid α) ℝ (Option (TrieLoopRound α)) :=
   let ps := loopPopulations K h.pops.length
   let sched := settings.schedule ps
-  (trieDrawListsQ D settings.level3.harvestReadCap settings.scanCap sched h d.1).bind fun
+  (trieDrawListsQ cap D settings.level3.harvestReadCap settings.scanCap sched h d.1).bind fun
   | none => .pure none
   | some tabs =>
     let dr := drawsOf () D Dsf settings.scanCap h.prefs h.suffs d.1 tabs
@@ -104,7 +124,7 @@ def trieRoundQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoi
             ∧ x ∈ ret mq ps none settings.η₀ settings.indecisionLimit settings.εcov
               settings.gateLevel B
           let F := clusterAt mq ps x B
-          ((Random.level3TrieQ settings.level3 fun i =>
+          ((Random.level3TrieQ settings.level3 cap fun i =>
               drawFrom (avoidLaw D settings.level3.walkStart
                 (clusterKeys sched ps settings.level3.walkStart x)) (d.2 i)).subst
             (familyReadQ F B.lo (B.hi + 1))).map fun res =>
@@ -112,24 +132,26 @@ def trieRoundQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoi
         else .pure none
     else .pure none
 
-def trieLoopRoundsQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
+def trieLoopRoundsQ {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
+    (D Dsf : Measure (FreeMonoid α))
     (draws : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     ℕ → Query (FreeMonoid α) ℝ (Option (List (TrieLoopRound α)))
   | 0 => .pure (some [])
-  | r + 1 => (trieLoopRoundsQ settings D Dsf draws r).bind fun
+  | r + 1 => (trieLoopRoundsQ settings cap D Dsf draws r).bind fun
     | none => .pure none
     | some rs =>
       if h : r < K ∧ ∀ o ∈ rs, o.result.ending.harvested ≠ none then
-        (trieRoundQ settings D Dsf (trieHistOf rs) (draws ⟨r, h.1⟩)).map fun oo =>
+        (trieRoundQ settings cap D Dsf (trieHistOf rs) (draws ⟨r, h.1⟩)).map fun oo =>
           oo.map fun o => rs ++ [o]
       else .pure (some rs)
 
 /-- The rounds the loop runs at the noise `p.1` and the draws `p.2`; `none` if a round fails. -/
-def indecisiveLStarTrieLoop {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+def indecisiveLStarTrieLoop {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
+    (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
     (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     Option (List (TrieLoopRound α)) :=
-  (trieLoopRoundsQ settings D Dsf p.2 K).eval fun w => O.mq w p.1
+  (trieLoopRoundsQ settings cap D Dsf p.2 K).eval fun w => O.mq w p.1
 
 end OrthoDFA
 
