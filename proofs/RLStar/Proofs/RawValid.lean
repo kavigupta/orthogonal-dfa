@@ -294,7 +294,7 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (H : J → Finset S) (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
     (hH : ∀ j, ∀ p ∈ H j, p ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
-    (εcov α δ ρ pAP : ℝ) (hgap : 0 ≤ O.gap) (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (εcov εg α δ ρ pAP : ℝ) (hgap : 0 ≤ O.gap) (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2)
     (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2) (hα0 : 0 < α) (hα1 : α ≤ 1)
     (hεcov : 0 < εcov) (hεs : 0 < εs) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hpAP0 : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
@@ -305,8 +305,8 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
       ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
     (runMeasure μ D Dsf).real (streams H uni ⁻¹' ⋃ B : {B : State // B ∈ stoppable η₀
         populations indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card ρ},
-      (retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εcov α B.val
-        ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := ruleOf B.val) O populations uni D εcov εs
+      (retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εg α B.val
+        ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := ruleOf B.val) O populations uni D εg εs
           (certFrac indecisionLimit εs) indecisionLimit y B.val j}))
       ≤ δ / 2 + α := by
   classical
@@ -340,16 +340,16 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     le_trans (measureReal_window_le (D j) (hρ j hj) Hs) hhszM
   -- the events
   set T : (S → Bool) → Set (Run Ω S J) := fun g => ⋃ B : {B : State // B ∈ st},
-    (retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εcov α B.val
-      ∩ FailAt (ruleOf B.val) O populations tame uni (certLaw H uni D g) εcov c (27 / 16 * indecisionLimit)
+    (retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εg α B.val
+      ∩ FailAt (ruleOf B.val) O populations tame uni (certLaw H uni D g) εg c (27 / 16 * indecisionLimit)
         B.val) with hT
   set BalBad : Set (S → Bool) := ⋃ j ∈ tame, sideBad (D j) Hs e with hBalBad
   set Bad : Set (Draws Ω S J) := {x | ¬ fillOK H uni populations K N x}
     ∪ ⋃ B ∈ st, ⋃ j ∈ tame, ⋃ b : Bool,
       imbSet (rule := ruleOf B) O populations H uni (D j) K N e b B with hBad
   set E : Set (Draws Ω S J) := Y ⁻¹' ⋃ B : {B : State // B ∈ st},
-      (retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εcov α B.val
-        ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := ruleOf B.val) O populations uni D εcov εs c indecisionLimit y
+      (retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εg α B.val
+        ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := ruleOf B.val) O populations uni D εg εs c indecisionLimit y
           B.val j}) with hE
   -- at each even hash, the stream-level validity against the reserve side's law
   have hslice : ∀ g ∉ BalBad,
@@ -392,7 +392,7 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
             if_neg (show ¬ (D j (onSide (allHarvest H) false g) = 0) from hR0 j hj)]
           exact sideLawC_named H uni D g hju (hR0 j hj))
       (ae_sideLawT_mem H uni D g populations hsupp hH)
-      (ae_sideLawC_mem H uni D g populations hsupp) hsuppSf indecisionLimit εcov α
+      (ae_sideLawC_mem H uni D g populations hsupp) hsuppSf indecisionLimit εcov εg α
       (27 / 16 * indecisionLimit) hind (by linarith) hgap hη0 hη₀ hα0 hα1 ρ (collisionMass Dsf)
       (fun j hj t => by
         by_cases hju : j = uni
@@ -473,7 +473,7 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
             = {p | cutCorrect O B.val.lo B.val.hi F p (oracleNoise (Y x))}ᶜ by ext; simp,
           measureReal_compl (Set.to_countable _).measurableSet, probReal_univ]
       rw [hcompl, hcompl] at hcutW
-      have hlim : gateLimit uni εcov j = 1 / 2 := by simp [gateLimit, hju]
+      have hlim : gateLimit uni εg j = 1 / 2 := by simp [gateLimit, hju]
       rw [hlim] at hcutc
       refine ⟨?_, ?_⟩
       · simp only [hju, if_false, hlim]
@@ -482,8 +482,8 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
   -- measurability
   have hEm : MeasurableSet E := by
     refine measurable_streams H uni (MeasurableSet.iUnion (fun B => ?_))
-    exact (measurableSet_retBy O populations uni η₀ indecisionLimit εcov α B.val).inter
-      (measurableSet_good (rule := ruleOf B.val) O populations tame uni D εcov εs c
+    exact (measurableSet_retBy O populations uni η₀ indecisionLimit εg α B.val).inter
+      (measurableSet_good (rule := ruleOf B.val) O populations tame uni D εg εs c
         indecisionLimit B.val).compl
   have hBadm : MeasurableSet Bad :=
     (measurableSet_fillOK populations H uni K N).compl.union

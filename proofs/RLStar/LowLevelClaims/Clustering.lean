@@ -91,7 +91,7 @@ def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations tame : Finset J) (uni : J) (H : J → Finset S)
-    (Pre Suf : Set S) (η₀ indecisionLimit εcov εs α δ pAP crossLimit : ℝ),
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov εs α δ pAP crossLimit εg : ℝ),
   4 * (1 / 2 - η₀) ≤ O.gap →
   η₀ < 1 / 2 →
   uni ∈ tame →
@@ -107,6 +107,8 @@ def ClusteringGuarantee : Prop :=
   εcov ≤ 1 / 2 →
   0 < εs →
   εs ≤ εcov →
+  εcov ≤ εg →
+  εg ≤ 1 / 2 →
   0 < δ →
   δ ≤ 1 →
   0 < crossLimit →
@@ -162,10 +164,10 @@ def ClusteringGuarantee : Prop :=
         2 ^ 13 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real
         {x | (∃ B : {B : State // B ∈ states},
-              streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
+              streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εg α B.val)
           ∧ ∀ B : {B : State // B ∈ states},
-            streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val →
-            1 - εcov - εs
+            streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εg α B.val →
+            1 - εg - εs
               ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                   (familyAt O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
             ∧ ∀ j ∈ tame, 1 / 2 - εs

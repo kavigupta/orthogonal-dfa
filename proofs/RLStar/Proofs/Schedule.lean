@@ -479,7 +479,7 @@ def ClusteringCorrect : Prop :=
     (O : Oracle μ S) (populations tame : Finset J) (uni : J)
     (H : J → Finset S) (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre Suf : Set S) (η₀ indecisionLimit εcov εs α δ ρ pAP crossLimit k : ℝ),
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov εs α δ ρ pAP crossLimit k εg : ℝ),
   4 * (1 / 2 - η₀) ≤ O.gap →
   η₀ < 1 / 2 →
   uni ∈ tame →
@@ -501,6 +501,7 @@ def ClusteringCorrect : Prop :=
   εcov ≤ 1 →
   0 < εs →
   εs ≤ εcov →
+  εcov ≤ εg →
   0 < δ →
   -- The budget the schedule is built from costs no more than `k` buys: a count that is
   -- logarithmic in the failure probability and polynomial in the rates it resolves.
@@ -516,13 +517,13 @@ def ClusteringCorrect : Prop :=
   1 - δ - α ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations
         indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card ρ},
-        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit εcov α
+        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit εg α
           B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs δ
         α pAP crossLimit (allHarvest H).card ρ},
-        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit εcov α
+        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit εg α
           B.val →
-        ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * certFrac indecisionLimit εs
+        ∀ j ∈ tame, 1 - gateLimit uni εg j - 2 * certFrac indecisionLimit εs
             - (if j = uni then 0 else εs / 2)
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
               (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise

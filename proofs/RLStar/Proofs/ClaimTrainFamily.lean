@@ -1105,7 +1105,7 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
   have hq4 : 4 * (1 / 2 - η₀) / 4 = 1 / 2 - η₀ := by ring
   simp only [TrainFamilyOutcome, quarter, toVec, TrainFamilyInputs.εc, TrainFamilyInputs.εsc, hq4,
     sub_sub_cancel]
-  -- the clustering runs at coverage `min(εcov, β/2)` and redraw share `min(ε_s, that)`
+  -- the schedule is sized for coverage `min(εcov, β/2)` and redraw share `min(ε_s, that)`
   set εcov := min εcov₀ (β / 2) with hεcov
   set ε_s := min ε_s₀ εcov with hεs
   have he : 0 < εcov := lt_min he₀ (by linarith)
@@ -1121,9 +1121,10 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
     Finset.card_eq_zero.2 (Finset.eq_empty_of_forall_notMem fun s hs => by
       simp [allHarvest] at hs)
   obtain ⟨states, hnp, -, hkn, hband, hκ, hmain⟩ := clustering_guarantee_of_correct O
-    populations tame uni (fun _ => ∅) Pre Suf η₀ ε_u εcov ε_s (δ / 2) (δ / 2) pAP (κ ^ 4) hgap
+    populations tame uni (fun _ => ∅) Pre Suf η₀ ε_u εcov ε_s (δ / 2) (δ / 2) pAP (κ ^ 4) εcov₀ hgap
     hη₀ huni htame hflat (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hu hu1
-    (by positivity) (by linarith) he he1 hsl hsl1 (by positivity) (by linarith) (by positivity)
+    (by positivity) (by linarith) he he1 hsl hsl1 hεc0 he₁ (by positivity) (by linarith)
+    (by positivity)
     (pow_le_one₀ hw.le hw1)
   simp only [hH0, CharP.cast_eq_zero] at hnp
   have hs0 : 0 < 1 / 2 - η₀ := by linarith

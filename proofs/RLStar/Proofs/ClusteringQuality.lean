@@ -586,9 +586,9 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     rw [harvestCap]
     linarith [hpoly]
   have hcc := clustering_correct O populations tame uni H D Dsf Pre Suf η₀ iL εcov εs α δ'
-    ρ₀ pAP crossLimit (3 * 2 ^ 25) hgap hη₀ huni hbalL hbalN htame hflat hH hsupp hsuppSf hcaps
+    ρ₀ pAP crossLimit (3 * 2 ^ 25) εcov hgap hη₀ huni hbalL hbalN htame hflat hH hsupp hsuppSf hcaps
     hpAP hpAPBound
-    hind' hind1 hα hα1 hε (by linarith) hεs hεsc hδ' hbudget le_rfl hcapsf
+    hind' hind1 hα hα1 hε (by linarith) hεs hεsc le_rfl hδ' hbudget le_rfl hcapsf
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=
     fun j => exists_finset_tail (D j) Pre (by positivity)

@@ -1250,8 +1250,8 @@ carry their share at the collision cap, which the top rung always does; the stat
 hypotheses at the top rung are the caps. -/
 theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   intro Ω _ μ _ S _ J _ O populations tame uni H Pre Suf η₀ indecisionLimit εcov εs α δ pAP
-    crossLimit hgap hη₀ huni htame hflat hH hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hεs hεsc hδ
-    hδ1 hζ hζ1
+    crossLimit εg hgap hη₀ huni htame hflat hH hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hεs hεsc
+    hεg hεg1 hδ hδ1 hζ hζ1
   classical
   set hz : ℕ := (allHarvest H).card with hhz
   have hpop : populations.Nonempty := ⟨uni, htame huni⟩
@@ -1446,9 +1446,9 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
         hδ hδ1
       linarith)
   refine le_trans (clustering_correct O populations tame uni H D Dsf Pre Suf η₀
-    indecisionLimit εcov εs α δ ρ₀ pAP crossLimit (3 * 2 ^ 25) hgap hη₀ huni hbalL hbalN htame hflat
-    hH hsupp
-    hsuppSf hcaps hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov (by linarith) hεs hεsc hδ hbudget
+    indecisionLimit εcov εs α δ ρ₀ pAP crossLimit (3 * 2 ^ 25) εg hgap hη₀ huni hbalL hbalN htame
+    hflat hH hsupp hsuppSf hcaps hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov (by linarith) hεs
+    hεsc hεg hδ hbudget
     le_rfl hcapsf)
     (measureReal_mono ?_ (measure_ne_top _ _))
   have hrej : 2 * certFrac indecisionLimit εs ≤ εs / 2 := by
@@ -1456,9 +1456,9 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     linarith
   rintro x ⟨hex, hall⟩
   have huni' : ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP
-      crossLimit hz ρ₀}, streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit
-        εcov α B.val →
-      1 - εcov - εs ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+      crossLimit hz ρ₀}, streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀
+        indecisionLimit εg α B.val →
+      1 - εg - εs ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
         (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)} :=
     fun B hB => by
       have h := (hall B hB uni huni).1
@@ -1466,7 +1466,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
       linarith
   refine ⟨hex, fun B hB => ⟨huni' B hB, fun j hj => ⟨?_, (hall B hB j hj).2⟩⟩⟩
   by_cases hne : j = uni
-  · subst hne; linarith [huni' B hB]
+  · subst hne; linarith [huni' B hB, hεg1]
   · have h := (hall B hB j hj).1
     simp only [gateLimit, if_neg hne] at h
     linarith

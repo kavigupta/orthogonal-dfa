@@ -533,7 +533,7 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (hPc : ∀ j ∈ tame, Pc j = iidStream (Dc j))
     (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
     (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
-    (indecisionLimit εcov α u : ℝ) (hindLim : 0 < indecisionLimit)
+    (indecisionLimit εcov εg α u : ℝ) (hindLim : 0 < indecisionLimit)
     (hu : 3 / 2 * indecisionLimit + certFrac indecisionLimit εs ≤ u)
     (hgap : 0 ≤ O.gap) (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2) (hα0 : 0 < α) (hα1 : α ≤ 1)
     (ρ ρsf : ℝ) (hρ : ∀ j ∈ tame, ∀ t, (Dc j).real {t} ≤ 3 * ρ ∧ (Dp j).real {t} ≤ 3 * ρ)
@@ -550,8 +550,8 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (streamMeasure μ Pp Pc Dsf).real
         (⋃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs
             δ α pAP crossLimit hsz ρ},
-          retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εcov α B.val
-            ∩ FailAt (ruleOf B.val) O populations tame uni Dc εcov
+          retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εg α B.val
+            ∩ FailAt (ruleOf B.val) O populations tame uni Dc εg
                 (certFrac indecisionLimit εs) u B.val) ≤ 7 * δ / 16 + α := by
   classical
   set iLc : ℝ := indecisionLimit with hiLc
@@ -577,8 +577,8 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     {x | ¬ drawsGoodOn populations tame n (tabCount η₀ iLc εcov n) (certCount iLc εs n) x}
     with hDdef
   set Y : State → Set (Run Ω S J) := fun B : State =>
-    ((retBy (ruleOf B) O.mq populations uni η₀ indecisionLimit εcov α B
-        ∩ FailAt (ruleOf B) O populations tame uni Dc εcov
+    ((retBy (ruleOf B) O.mq populations uni η₀ indecisionLimit εg α B
+        ∩ FailAt (ruleOf B) O populations tame uni Dc εg
             (certFrac indecisionLimit εs) u B) \ G) \ D (State.npref B) with hYdef
   set κ : ℕ := famCount η₀ populations iLc εcov δ crossLimit with hκdef
   set P : ℝ := (populations.card : ℝ) with hP
@@ -620,7 +620,7 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       hiLc0 hsched
     have hs0 := sig_pos η₀ hη₀
     exact per_state_le (rule := ruleOf B) hflat O populations tame uni huni htame Pp Pc Dsf L Dp
-      Dc hL hPp hPc hsuppP hsuppC hsuppSf hη₀ indecisionLimit εcov α u hindLim hα0 hα1 B
+      Dc hL hPp hPc hsuppP hsuppC hsuppSf hη₀ indecisionLimit εg α u hindLim hα0 hα1 B
       hgap (by linarith) (by linarith) hk
       rT r c hc0.le hr hu (by
         have h1 := (certFrac_le (εs := εs) (indecisionLimit := iLc)).1
@@ -632,8 +632,8 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       (tabCount η₀ iLc εcov n) (certCount iLc εs n) (3 * ρ) hρ)
       (mul_le_mul_of_nonneg_right htc (hT0 n))
   have hsplit : (⋃ B : {B : State // B ∈ st},
-        retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εcov α B.val
-          ∩ FailAt (ruleOf B.val) O populations tame uni Dc εcov
+        retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εg α B.val
+          ∩ FailAt (ruleOf B.val) O populations tame uni Dc εg
               (certFrac indecisionLimit εs) u B.val)
       ⊆ ((⋃ B ∈ st, Y B) ∪ ⋃ n ∈ st.image State.npref, D n) ∪ G := by
     intro x hx

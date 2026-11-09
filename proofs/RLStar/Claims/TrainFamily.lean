@@ -5,10 +5,10 @@ import RLStar.LowLevelClaims.Clustering
 /-!
 # The clustering's costs, asymptotically
 
-No strings are harvested. The clustering runs at `η₀ = 1/2 − s₀/4`, coverage `εc = min(εcov, β/2)`,
-redraw share `min(ε_s, εc)`, `α = δ/2` and cross limit `κ⁴`; `ε_s` is the share of the cut its
-redraws and hash may cost, `ε_u` the indecision limit, and `β` the least share of the uniform pool
-either class holds.
+No strings are harvested. The clustering runs at `η₀ = 1/2 − s₀/4`, `α = δ/2` and cross limit `κ⁴`,
+its gate at `εcov`; its schedule is sized for coverage `εc = min(εcov, β/2)` and redraw share
+`min(ε_s, εc)`. `ε_s` is the share of the cut its redraws and hash may cost, `ε_u` the indecision
+limit, and `β` the least share of the uniform pool either class holds.
 -/
 
 namespace OrthoDFA
@@ -66,9 +66,9 @@ def TrainFamilyOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
     1 - x.δ ≤ (runMeasure μ D Dsf).real
       {r | let R := streams (fun _ : J => (∅ : Finset S)) uni r
         (∃ B : {B : State // B ∈ states},
-            R ∈ ret O.mq populations uni (1 / 2 - x.s₀ / 4) x.ε_u x.εc (x.δ / 2) B.val)
+            R ∈ ret O.mq populations uni (1 / 2 - x.s₀ / 4) x.ε_u x.εcov (x.δ / 2) B.val)
         ∧ ∀ B : {B : State // B ∈ states},
-          R ∈ ret O.mq populations uni (1 / 2 - x.s₀ / 4) x.ε_u x.εc (x.δ / 2) B.val →
+          R ∈ ret O.mq populations uni (1 / 2 - x.s₀ / 4) x.ε_u x.εcov (x.δ / 2) B.val →
           1 - x.εcov - x.ε_s
             ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyAt O.mq populations R B.val) p (oracleNoise r.1)}
