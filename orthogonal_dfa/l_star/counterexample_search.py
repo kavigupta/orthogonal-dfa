@@ -1,6 +1,5 @@
 """indecisiveLStarLevel3 of RLStar/Code/Level3.lean, read through the round's suffix family."""
 
-from collections import Counter
 from itertools import islice
 from typing import Callable, Iterable, Optional, Tuple
 
