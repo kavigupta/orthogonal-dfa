@@ -5,21 +5,15 @@ import RLStar.LowLevelClaims.Clustering
 /-!
 # The clustering's costs, asymptotically
 
-`TrainFamilyClaim`: with no strings harvested, the clustering stops at a state whose band width `k`,
-suffix pool `nsuff` and prefix count `npref` are within the big-O shapes below, and returns a family
-as `ClusteringGuarantee` says but for chance `δ`, wherever the tame populations' atoms are under
-`atomTol` and the suffix measure's collision mass under `collTol`; how small those must be is
-bounded below the same way. Each bound has one constant over all of `trainFamilyRegion`. The
-algorithm runs at `η₀ = 1/2 − s₀`, `s₀` the signal, at `α = δ/2` and at cross limit `κ⁴`; `ε_s` is
-the share of the cut its redraws and hash may cost, `ε_u` the indecision limit, and every state's
-band reads its rarer decided side at most `κ` times as often as undecided.
+No strings are harvested. The clustering runs at `η₀ = 1/2 − s₀`, `α = δ/2` and cross limit `κ⁴`;
+`ε_s` is the share of the cut its redraws and hash may cost, and `ε_u` the indecision limit.
 -/
 
 namespace OrthoDFA
 
 open MeasureTheory Asymptotics Filter
 
-/-- The clustering's inputs: `nJ` populations and its rates. -/
+/-- `nJ` populations. -/
 structure TrainFamilyInputs where
   nJ : ℕ
   δ : ℝ
@@ -76,8 +70,6 @@ def TrainFamilyOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
                 (familyAt O.mq populations R B.val) p (oracleNoise r.1)}
               ≤ 2 * x.ε_u}
 
-/-- Positive tolerances, and on every instance in `trainFamilyRegion`, with no strings harvested,
-states within `k`, `nsuff` and `npref` that meet `TrainFamilyOutcome`. -/
 def TrainFamilyWithin.{u, v, w} (k nsuff npref atomTol collTol : TrainFamilyInputs → ℝ) : Prop :=
   (∀ x, 0 < atomTol x ∧ 0 < collTol x) ∧
     ∀ {Ω : Type u} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
