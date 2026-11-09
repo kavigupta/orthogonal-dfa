@@ -92,6 +92,8 @@ class SearchConfig:
     #: port of ``LoopDFA.lean``'s ``pickLeaf``. Draws its own held-out sample once a
     #: run where no other setting leaves one to reuse.
     counterexample_reroot: bool = False
+    #: See ``CounterexampleSearchConfig.local_starts``.
+    counterexample_local_starts: bool = True
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for

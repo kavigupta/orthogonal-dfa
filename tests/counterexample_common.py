@@ -43,6 +43,7 @@ def quiet_config(**changes):
     """What the round reads of a config, set so no test fires."""
     quiet = {
         "k": 0,
+        "local_starts": False,
         "ends_rate": 1.0,
         "ends_alternative": 1.0,
         "stuck_rate": 1.0,

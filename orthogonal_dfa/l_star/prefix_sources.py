@@ -9,7 +9,7 @@ from .counterexample_probe import Charges
 from .counterexample_search import CounterexampleSearch
 from .fallbacks.score_patience import SCORE_STALLED, ScorePatience
 from .rejection_source import RejectionSource, proving_attempts
-from .round_end import HARVEST_ENDS, HARVEST_STUCK, Ending
+from .round_end import HARVEST_ENDS, HARVEST_STARTS, HARVEST_STUCK, Ending
 
 
 class UniformSource:
@@ -81,6 +81,8 @@ def harvest_reader(
     """What a probe of ``search`` reads undecided where ``ending`` harvested."""
     if ending.kind == HARVEST_ENDS:
         return lambda charged: charged.ends
+    if ending.kind == HARVEST_STARTS:
+        return lambda charged: charged.starts
     if ending.kind == HARVEST_STUCK:
         if search.member_fallback is not None:
             return search.member_fallback.stuck_harvest

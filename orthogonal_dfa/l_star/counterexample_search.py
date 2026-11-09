@@ -1,5 +1,6 @@
 """indecisiveLStarLevel3 of RLStar/Code/Level3.lean, read through the round's suffix family."""
 
+from collections import Counter
 from itertools import islice
 from typing import Callable, Iterable, Optional, Tuple
 
@@ -35,8 +36,8 @@ class CounterexampleSearch:
         bisect: Callable = plain_bisect,
         score_patience: Optional[ScorePatience] = None,
     ):
-        """A harvest that repeats a string increments ``k`` instead of ending the
-        search, up to ``max_k``."""
+        """A harvest that repeats a string deepens the walk start instead of ending
+        the search, up to ``max_k``."""
         self.config = config
         self.hypothesis = HypothesisDFA(cut, tree)
         self.counts = SiteCounts()
@@ -59,8 +60,11 @@ class CounterexampleSearch:
             stalled = self.score_patience.observe(self)
             if stalled is not None:
                 return stalled
+        start = x[: self.walk_start(x)]
         outcome, charged = self.probe(x)
         self.probes += 1
+        if self.config.local_starts and self._repeats_start(charged, start):
+            return None
         if isinstance(outcome, Member):
             self.hypothesis.set_edge(outcome.edge, (outcome.target, outcome.witness))
             self.counts = SiteCounts()
@@ -69,7 +73,7 @@ class CounterexampleSearch:
             self._split(outcome)
             self.counts = SiteCounts()
             return None
-        self.counts.add(charged, outcome)
+        self.counts.add(charged, outcome, start)
         ending = ending_test(self.counts, self.config, self.hypothesis.tree.depth)
         if self.score_patience is not None:
             self.score_patience.record(charged)
@@ -80,7 +84,56 @@ class CounterexampleSearch:
             ending = self.score_patience.filter(ending, self.counts, self.config)
         return ending
 
+    def walk_start(self, x: bytes) -> int:
+        """Past every expanded prefix of ``x``, with local starts."""
+        if not self.config.local_starts:
+            return self.k
+        expanded, k = self.hypothesis.expanded, 0
+        while k < len(x) and x[:k] in expanded:
+            k += 1
+        return k
+
     def _deepens(self, ending: Ending) -> bool:
+        if self.config.local_starts:
+            return self._expands(ending)
+        return self._deepens_globally(ending)
+
+    def _repeats_start(self, charged: Charges, start: bytes) -> bool:
+        """Expand ``start`` at once where its undecided read repeats one already
+        charged."""
+        if not charged.starts or len(start) >= self.max_k:
+            return False
+        if charged.starts[0] not in self.counts.starts:
+            return False
+        self.hypothesis.expand([start])
+        self.k = 1 + max(len(u) for u in self.hypothesis.expanded)
+        self.counts = SiteCounts()
+        print(f"  start {start!r} read undecided twice; expanded")
+        return True
+
+    def _expands(self, ending: Ending) -> bool:
+        """Expand the walk starts of the probes whose harvested strings repeat."""
+        if ending.kind not in HARVESTS:
+            return False
+        repeated = [z for z, n in Counter(ending.harvest).items() if n > 1]
+        starts = {
+            u
+            for z in repeated
+            for u in self.counts.origins.get(z, ())
+            if len(u) < self.max_k
+        }
+        if not starts:
+            return False
+        self.hypothesis.expand(starts)
+        self.k = 1 + max(len(u) for u in self.hypothesis.expanded)
+        self.counts = SiteCounts()
+        print(
+            f"  {ending.kind} repeated a string; expanded {sorted(starts)}, "
+            f"{len(self.hypothesis.expanded)} expanded"
+        )
+        return True
+
+    def _deepens_globally(self, ending: Ending) -> bool:
         """Walk deeper in place of a harvest that repeats a string, which a deeper
         start stops reaching.  The counts restart, or the test that just fired would
         fire again at once."""
@@ -96,13 +149,12 @@ class CounterexampleSearch:
         return True
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
-        located = locate(self.hypothesis, self.k, x, bisect=self.bisect)
+        k = self.walk_start(x)
+        located = locate(self.hypothesis, k, x, bisect=self.bisect)
         stuck = isinstance(located.outcome, End) and located.outcome.stuck
         if stuck and self.member_fallback is not None:
-            located = self.member_fallback.read_stuck(
-                self.hypothesis, self.k, located, x
-            )
-        return located.outcome, charges(located, self.k, x)
+            located = self.member_fallback.read_stuck(self.hypothesis, k, located, x)
+        return located.outcome, charges(located, k, x)
 
     def _split(self, found: EdgeFound):
         """Split the edge's source on its letter and the midfix where the probe's

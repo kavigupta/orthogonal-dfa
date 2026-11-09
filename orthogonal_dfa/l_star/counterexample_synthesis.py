@@ -244,7 +244,11 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
         lambda hypothesis: held_out_phi(_hypothesis_dfa(pst, hypothesis), *selection),
     )
     search = CounterexampleSearch(
-        counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
+        counterexample_search_config(
+            acc_threshold,
+            pst.config.acceptable_fnr,
+            pst.config.counterexample_local_starts,
+        ),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
         max_k=start_length(pst.sampler.length),
@@ -346,7 +350,11 @@ def _hypothesis_dfa(pst, hypothesis):
         pst.oracle, hypothesis.tree.base_family, boundary, boundary
     )
     initial = hypothesis.tree.classify(b"", decide)
-    return hypothesis.to_dfa(pst.alphabet_size, 0 if initial is None else initial)
+    return hypothesis.to_dfa(
+        pst.alphabet_size,
+        0 if initial is None else initial,
+        lambda v: hypothesis.tree.classify(v, decide),
+    )
 
 
 def _reroot_pick(pst, selection):
