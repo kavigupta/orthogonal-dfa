@@ -1,7 +1,7 @@
 """Sources of the prefixes a round's populations draw from."""
 
 from dataclasses import dataclass
-from typing import Callable, List
+from typing import Callable, List, Tuple
 
 import numpy as np
 
@@ -56,8 +56,12 @@ class HarvestSource(RejectionSource):
             self._rng.choice(len(self._provenances), p=self._weights)
         ]
         found = False
-        for string in provenance.sample():
-            if string not in self._seen:
+        strings, start = provenance.sample_from()
+        for string in strings:
+            if string in self._seen:
+                # A repeat is not drawn again: its walk start is expanded instead.
+                provenance.round.expand_starts({start})
+            else:
                 self._seen.add(string)
                 self._pool.append(string)
                 found = True
@@ -101,7 +105,12 @@ class Replay:
     draw: Callable[[], bytes]
 
     def sample(self) -> List[bytes]:
-        return self.read(self.round.probe(self.draw())[1])
+        return self.sample_from()[0]
+
+    def sample_from(self) -> Tuple[List[bytes], bytes]:
+        """``sample``, and the walk start of the probe it read."""
+        x = self.draw()
+        return self.read(self.round.probe(x)[1]), x[: self.round.walk_start(x)]
 
 
 def draw_many(source, wanted: int) -> list:

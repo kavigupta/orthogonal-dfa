@@ -1,7 +1,7 @@
 """How a counterexample search ends: its per-site counts, and the tests on them."""
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 from .counterexample_config import CounterexampleSearchConfig
 from .counterexample_probe import Charges, Middle, Outcome
@@ -37,6 +37,10 @@ class SiteCounts:
     search_queries: int = 0
     #: Per harvested string, the walk starts of the probes that read it.
     origins: Dict[bytes, Set[bytes]] = field(default_factory=dict)
+    #: Per harvested string read once, what its probe added.
+    first: Dict[bytes, Tuple[Charges, Outcome]] = field(default_factory=dict)
+    #: Harvested strings read more than once; their probes are not counted.
+    repeated: Set[bytes] = field(default_factory=set)
 
     def add(self, charged: Charges, outcome: Outcome, start: bytes):
         self.probes += 1
@@ -48,8 +52,30 @@ class SiteCounts:
         self.searches += isinstance(outcome, Middle)
         for z in charged.ends + charged.middle:
             self.origins.setdefault(z, set()).add(start)
+            self.first[z] = (charged, outcome)
         for edge, strings in charged.undecided_by_edge.items():
             self.edge_harvest.setdefault(edge, []).extend(strings)
+
+    def drop(self, z: bytes):
+        """Uncount the probe that first read ``z``."""
+        self.repeated.add(z)
+        if z not in self.first:
+            return
+        charged, outcome = self.first.pop(z)
+        self.probes -= 1
+        for strings, taken in (
+            (self.ends, charged.ends),
+            (self.stuck, charged.stuck),
+            (self.starts, charged.starts),
+            (self.middles, charged.middle),
+        ):
+            for w in taken:
+                strings.remove(w)
+        self.search_queries -= charged.search_queries
+        self.searches -= isinstance(outcome, Middle)
+        for edge, strings in charged.undecided_by_edge.items():
+            for w in strings:
+                self.edge_harvest[edge].remove(w)
 
 
 def ending_test(

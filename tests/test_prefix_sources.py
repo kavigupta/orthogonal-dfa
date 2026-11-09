@@ -6,6 +6,7 @@ themselves, so what a later round needs more of it can draw more of.
 
 import itertools
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -15,15 +16,20 @@ from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.round_end import HARVEST_ENDS, HARVEST_STUCK, Ending
 from tests.counterexample_common import EVEN, PARITY_EDGES, parity_cut, quiet_search
 
+#: A round whose walk starts never move.
+_STILL = SimpleNamespace(expand_starts=lambda starts: None)
+
 
 class _Finds:
     """A provenance whose every fresh draw finds ``strings``."""
 
+    round = _STILL
+
     def __init__(self, *strings):
         self._strings = list(strings)
 
-    def sample(self):
-        return list(self._strings)
+    def sample_from(self):
+        return list(self._strings), b""
 
 
 _FOUND = b"\x00\x01?"
@@ -68,11 +74,13 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
         drawn = itertools.count()
 
         class Finds:
+            round = _STILL
+
             def __init__(self, tag):
                 self._tag = tag
 
-            def sample(self):
-                return [next(drawn).to_bytes(4, "big") + self._tag]
+            def sample_from(self):
+                return [next(drawn).to_bytes(4, "big") + self._tag], b""
 
         often, rarely = Finds(b"a"), Finds(b"b")
         source = HarvestSource(

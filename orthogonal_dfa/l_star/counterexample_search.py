@@ -21,9 +21,6 @@ from .hypothesis_dfa import Cut, HypothesisDFA, Path
 from .midfix_tree import MidfixTree
 from .round_end import HARVESTS, OUT_OF_PROBES, Ending, SiteCounts, ending_test
 
-#: A harvested string at least this share of its harvest is spelled out, not harvested.
-HEAVY_SHARE = 1 / 4
-
 
 class CounterexampleSearch:
     """``Level5State``, splitting at every contradiction (Kearns–Vazirani)."""
@@ -66,6 +63,8 @@ class CounterexampleSearch:
         start = x[: self.walk_start(x)]
         outcome, charged = self.probe(x)
         self.probes += 1
+        if self.config.local_starts and self._skips_repeat(charged, start):
+            return None
         if isinstance(outcome, Member):
             self.hypothesis.set_edge(outcome.edge, (outcome.target, outcome.witness))
             self.counts = SiteCounts()
@@ -96,35 +95,33 @@ class CounterexampleSearch:
 
     def _deepens(self, ending: Ending) -> bool:
         if self.config.local_starts:
-            return self._expands(ending)
+            return False
         return self._deepens_globally(ending)
 
-    def _expands(self, ending: Ending) -> bool:
-        """Expand the walk starts of the probes whose harvested string repeats and is
-        at least ``HEAVY_SHARE`` of the harvest; the rest of it is harvested."""
-        if ending.kind not in HARVESTS:
-            return False
-        heavy = [
+    def _skips_repeat(self, charged: Charges, start: bytes) -> bool:
+        """A probe reading a harvest string already read is not counted, nor is the
+        probe that first read it; both walk starts are expanded."""
+        repeated = [
             z
-            for z, n in Counter(ending.harvest).items()
-            if n > 1 and n >= HEAVY_SHARE * len(ending.harvest)
+            for z in charged.ends + charged.middle
+            if z in self.counts.first or z in self.counts.repeated
         ]
-        starts = {
-            u
-            for z in heavy
-            for u in self.counts.origins.get(z, ())
-            if len(u) < self.max_k
-        }
-        if not starts:
+        if not repeated:
             return False
-        self.hypothesis.expand(starts)
-        self.k = 1 + max(len(u) for u in self.hypothesis.expanded)
-        self.counts = SiteCounts()
-        print(
-            f"  {ending.kind} has a heavy string; expanded {sorted(starts)}, "
-            f"{len(self.hypothesis.expanded)} expanded"
-        )
+        starts = {start}
+        for z in repeated:
+            starts |= self.counts.origins.get(z, set())
+            self.counts.drop(z)
+        self.expand_starts(starts)
         return True
+
+    def expand_starts(self, starts):
+        if not self.config.local_starts:
+            return
+        starts = {u for u in starts if len(u) < self.max_k} - self.hypothesis.expanded
+        if starts:
+            self.hypothesis.expand(starts)
+            self.k = 1 + max(len(u) for u in self.hypothesis.expanded)
 
     def _deepens_globally(self, ending: Ending) -> bool:
         """Walk deeper in place of a harvest that repeats a string, which a deeper
