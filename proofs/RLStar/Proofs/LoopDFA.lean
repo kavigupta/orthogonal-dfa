@@ -564,7 +564,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
   have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
   obtain ⟨settings, hwalk, hdis, hbud, hHN, hSC, hnp, hreads, hks, hmain⟩ :=
     loop_simple_checks M O P (shortAt M (L + 1)) η₀ εcov ε δ' pAP k
-    hL hgap hη₀ hbalL hbalN hεc0 hεcov1 hε0 hε12 hδ'0 hδ'1' hpAP hp1
+    hL hgap hη₀ hεc0 hεcov1 hbalL hbalN hε0 hε12 hδ'0 hδ'1' hpAP hp1
     (by show 1 ≤ L + Fintype.card σ + 3; omega)
     hk0 hιL (hpm.trans hk1)
     ((mul_le_mul_of_nonneg_left hpm (mul_nonneg (by norm_num) (by linarith [hlogK]))).trans hk2)
@@ -1297,7 +1297,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
 
 set_option maxHeartbeats 4000000 in -- matching `LearnerLoopDFA`'s `L₀` against `loopMassInv`
 theorem learner_loop_dfa_holds : LearnerLoopDFA := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c γ δ pAP ξ Q A k L₁ N ε δ' s S B₃ n aε Ce Θι Θ Θa K₁ Wm
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ c γ δ pAP ξ Q A k L₁ N ε εcov δ' s S B₃ n aε Ce Θι Θ Θa K₁ Wm
     W₀ P₀ R₀ E₁ Kc E E₂ E₃ T L₀ SC HN SH HB hL hgap hη₀ hbalL hbalN hc hδ hδ1 hpAP hξ hA2 hpAPu hceil
     hL₀
   have : Nonempty σ := ⟨M.start⟩

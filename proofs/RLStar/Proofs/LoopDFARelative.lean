@@ -55,7 +55,7 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
 
 set_option maxHeartbeats 4000000 in -- matching the claim's `L₀` against `loopMassInv`
 theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
-  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k L₁ N m ε δ' s S B₃ n aε Ce Θι Θ Θa K₁
+  intro α _ _ _ σ _ Ω _ μ _ M O L η₀ R γ δ pAP ξ Q A k L₁ N m ε εcov δ' s S B₃ n aε Ce Θι Θ Θa K₁
     Wm W₀ P₀ R₀ E₁ Kc E E₂ E₃ T L₀ SC HN SH HB hL hgap hη₀ hbalL hbalN hR hδ hδ1 hpAP hξ hξ1 hA2 hpAPu
     hdom hL₀
   obtain ⟨q, hself, hq⟩ := hdom
