@@ -142,9 +142,6 @@ STALL_PATIENCE = 2
 #: consistency target.
 CERTIFICATE_PATIENCE = 5
 
-#: The tightest the FNR limit gets, as a share of where it starts.
-FNR_FLOOR = 0.25
-
 
 class _StallDetector:
     """Stops a run whose rounds have stopped handing the next one new strings or a
@@ -279,7 +276,7 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
     return search, ending
 
 
-def _best_search(pst, vs, *, acc_threshold, index, selection, tracker):
+def _best_search(pst, vs, *, acc_threshold, index, selection, reroot_pick, tracker):
     """The round's search, how it ended, and its DFA: of ``counterexample_restarts``
     searches on independent probe streams, the one with the best phi on
     ``selection.pick``."""
@@ -294,7 +291,7 @@ def _best_search(pst, vs, *, acc_threshold, index, selection, tracker):
         dfa = _hypothesis_dfa(pst, search.hypothesis)
         pick_score = None if selection is None else held_out_phi(dfa, *selection.pick)
         tracker.on_restart_ended(0, search, ending, dfa, pick_score, index)
-        return search, ending, dfa
+        return search, ending, _reroot_start(pst, search.hypothesis, dfa, reroot_pick)
     runs = []
     for i, rng in enumerate(pst.rng.spawn(restarts)):
         pst.rng = rng
@@ -308,7 +305,7 @@ def _best_search(pst, vs, *, acc_threshold, index, selection, tracker):
         runs.append((phi, rng, search, ending, dfa))
     # The run goes on from the kept search's stream, as if it were the only one.
     _, pst.rng, search, ending, dfa = max(runs, key=lambda run: run[0])
-    return search, ending, dfa
+    return search, ending, _reroot_start(pst, search.hypothesis, dfa, reroot_pick)
 
 
 def _round_score(pst, dfa, selection, index) -> Optional[float]:
@@ -352,6 +349,37 @@ def _hypothesis_dfa(pst, hypothesis):
     return hypothesis.to_dfa(pst.alphabet_size, 0 if initial is None else initial)
 
 
+def _reroot_pick(pst, selection):
+    """The held-out ``(fit, read)`` pair re-rooting scores leaves on, or ``None`` with
+    re-rooting off. Reuses the selection's pick halves, else draws its own off a child
+    stream so the bare config can re-root without disturbing the run's draws."""
+    if not pst.config.counterexample_reroot:
+        return None
+    if selection is not None:
+        return selection.pick
+    rng = pst.rng.spawn(1)[0]
+    return tuple(
+        labelled_sample(pst.oracle, pst.sampler, pst.alphabet_size, SELECTION_HALF, rng)
+        for _ in range(2)
+    )
+
+
+def _reroot_start(pst, hypothesis, dfa, reroot_pick):
+    """dfa restarted at the leaf of best held-out phi on reroot_pick; dfa's own start
+    keeps ties. reroot_pick is None with re-rooting off."""
+    if reroot_pick is None:
+        return dfa
+    best, best_phi = dfa, held_out_phi(dfa, *reroot_pick)
+    for leaf in hypothesis.tree.leaves():
+        if leaf == dfa.initial_state:
+            continue
+        candidate = hypothesis.to_dfa(pst.alphabet_size, leaf)
+        phi = held_out_phi(candidate, *reroot_pick)
+        if phi > best_phi:
+            best, best_phi = candidate, phi
+    return best
+
+
 def _round_summary(pst, vs, search, ending, seconds) -> RoundSummary:
     """``seconds`` is the round's ``(sampling, probing)`` time."""
     tree = search.hypothesis.tree
@@ -388,13 +416,14 @@ def counterexample_driven_synthesis(
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' boundary strings keep the family honest about the whole
     # chain (they turn decisive once their state is resolved).
-    uniform = [
-        p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
-    ]
-    state = PoolState(uniform, pst.rng.bytes(16))
+    state = PoolState(
+        [p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep],
+        pst.rng.bytes(16),
+    )
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
     selection = _selection_sample(pst)
+    reroot_pick = _reroot_pick(pst, selection)
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
     uncertified_since = None
     index = 0
@@ -417,6 +446,7 @@ def counterexample_driven_synthesis(
             acc_threshold=acc_threshold,
             index=index,
             selection=selection,
+            reroot_pick=reroot_pick,
             tracker=tracker,
         )
         summary = _round_summary(
@@ -472,7 +502,10 @@ def counterexample_driven_synthesis(
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         strings, provenance = _next_harvest(pst, search, ending, blamed)
         taken = _accumulate_harvest(strings, provenance, state, target)
-        halved = taken == 0 and pst.fnr_limit / 2 >= FNR_FLOOR * pst.config.fnr_limit
+        halved = (
+            taken == 0
+            and pst.fnr_limit / 2 >= pst.config.fnr_floor * pst.config.fnr_limit
+        )
         if halved:
             pst.fnr_limit /= 2
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")

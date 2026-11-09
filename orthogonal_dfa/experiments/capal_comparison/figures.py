@@ -265,30 +265,44 @@ GRID_PANELS = [
 
 # Each cell is a square split on its diagonal: CAPAL upper-left, E-L* lower-right.
 # Rows run downward from y = 0, so panels with different row counts align at the top.
-GRID_MACROS = r"""\definecolor{bgsolved}{HTML}{1F5FA8}
-\definecolor{bgfailed}{HTML}{BF8330}
+# A row is one cell high, but a column is wider than a cell so the eta labels fit, leaving gaps
+# between the cells of a row.
+GRID_COLUMN = "0.62cm"
+GRID_CELL = "0.42cm"
+# the paper's light blue and orange (frame-alignment-checks' bar colors)
+GRID_MACROS = r"""\definecolor{bgsolved}{HTML}{80CDFF}
+\definecolor{bgfailed}{HTML}{FFCA80}
 \def\bgcell#1#2#3#4{
-    \fill[bg#3] (#1, -#2 - 1) rectangle +(1, 1);
-    \fill[bg#4] (#1, -#2 - 1) -- (#1 + 1, -#2 - 1) -- (#1 + 1, -#2) -- cycle;
-    \draw[white, line width=0.8pt] (#1, -#2 - 1) rectangle +(1, 1);
+    \begin{scope}[shift={(#1 + 0.5, -#2 - 0.5)}, x=CELL, y=CELL]
+        \fill[bg#3] (-0.5, -0.5) rectangle (0.5, 0.5);
+        \fill[bg#4] (-0.5, -0.5) -- (0.5, -0.5) -- (0.5, 0.5) -- cycle;
+        \draw[white, line width=0.8pt] (-0.5, -0.5) rectangle (0.5, 0.5);
+    \end{scope}
 }
-\def\bgtarget#1#2{\node[anchor=east, font=\footnotesize, inner sep=2pt] at (0, -#1 - 0.5) {#2};}
-\def\bgeta#1#2{\node[anchor=base, font=\footnotesize, inner sep=0pt] at (#1 + 0.5, 0.25) {#2};}
+\def\bgtarget#1#2{\node[anchor=east, font=\footnotesize, inner sep=2pt] at (0.5 - 0.5 * CELL / COLUMN, -#1 - 0.5) {#2};}
+\def\bgeta#1#2{\node[anchor=base, font=\footnotesize, inner sep=0pt] at (#1 + 0.5, 0.35) {#2};}
 \def\bgtitle#1#2{
-    \node[anchor=base east, font=\footnotesize, inner sep=2pt] at (0, 0.25) {$\eta$};
-    \draw[black!50] (0.1, 1.15) -- (#1 - 0.1, 1.15);
-    \node[anchor=south, font=\footnotesize, inner sep=2pt] at (#1 / 2, 1.15) {#2};
-}"""
+    \node[anchor=base east, font=\footnotesize, inner sep=2pt] at (0.5 - 0.5 * CELL / COLUMN, 0.35) {$\eta$};
+    \draw[black!50] (0.1, 1.45) -- (#1 - 0.1, 1.45);
+    \node[anchor=south, font=\footnotesize, inner sep=2pt] at (#1 / 2, 1.45) {#2};
+}""".replace(
+    "CELL", GRID_CELL
+).replace(
+    "COLUMN", GRID_COLUMN
+)
 
-GRID_LEGEND = r"""\begin{tikzpicture}[x=0.6cm, y=0.6cm, baseline=0pt, font=\footnotesize]
-    \draw[black!50] (0, -1.5) rectangle (1.5, 0) (0, -1.5) -- (1.5, 0);
-    \node[anchor=south, inner sep=2pt] at (0.75, 0) {CAPAL};
-    \node[anchor=north, inner sep=2pt] at (0.75, -1.5) {\ours{}};
-    \foreach \kind/\name [count=\i] in {solved/solved, failed/not solved} {
-        \fill[bg\kind] (0, -2.5 - \i) rectangle +(0.8, 0.8);
-        \node[anchor=west, inner sep=2pt] at (0.8, -2.1 - \i) {\name};
+GRID_LEGEND = r"""\begin{tikzpicture}[x=CELL, y=CELL, baseline=0pt, font=\footnotesize]
+    \draw[black!50] (0, -2) rectangle (2, 0) (0, -2) -- (2, 0);
+    \node[anchor=base, inner sep=0pt] at (1, 0.35) {CAPAL};
+    \node[anchor=center, inner sep=0pt] at (1, -2.5) {\ours{}};
+    \foreach \kind/\name/\row in {solved/solved/3, failed/not solved/4} {
+        \fill[bg\kind] (0, -\row - 1) rectangle +(1, 1);
+        \draw[white, line width=0.8pt] (0, -\row - 1) rectangle +(1, 1);
+        \node[anchor=west, inner sep=2pt] at (1, -\row - 0.5) {\name};
     }
-\end{tikzpicture}"""
+\end{tikzpicture}""".replace(
+    "CELL", GRID_CELL
+)
 
 
 def target_label(name: str) -> str:
@@ -324,7 +338,7 @@ def grid_panel(cells: Sequence[dict], title: str) -> str:
             lines.append(f"\\bgcell{{{col}}}{{{row}}}{{{capal}}}{{{elstar}}}")
     body = "\n".join("    " + line for line in lines)
     return (
-        "\\begin{tikzpicture}[x=0.6cm, y=0.6cm, baseline=0pt]\n"
+        f"\\begin{{tikzpicture}}[x={GRID_COLUMN}, y={GRID_CELL}, baseline=0pt]\n"
         + body
         + "\n\\end{tikzpicture}"
     )

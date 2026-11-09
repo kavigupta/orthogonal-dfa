@@ -1,4 +1,4 @@
-"""One string probed against a hypothesis, as in ``OrthoDFA/Level5.lean``."""
+"""One string probed against a hypothesis, as in RLStar/Code/Level3.lean."""
 
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -107,7 +107,7 @@ def plain_bisect(agrees, lo, hi):
 
 
 def locate(hypothesis: HypothesisDFA, k: int, x: bytes, *, bisect: Callable) -> Located:
-    """``probe`` of ``OrthoDFA/Probe.lean``, proved by ``ProbeCorrect``, with the positions it
+    """``probe`` of RLStar/Code/Probe.lean, proved by ``ProbeCorrect``, with the positions it
     sifted."""
     routes = {}
 

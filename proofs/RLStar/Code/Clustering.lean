@@ -1,0 +1,526 @@
+import Mathlib.Tactic
+import Mathlib.Probability.ProductMeasure
+import Mathlib.Probability.Independence.InfinitePi
+
+/-!
+# The model: the oracle and the algorithm
+
+`ClusteringGuarantee`, stated in `RLStar.LowLevelClaims.Clustering`, mentions only what is
+defined here and there, and `RarerBounded` (`RLStar.LowLevelClaims.FamilyRead`).  Each
+definition's doc names the Python it models.
+
+Known modelling gap.  `prefixes_for_split` draws the uniform pool's certification prefixes with
+`draw_many`, which on a `UniformSource` redraws neither a repeat nor a prefix the table holds, and
+a named population's from its reserve and then its reserve-side draws, which skip the strings a
+named population's table holds but keep repeats and the uniform pool's prefixes.  `certOf`
+redraws both.  The pool's draws merge with the seed `ε` when one is `ε`, where `_draw_cohort`
+would redraw it.
+
+Known modelling gap.  A named population's table here skips every string any population
+harvested, and counts its own harvested strings toward the state's `npref`; `split_draws` keeps
+a table-side draw that some population harvested, and the count it is asked for is of its fresh
+draws alone.
+
+Known modelling gap.  `grow_population` retires a population whose source fails its yield
+test, and `prefixes_for_split` reads a split without a population whose source draws nothing;
+`keptAt` drops a population from the tests only when its table or its certification sample
+cannot be filled at all.
+
+Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its reads
+(`transition_resolver`, `counterexample_synthesis`, `identify_cluster_around`) and cuts the
+family's vote there; here the state's cut (`lo`, `hi`) is centred where the schedule puts it, and
+the count rule and the gate read the rates at that centre (`State.centre`).
+
+Known modelling gap.  The Python picks the family by k-means groups, χ² merges and the anchor
+group's ordering: `nearest_to_anchor_group` takes the `coherent_groups` group whose rows
+`misread_statistic` scores least against the seed on the prefixes `seed_scoring` holds out, then
+ranks that group's rows, and after them the rest of the pool, by weighted distance to the group's
+mean.  Here the family is the `k − 1` rows of least `misread_statistic` against the seed over
+the whole table, at rates centred on the state's centre (the count rule, `nearestRows`).
+
+Known modelling gap.  The Python sizes the family and its band from the boundary it estimates
+(`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1`,
+one size for every centre its band may take, and the band is sized so that a vote whose mean
+lies outside it lands on its far side at most `crossLimit` of the time.  The returned family, seed included, is cut at `lo` and `hi + 1`, wider
+by the seed's one read than the gate's cut over the family without it, where the Python cuts both
+at one rate.
+
+Known modelling gap.  The FNR test here reads `npref` draws from each population, and the gate
+reads each population's first `npref + e`, for any `e ≤ npref`.  The Python reads the gate on
+`min(alignment_size, certification_budget)` draws from every population, then once more on as
+many as `prefixes_to_certify` asks for from the one left undecided.
+
+Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, the ones
+`identify_cluster_around` clustered the family on; `ret` reads it on the certification sample.
+The table's votes are fitted to its noise and read as more decisive than they are, so the
+claim's bound on the undecided mass holds of the test `ret` runs, not of the Python's.
+
+Known modelling gap.  `drift_verdict` admits a family when `misclassified_bounds` bounds the
+share of the uniform pool's distribution its cut at the boundary misclassifies by
+`max_coverage_error`, and every other population's by a half: Clopper-Pearson intervals on each
+side's share and on the seed's rate there, read at the rates `decision_boundary ∓
+min_signal_strength`, which it takes to be the oracle's.  `certifiesAt` bounds each side's wrong
+share through the side's spread, less the noise a reference outside the family reads, with the
+wrong class's rate taken `½ − η₀` short of the state's centre, so it is sound whenever the rates
+straddle that centre; the claim covers that test and not the Python's.  The
+Python's FNR also reads 1 for a family that decides no prefix one of the two ways, which `ret`
+does not.
+
+Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
+table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
+`screened` screens the whole pool at the state's prefix count, against a fixed cutoff above the
+pool's least count.  `_screen_cohort` also reads only the prefixes `seed_scoring` leaves it, half
+of them by a hash of the string, so that what the screen admitted on is not what the anchor
+scores on.
+
+Known modelling gap.  The states here are a ladder of prefix counts halving from `prefCount` at
+one pool size, and the claim covers a stop only at a rung of at least `validCount` prefixes.  The
+Python grows the table as it goes, by `num_addtl_prefixes` prefixes or a cohort of suffixes after
+each refusal, and stops at whatever table a round first passes on, which the claim need not
+cover.  It also gives up after `ACCEPT_PRESERVING_GIVE_UP` refusals by the gate, where the loop
+here never does: the give-up bounds a search on a target with no accept-preserving family, so a
+run cannot hang.
+-/
+
+namespace OrthoDFA
+
+open MeasureTheory ProbabilityTheory
+
+variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+
+/-! ## The oracle -/
+
+/-- The persistent signal oracle: random classification noise on query strings. -/
+structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    (S : Type*) [MeasurableSpace S] where
+  /-- The language.  Membership in it is the bit the oracle is asked for. -/
+  L : Set S
+  L_meas : MeasurableSet L
+  /-- One persistent noise bit per query string. -/
+  noise : S → Ω → ℝ
+  ηIn : ℝ
+  ηOut : ℝ
+  /-- The bits are independent Bernoullis, at one rate on the language and another off it. -/
+  noise_meas : ∀ w, Measurable (noise w)
+  noise_indep : iIndepFun noise μ
+  noise_bit : ∀ w, ∀ᵐ ω ∂μ, noise w ω = 0 ∨ noise w ω = 1
+  noise_mean_in : ∀ w ∈ L, μ[noise w] = ηIn
+  noise_mean_out : ∀ w ∉ L, μ[noise w] = ηOut
+
+/-- The worse of the two noise rates.  `½ − η` is the signal: every read leans toward its
+true bit by at least that much. -/
+noncomputable def Oracle.η {S : Type*} [MeasurableSpace S] (O : Oracle μ S) : ℝ :=
+  max O.ηIn O.ηOut
+
+/-- How far a flip moves a read's mean, `1 − ηIn − ηOut`.  A class no string is in leaves its
+rate unconstrained, hence the clamps. -/
+noncomputable def Oracle.gap {S : Type*} [MeasurableSpace S] (O : Oracle μ S) : ℝ :=
+  1 - max O.ηIn 0 - max O.ηOut 0
+
+/-- Membership as a bit, `ℓ(w) = 1[w ∈ L]`. -/
+noncomputable def Oracle.label {S : Type*} [MeasurableSpace S] (O : Oracle μ S) : S → ℝ :=
+  Set.indicator O.L 1
+
+/-- The membership query the oracle answers, `MQ w = ℓ(w) ⊕ noise(w)`. -/
+noncomputable def Oracle.mq {S : Type*} [MeasurableSpace S] (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
+  O.label w + (1 - 2 * O.label w) * O.noise w ω
+
+/-- Satisfied by the strings over a finite alphabet. -/
+class Stringlike (S : Type*) extends MeasurableSpace S, Monoid S, IsCancelMul S,
+    MeasurableMul S, Countable S, MeasurableSingletonClass S where
+  decEq : DecidableEq S
+
+attribute [instance] Stringlike.decEq
+
+variable {S : Type*} [Stringlike S]
+variable {J : Type*} [Fintype J]
+
+/-! ## The run space
+
+What the round reads: the oracle's noise, the suffix draws, and for each population a table
+sequence and a certification sequence.  `streams` reads them off what the round draws, and
+`runMeasure` is the law of the draws, a concrete measure, so the independence the proof uses is
+a lemma about it rather than a hypothesis. -/
+
+abbrev Run (Ω S J : Type*) :=
+  Ω ×                       -- the oracle's persistent noise
+  (((ℕ → S) ×               -- the suffix draws
+    (J → ℕ → S)) ×          -- each population's table sequence
+   (J → ℕ → S))             -- each population's certification sequence
+
+def oracleNoise (x : Run Ω S J) : Ω := x.1
+
+def suffixDraw (i : ℕ) (x : Run Ω S J) : S := x.2.1.1 i
+
+/-- The `i`-th entry of population `j`'s table sequence. -/
+def prefixDraw (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.1.2 j i
+
+/-- The `i`-th entry of population `j`'s certification sequence: read only by the gate, never
+added to the table. -/
+def certPrefix (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.2 j i
+
+/-! ### What the round draws
+
+A named population draws one stream, and `in_reserve` sends every string to the table side or the
+reserve side by a bit of its keyed hash, the same bit in every population and at every draw; the
+key is drawn once per run, so each string's side is a fair coin independent of the draws.
+`split_draws` puts a draw in the table or the reserve by its side, and `prefixes_for_split`
+certifies on the reserve, then on fresh reserve-side draws.  The table sequence is the
+population's harvested strings, which `take` puts in the table, then its table-side draws; the
+certification sequence its reserve-side draws.  The uniform pool reads its draws as its table and
+certifies on a stream of its own. -/
+
+open scoped Classical in
+/-- The draws among `w`'s first `n` that fall in `A`, in draw order. -/
+noncomputable def drawsIn (A : Set S) (w : ℕ → S) (n : ℕ) : List S :=
+  ((List.range n).map w).filter (fun s => decide (s ∈ A))
+
+open scoped Classical in
+/-- The `k`-th draw of `w` in `A`, or `d` past the last. -/
+noncomputable def nthDrawIn (A : Set S) (d : S) (w : ℕ → S) (k : ℕ) : S :=
+  if h : ∃ n, k < (drawsIn A w n).length then (drawsIn A w (Nat.find h)).getD k d else d
+
+/-- `L`, then `y`. -/
+def prependStream (L : List S) (y : ℕ → S) (k : ℕ) : S :=
+  if h : k < L.length then L.get ⟨k, h⟩ else y (k - L.length)
+
+/-- The strings the hash `g` puts on side `b`, `true` the table and `false` the reserve,
+those in `H` excepted. -/
+def onSide (H : Finset S) (b : Bool) (g : S → Bool) : Set S := {s | g s = b ∧ s ∉ H}
+
+/-- A table sequence: `L`, then the draws of `w` in `A`.  Past them it repeats a string it has
+already given, or reads the spare draw `z 0` when it has given none. -/
+noncomputable def tableSeqOf (L : List S) (A : Set S) (w z : ℕ → S) : ℕ → S :=
+  prependStream L (nthDrawIn A (L.headD (nthDrawIn A (z 0) w 0)) w)
+
+/-- A certification sequence: the draws of `w` in `R`, then a repeat of the first, or the spare
+draw `z 1` when there is none. -/
+noncomputable def reserveSeqOf (R : Set S) (w z : ℕ → S) : ℕ → S :=
+  nthDrawIn R (nthDrawIn R (z 1) w 0) w
+
+/-- Every population's harvested strings. -/
+def allHarvest (H : J → Finset S) : Finset S := Finset.univ.biUnion H
+
+/-- What a round draws: a `Run` whose table sequences are each population's draws and whose
+certification sequences are the uniform pool's certification draws and the named populations'
+spare draws, and the side each string hashes to. -/
+abbrev Draws (Ω S J : Type*) := Run Ω S J × (S → Bool)
+
+open scoped Classical in
+/-- The sequences the round reads off its draws, population `j ≠ uni` holding the harvested
+strings `H j`. -/
+noncomputable def streams (H : J → Finset S) (uni : J) (x : Draws Ω S J) : Run Ω S J :=
+  (x.1.1, ((x.1.2.1.1, fun j => if j = uni then x.1.2.1.2 j
+      else tableSeqOf (H j).toList (onSide (allHarvest H) true x.2) (x.1.2.1.2 j) (x.1.2.2 j)),
+    fun j => if j = uni then x.1.2.2 j
+      else reserveSeqOf (onSide (allHarvest H) false x.2) (x.1.2.1.2 j) (x.1.2.2 j)))
+
+/-- A fair coin: a string's side under a hash seeded at random. -/
+noncomputable def fairCoin : Measure Bool :=
+  (2 : ENNReal)⁻¹ • Measure.dirac true + (2 : ENNReal)⁻¹ • Measure.dirac false
+
+/-- The noise, the suffix draws and every population's two streams independent, each stream
+i.i.d., and every string's side an independent fair coin. -/
+noncomputable def runMeasure (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
+    Measure (Draws Ω S J) :=
+  (μ.prod ((((Measure.infinitePi fun _ : ℕ => Dsf).prod
+      (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))).prod
+    (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))).prod
+  (Measure.infinitePi fun _ : S => fairCoin)
+
+/-! ## The loop's state -/
+
+/-- All of it integer data: a boundary enters every event only through the count it cuts at,
+so the cut is the state. -/
+@[ext]
+structure State where
+  /-- How many suffixes have been drawn. -/
+  nsuff : ℕ
+  /-- How many prefixes each population has drawn. -/
+  npref : ℕ
+  /-- The cluster's size, seed included. -/
+  k : ℕ
+  /-- Reject at or below this count. -/
+  lo : ℕ
+  /-- Accept above this count. -/
+  hi : ℕ
+  /-- `_screen_cohort`'s cutoff, as the ratio `sc/scd`: a candidate disagreeing with the seed's
+  column on more than this fraction of prefixes above the pool's floor never reaches
+  `fully_observed()`, so `identify_cluster_around` never clusters over it. -/
+  sc : ℕ
+  scd : ℕ
+
+/-- The band's centre as a share of the cluster, which `lo` and `hi + 1` sit evenly about. -/
+noncomputable def State.centre (B : State) : ℝ := ((B.lo : ℝ) + B.hi + 1) / (2 * ((B.k : ℝ) - 1))
+
+/-! ## The algorithm
+
+`sample_suffix_family` in the order it runs: draw, screen, cluster, read the cut off the
+family's vote. -/
+
+/-! ### Draw -/
+
+open scoped Classical in
+/-- The first `m` distinct draws of `y` outside `T`, sampling without replacement: a draw
+already taken, or in `T`, is drawn again, as `_draw_cohort` and `_distinct_prefixes` do.  Empty
+when `y` never offers `m` of them. -/
+noncomputable def freshDraws (T : Finset S) (y : ℕ → S) (m : ℕ) : Finset S :=
+  if h : ∃ n, m ≤ ((Finset.range n).image y \ T).card then
+    (Finset.range (Nat.find h)).image y \ T
+  else ∅
+
+/-- `M` suffixes drawn without replacement, with the seed `ε`: `pst.table.column(v)` promotes
+it to fully observed at the top of every round. -/
+noncomputable def poolAt (M : ℕ) (x : Run Ω S J) : Finset S :=
+  insert 1 (freshDraws ∅ (fun i => suffixDraw i x) M)
+
+/-- Population `j`'s `m` prefixes, drawn without replacement. -/
+noncomputable def prefixesOf (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
+  freshDraws ∅ (fun i => prefixDraw j i x) m
+
+/-- Every population's representative prefixes, pooled. -/
+noncomputable def prefixesAt (populations : Finset J) (m : ℕ)
+    (x : Run Ω S J) : Finset S :=
+  populations.biUnion (fun j => prefixesOf j m x)
+
+/-- Population `j`'s `m` `certification_sample` prefixes, drawn without replacement and outside
+the table `T`, so the family was never clustered on them. -/
+noncomputable def certOf (T : Finset S) (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
+  freshDraws T (fun i => certPrefix j i x) m
+
+/-! ### Screen -/
+
+/-- `_screen_cohort`'s statistic: how many prefixes the candidate's column disagrees with the
+seed's on. -/
+noncomputable def screenCount (mq : S → Ω → ℝ) (P : Finset S) (v : S) (ω : Ω) : ℕ :=
+  (P.filter (fun p => ¬ ((mq (p * v) ω = 1) ↔ (mq p ω = 1)))).card
+
+/-- The least `screenCount` of any candidate but the seed, whose two reads are the same query
+string.  `_screen_cohort` reads its `same_family_rate` off the cohort in the same way rather
+than from the declared noise rate. -/
+noncomputable def screenBase (mq : S → Ω → ℝ) (P cands : Finset S) (ω : Ω) : ℕ :=
+  if h : (cands.erase 1).Nonempty then
+    (cands.erase 1).inf' h (fun v => screenCount mq P v ω)
+  else 0
+
+open scoped Classical in
+/-- The candidates the clustering actually sees: those within `sc/scd` of the pool's floor.
+A suffix the screen rejects never becomes a fully observed column, so
+`identify_cluster_around` never ranks it. -/
+noncomputable def screened (mq : S → Ω → ℝ) (sc scd : ℕ) (P cands : Finset S) (ω : Ω) :
+    Finset S :=
+  cands.filter (fun v =>
+    scd * screenCount mq P v ω ≤ scd * screenBase mq P cands ω + sc * P.card)
+
+noncomputable def screenedAt (mq : S → Ω → ℝ) (populations : Finset J) (B : State)
+    (x : Run Ω S J) : Finset S :=
+  screened mq B.sc B.scd (prefixesAt populations B.npref x) (poolAt B.nsuff x) (oracleNoise x)
+
+/-! ### Vote -/
+
+/-- How many of the family answer accept at `p`. -/
+noncomputable def voteCount (mq : S → Ω → ℝ) (F : Finset S) (p : S) (ω : Ω) : ℕ :=
+  (F.filter (fun v => mq (p * v) ω = 1)).card
+
+/-! ### Cluster -/
+
+/-- The greedy's output: a `k`-subset of `cands` minimising `∑ ℓ`. -/
+noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset S) (k : ℕ) :
+    Finset S :=
+  if h : (cands.powersetCard k).Nonempty then
+    (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose
+  else ∅
+
+/-- `misread_statistic` against the seed at rates centred on `c`, less what every candidate
+shares, over the most one read can move it: with `x` the candidate's reads and `y` the seed's
+over `P`,
+
+    (∑ (x − y)² − (1 − 2c) ∑ x) / (2 max(c, 1 − c)) -/
+noncomputable def misreadAt (mq : S → Ω → ℝ) (c : ℝ) (P : Finset S) (v : S) (ω : Ω) : ℝ :=
+  (screenCount mq P v ω - (1 - 2 * c) * (P.filter (fun p => mq (p * v) ω = 1)).card)
+    / (2 * max c (1 - c))
+
+/-- The seed with the `k − 1` candidates of least `misreadAt c`, ties broken by
+`leastLossSubset`'s choice. -/
+noncomputable def nearestRows (mq : S → Ω → ℝ) (c : ℝ) (P cands : Finset S) (ω : Ω) (k : ℕ) :
+    Finset S :=
+  insert 1 (leastLossSubset (fun v => misreadAt mq c P v ω) (cands.erase 1) (k - 1))
+
+/-- The cluster without its seed. -/
+noncomputable def clusterAt (mq : S → Ω → ℝ) (populations : Finset J)
+    (x : Run Ω S J) (B : State) : Finset S :=
+  (nearestRows mq B.centre (prefixesAt populations B.npref x) (screenedAt mq populations B x)
+    (oracleNoise x) B.k).erase 1
+
+/-- The family the round returns, `vs`: the cluster with its seed. -/
+noncomputable def familyAt (mq : S → Ω → ℝ) (populations : Finset J)
+    (x : Run Ω S J) (B : State) : Finset S :=
+  insert 1 (clusterAt mq populations x B)
+
+/-! ### The cut -/
+
+/-- `p` is decided when the family's vote clears the accept or reject threshold; otherwise
+it lands in the indecisive band and counts towards the FNR. -/
+def decided (mq : S → Ω → ℝ) (lo hi : ℕ) (F : Finset S) (p : S) (ω : Ω) : Prop :=
+  hi < voteCount mq F p ω ∨ voteCount mq F p ω ≤ lo
+
+/-! ## The gate
+
+`judge_family`'s two tests. -/
+
+/-- `P[Bin(N,p) ≥ j]` — `scipy.stats.binom.sf(j-1, N, p)`. -/
+noncomputable def binomSfGe (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
+  ∑ i ∈ Finset.Icc j N, (N.choose i : ℝ) * p ^ i * (1 - p) ^ (N - i)
+
+/-- Hoeffding's deviation for a sum of `n` independent reads in `[0, 1]`, exceeded with chance at
+most `a`. -/
+noncomputable def hoeffDev (n : ℕ) (a : ℝ) : ℝ := Real.sqrt (n * Real.log (1 / a) / 2)
+
+open scoped Classical in
+/-- A disagreement between the seed's read of `p` and a reference's read of `p · v`, weighted at
+centre `c`.  An accept-preserving reference then disagrees at `r(1 − r)`, `r` the rate of `p`'s
+class, and any other at least that, as long as `ηIn ≤ 1 − c` and `ηOut ≤ c`. -/
+noncomputable def apartCost (c seed ref : ℝ) : ℝ :=
+  if (ref = 1 ↔ seed = 1) then 0 else if seed = 1 then 1 - c else c
+
+/-- The most one read moves a score centred at `c`: the misread statistic or an `apartCost`. -/
+noncomputable def span (c : ℝ) : ℝ := max c (1 - c)
+
+open scoped Classical in
+/-- The least `apartCost` over `A` of any reference. -/
+noncomputable def refApart (mq : S → Ω → ℝ) (c : ℝ) (A R : Finset S) (ω : Ω) : ℝ :=
+  if h : R.Nonempty then
+    R.inf' h (fun v => ∑ p ∈ A, apartCost c (mq p ω) (mq (p * v) ω))
+  else 0
+
+/-- The level a test at sample size `n` spends out of `a`, so that every size together spends at
+most `a`. -/
+noncomputable def sizeLevel (a : ℝ) (n : ℕ) : ℝ := a / (((n : ℝ) + 1) * ((n : ℝ) + 2))
+
+/-- The prefixes the family's cut accepts. -/
+noncomputable def acceptSide (mq : S → Ω → ℝ) (hi : ℕ) (F P : Finset S) (ω : Ω) : Finset S :=
+  P.filter (fun p => hi < voteCount mq F p ω)
+
+/-- The prefixes the family's cut rejects. -/
+noncomputable def rejectSide (mq : S → Ω → ℝ) (lo : ℕ) (F P : Finset S) (ω : Ω) : Finset S :=
+  P.filter (fun p => voteCount mq F p ω ≤ lo)
+
+/-- How much of the spread in a side's reads its noise leaves unexplained, at centre `c`.  Of the
+`n` prefixes on the side, `against` read on the seed against the side and `apart` is the fewest
+any reference's `apartCost` comes to, the first within `d` of its mean and the second within
+`s·d`, `s` the `span` of the centre; with `t_p` the chance `p` reads against the side and `r_p`
+its noise rate,
+
+    (1/n) ∑ (t_p − c)² = c(1 − c) + (1 − 2c)(t̄ − c) − (1/n) ∑ r_p(1 − r_p). -/
+noncomputable def spreadBound (n against : ℕ) (apart d c s : ℝ) : ℝ :=
+  c * (1 - c) + max ((1 - 2 * c) * ((against - d) / n - c)) ((1 - 2 * c) * ((against + d) / n - c))
+    - (apart - s * d) / n
+
+/-- An upper bound on the fraction of a side the cut puts there wrongly, given that the wrong
+class's noise rate is at most `y`.  A wrong prefix reads against the side at `1 − y` or more,
+so it contributes `(1 − y − c)²` to the spread. -/
+noncomputable def wrongCap (n against : ℕ) (apart d y s : ℝ) : ℝ :=
+  if 0 < n ∧ 0 < 1 - y - (against : ℝ) / n then
+    min 1 (max 0 (spreadBound n against apart d ((against : ℝ) / n) s)
+      / (1 - y - (against : ℝ) / n) ^ 2)
+  else 1
+
+/-- How many of a side the seed reads against it: `0` on the accept side, `1` on the reject
+side. -/
+noncomputable def againstOn (mq : S → Ω → ℝ) (accept : Bool) (A : Finset S) (ω : Ω) : ℕ :=
+  (A.filter (fun p => (mq p ω = 1) ↔ accept = false)).card
+
+/-- `wrongCap` on one side of the cut, against references `R` weighted at centre `c`, at level
+`a`. -/
+noncomputable def sideCap (mq : S → Ω → ℝ) (accept : Bool) (c : ℝ) (A R : Finset S) (a y : ℝ)
+    (ω : Ω) : ℝ :=
+  wrongCap A.card (againstOn mq accept A ω) (refApart mq c A R ω) (hoeffDev A.card a) y (span c)
+
+/-- An upper bound on how many of `P` the cut puts on the wrong side: the accept side's wrong
+prefixes lie outside the language, their rate at most `yAcc`, and the reject side's inside it,
+their rate at most `yRej`. -/
+noncomputable def miscutBound (mq : S → Ω → ℝ) (a : ℝ) (lo hi : ℕ) (F R P : Finset S)
+    (c yAcc yRej : ℝ) (ω : Ω) : ℝ :=
+  (acceptSide mq hi F P ω).card * sideCap mq true c (acceptSide mq hi F P ω) R a yAcc ω
+    + (rejectSide mq lo F P ω).card * sideCap mq false c (rejectSide mq lo F P ω) R a yRej ω
+
+/-- `drift_verdict`'s ADMITTED, as modelled: the family's cut misclassifies at most `lim` of the
+population.  `P` is the sample, drawn without replacement, and `R` the references; `miscutBound`
+and the passage from the sample to the population are both read at `sizeLevel a #P`. -/
+def certifiesAt (mq : S → Ω → ℝ) (c yAcc yRej lim a : ℝ) (lo hi : ℕ) (F R P : Finset S)
+    (ω : Ω) : Prop :=
+  0 < P.card ∧ miscutBound mq (sizeLevel a P.card) lo hi F R P c yAcc yRej ω
+    ≤ P.card * lim - hoeffDev P.card (sizeLevel a P.card)
+
+open scoped Classical in
+/-- The prefixes of `P` whose vote over `F` falls `½ − η₀` of the family or more below the
+state's centre. -/
+noncomputable def strongReject (mq : S → Ω → ℝ) (η₀ : ℝ) (B : State) (F P : Finset S) (ω : Ω) :
+    Finset S :=
+  P.filter (fun p => (voteCount mq F p ω : ℝ) ≤ ((B.k - 1 : ℕ) : ℝ) * (B.centre - (1 / 2 - η₀)))
+
+open scoped Classical in
+/-- The prefixes of `P` whose vote over `F` rises `½ − η₀` of the family or more above the
+state's centre. -/
+noncomputable def strongAccept (mq : S → Ω → ℝ) (η₀ : ℝ) (B : State) (F P : Finset S) (ω : Ω) :
+    Finset S :=
+  P.filter (fun p => ((B.k - 1 : ℕ) : ℝ) * (B.centre + (1 / 2 - η₀)) ≤ (voteCount mq F p ω : ℝ))
+
+/-- An upper bound at level `a` on how often a prefix of `A` reads against side `accept`, `1` on
+an empty `A`.  Every prefix reads accept at least as often as the language's complement does,
+and reject at least as often as the language does, so it bounds those two rates whatever `A`
+holds. -/
+noncomputable def readBound (mq : S → Ω → ℝ) (accept : Bool) (A : Finset S) (a : ℝ) (ω : Ω) : ℝ :=
+  if A.card = 0 then 1 else ((againstOn mq accept A ω : ℝ) + hoeffDev A.card a) / A.card
+
+/-- The uniform pool's sample bears out the state's centre: the rates its strongly decided
+prefixes read the other way at are no more than those the gate reads the wrong class at. -/
+def centreFits (mq : S → Ω → ℝ) (η₀ a : ℝ) (B : State) (F P : Finset S) (ω : Ω) : Prop :=
+  readBound mq false (strongReject mq η₀ B F P ω) a ω ≤ B.centre - 1 / 2 + η₀
+    ∧ readBound mq true (strongAccept mq η₀ B F P ω) a ω ≤ 1 / 2 - B.centre + η₀
+
+/-- Population `j` is read at a state of `m` prefixes: its table and its certification sample
+both find their `m` strings. -/
+def keptAt (populations : Finset J) (j : J) (m : ℕ) (x : Run Ω S J) : Prop :=
+  (prefixesOf j m x).card = m ∧ (certOf (prefixesAt populations m x) j m x).card = m
+
+open scoped Classical in
+/-- The pool's suffixes outside the family: the gate's references. -/
+noncomputable def refsAt (mq : S → Ω → ℝ) (populations : Finset J) (x : Run Ω S J) (B : State) :
+    Finset S :=
+  poolAt B.nsuff x \ familyAt mq populations x B
+
+open scoped Classical in
+/-- `misclassification_limit`: `εcov` on the uniform pool, a half elsewhere. -/
+noncomputable def gateLimit (uni : J) (εcov : ℝ) (j : J) : ℝ := if j = uni then εcov else 1 / 2
+
+/-- The level the gate spends at a state: `α` over the gate's seven tails per population and the
+centre check's two, over the at most `k` centres a prefix count is tried at, and over the
+states by their prefix counts. -/
+noncomputable def gateLevel (α : ℝ) (populations : Finset J) (B : State) : ℝ :=
+  sizeLevel (α / (9 * populations.card * B.k)) B.npref
+
+open scoped Classical in
+/-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
+test on `certOf`, and the gate, at each population `keptAt` keeps, the gate drawing that
+population further when the split reads uncertified, to at most twice its size.  The FNR reads
+the family with its seed; the gate reads it without, since the seed's read is the bit the gate
+scores.  The gate reads each side's wrong class at the rate `½ − η₀` short of the band's
+centre, once the uniform pool's sample bears that centre out (`centreFits`). -/
+noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
+    (η₀ indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
+  {x | B.k ≤ (clusterAt mq populations x B).card + 1
+    ∧ (∀ j ∈ populations, keptAt populations j B.npref x →
+      (((certOf (prefixesAt populations B.npref x) j B.npref x).filter (fun p =>
+          ¬ decided mq B.lo (B.hi + 1) (familyAt mq populations x B) p
+            (oracleNoise x))).card : ℝ)
+        ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
+    ∧ ∀ j ∈ populations, keptAt populations j B.npref x → ∃ e ≤ B.npref,
+      certifiesAt mq B.centre (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀) (gateLimit uni εcov j)
+        (gateLevel α populations B) B.lo B.hi
+        (clusterAt mq populations x B) (refsAt mq populations x B)
+        (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x)
+      ∧ centreFits mq η₀ (gateLevel α populations B) B (clusterAt mq populations x B)
+        (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x)}
+
+end OrthoDFA
