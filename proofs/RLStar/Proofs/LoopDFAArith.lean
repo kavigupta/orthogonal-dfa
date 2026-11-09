@@ -944,7 +944,7 @@ def loopR₀ (Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
   let s := 1 / 2 - η₀
   let Θι := loopΘι Q Ae c ξ
   let Θ := loopΘ Q Ae c ξ η₀
-  let P₀ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * loopW₀ Q A δ / δ')) + 2) / s ^ 2
+  let P₀ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * loopW₀ Q A δ / δ')) + 5) / s ^ 2
       + 20 / s + 28) / pAP + 120 * Real.log (3 / (δ' / 2)) / pAP
   2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
     + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2)
