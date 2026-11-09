@@ -39,11 +39,11 @@ def loopG (x : RLStarInputs) : ℝ :=
     * (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 2 * (1 / x.s₀) ^ 6
 
 lemma shape_toDist_le {x : RLStarInputs} (hx : x ∈ rlStarRegion) (L : ℕ) :
-    0 ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
+    0 ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β) ^ 4 * x.R ^ 4
         * log (((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
         / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 6)
-      ∧ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β + x.Q) ^ 4 * x.R ^ 4
+      ∧ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β) ^ 4 * x.R ^ 4
         * log (((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
         / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 6)
@@ -86,8 +86,8 @@ lemma shape_toDist_le {x : RLStarInputs} (hx : x ∈ rlStarRegion) (L : ℕ) :
   have e2 : (x.Q : ℝ) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀) = Y := by
     show (x.Q : ℝ) * x.R / (1 / (x.A : ℝ) * x.δ * x.ξ * x.pAP * x.s₀) = _
     rw [hYd]; field_simp
-  have e4 : 1 / (toDist x).β + x.Q = x.A + x.Q := by
-    show 1 / (1 / (x.A : ℝ)) + x.Q = _
+  have e4 : 1 / (toDist x).β = x.A := by
+    show 1 / (1 / (x.A : ℝ)) = _
     rw [one_div_one_div]
   set K : ℝ := (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 2 * (1 / x.s₀) ^ 6 with hKd
   have e3 : ∀ z : ℝ, z / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 6) = z * K := by
@@ -102,9 +102,11 @@ lemma shape_toDist_le {x : RLStarInputs} (hx : x ∈ rlStarRegion) (L : ℕ) :
   have hb : 0 ≤ (x.Q : ℝ) ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K := by
     have : 0 ≤ log Y := by linarith
     positivity
-  calc ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
+  calc ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (x.A : ℝ) ^ 4 * x.R ^ 4
         * log (((L : ℝ) + x.Q) * Y / x.Q) * log Y ^ 2 * K
       ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
+        * log (((L : ℝ) + x.Q) * Y / x.Q) * log Y ^ 2 * K := by gcongr; linarith
+    _ ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
         * (2 * ((L : ℝ) + x.Q) * log Y) * log Y ^ 2 * K := by gcongr
     _ = 2 * (((L : ℝ) + x.Q) ^ 5 * (x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K)) := by
       ring
@@ -166,10 +168,10 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
       (eventually_principal.2 fun r hr => ?_)
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
     have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
-    show _ = r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
+    show _ = r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
           * log (r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
         + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
-          * (1 / r.s₀ ^ 4 + r.Q ^ 4 * (r.A + r.Q) ^ 2)
+          * (1 / r.s₀ ^ 4 + r.Q ^ 4 * r.A ^ 2)
           * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
     simp only [Function.comp, toDistRun, toDist, one_div_one_div]
     obtain ⟨e, e'⟩ := uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := r.R) hA' hδ hξ hp hs
@@ -186,8 +188,9 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
       (eventually_principal.2 fun r hr => ?_)
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
     have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
-    show _ = r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
+    show _ = r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
     simp only [Function.comp, toDistRun, toDist, one_div_one_div]
+    ring
   · refine (isBigO_comp_on hreads hmapsR).congr' EventuallyEq.rfl
       (eventually_principal.2 fun r hr => ?_)
     obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
@@ -195,6 +198,7 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     simp only [Function.comp, toDistRun, toDist, one_div_one_div]
     obtain ⟨e, e'⟩ := uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := r.R) hA' hδ hξ hp hs
     rw [e, e']
+    ring
   · exact isBigO_comp_on hho hmaps
   -- the run, at `D` uniform
   intro A _ _ _ Q _ Ω _ μ _ x M O L γ k L₁ hx hQ hA hL hη hpAPu hdom hL₀
@@ -254,9 +258,9 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
 lemma uniform_factors {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
     0 < (r.Q : ℝ)
       ∧ 0 ≤ log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
-      ∧ 0 ≤ r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
+      ∧ 0 ≤ r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
       ∧ 0 ≤ log (r.L + r.Q + 1)
-      ∧ 0 ≤ r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ
+      ∧ 0 ≤ r.R * r.A * (r.L + r.Q) / r.ξ
       ∧ 0 ≤ log (r.Q / r.δ) / r.ξ ^ 2 := by
   obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hr
   have hQ' : (1 : ℝ) ≤ r.Q := by exact_mod_cast hQ
@@ -343,21 +347,21 @@ lemma reads_two_term {Q P S F Pr lg ρ Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ P) (hS
 /-- At uniform strings, `N_probe ≤ N_pref / ρ`, `n_held ≤ |Q| N_pref / ρ` and
 `log(L + |Q| + 1) ≥ 1/2`. -/
 lemma uniform_search_start_le {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
-    r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
-        ≤ r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
+    r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
+        ≤ r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
             * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / (r.ξ ^ 2 * r.s₀ ^ 4)
-          * (r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ)
+          * (r.R * r.A * (r.L + r.Q) / r.ξ)
       ∧ log (r.Q / r.δ) / r.ξ ^ 2
-        ≤ r.Q * (r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
+        ≤ r.Q * (r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
             * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / (r.ξ ^ 2 * r.s₀ ^ 4))
-          * (r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ)
+          * (r.R * r.A * (r.L + r.Q) / r.ξ)
       ∧ 1 / 2 ≤ log (r.L + r.Q + 1) := by
   obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hr
   have hQ' : (1 : ℝ) ≤ r.Q := by exact_mod_cast hQ
   have hA' : (2 : ℝ) ≤ r.A := by exact_mod_cast hA
   have hL : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _
   have hLQ : (1 : ℝ) ≤ r.L + r.Q := by linarith
-  have hAQ : (1 : ℝ) ≤ r.A + r.Q := by linarith
+  have hAQ : (1 : ℝ) ≤ r.A := by linarith
   have hR0 : 0 < r.R := by linarith
   have hiξ : 1 ≤ 1 / r.ξ := (le_div_iff₀ hξ).2 (by linarith)
   have his : 1 ≤ 1 / r.s₀ := (le_div_iff₀ hs).2 (by linarith)
@@ -380,16 +384,16 @@ lemma uniform_search_start_le {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
     Real.log_le_log (div_pos (by linarith) hδ) hQQA
   have hl3 : log ((r.Q : ℝ) * r.A / r.δ) ≤ log Y :=
     Real.log_le_log (div_pos (by positivity) hδ) hQAY
-  set b : ℝ := r.Q ^ 7 * (r.A + r.Q) ^ 3 * (r.L + r.Q) ^ 3 * r.R ^ 3
+  set b : ℝ := r.Q ^ 7 * r.A ^ 3 * (r.L + r.Q) ^ 3 * r.R ^ 3
     * ((1 / r.ξ) ^ 3 * (1 / r.s₀) ^ 4) with hbd
   have hb0 : 0 ≤ b := by rw [hbd]; positivity
-  have ha : (r.Q : ℝ) ^ 3 * (r.A * (r.A + r.Q)) * (r.L + r.Q) * r.R * (1 / r.ξ) ≤ b := by
+  have ha : (r.Q : ℝ) ^ 3 * (r.A * r.A) * (r.L + r.Q) * r.R * (1 / r.ξ) ≤ b := by
     have f1 : (r.Q : ℝ) ^ 3 ≤ r.Q ^ 7 := pow_le_pow_right₀ hQ' (by norm_num)
-    have f2 : (r.A : ℝ) * (r.A + r.Q) ≤ (r.A + r.Q) ^ 3 :=
-      calc (r.A : ℝ) * (r.A + r.Q) ≤ (r.A + r.Q) * (r.A + r.Q) :=
+    have f2 : (r.A : ℝ) * r.A ≤ r.A ^ 3 :=
+      calc (r.A : ℝ) * r.A ≤ r.A * r.A :=
             mul_le_mul_of_nonneg_right (by linarith) (by linarith)
-        _ = (r.A + r.Q) ^ 2 := (sq _).symm
-        _ ≤ (r.A + r.Q) ^ 3 := pow_le_pow_right₀ hAQ (by norm_num)
+        _ = r.A ^ 2 := (sq _).symm
+        _ ≤ r.A ^ 3 := pow_le_pow_right₀ hAQ (by norm_num)
     have f3 : (r.L : ℝ) + r.Q ≤ (r.L + r.Q) ^ 3 := le_self_pow₀ hLQ (by norm_num)
     have f4 : r.R ≤ r.R ^ 3 := le_self_pow₀ hR (by norm_num)
     have f5 : 1 / r.ξ ≤ (1 / r.ξ) ^ 3 * (1 / r.s₀) ^ 4 :=
@@ -398,7 +402,7 @@ lemma uniform_search_start_le {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
     rw [hbd]
     gcongr ?_ * ?_ * ?_ * ?_ * ?_
   have hQb : (1 / r.ξ) ^ 2 ≤ r.Q * b := by
-    have e : r.Q * b = r.Q ^ 8 * (r.A + r.Q) ^ 3 * (r.L + r.Q) ^ 3 * r.R ^ 3 * (1 / r.ξ)
+    have e : r.Q * b = r.Q ^ 8 * r.A ^ 3 * (r.L + r.Q) ^ 3 * r.R ^ 3 * (1 / r.ξ)
         * (1 / r.s₀) ^ 4 * (1 / r.ξ) ^ 2 := by rw [hbd]; ring
     rw [e]
     refine le_mul_of_one_le_left (by positivity) ?_
@@ -406,13 +410,13 @@ lemma uniform_search_start_le {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
       (one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le
         (one_le_mul_of_one_le_of_one_le (one_le_pow₀ hQ') (one_le_pow₀ hAQ)) (one_le_pow₀ hLQ))
         (one_le_pow₀ hR)) hiξ) (one_le_pow₀ his)
-  have e1 : r.Q ^ 3 * r.A * (r.A + r.Q) * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
-      = r.Q ^ 3 * (r.A * (r.A + r.Q)) * (r.L + r.Q) * r.R * (1 / r.ξ)
+  have e1 : r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
+      = r.Q ^ 3 * (r.A * r.A) * (r.L + r.Q) * r.R * (1 / r.ξ)
         * log (r.Q * r.A / r.δ) := by ring
-  have e2 : r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 * log Y / (r.ξ ^ 2 * r.s₀ ^ 4)
-      * (r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ) = b * log Y := by rw [hbd]; ring
-  have e3 : r.Q * (r.Q ^ 7 * (r.A + r.Q) ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 * log Y
-      / (r.ξ ^ 2 * r.s₀ ^ 4)) * (r.R * (r.A + r.Q) * (r.L + r.Q) / r.ξ) = r.Q * b * log Y := by
+  have e2 : r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 * log Y / (r.ξ ^ 2 * r.s₀ ^ 4)
+      * (r.R * r.A * (r.L + r.Q) / r.ξ) = b * log Y := by rw [hbd]; ring
+  have e3 : r.Q * (r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 * log Y
+      / (r.ξ ^ 2 * r.s₀ ^ 4)) * (r.R * r.A * (r.L + r.Q) / r.ξ) = r.Q * b * log Y := by
     rw [hbd]; ring
   have e4 : log (r.Q / r.δ) / r.ξ ^ 2 = (1 / r.ξ) ^ 2 * log (r.Q / r.δ) := by ring
   refine ⟨?_, ?_, half_le_log (by linarith)⟩

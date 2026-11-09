@@ -16,7 +16,7 @@ prefixes are uniform (`prefixLaw_uniformStrings`).
 
 `loop_simple_checks` at the window's probes leaves a last round with at most `ε + ε/96` of the
 probes disagreeing, searching or stopping undecided at their start or end sift, and at most half
-of each state's strings shorter than `L + 1`, plus `ε + ε/96`, misled: reading, or extended by a
+of each state's strings shorter than `L + 1`, plus `ε/(32|Q|)`, misled: reading, or extended by a
 letter reading, a string on its state's rarer side. From there the bridge is deterministic
 (`dfa_of_checks`): the tree's root reads the string itself, so a covered state's edges are true
 (`edge_of_occupied`), it is read on its true side (`sideOf_eq_of_mass`), and the covered start's
@@ -356,7 +356,7 @@ theorem covered_bridge {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] 
     let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
     ∀ o : SpecRound α,
       o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
-        (shortAt M (L + 1)) (ε + ε / 96) →
+        (shortAt M (L + 1)) (ε / (32 * Fintype.card σ)) →
       ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
         {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ γ := by
   intro k L₁ N ε εcov o hch
@@ -370,7 +370,12 @@ theorem covered_bridge {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] 
     exact (show c ≤ _ from hq₀).trans measureReal_le_one
   obtain ⟨hε0, -, hεc0, -, -, -, hbad, hcN, -⟩ := dfa_rates (ℓ := 0) hQ1 hAe hN1 le_rfl
     (by linarith) hc hc1 hξ rfl rfl rfl
-  refine dfa_of_checks M O hL o L D hlong (by linarith) hfl hch (by positivity) hbad ?_ hceil
+  have hm : ε / (32 * Fintype.card σ) ≤ ε + ε / 96 :=
+    (div_le_self hε0.le (by linarith)).trans (by linarith)
+  have hNm := mul_le_mul_of_nonneg_left hm (zero_le_one.trans hN1)
+  refine dfa_of_checks M O hL o L D hlong (by linarith) hfl hch (div_pos hε0 (by linarith)).le
+    (by show 2 * ((Ae + 1) * N * (ε + ε / 96) + N * (ε / (32 * Fintype.card σ))) < c; linarith)
+    ?_ hceil
   show (2 * (1025 / 1024 * εcov) + 3 / 8 * εcov) * N < c
   have h0 : 0 < εcov * N := mul_pos hεc0 (zero_lt_one.trans_le hN1)
   linarith only [hcN, h0]
@@ -424,7 +429,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
     (∀ o : SpecRound α,
       o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
-        (shortAt M (L + 1)) (ε + ε / 96) →
+        (shortAt M (L + 1)) (ε / (32 * Q)) →
       ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
         {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ γ) →
     p₀ ≤ cap * ε / 1536 →
@@ -652,7 +657,7 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
     {p | let rounds := idealRounds settings O P.D Dsf (persistDraws p) (Fintype.card σ + 1)
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96) (shortAt M (L + 1))
-            (ε + ε / 96))
+            (ε / (32 * Q)))
         ∧ (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2)
         ∧ RoundsFresh settings O P.D Dsf Ls p
         ∧ (∀ r (hr : r < Fintype.card σ + 1),
@@ -964,7 +969,7 @@ theorem learner_loop_dfa_dist_tol {α : Type*} [Fintype α] [DecidableEq α] [No
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
     (∀ o : SpecRound α,
       o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
-        (shortAt M (L + 1)) (ε + ε / 96) →
+        (shortAt M (L + 1)) (ε / (32 * Q)) →
       ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
         {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)} ≤ γ) →
     p₀ ≤ 1 / loopTolInv (L + Q + 4) Q A Ae (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀ →

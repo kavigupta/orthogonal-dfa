@@ -13,7 +13,7 @@ walk at most `⌈loopHB⌉₊` probes a round, all at `ℓ = L + |Q| + 4`, once 
 `1/loopTolInv ℓ` on any first `k` letters; but for chance `δ` the run succeeds with its draws
 walking within that bound. `Query.eval_congr` makes the output depend only on those strings'
 answers.
-The claim runs it at `c = ξ/(2R)`, `ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last
+The claim runs it at `c = ξ/(2R)`, `ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β`, its last
 round's leaf from `summed_bridge`; `ClaimRLStarArith` and `ClaimReadsArith` bound those shapes.
 `RLStarClaimUniform` and `RLStarClaimUniformSimple` follow (`ClaimRLStarUniform`).
 -/
@@ -49,7 +49,7 @@ theorem rlStarClaim_holds : RLStarClaim := by
     rw [e, le_div_iff₀ hβ]
     linarith
   have hM1 : 1 ≤ loopTolInv (L + Fintype.card σ + 4) (Fintype.card σ) (Fintype.card α)
-      (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
+      (1 / β) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
       (1 / 2 - s₀) :=
     (loopTolInv_le _ _ (by have : (0 : ℝ) ≤ L := Nat.cast_nonneg _; linarith)
       (Nat.cast_nonneg _) (Nat.cast_nonneg _)
@@ -57,16 +57,16 @@ theorem rlStarClaim_holds : RLStarClaim := by
       hc1 (by positivity) hpAP hpAP1 (by linarith) hη₀).1
   have hp₀ : distP₀Tol ⟨⟨⟨Fintype.card σ, Fintype.card α, δ, R, ξ, pAP, s₀⟩, β⟩, L⟩
       ≤ 1 / loopTolInv (L + Fintype.card σ + 4) (Fintype.card σ) (Fintype.card α)
-        (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
+        (1 / β) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
         (1 / 2 - s₀) := by
     have e : distP₀Tol ⟨⟨⟨Fintype.card σ, Fintype.card α, δ, R, ξ, pAP, s₀⟩, β⟩, L⟩
         = 1 / max 1 (loopTolInv (L + Fintype.card σ + 4) (Fintype.card σ) (Fintype.card α)
-          (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
+          (1 / β) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
           (1 / 2 - s₀)) := rfl
     rw [e, max_eq_right hM1]
   obtain ⟨settings, hw, -, -, -, -, hcnt, hcalls, hprob⟩ := learner_loop_dfa_dist_tol M O L D
     (1 / 2 - s₀)
-    (ξ / (2 * R)) (γ + 3 * ξ / 4) δ pAP (ξ / 4) (1 / β + Fintype.card σ) _ hL hηle hη₀ hc0 hc1 hδ
+    (ξ / (2 * R)) (γ + 3 * ξ / 4) δ pAP (ξ / 4) (1 / β) _ hL hηle hη₀ hc0 hc1 hδ
     (by linarith) hpAP (by positivity) hA2
     (by have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _; linarith) hlong hpre hpAPu
     (summed_bridge M O hL L D (by linarith) hξ hAe (hlong.mono fun x hx => le_trans (by omega) hx)
