@@ -35,6 +35,9 @@ class SearchConfig:
     #: A rate every prefix population has to meet on its own, not an average
     #: across them.
     fnr_limit: float = 0.10
+    #: The tightest `fnr_limit` gets, as a share of where it starts: it halves after
+    #: a round that harvests nothing, down to this floor.
+    fnr_floor: float = 0.25
     #: The first two bound the split's crispness, and say nothing about whether the
     #: split is the accept-preserving one.  `acceptable_fnr` is the chance a prefix
     #: is called indecisive, all indecision counting against it; `cross_limit`
@@ -85,6 +88,10 @@ class SearchConfig:
     #: Step past an undecided midpoint in a probe's search to the decided position
     #: nearest it.
     counterexample_skip_undecided: bool = False
+    #: Restart the round's DFA at the leaf scoring best on held-out strings, the
+    #: port of ``LoopDFA.lean``'s ``pickLeaf``. Draws its own held-out sample once a
+    #: run where no other setting leaves one to reuse.
+    counterexample_reroot: bool = False
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for

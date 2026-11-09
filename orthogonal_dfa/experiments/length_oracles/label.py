@@ -5,6 +5,8 @@
 writes them to data/neural/length_oracles/labels.npz, which saved_labels reads back
 without the oracles."""
 
+import functools
+
 import numpy as np
 from permacache import permacache
 
@@ -23,10 +25,11 @@ KINDS = ("saw", "flat")
 SAVED = REPO_ROOT / "data" / "neural" / "length_oracles" / "labels.npz"
 
 
+@functools.cache
 def strings(n):
     rng = np.random.default_rng(SEED)
     sampler = SuperSampler(VOCAB, SYMBOLS)
-    return [tuple(sampler.sample(rng, VOCAB.alphabet_size)) for _ in range(n)]
+    return tuple(tuple(sampler.sample(rng, VOCAB.alphabet_size)) for _ in range(n))
 
 
 @permacache("orthogonal_dfa/experiments/length_oracles/label/labels")
@@ -49,6 +52,9 @@ def saved_labels():
 
 
 def main():
+    if SAVED.exists():
+        print(f"{SAVED} exists; nothing to run.", flush=True)
+        return
     z = {kind: labels(kind, COUNT) for kind in KINDS}
     for kind, y in z.items():
         print(kind, "accept rate", y.mean(), flush=True)

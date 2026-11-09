@@ -14,8 +14,8 @@ from orthogonal_dfa.experiments.random_minimal.analyze import PAPER_RC
 from orthogonal_dfa.l_star.examples.luhn import luhn_dfa
 
 OUT_PATH = REPO_ROOT / "figures" / "luhn" / "luhn_dfa.pdf"
-# the paper's disagree, agree and 1F5FA8!50!white
-REJECT, ACCEPT, EDGE = "#E63A7C", "#2BCC4B", "#8FAFD3"
+# the paper's light pink, green and blue (frame-alignment-checks' bar colors)
+REJECT, ACCEPT, EDGE = "#FF80B1", "#60E37A", "#80CDFF"
 # inches: half the textwidth of a two-column ACM paper
 WIDTH = 3.5
 # per ring d = a - b, its rank outward from the center and its rotation in

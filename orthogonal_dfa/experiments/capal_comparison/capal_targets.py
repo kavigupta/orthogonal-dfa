@@ -22,6 +22,14 @@ from orthogonal_dfa.l_star.structures import NoisyOracle
 
 from .benchmark import FAMILY_CAPAL, Benchmark
 
+#: The stems of upstream's `dataset/*.taf`, known here so that a finished sweep
+#: needs no checkout.
+CAPAL_BENCHMARK_NAMES = [
+    f"{level}{i:02}"
+    for level, count in (("Difficult", 13), ("Normal", 9), ("Simple", 6))
+    for i in range(1, count + 1)
+]
+
 
 def capal_benchmarks() -> List[Benchmark]:
     """CAPAL's shipped `.taf` targets, each wrapped for both learners."""

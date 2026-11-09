@@ -28,42 +28,42 @@
     "elstar_regime": {
       "parity_mod9_allowed_3_6": {
         "length": 40,
-        "acceptance_rate": 0.223,
-        "class_preserving_fraction": 0.1125,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "acceptance_rate": 0.21902165915344085,
+        "class_preserving_fraction": 0.11431167417958932,
+        "non_start_zone_accuracy_ceiling": 0.9999999999999999,
+        "unvisited_states": [],
         "reasons": []
       },
       "regex_subseq_1010101": {
         "length": 40,
-        "acceptance_rate": 0.1795,
-        "class_preserving_fraction": 0.201,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "acceptance_rate": 0.18986622613374493,
+        "class_preserving_fraction": 0.20501796257667593,
+        "non_start_zone_accuracy_ceiling": 0.9999999999999998,
+        "unvisited_states": [],
         "reasons": []
       },
       "regex_two_1111": {
         "length": 40,
-        "acceptance_rate": 0.36,
-        "class_preserving_fraction": 0.1325,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "acceptance_rate": 0.3663807487964732,
+        "class_preserving_fraction": 0.12948326571586222,
+        "non_start_zone_accuracy_ceiling": 0.9999999999999999,
+        "unvisited_states": [],
         "reasons": []
       },
       "regex_alt_1111_or_0000_11_3sym": {
         "length": 40,
-        "acceptance_rate": 0.079,
-        "class_preserving_fraction": 0.5795,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "acceptance_rate": 0.07775756676380051,
+        "class_preserving_fraction": 0.5658031114462648,
+        "non_start_zone_accuracy_ceiling": 0.9999999999999996,
+        "unvisited_states": [],
         "reasons": []
       },
       "regex_alt_111_or_000_3sym": {
         "length": 40,
-        "acceptance_rate": 0.8915,
-        "class_preserving_fraction": 0.0405,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "acceptance_rate": 0.8910679464204233,
+        "class_preserving_fraction": 0.03847588674500106,
+        "non_start_zone_accuracy_ceiling": 0.9999999999999989,
+        "unvisited_states": [],
         "reasons": []
       }
     },
@@ -110,14 +110,15 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.45,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 119665,
       "equivalence_queries": 0,
-      "seconds": 1.744,
+      "seconds": 2.213,
       "error_type": null,
       "error": null
     },
@@ -161,14 +162,15 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.4,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 191297,
       "equivalence_queries": 0,
-      "seconds": 2.615,
+      "seconds": 2.928,
       "error_type": null,
       "error": null
     },
@@ -212,14 +214,15 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.3,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 451294,
+      "queries_total": 449794,
       "equivalence_queries": 0,
-      "seconds": 5.828,
+      "seconds": 4.897,
       "error_type": null,
       "error": null
     },
@@ -263,14 +266,15 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.2,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 1491352,
+      "queries_total": 1485384,
       "equivalence_queries": 0,
-      "seconds": 23.888,
+      "seconds": 12.772,
       "error_type": null,
       "error": null
     },
@@ -314,14 +318,15 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.45,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 8,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 232147,
+      "queries_total": 267682,
       "equivalence_queries": 0,
-      "seconds": 9.859,
+      "seconds": 10.098,
       "error_type": null,
       "error": null
     },
@@ -365,14 +370,15 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.4,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 8,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 280037,
+      "queries_total": 393472,
       "equivalence_queries": 0,
-      "seconds": 8.446,
+      "seconds": 11.479,
       "error_type": null,
       "error": null
     },
@@ -416,14 +422,15 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.3,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 8,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 1242178,
+      "queries_total": 567707,
       "equivalence_queries": 0,
-      "seconds": 40.887,
+      "seconds": 9.481,
       "error_type": null,
       "error": null
     },
@@ -467,14 +474,15 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.2,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 8,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 1438416,
+      "queries_total": 1945920,
       "equivalence_queries": 0,
-      "seconds": 37.196,
+      "seconds": 37.425,
       "error_type": null,
       "error": null
     },
@@ -518,14 +526,15 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.45,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 150966,
+      "queries_total": 152681,
       "equivalence_queries": 0,
-      "seconds": 4.516,
+      "seconds": 4.436,
       "error_type": null,
       "error": null
     },
@@ -569,14 +578,15 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.4,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 265803,
+      "queries_total": 219254,
       "equivalence_queries": 0,
-      "seconds": 7.529,
+      "seconds": 5.377,
       "error_type": null,
       "error": null
     },
@@ -620,14 +630,15 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.3,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 512169,
+      "queries_total": 503840,
       "equivalence_queries": 0,
-      "seconds": 12.324,
+      "seconds": 9.609,
       "error_type": null,
       "error": null
     },
@@ -671,14 +682,15 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.2,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 1465651,
+      "queries_total": 1189838,
       "equivalence_queries": 0,
-      "seconds": 40.702,
+      "seconds": 18.548,
       "error_type": null,
       "error": null
     },
@@ -722,14 +734,15 @@
       "alphabet_size": 3,
       "learner_config": {
         "min_signal_strength": 0.45,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 11,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 398251,
+      "queries_total": 274755,
       "equivalence_queries": 0,
-      "seconds": 14.274,
+      "seconds": 7.002,
       "error_type": null,
       "error": null
     },
@@ -773,14 +786,15 @@
       "alphabet_size": 3,
       "learner_config": {
         "min_signal_strength": 0.4,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 11,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 422929,
+      "queries_total": 416336,
       "equivalence_queries": 0,
-      "seconds": 11.329,
+      "seconds": 8.672,
       "error_type": null,
       "error": null
     },
@@ -824,14 +838,15 @@
       "alphabet_size": 3,
       "learner_config": {
         "min_signal_strength": 0.3,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 11,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 1358233,
+      "queries_total": 1109434,
       "equivalence_queries": 0,
-      "seconds": 34.46,
+      "seconds": 19.023,
       "error_type": null,
       "error": null
     },
@@ -875,14 +890,15 @@
       "alphabet_size": 3,
       "learner_config": {
         "min_signal_strength": 0.2,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 11,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 3020265,
+      "queries_total": 2445341,
       "equivalence_queries": 0,
-      "seconds": 76.46,
+      "seconds": 37.756,
       "error_type": null,
       "error": null
     },
@@ -926,14 +942,15 @@
       "alphabet_size": 3,
       "learner_config": {
         "min_signal_strength": 0.45,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 6,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 201239,
+      "queries_total": 171495,
       "equivalence_queries": 0,
-      "seconds": 10.514,
+      "seconds": 6.994,
       "error_type": null,
       "error": null
     },
@@ -977,14 +994,15 @@
       "alphabet_size": 3,
       "learner_config": {
         "min_signal_strength": 0.4,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 6,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 284794,
+      "queries_total": 275988,
       "equivalence_queries": 0,
-      "seconds": 7.818,
+      "seconds": 6.305,
       "error_type": null,
       "error": null
     },
@@ -1028,14 +1046,15 @@
       "alphabet_size": 3,
       "learner_config": {
         "min_signal_strength": 0.3,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 6,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 1777522,
+      "queries_total": 2270706,
       "equivalence_queries": 0,
-      "seconds": 50.221,
+      "seconds": 54.953,
       "error_type": null,
       "error": null
     },
@@ -1079,14 +1098,15 @@
       "alphabet_size": 3,
       "learner_config": {
         "min_signal_strength": 0.2,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40
       },
       "learned_states": 6,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 6534026,
+      "queries_total": 3187599,
       "equivalence_queries": 0,
-      "seconds": 196.403,
+      "seconds": 52.657,
       "error_type": null,
       "error": null
     }

@@ -4,10 +4,15 @@ length 35-85 at its own median.
 ``saw`` replicates a bug in #502's earlier real-oracle runs: every string is thresholded
 at the median for compiled length 40, so the accept rate moves with length, and a DFA
 counting wildcards (which tracks length) scores well.  Use it only to rerun that
-comparison, never as an oracle in its own right."""
+comparison, never as an oracle in its own right.
+
+    python -u -m orthogonal_dfa.experiments.length_oracles.oracles
+
+fits both into the cache before the runs read them."""
 
 import numpy as np
 
+from orthogonal_dfa.data.exon import default_exon
 from orthogonal_dfa.l_star.examples.gate_composition_residual import (
     fit_gate_composition_residual,
     gate_residual_oracle,
@@ -17,6 +22,7 @@ from orthogonal_dfa.l_star.examples.spliceai_oracle import (
     median_threshold,
 )
 from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
+from orthogonal_dfa.spliceai.load_model import load_spliceai
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 
 #: Symbols 0-2 are the stops TAG, TAA, TGA; 3 and 4 are one-base wildcards.
@@ -33,11 +39,14 @@ class PerLengthOracle(SpliceModelOracle):
         self._lo = min(thresholds)
         self._thresholds = np.array([thresholds[l] for l in sorted(thresholds)])
 
-    def membership_queries(self, strings):
+    def thresholds_of(self, strings):
         idx = np.clip(
             np.array([len(s) for s in strings]) - self._lo, 0, len(self._thresholds) - 1
         )
-        return self.scores(strings) > self._thresholds[idx]
+        return self._thresholds[idx]
+
+    def membership_queries(self, strings):
+        return self.scores(strings) > self.thresholds_of(strings)
 
 
 def oracle(kind, exon, model, device=None):
@@ -58,3 +67,8 @@ def oracle(kind, exon, model, device=None):
         for l in range(LEN_LO, LEN_HI + 1)
     }
     return PerLengthOracle(exon, gscore, thresholds, device=device)
+
+
+if __name__ == "__main__":
+    for kind_ in ("saw", "flat"):
+        oracle(kind_, default_exon, load_spliceai(400, 0))
