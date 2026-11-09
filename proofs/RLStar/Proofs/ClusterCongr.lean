@@ -67,11 +67,11 @@ lemma voteCount_eqOn {F : Finset S} {p : S} (h : ∀ v ∈ F, (mq (p * v) ω = 1
   unfold voteCount
   rw [Finset.filter_congr fun v hv => h v hv]
 
-lemma miscutBound_eqOn {a yAcc yRej : ℝ} {lo hi : ℕ} {F R P : Finset S}
+lemma miscutBound_eqOn {a c yAcc yRej : ℝ} {lo hi : ℕ} {F R P : Finset S}
     (hF : ∀ p ∈ P, ∀ v ∈ F, (mq (p * v) ω = 1 ↔ mq' (p * v) ω = 1))
     (hR : ∀ p ∈ P, ∀ v ∈ R, (mq (p * v) ω = 1 ↔ mq' (p * v) ω = 1))
     (hs : ∀ p ∈ P, (mq p ω = 1 ↔ mq' p ω = 1)) :
-    miscutBound mq a lo hi F R P yAcc yRej ω = miscutBound mq' a lo hi F R P yAcc yRej ω := by
+    miscutBound mq a lo hi F R P c yAcc yRej ω = miscutBound mq' a lo hi F R P c yAcc yRej ω := by
   classical
   have hv : ∀ p ∈ P, voteCount mq F p ω = voteCount mq' F p ω := fun p hp =>
     voteCount_eqOn (hF p hp)
@@ -82,19 +82,19 @@ lemma miscutBound_eqOn {a yAcc yRej : ℝ} {lo hi : ℕ} {F R P : Finset S}
     unfold rejectSide
     exact Finset.filter_congr fun p hp => by rw [hv p hp]
   have hside : ∀ (accept : Bool) (A : Finset S) (y : ℝ), A ⊆ P →
-      sideCap mq accept A R a y ω = sideCap mq' accept A R a y ω := by
+      sideCap mq accept c A R a y ω = sideCap mq' accept c A R a y ω := by
     intro accept A y hA
     unfold sideCap
     have h1 : againstOn mq accept A ω = againstOn mq' accept A ω := by
       unfold againstOn
       congr 1
       exact Finset.filter_congr fun p hp => by rw [hs p (hA hp)]
-    have h2 : refApart mq A R ω = refApart mq' A R ω := by
+    have h2 : refApart mq c A R ω = refApart mq' c A R ω := by
       unfold refApart
       split_ifs with h
-      · refine Finset.inf'_congr h rfl fun v hv => ?_
-        congr 1
-        exact Finset.filter_congr fun p hp => by rw [hR p (hA hp) v hv, hs p (hA hp)]
+      · refine Finset.inf'_congr h rfl fun v hv => Finset.sum_congr rfl fun p hp => ?_
+        unfold apartCost
+        simp only [propext (hR p (hA hp) v hv), propext (hs p (hA hp))]
       · rfl
     rw [h1, h2]
   unfold miscutBound
@@ -102,11 +102,12 @@ lemma miscutBound_eqOn {a yAcc yRej : ℝ} {lo hi : ℕ} {F R P : Finset S}
   have hR' : rejectSide mq' lo F P ω ⊆ P := by unfold rejectSide; exact Finset.filter_subset _ _
   rw [hacc, hrej, hside true _ _ hA, hside false _ _ hR']
 
-lemma certifiesAt_eqOn {yAcc yRej lim a : ℝ} {lo hi : ℕ} {F R P : Finset S}
+lemma certifiesAt_eqOn {c yAcc yRej lim a : ℝ} {lo hi : ℕ} {F R P : Finset S}
     (hF : ∀ p ∈ P, ∀ v ∈ F, (mq (p * v) ω = 1 ↔ mq' (p * v) ω = 1))
     (hR : ∀ p ∈ P, ∀ v ∈ R, (mq (p * v) ω = 1 ↔ mq' (p * v) ω = 1))
     (hs : ∀ p ∈ P, (mq p ω = 1 ↔ mq' p ω = 1)) :
-    certifiesAt mq yAcc yRej lim a lo hi F R P ω ↔ certifiesAt mq' yAcc yRej lim a lo hi F R P ω := by
+    certifiesAt mq c yAcc yRej lim a lo hi F R P ω
+      ↔ certifiesAt mq' c yAcc yRej lim a lo hi F R P ω := by
   unfold certifiesAt
   rw [miscutBound_eqOn hF hR hs]
 
