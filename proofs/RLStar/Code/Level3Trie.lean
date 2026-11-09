@@ -9,10 +9,14 @@ it the round has expanded (`walkStartIn`), none at first.
   sift, at the ends' rate.
 * A probe whose harvest string (`harvestString`) was read before since the hypothesis last changed
   is skipped, and the probe that first read it is uncounted; the walk starts of both are expanded,
-  those shorter than `cap`. The other counts stand, and no test runs on a skip.
+  those shorter than `cap`. The other counts stand, and no test runs on a skip. The harvest tests
+  count neither probe; the success test counts both as disagreeing.
 
 Known modelling gap. The starts test runs at the ends' rate and alternative, where the Python's runs
 at its stuck rate.
+
+Known modelling gap. The Python's success test (`succeeds_at`) counts neither a skipped probe nor
+the probe it uncounts (`SiteCounts.drop`), where here both count as disagreeing probes.
 -/
 
 namespace OrthoDFA
@@ -41,19 +45,20 @@ def startString : Outcome α → List (FreeMonoid α)
 def harvestString (o : Outcome α) : List (FreeMonoid α) := endsString o ++ middleString o
 
 /-- The counts are since the hypothesis last changed; `hypotheses` counts the changes before.
-`counted` holds the outcomes of the probes counted, and `seen` each harvest string read with the
-walk start of the probe that first read it. -/
+`counted` holds the outcomes of the probes counted, `uncounted` how many were skipped or uncounted,
+and `seen` each harvest string read with the walk start of the probe that first read it. -/
 structure TrieState (α : Type*) where
   tree : DTree α
   edges : Edges α
   expanded : Finset (FreeMonoid α)
   hypotheses : ℕ
   counted : List (Outcome α)
+  uncounted : ℕ
   seen : List (FreeMonoid α × FreeMonoid α)
 
 def newTrieHypothesis (T : DTree α) (E : Edges α) (X : Finset (FreeMonoid α)) (j : ℕ) :
     TrieState α :=
-  ⟨T, E, X, j, [], []⟩
+  ⟨T, E, X, j, [], 0, []⟩
 
 /-- The root reads at `ε`; no edge is learned and no prefix expanded. -/
 def trieInitialState : TrieState α := newTrieHypothesis (.node 1 .leaf .leaf) (fun _ => none) ∅ 0
@@ -84,8 +89,10 @@ string uncounted, and both walk starts shorter than `cap` expanded. -/
 noncomputable def TrieState.skipRepeat (cap : ℕ) (s : TrieState α) (o : Outcome α)
     (u : FreeMonoid α) : TrieState α :=
   let R := harvestString o
+  let kept := s.counted.filter fun o' => ∀ z ∈ harvestString o', z ∉ R
   { s with
-    counted := s.counted.filter fun o' => ∀ z ∈ harvestString o', z ∉ R
+    counted := kept
+    uncounted := s.uncounted + (s.counted.length - kept.length) + 1
     expanded := s.expanded ∪ ((u :: (s.seen.filter fun p => p.1 ∈ R).map Prod.snd).filter
       fun v => v.toList.length < cap).toFinset }
 
@@ -103,7 +110,8 @@ noncomputable def runTrieTests (s : TrieState α) : Option (RoundEnd TrieSite) :
         (s.siteStrings .middles).length then
     some (.harvest .middles)
   else if seqRate C.disagreementRate C.disagreementAlternative (C.level s.hypotheses)
-      s.probeCount (s.searchCount + (s.siteStrings .ends).length) then some .consistent
+      (s.probeCount + s.uncounted) (s.searchCount + (s.siteStrings .ends).length + s.uncounted)
+    then some .consistent
   else none
 
 noncomputable def applyTrieTests (s : TrieState α) : TrieState α ⊕ RoundEnd TrieSite :=
