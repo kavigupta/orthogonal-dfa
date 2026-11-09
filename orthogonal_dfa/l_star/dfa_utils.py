@@ -1,3 +1,4 @@
+import math
 from collections import Counter
 
 import numpy as np
@@ -36,10 +37,30 @@ def labelled_sample(oracle, sampler, alphabet_size, n, rng):
     return strings, np.asarray(oracle.membership_queries(strings), dtype=float)
 
 
+def phi_maximizing_states(counts, accepts):
+    """The states whose acceptance maximizes phi with the labels, where ``counts[s]``
+    strings end in state ``s`` and ``accepts[s]`` of them are accepted; none when no set
+    scores above 0."""
+    n, k = sum(counts.values()), sum(accepts.values())
+    if k in (0, n):
+        return set()
+    rate = k / n
+    # The best set is always the states above some accept rate.
+    order = sorted(counts, key=lambda s: accepts[s] / counts[s], reverse=True)
+    best, best_phi, mass, cov = set(), 0.0, 0.0, 0.0
+    for i, state in enumerate(order[:-1]):
+        mass += counts[state] / n
+        cov += (accepts[state] - rate * counts[state]) / n
+        phi = cov / math.sqrt(mass * (1 - mass) * rate * (1 - rate))
+        if phi > best_phi:
+            best, best_phi = set(order[: i + 1]), phi
+    return best
+
+
 def held_out_phi(dfa, fit, read) -> float:
-    """corr between ``read``'s labels and the DFA's verdicts on its strings, where a
-    state accepts iff the ``fit`` strings ending in it accept above ``fit``'s overall
-    rate; the DFA's own accepting states are ignored."""
+    """corr between ``read``'s labels and the DFA's verdicts on its strings, where the
+    accepting states are ``phi_maximizing_states`` on ``fit``; the DFA's own accepting
+    states are ignored."""
 
     def ends(strings):
         return [states_intermediate(dfa.initial_state, w, dfa)[-1] for w in strings]
@@ -49,8 +70,7 @@ def held_out_phi(dfa, fit, read) -> float:
     for state, label in zip(ends(fit_strings), fit_labels):
         total[state] += label
         count[state] += 1
-    overall = float(np.mean(fit_labels))
-    accepting = {s for s in count if total[s] / count[s] > overall}
+    accepting = phi_maximizing_states(count, total)
     verdicts = np.array([s in accepting for s in ends(read_strings)], dtype=float)
     if verdicts.std() == 0 or np.std(read_labels) == 0:
         return 0.0
