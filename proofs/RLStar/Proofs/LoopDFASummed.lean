@@ -361,20 +361,27 @@ theorem dfa_of_checks_summed (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid �
 
 end Bridge
 
-/-- The wrong states' occupancy at the summed rate `ε = c/(4(A+|Q|+1)N)`, against `3c/4`. -/
+/-- The wrong states' occupancy at `ε = c/(4(A+1)N)` and the misled slack `ε/(32|Q|)`, against
+`3c/4`. -/
 lemma summed_bnd {Q A N c ε εcov : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hN : 0 < N) (hc : 0 < c)
-    (he : ε = c / (4 * (A + Q + 1) * N)) (hεc : εcov ≤ c / (10 * N)) :
-    N * (2 * ((A + 1) * (ε + ε / 96) + Q * (ε + ε / 96))
+    (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov ≤ c / (10 * N)) :
+    N * (2 * ((A + 1) * (ε + ε / 96) + Q * (ε / (32 * Q)))
       + (2 * (1025 / 1024 * εcov) + 3 / 8 * εcov)) < 3 * c / 4 := by
-  have hq : ε * N * (4 * (A + Q + 1)) = c := by rw [he]; field_simp
+  have hq : ε * N * (4 * (A + 1)) = c := by rw [he]; field_simp
   have hY : εcov * N ≤ c / 10 := by
     have := mul_le_mul_of_nonneg_right hεc hN.le
     rwa [show c / (10 * N) * N = c / 10 by field_simp] at this
-  have e : N * (2 * ((A + 1) * (ε + ε / 96) + Q * (ε + ε / 96))
+  have hQ0 : Q ≠ 0 := (zero_lt_one.trans_le hQ).ne'
+  have hQe : Q * (ε / (32 * Q)) = ε / 32 := by field_simp
+  have h12 : 12 * (ε * N) ≤ c := by
+    have h0 : 0 ≤ ε * N := by rw [he]; positivity
+    nlinarith
+  rw [hQe]
+  have e : N * (2 * ((A + 1) * (ε + ε / 96) + ε / 32)
       + (2 * (1025 / 1024 * εcov) + 3 / 8 * εcov))
-      = 97 / 48 * ((A + Q + 1) * (ε * N)) + 1217 / 512 * (εcov * N) := by ring
+      = 97 / 48 * ((A + 1) * (ε * N)) + (ε * N) / 16 + 1217 / 512 * (εcov * N) := by ring
   rw [e]
-  nlinarith [hq, hY, hc]
+  nlinarith [hq, hY, hc, h12]
 
 lemma visitC_le {R : ℝ} (L : ℕ) (hR : 0 ≤ R) :
     R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ) ≤ 2 * R := by
@@ -412,8 +419,8 @@ theorem half_le_of_self_nonStartZone {σ : Type*} (T : Measure (FreeMonoid α))
   have hC0 : 0 ≤ R * (L + 1) / ((L + 1 - (L + 1) / 2 : ℕ) : ℝ) := by positivity
   nlinarith
 
-/-- `dfa_of_checks_summed` at the rates `ξ/(2R)` sets with edges crossed at `Ae + |Q|`: a start
-that re-roots with accuracy `1 − γ` through its non-start zone costs `γ + 3ξ/4`. -/
+/-- `dfa_of_checks_summed` at the rates `ξ/(2R)` sets and the misled slack `ε/(32|Q|)`: a start that
+re-roots with accuracy `1 − γ` through its non-start zone costs `γ + 3ξ/4`. -/
 theorem summed_bridge {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*}
     [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))
@@ -427,11 +434,11 @@ theorem summed_bridge {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {
     let k : ℕ := (L + 1) / 2
     let L₁ : ℕ := L + Fintype.card σ + 3
     let N : ℝ := L₁ + 1 - k
-    let ε : ℝ := ξ / (2 * R) / (4 * (Ae + Fintype.card σ + 1) * N)
+    let ε : ℝ := ξ / (2 * R) / (4 * (Ae + 1) * N)
     let εcov : ℝ := min (ξ / (2 * R) / (10 * N)) (ξ / 4 / (8 * N))
     ∀ o : SpecRound α,
       o.Checks M O (windowLaw D k L₁) k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96)
-        (shortAt M (L + 1)) (ε + ε / 96) →
+        (shortAt M (L + 1)) (ε / (32 * Fintype.card σ)) →
       ∃ s ∈ o.result.hypothesis.tree.leaves, (prefixLaw D L).real
         {x | ¬ o.result.hypothesis.Classifies s x (M.eval x.toList ∈ M.accept)}
           ≤ γ + 3 * ξ / 4 := by
@@ -443,12 +450,12 @@ theorem summed_bridge {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {
     show (0 : ℝ) < (L₁ : ℝ) + 1 - k
     linarith
   have hε0 : 0 < ε := by
-    show 0 < ξ / (2 * R) / (4 * (Ae + Fintype.card σ + 1) * N)
-    have : 0 < Ae + Fintype.card σ + 1 := by linarith
+    show 0 < ξ / (2 * R) / (4 * (Ae + 1) * N)
+    have : 0 < Ae + 1 := by linarith
     positivity
   obtain ⟨q, hq⟩ := hdom
   obtain ⟨s, hs, h⟩ := dfa_of_checks_summed M O hL o L D hlong (by linarith) hfl hch
-    (by positivity) hR.le
+    (div_pos hε0 (by linarith)).le hR.le
     (summed_bnd hQ1 hAe hN0 (by positivity) rfl (min_le_left _ _)) hq
   exact ⟨s, hs, h.trans (by linarith [summed_harm_le (ξ := ξ) L hR hξ.le])⟩
 

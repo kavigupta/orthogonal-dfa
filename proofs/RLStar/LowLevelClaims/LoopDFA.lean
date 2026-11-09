@@ -35,7 +35,7 @@ them, and a little more, are misled.
 `LearnerLoopDFARelative` admits the target by the relative rule, and no state need be covered. A
 state is wrong when an edge out of its true leaf is wrong or unlearned, or it is read on its wrong
 side. Summed over the wrong states, their occupancy of the window is below `m = 3ξ/(8R)` at the
-disagreement rate `m/(3(|Σ|+|Q|+1)N)`, so the runs from the start through a wrong state of its zone
+disagreement rate `m/(3(|Σ|+1)N)`, so the runs from the start through a wrong state of its zone
 cost at most `Cm ≤ 3ξ/4`; the pick of the start leaf costs the other `ξ/4`.
 
 `LearnerLoopDFADist` is `LearnerLoopDFASimple` over strings drawn from `D`: the probes are `D`'s
@@ -326,7 +326,7 @@ def LearnerLoopDFA : Prop :=
 
 /-- `LearnerLoopDFASimple` with the target admitted by the relative rule: if some state `q` in
 `nonStartZoneStates M L R q` re-roots the target with accuracy at least `1 − γ` without leaving it,
-the conclusion is `LearnerLoopDFASimple`'s, at the disagreement rate `m/(3(|Σ|+|Q|+1)N)`. -/
+the conclusion is `LearnerLoopDFASimple`'s, at the disagreement rate `m/(3(|Σ|+1)N)`. -/
 def LearnerLoopDFARelativeSimple : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -343,7 +343,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let m : ℝ := 3 * ξ / (8 * R)
   -- Each round's disagreement rate, low enough that the wrong states occupy the window less
   -- than `m`.
-  let ε : ℝ := m / (3 * (A + Q + 1) * N)
+  let ε : ℝ := m / (3 * (A + 1) * N)
   -- The clustering's accuracy.
   let εcov : ℝ := min (ξ / (20 * R * N)) (ξ / (32 * N))
   -- Each round's share of `δ`.
@@ -446,7 +446,7 @@ def LearnerLoopDFARelative : Prop :=
   let m : ℝ := 3 * ξ / (8 * R)
   -- Each round's disagreement rate, low enough that the wrong states occupy the window less
   -- than `m`.
-  let ε : ℝ := m / (3 * (A + Q + 1) * N)
+  let ε : ℝ := m / (3 * (A + 1) * N)
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   let s : ℝ := 1 / 2 - η₀
@@ -460,7 +460,7 @@ def LearnerLoopDFARelative : Prop :=
   -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, `1/ι ≤ ℓ Θι`, `1/τ ≤ ℓ Θ`, the atoms' scale
   -- `1/min(εcov s/2, ι) ≤ ℓ Θa`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget `≤ ℓ K₁`,
   -- `W ≤ ℓ² W₀`.
-  let aε : ℝ := 3 * (A + Q + 1) / m
+  let aε : ℝ := 3 * (A + 1) / m
   let Ce : ℝ := 20 * R / ξ + 32 / ξ
   let Θι : ℝ := 8 * Ce + 4608 * Q * (Q + 1) * aε
   let Θ : ℝ := Ce / (2 * s ^ 2) + Θι
