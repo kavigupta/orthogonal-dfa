@@ -53,7 +53,7 @@ class TestStartZone(unittest.TestCase):
             ("zero_one_one_zero", r"0110.*"),
             # CAPAL's Simple04 and Difficult10.
             ("first_letter", r"0.*"),
-            ("first_letter_sets_parity", r"0([01][01])*|1[01]([01][01])*"),
+            ("first_letter_sets_parity", r"0((0|1)(0|1))*|1(0|1)((0|1)(0|1))*"),
         ]
     )
     def test_regex(self, _, regex):
