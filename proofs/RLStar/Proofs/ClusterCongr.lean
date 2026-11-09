@@ -67,11 +67,11 @@ lemma voteCount_eqOn {F : Finset S} {p : S} (h : ∀ v ∈ F, (mq (p * v) ω = 1
   unfold voteCount
   rw [Finset.filter_congr fun v hv => h v hv]
 
-lemma miscutBound_eqOn {a η₀ : ℝ} {lo hi : ℕ} {F R P : Finset S}
+lemma miscutBound_eqOn {a c yAcc yRej : ℝ} {lo hi : ℕ} {F R P : Finset S}
     (hF : ∀ p ∈ P, ∀ v ∈ F, (mq (p * v) ω = 1 ↔ mq' (p * v) ω = 1))
     (hR : ∀ p ∈ P, ∀ v ∈ R, (mq (p * v) ω = 1 ↔ mq' (p * v) ω = 1))
     (hs : ∀ p ∈ P, (mq p ω = 1 ↔ mq' p ω = 1)) :
-    miscutBound mq a lo hi F R P η₀ ω = miscutBound mq' a lo hi F R P η₀ ω := by
+    miscutBound mq a lo hi F R P c yAcc yRej ω = miscutBound mq' a lo hi F R P c yAcc yRej ω := by
   classical
   have hv : ∀ p ∈ P, voteCount mq F p ω = voteCount mq' F p ω := fun p hp =>
     voteCount_eqOn (hF p hp)
@@ -81,32 +81,33 @@ lemma miscutBound_eqOn {a η₀ : ℝ} {lo hi : ℕ} {F R P : Finset S}
   have hrej : rejectSide mq lo F P ω = rejectSide mq' lo F P ω := by
     unfold rejectSide
     exact Finset.filter_congr fun p hp => by rw [hv p hp]
-  have hside : ∀ (accept : Bool) (A : Finset S), A ⊆ P →
-      sideCap mq accept A R a η₀ ω = sideCap mq' accept A R a η₀ ω := by
-    intro accept A hA
+  have hside : ∀ (accept : Bool) (A : Finset S) (y : ℝ), A ⊆ P →
+      sideCap mq accept c A R a y ω = sideCap mq' accept c A R a y ω := by
+    intro accept A y hA
     unfold sideCap
     have h1 : againstOn mq accept A ω = againstOn mq' accept A ω := by
       unfold againstOn
       congr 1
       exact Finset.filter_congr fun p hp => by rw [hs p (hA hp)]
-    have h2 : refApart mq A R ω = refApart mq' A R ω := by
+    have h2 : refApart mq c A R ω = refApart mq' c A R ω := by
       unfold refApart
       split_ifs with h
-      · refine Finset.inf'_congr h rfl fun v hv => ?_
-        congr 1
-        exact Finset.filter_congr fun p hp => by rw [hR p (hA hp) v hv, hs p (hA hp)]
+      · refine Finset.inf'_congr h rfl fun v hv => Finset.sum_congr rfl fun p hp => ?_
+        unfold apartCost
+        simp only [propext (hR p (hA hp) v hv), propext (hs p (hA hp))]
       · rfl
     rw [h1, h2]
   unfold miscutBound
   have hA : acceptSide mq' hi F P ω ⊆ P := by unfold acceptSide; exact Finset.filter_subset _ _
   have hR' : rejectSide mq' lo F P ω ⊆ P := by unfold rejectSide; exact Finset.filter_subset _ _
-  rw [hacc, hrej, hside true _ hA, hside false _ hR']
+  rw [hacc, hrej, hside true _ _ hA, hside false _ _ hR']
 
-lemma certifiesAt_eqOn {η₀ lim a : ℝ} {lo hi : ℕ} {F R P : Finset S}
+lemma certifiesAt_eqOn {c yAcc yRej lim a : ℝ} {lo hi : ℕ} {F R P : Finset S}
     (hF : ∀ p ∈ P, ∀ v ∈ F, (mq (p * v) ω = 1 ↔ mq' (p * v) ω = 1))
     (hR : ∀ p ∈ P, ∀ v ∈ R, (mq (p * v) ω = 1 ↔ mq' (p * v) ω = 1))
     (hs : ∀ p ∈ P, (mq p ω = 1 ↔ mq' p ω = 1)) :
-    certifiesAt mq η₀ lim a lo hi F R P ω ↔ certifiesAt mq' η₀ lim a lo hi F R P ω := by
+    certifiesAt mq c yAcc yRej lim a lo hi F R P ω
+      ↔ certifiesAt mq' c yAcc yRej lim a lo hi F R P ω := by
   unfold certifiesAt
   rw [miscutBound_eqOn hF hR hs]
 
@@ -130,7 +131,7 @@ lemma clusterAt_eqOn (populations : Finset J) (B : State) (x : Run Ω S J)
   rw [clusterAt_eq, clusterAt_eq]
   unfold clusterBy screenedAt oracleNoise
   rw [screened_eqOn B.sc B.scd hone h]
-  exact congrArg (fun t : Finset S => t.erase 1) (nearestClusterer.congr _ _ _ _ _
+  exact congrArg (fun t : Finset S => t.erase 1) ((nearestClusterer _).congr _ _ _ _ _
     (one_mem_screened' (mq := mq') B.sc B.scd _ _ hone)
     (fun p hp v hv => h _ (mem_readSet hp (Finset.filter_subset _ _ hv))))
 
@@ -174,7 +175,7 @@ lemma ret_eqOn (mq mq' : FreeMonoid α → Ω → ℝ) (sched : Finset State)
     rw [clusterAt_eq]
     intro v hv
     exact Finset.filter_subset _ _
-      (nearestClusterer.subset _ _ _ _ (one_mem_screened' (mq := mq) B.sc B.scd _ _ hone)
+      ((nearestClusterer _).subset _ _ _ _ (one_mem_screened' (mq := mq) B.sc B.scd _ _ hone)
         (Finset.mem_of_mem_erase hv))
   have hins : insert 1 (clusterAt mq pops x B) ⊆ C := Finset.insert_subset hone hsub
   have hread : ∀ Q ⊆ roundPrefs sched pops x, ∀ p ∈ Q, ∀ v ∈ insert 1 (clusterAt mq pops x B),
