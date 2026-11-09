@@ -63,10 +63,12 @@ class HypothesisDFA:
         alphabet_size: int,
         initial_state: int,
         classify: Optional[Callable[[bytes], Optional[int]]] = None,
+        accepts: Optional[Callable[[bytes], Optional[bool]]] = None,
     ) -> DFA:
         """An unlearned edge loops on its leaf. Each expanded prefix gets a state of
-        its own, whose children not expanded go to the leaf ``classify`` gives them,
-        or to ``initial_state`` where it abstains."""
+        its own, accepting where ``accepts`` says so, whose children not expanded go
+        to the leaf ``classify`` gives them, or to ``initial_state`` where it
+        abstains."""
         ids = {path: self.tree.leaf_at(path) for path in self.leaves}
         transitions = {
             ids[path]: {
@@ -75,6 +77,7 @@ class HypothesisDFA:
             }
             for path in self.leaves
         }
+        final_states = self.tree.accepting_leaves()
         if self.expanded:
             first = max(transitions) + 1
             trie = {u: first + i for i, u in enumerate(sorted(self.expanded))}
@@ -89,6 +92,7 @@ class HypothesisDFA:
                 transitions[state] = {
                     c: child(u + bytes([c])) for c in range(alphabet_size)
                 }
+            final_states |= {state for u, state in trie.items() if accepts(u)}
             if b"" in trie:
                 initial_state = trie[b""]
         return DFA(
@@ -96,6 +100,6 @@ class HypothesisDFA:
             input_symbols=set(range(alphabet_size)),
             transitions=transitions,
             initial_state=initial_state,
-            final_states=self.tree.accepting_leaves(),
+            final_states=final_states,
             allow_partial=False,
         )

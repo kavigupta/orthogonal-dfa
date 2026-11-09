@@ -354,6 +354,7 @@ def _hypothesis_dfa(pst, hypothesis):
         pst.alphabet_size,
         0 if initial is None else initial,
         lambda v: hypothesis.tree.classify(v, decide),
+        lambda u: decide(u, hypothesis.tree.root[0]),
     )
 
 
@@ -551,4 +552,5 @@ def do_counterexample_driven_synthesis(
         )
         dfa = denoise_accept_labels(pst, best.dfa)
     tracker.on_corrected_dfa_found(dfa, best.round_index)
-    return dfa
+    # The expanded prefixes' states are mostly copies of the leaves they lead to.
+    return dfa.minify()
