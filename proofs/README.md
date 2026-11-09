@@ -1,7 +1,9 @@
 # Machine-checked correctness of the E-L\* clustering algorithm
 
-- `TrainFamilyClaim` (`Claims/TrainFamily.lean`): but for chance `δ`, the clustering stops and
-  returns a suffix family that cuts all but `εcov + ε_s` of the pool as the noiseless oracle does,
+- `TrainFamilyClaim` (`Claims/TrainFamily.lean`): on an oracle whose two classes' accept rates are
+  at least `s₀` apart and a pool holding at least `β` of each class, but for chance `δ`, the
+  clustering stops and returns a suffix family that cuts all but `εcov + ε_s` of the pool as the
+  noiseless oracle does,
   every state's band reading its rarer side at most `κ` times as often as undecided, with its band
   width, suffix pool, prefix count and atom tolerances each within a stated big-O shape.
 - `CounterexSynthClaim` (`Claims/CounterexSynth.lean`): but for chance `δ`, one L\* round whose

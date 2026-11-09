@@ -805,11 +805,15 @@ private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 vecRegion]
 
 /-- No strings harvested. -/
 private def toVec (x : TrainFamilyInputs) : ClusterVec :=
-  (x.nJ, 1 / x.δ, 1 / x.pAP, 1 / x.εcov, 1 / x.ε_s, 1 / x.ε_u, 1 / x.κ, 1 / x.s₀, 0)
+  (x.nJ, 1 / x.δ, 1 / x.pAP, 1 / x.εc, 1 / x.εsc, 1 / x.ε_u, 1 / x.κ, 1 / x.s₀, 0)
 
 private lemma toVec_mem {x : TrainFamilyInputs} (hx : x ∈ trainFamilyRegion) :
     toVec x ∈ vecRegion := by
-  obtain ⟨hJ, hδ, hδ1, hp, hp1, he, he1, hsl, hsl1, hu, hu1, hw, hw1, hs, hs1⟩ := hx
+  obtain ⟨hJ, hδ, hδ1, hp, hp1, he₀, he₁, hsl₀, hsl₁, hu, hu1, hw, hw1, hs, hs1, hb⟩ := hx
+  have he : 0 < x.εc := lt_min he₀ (by linarith)
+  have he1 : x.εc ≤ 1 / 2 := (min_le_left _ _).trans he₁
+  have hsl : 0 < x.εsc := lt_min hsl₀ he
+  have hsl1 : x.εsc ≤ 1 / 2 := (min_le_left _ _).trans hsl₁
   simp only [toVec, vecRegion, Set.mem_Ici, Prod.mk_le_mk]
   exact ⟨by exact_mod_cast hJ, (le_div_iff₀ hδ).2 (by linarith), (le_div_iff₀ hp).2 (by linarith),
     (le_div_iff₀ he).2 (by linarith), (le_div_iff₀ hsl).2 (by linarith),
@@ -828,7 +832,8 @@ private def quad : ClusterVec → ClusterVec := fun (nJ, iδ, ip, ie, isl, iu, i
   (nJ, iδ, ip, ie, isl, iu, iw, 4 * is, nH)
 
 private lemma toVec_quarter (x : TrainFamilyInputs) : toVec (quarter x) = quad (toVec x) := by
-  simp only [toVec, quarter, quad, one_div_div, mul_one_div]
+  simp only [toVec, quarter, quad, TrainFamilyInputs.εc, TrainFamilyInputs.εsc, one_div_div,
+    mul_one_div]
 
 private lemma quad_maps : Set.MapsTo quad vecRegion vecRegion := by
   intro b hb
@@ -892,7 +897,8 @@ private lemma quad_logs {nJ iδ ip ie iu iw is : ℝ} (hJ : 1 ≤ nJ) (hiδ : 2 
   have hZ' : L * iδ * ip * is ≤ L' * iδ * ip * (4 * is) := by
     have : L * iδ * ip ≤ L' * iδ * ip := by
       have := mul_le_mul_of_nonneg_right h2 (by positivity : (0 : ℝ) ≤ iδ * ip)
-      linarith [show L * iδ * ip = L * (iδ * ip) by ring, show L' * iδ * ip = L' * (iδ * ip) by ring]
+      linarith [show L * iδ * ip = L * (iδ * ip) by ring,
+        show L' * iδ * ip = L' * (iδ * ip) by ring]
     have h4 : 0 ≤ L' * iδ * ip := by nlinarith
     nlinarith
   have hZ8 : L' * iδ * ip * (4 * is) ≤ 8 * (L * iδ * ip * is) := by
@@ -1000,7 +1006,8 @@ private lemma core_quad {nJ iδ ip ie iu iw is nH : ℝ} (hJ : 1 ≤ nJ) (hiδ :
 
 private lemma nprefW_quad : (fun v => nprefW (quad v)) =O[𝓟 vecRegion]
     (fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
-      nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is) * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
+      nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is)
+          * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
         + log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 4 + iu ^ 2)
         + isl * log (nJ * iδ) + nH * (ie * is ^ 2 + iu) : ClusterVec → ℝ) := by
   refine (isBigO_comp_on nprefW_isBigO quad_maps).trans (isBigO_on 1024 fun b hb => ?_)
@@ -1089,14 +1096,25 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
       fun x => by dsimp only; rw [hq],
     fun x => tol_pos _, ?_⟩
   intro Ω _ μ _ S _ J _ x O populations tame uni Pre Suf hx hcard hgap huni htame hflat
-  obtain ⟨nJ, δ, pAP, εcov, ε_s, ε_u, κ, s₀⟩ := x
+  obtain ⟨nJ, δ, pAP, εcov₀, ε_s₀, ε_u, κ, s₀, β⟩ := x
   simp only [trainFamilyRegion, Set.mem_ofPred_eq] at hx hcard hgap
-  obtain ⟨hJ, hδ, hδ1, hpAP, hpAP1, he, he1, hsl, hsl1, hu, hu1, hw, hw1, hs, hs1⟩ := hx
+  obtain ⟨hJ, hδ, hδ1, hpAP, hpAP1, he₀, he₁, hsl₀, hsl₁, hu, hu1, hw, hw1, hs, hs1, hb⟩ := hx
   obtain ⟨η₀, rfl⟩ : ∃ η₀, s₀ = 4 * (1 / 2 - η₀) := ⟨1 / 2 - s₀ / 4, by ring⟩
   subst hcard
   have hη₀ : η₀ < 1 / 2 := by linarith
   have hq4 : 4 * (1 / 2 - η₀) / 4 = 1 / 2 - η₀ := by ring
-  simp only [TrainFamilyOutcome, quarter, toVec, hq4, sub_sub_cancel]
+  simp only [TrainFamilyOutcome, quarter, toVec, TrainFamilyInputs.εc, TrainFamilyInputs.εsc, hq4,
+    sub_sub_cancel]
+  -- the clustering runs at coverage `min(εcov, β/2)` and redraw share `min(ε_s, that)`
+  set εcov := min εcov₀ (β / 2) with hεcov
+  set ε_s := min ε_s₀ εcov with hεs
+  have he : 0 < εcov := lt_min he₀ (by linarith)
+  have he1 : εcov ≤ 1 / 2 := (min_le_left _ _).trans he₁
+  have hsl : 0 < ε_s := lt_min hsl₀ he
+  have hsl1 : ε_s ≤ εcov := min_le_right _ _
+  have hεβ : 2 * εcov ≤ β := by have := min_le_right εcov₀ (β / 2); linarith
+  have hεc0 : εcov ≤ εcov₀ := min_le_left _ _
+  have hεs0 : ε_s ≤ ε_s₀ := min_le_left _ _
   set v : ClusterVec := ((populations.card : ℝ), 1 / δ, 1 / pAP, 1 / εcov, 1 / ε_s, 1 / ε_u,
     1 / κ, 1 / (1 / 2 - η₀), 0) with hv
   have hH0 : (allHarvest (fun _ : J => (∅ : Finset S))).card = 0 :=
@@ -1166,8 +1184,13 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
   rw [ec] at hcoll
   have hM : 0 < max 1 (nprefW v) := lt_max_of_lt_left one_pos
   have hlb0 : 0 ≤ logb 2 (max 1 (nprefW v)) := logb_nonneg one_lt_two (le_max_left _ _)
-  refine (le_of_eq (by ring)).trans (hmain D Dsf hD hDsf hpre hbalL hbalN hsuf hpAP'
-    (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB => ?_))
+  refine (le_of_eq (by ring)).trans ((hmain D Dsf hD hDsf hpre (hεβ.trans hbalL)
+    (hεβ.trans hbalN) hsuf hpAP'
+    (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB => ?_)).trans
+    (measureReal_mono (fun r hr => ⟨hr.1, fun B hB =>
+      ⟨le_trans (by linarith) (hr.2 B hB).1, fun j hj =>
+        ⟨le_trans (by linarith) ((hr.2 B hB).2 j hj).1, ((hr.2 B hB).2 j hj).2⟩⟩⟩)
+      (measure_ne_top _ _)))
   · have h : (D j).real {t} ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) ε_u
         / (2 ^ 19 * max 1 (nprefW v)) :=
       (le_min_iff.1 (le_min_iff.1 (hatom j hj t)).1).1

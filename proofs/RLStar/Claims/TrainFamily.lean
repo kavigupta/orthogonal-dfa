@@ -5,8 +5,10 @@ import RLStar.LowLevelClaims.Clustering
 /-!
 # The clustering's costs, asymptotically
 
-No strings are harvested. The clustering runs at `η₀ = 1/2 − s₀/4`, `α = δ/2` and cross limit `κ⁴`;
-`ε_s` is the share of the cut its redraws and hash may cost, and `ε_u` the indecision limit.
+No strings are harvested. The clustering runs at `η₀ = 1/2 − s₀/4`, coverage `εc = min(εcov, β/2)`,
+redraw share `min(ε_s, εc)`, `α = δ/2` and cross limit `κ⁴`; `ε_s` is the share of the cut its
+redraws and hash may cost, `ε_u` the indecision limit, and `β` the least share of the uniform pool
+either class holds.
 -/
 
 namespace OrthoDFA
@@ -23,15 +25,20 @@ structure TrainFamilyInputs where
   ε_u : ℝ
   κ : ℝ
   s₀ : ℝ
+  β : ℝ
 
 def trainFamilyRegion : Set TrainFamilyInputs :=
   {x | 1 ≤ x.nJ ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 0 < x.pAP ∧ x.pAP ≤ 1 ∧
-    0 < x.εcov ∧ x.εcov ≤ 1 / 2 ∧ 0 < x.ε_s ∧ x.ε_s ≤ x.εcov ∧ 0 < x.ε_u ∧ x.ε_u ≤ 1 / 2 ∧
-    0 < x.κ ∧ x.κ ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2}
+    0 < x.εcov ∧ x.εcov ≤ 1 / 2 ∧ 0 < x.ε_s ∧ x.ε_s ≤ 1 / 2 ∧ 0 < x.ε_u ∧ x.ε_u ≤ 1 / 2 ∧
+    0 < x.κ ∧ x.κ ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2 ∧ 0 < x.β}
+
+noncomputable def TrainFamilyInputs.εc (x : TrainFamilyInputs) : ℝ := min x.εcov (x.β / 2)
+
+noncomputable def TrainFamilyInputs.εsc (x : TrainFamilyInputs) : ℝ := min x.ε_s x.εc
 
 open Real in
 noncomputable def TrainFamilyInputs.ℓ_conf (x : TrainFamilyInputs) : ℝ :=
-  log (max (1 / (x.εcov * x.s₀)) (max (1 / x.ε_u) (1 / x.κ)))
+  log (max (1 / (x.εc * x.s₀)) (max (1 / x.ε_u) (1 / x.κ)))
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
   {S : Type*} [Stringlike S]
@@ -50,8 +57,8 @@ def TrainFamilyOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
   ∀ (D : J → Measure S) (Dsf : Measure S),
     (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
     (∀ j ∈ populations, D j Preᶜ = 0) →
-    2 * x.εcov ≤ (D uni).real {p | p ∈ O.L} →
-    2 * x.εcov ≤ (D uni).real {p | p ∉ O.L} →
+    x.β ≤ (D uni).real {p | p ∈ O.L} →
+    x.β ≤ (D uni).real {p | p ∉ O.L} →
     Dsf Sufᶜ = 0 →
     x.pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
     (∀ j ∈ tame, ∀ t : S, (D j).real {t} ≤ atomTol) →
@@ -59,9 +66,9 @@ def TrainFamilyOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
     1 - x.δ ≤ (runMeasure μ D Dsf).real
       {r | let R := streams (fun _ : J => (∅ : Finset S)) uni r
         (∃ B : {B : State // B ∈ states},
-            R ∈ ret O.mq populations uni (1 / 2 - x.s₀ / 4) x.ε_u x.εcov (x.δ / 2) B.val)
+            R ∈ ret O.mq populations uni (1 / 2 - x.s₀ / 4) x.ε_u x.εc (x.δ / 2) B.val)
         ∧ ∀ B : {B : State // B ∈ states},
-          R ∈ ret O.mq populations uni (1 / 2 - x.s₀ / 4) x.ε_u x.εcov (x.δ / 2) B.val →
+          R ∈ ret O.mq populations uni (1 / 2 - x.s₀ / 4) x.ε_u x.εc (x.δ / 2) B.val →
           1 - x.εcov - x.ε_s
             ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyAt O.mq populations R B.val) p (oracleNoise r.1)}
@@ -96,17 +103,17 @@ def TrainFamilyClaim.{u, v, w} : Prop :=
       x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP) ∧
     npref =O[𝓟 trainFamilyRegion] (fun x =>
       x.nJ * log (x.ℓ_conf / (x.δ * x.pAP * x.s₀))
-          * (1 / (x.εcov ^ 2 * x.s₀ ^ 4) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
-        + log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.κ * x.s₀))
-          * (1 / (x.εcov ^ 2 * x.s₀ ^ 4) + 1 / x.ε_u ^ 2)
-        + log (x.nJ / x.δ) / x.ε_s) ∧
+          * (1 / (x.εc ^ 2 * x.s₀ ^ 4) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
+        + log (x.nJ / (x.δ * x.pAP * x.εc * x.ε_u * x.κ * x.s₀))
+          * (1 / (x.εc ^ 2 * x.s₀ ^ 4) + 1 / x.ε_u ^ 2)
+        + log (x.nJ / x.δ) / x.εsc) ∧
     (fun x => 1 / atomTol x) =O[𝓟 trainFamilyRegion] (fun x =>
       (x.nJ * log (x.ℓ_conf / (x.δ * x.pAP * x.s₀))
-            * (1 / (x.εcov ^ 2 * x.s₀ ^ 4) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
-          + log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_u * x.κ * x.s₀))
-            * (1 / (x.εcov ^ 2 * x.s₀ ^ 4) + 1 / x.ε_u ^ 2))
-          * (x.nJ * (1 / x.ε_u + 1 / x.ε_s) + 1 / (x.εcov * x.s₀ ^ 2) + 1 / (x.ε_u * x.s₀))
-        + x.nJ * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.κ * x.s₀)) / x.ε_s ^ 2) ∧
+            * (1 / (x.εc ^ 2 * x.s₀ ^ 4) + 1 / (x.ε_u ^ 2 * x.s₀ ^ 4))
+          + log (x.nJ / (x.δ * x.pAP * x.εc * x.ε_u * x.κ * x.s₀))
+            * (1 / (x.εc ^ 2 * x.s₀ ^ 4) + 1 / x.ε_u ^ 2))
+          * (x.nJ * (1 / x.ε_u + 1 / x.εsc) + 1 / (x.εc * x.s₀ ^ 2) + 1 / (x.ε_u * x.s₀))
+        + x.nJ * log (x.nJ / (x.δ * x.pAP * x.εc * x.εsc * x.ε_u * x.κ * x.s₀)) / x.εsc ^ 2) ∧
     (fun x => 1 / collTol x) =O[𝓟 trainFamilyRegion] (fun x =>
       1 / (x.δ * x.pAP) * (x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP)) ∧
     TrainFamilyWithin.{u, v, w} k nsuff npref atomTol collTol
