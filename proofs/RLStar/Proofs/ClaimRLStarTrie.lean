@@ -1,4 +1,3 @@
-import RLStar.Claims.RLStarTrie
 import RLStar.Proofs.ClaimRLStar
 import RLStar.Proofs.TrieTol
 import RLStar.Proofs.ClaimRLStarTrieArith
@@ -20,12 +19,15 @@ namespace OrthoDFA
 
 open MeasureTheory Asymptotics Filter Real
 
-def trieInputs (x : RLStarTrieInputs) : RLStarInputs := ⟨x.Q, x.A, x.δ, 1, x.ξ, x.pAP, x.s₀⟩
+def trieInputs (x : RLStarUniformInputs) : RLStarInputs := ⟨x.Q, x.A, x.δ, 1, x.ξ, x.pAP, x.s₀⟩
 
-def trieRun (r : RLStarTrieRun) : RLStarDistRun :=
-  { toRLStarDistInputs := toDist (trieInputs r.toRLStarTrieInputs), L := r.L }
+def trieRun (r : RLStarUniformRun) : RLStarDistRun :=
+  { toRLStarDistInputs := toDist (trieInputs r.toRLStarUniformInputs), L := r.L }
 
-lemma trieInputs_mem {x : RLStarTrieInputs} (hx : x ∈ rlStarTrieRegion) :
+def trieRunR (r : RLStarUniformRun) : RLStarRun :=
+  { toRLStarInputs := trieInputs r.toRLStarUniformInputs, L := r.L }
+
+lemma trieInputs_mem {x : RLStarUniformInputs} (hx : x ∈ rlStarUniformRegion) :
     trieInputs x ∈ rlStarRegion := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hx
   exact ⟨h1, h2, h3, h4, le_rfl, h5, h6, h7, h8, h9, h10⟩
@@ -35,11 +37,11 @@ lemma learnerReads_zero_le {K a b f T q B lg A n : ℝ} (hn : 0 ≤ n) (hf : 0 �
   unfold learnerReads readsStart
   nlinarith [mul_nonneg hn hf]
 
-theorem rlStarTrieClaim_holds : RLStarTrieClaim := by
+theorem rlStarClaimUniform_holds : RLStarClaimUniform := by
   obtain ⟨C, hC⟩ := isBigO_principal.1 distP₀Tol_isBigO
   set C₁ : ℝ := 256 * max 1 C with hC₁d
   have hC₁ : 1 ≤ C₁ := by rw [hC₁d]; linarith [le_max_left 1 C]
-  have hmapsR : Set.MapsTo trieRun rlStarTrieRunRegion rlStarDistRunRegion :=
+  have hmapsR : Set.MapsTo trieRun rlStarUniformRunRegion rlStarDistRunRegion :=
     fun r hr => toDist_mem (trieInputs_mem hr)
   refine ⟨fun x => 1 + 4 * 9 * (log (C₁ * loopG (trieInputs x)) + 6 * log (x.Q + 4)
       + 6 * log 9 + 24) / log x.A,
@@ -203,6 +205,29 @@ theorem rlStarTrieClaim_holds : RLStarTrieClaim := by
   intro h
   rw [hLs] at h
   exact hp (trieSucceeds_mono (learnerReads_zero_le (Nat.cast_nonneg _) (fam_pw hr).1) h)
+
+theorem rlStarClaimUniformSimple_holds : RLStarClaimUniformSimple := by
+  obtain ⟨L₀, pref, suff, probes, reads, hL₀, hp, hs, hpr, hrd, hw⟩ := rlStarClaimUniform_holds
+  refine ⟨L₀, pref, suff, probes, reads, hL₀,
+    hp.trans (isBigO_on 4 fun r hr => ?_), hs.trans (isBigO_on 2 fun r hr => ?_), hpr,
+    hrd.trans (isBigO_on 32 fun r hr => ?_), hw⟩
+  · have h := loop_pref_dom (r := trieRunR r) (trieInputs_mem hr)
+    simp only [trieRunR, trieInputs, mul_one, one_pow] at h
+    exact h
+  · have h := loop_suff_dom (r := trieRunR r) (trieInputs_mem hr)
+    simp only [trieRunR, trieInputs, mul_one] at h
+    exact h
+  have hr' : trieRunR r ∈ rlStarRunRegion := trieInputs_mem hr
+  obtain ⟨hp0, hp0', hp1⟩ := loop_pref_dom hr'
+  obtain ⟨hs0, hs0', hs1⟩ := loop_suff_dom hr'
+  obtain ⟨hQ, hF, hPr, hlg, hρ, hHd⟩ := uniform_factors hr'
+  obtain ⟨hPrle, hHdle, hlg2⟩ := uniform_search_start_le hr'
+  have h4 := reads_dom hQ hp0 hp1 hs0 hs1 hF hPr hlg hρ hHd
+  have h2 := reads_two_term hQ hp0' hs0' hF hPr hlg2 hρ hHd hPrle hHdle
+  simp only [trieRunR, trieInputs, mul_one, one_mul, one_pow] at h4 h2
+  dsimp only
+  refine ⟨h4.1, h2.2.1, h4.2.2.trans ?_⟩
+  linarith [h2.2.2]
 
 end OrthoDFA
 

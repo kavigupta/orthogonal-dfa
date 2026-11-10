@@ -14,7 +14,9 @@
   run's prefixes, suffixes and probes are each within a stated big-O shape. But for chance `δ`, the
   run's output also depends on at most `totalReads` of the oracle's answers, `totalReads` within a
   stated big-O shape.
-- `RLStarClaimUniform` (`Claims/RLStar.lean`): `RLStarClaim` over uniform strings, once `L` is past
-  a stated big-O length `L₀`.
+- `RLStarClaimUniform` (`Claims/RLStar.lean`): over uniform strings, the loop with local walk
+  starts expanded below `⌈L/2⌉` letters, with no start premise: but for chance `δ` its DFA is
+  right on all but `ξ` of the strings of length `L`, with `RLStarClaim`'s per-term bounds at
+  `R = 1`, once `L` is past a stated big-O length `L₀`.
 - `RLStarClaimUniformSimple` (`Claims/RLStar.lean`): `RLStarClaimUniform` with the prefix and
   suffix totals each a single product.

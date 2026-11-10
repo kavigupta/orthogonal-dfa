@@ -1826,8 +1826,14 @@ lemma loopL0_le {Q A R iδ iξ ip is C₀ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (
 
 open Asymptotics Filter
 
+/-- `L` the Python's length. -/
+structure RLStarRun extends RLStarInputs where
+  L : ℕ
+
+def rlStarRunRegion : Set RLStarRun := {r | r.toRLStarInputs ∈ rlStarRegion}
+
 set_option maxHeartbeats 1000000 in -- the populations' log against the rest's
-/-- `RLStarClaimUniform`'s prefix shape against `RLStarClaimUniformSimple`'s. -/
+/-- The uniform prefix shape against its single product. -/
 lemma loop_pref_dom {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
     0 ≤ r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
           * log (r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
@@ -1930,7 +1936,7 @@ lemma loop_pref_dom {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
         / (r.ξ ^ 2 * r.s₀ ^ 4)) := by ring
   linarith
 
-/-- `RLStarClaimUniform`'s suffix shape against `RLStarClaimUniformSimple`'s. -/
+/-- The uniform suffix shape against its single product. -/
 lemma loop_suff_dom {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
     0 ≤ r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)

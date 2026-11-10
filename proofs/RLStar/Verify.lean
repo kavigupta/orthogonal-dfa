@@ -6,6 +6,7 @@ import RLStar.Proofs.Budget
 import RLStar.Proofs.ClaimTrainFamily
 import RLStar.Proofs.ClaimCounterexSynth
 import RLStar.Proofs.ClaimRLStar
+import RLStar.Proofs.ClaimRLStarTrie
 import RLStar.Proofs.ClusteringQuality
 import RLStar.Proofs.CoveredStart
 import RLStar.Proofs.DTree
@@ -30,7 +31,6 @@ import RLStar.Proofs.SuccessiveDraws
 import RLStar.Proofs.TripartiteSearch
 import RLStar.Proofs.Trie
 import RLStar.Proofs.TrieLoop
-import RLStar.Claims.RLStarTrie
 
 /-!
 # The theorem
@@ -62,11 +62,8 @@ The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBo
 
 The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`:
 `TrainFamilyClaim`, `CounterexSynthClaim`, `RLStarClaim`,
-`RLStarClaimUniform` and `RLStarClaimUniformSimple`.
-
-Open, stated but not proved: `RLStarTrieClaim`, stated in `RLStar.Claims.RLStarTrie`, the learner
-with local walk starts and no start premise. What is proved of it: `TrieProbeAgreeCorrect`,
-`TrieSinglePieceCorrect`, `Level3TrieRootOne`, `Level3TrieAgrees` and `TrieLoopAgrees`.
+`RLStarClaimUniform` and `RLStarClaimUniformSimple`. The uniform claims are of the learner with
+local walk starts (`indecisiveLStarTrieLoop`) and have no start premise.
 -/
 
 namespace OrthoDFA

@@ -2,15 +2,11 @@ import RLStar.Proofs.ClaimRLStarArith
 import RLStar.Proofs.DFABridge
 
 /-!
-# The uniform claims from the general one
+# Main's shapes at uniform strings
 
-`RLStarClaimUniform` is `RLStarClaim` at `D` uniform over the strings of length `L + 2|Q| + 6` and
-`β = 1/|Σ|`: uniform strings extend a prefix by each letter `1/|Σ|` of the time
-(`uniformStrings_floor`) and hold `|Σ|^-k` on any first `k` letters, and `1/p₀Tol` is at most
-`C₀ (L + |Q|)⁶ G` for a constant `C₀`, `G` free of `L`, so `L ≥ L₀` gives `(L + |Q|)⁶ C₀ G ≤ |Σ|^k`
-(`pow_of_tangent`). `RLStarClaimUniformSimple` follows from `RLStarClaimUniform`, the prefix and
-suffix totals' shapes bounded by their products, and the search's and start leaf's reads by the
-harvest's.
+At `β = 1/|Σ|`, `1/p₀Tol`'s shape is at most `2 (L + |Q|)⁶ loopG`, `loopG` free of `L`
+(`shape_toDist_le`), and the probes' and held-out reads' shapes are within the harvest's
+(`uniform_search_start_le`).
 -/
 
 noncomputable section
@@ -21,9 +17,6 @@ open MeasureTheory Asymptotics Filter Real
 
 /-- A uniform instance as a general one, at `β = 1/|Σ|`. -/
 def toDist (x : RLStarInputs) : RLStarDistInputs := { toRLStarInputs := x, β := 1 / x.A }
-
-def toDistRun (r : RLStarRun) : RLStarDistRun :=
-  { toRLStarDistInputs := toDist r.toRLStarInputs, L := r.L }
 
 lemma toDist_mem {x : RLStarInputs} (hx : x ∈ rlStarRegion) : toDist x ∈ rlStarDistRegion := by
   have hA : (2 : ℝ) ≤ x.A := by exact_mod_cast hx.2.1
@@ -125,134 +118,6 @@ lemma uniform_rewrite {X R A δ ξ pAP s₀ : ℝ} (hA : 0 < A) (hδ : 0 < δ) (
     X * R / (1 / A * δ * ξ * pAP * s₀) = X * A * R / (δ * ξ * pAP * s₀)
       ∧ X * R / (1 / A * δ * ξ * s₀) = X * A * R / (δ * ξ * s₀) :=
   ⟨by field_simp, by field_simp⟩
-
-theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
-    RLStarClaimUniform.{u, v, w} := by
-  obtain ⟨p₀Tol, tp, ts, tpr, tr, ho, hp₀, hpref, hsuff, hprobes, hreads, hho, hpos, hw⟩ := h
-  obtain ⟨C, hC⟩ := isBigO_principal.1 hp₀
-  set C₀ := 16 * max 1 C with hC₀d
-  have hC₀ : 1 ≤ C₀ := by rw [hC₀d]; linarith [le_max_left 1 C]
-  have hCC₀ : C ≤ max 1 C := le_max_right _ _
-  have hmapsR : Set.MapsTo toDistRun rlStarRunRegion rlStarDistRunRegion :=
-    fun r hr => toDist_mem hr
-  have hmaps : Set.MapsTo toDist rlStarRegion rlStarDistRegion := fun x hx => toDist_mem hx
-  refine ⟨fun x => 1 + 4 * (log (C₀ * loopG x) + 6 * log (x.Q + 4) + 24) / log x.A,
-    fun r => tp (toDistRun r), fun r => ts (toDistRun r), fun r => tpr (toDistRun r),
-    fun r => tr (toDistRun r), fun x => ho (toDist x), ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · refine isBigO_on (263 + 6 * log C₀) fun x hx => ?_
-    obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
-    have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ
-    have hA' : (2 : ℝ) ≤ x.A := by exact_mod_cast hA
-    obtain ⟨hG, hle⟩ := loopL0_le (iδ := 1 / x.δ) (iξ := 1 / x.ξ) (ip := 1 / x.pAP) (is := 1 / x.s₀)
-      hQ' hA' hR ((le_div_iff₀ hδ).2 (by linarith))
-      ((le_div_iff₀ hξ).2 (by linarith)) ((le_div_iff₀ hp).2 (by linarith))
-      ((le_div_iff₀ hs).2 (by linarith)) hC₀
-    have hlA : 0 < log (x.A : ℝ) := Real.log_pos (by linarith)
-    have hnum : 0 ≤ 4 * (log (C₀ * loopG x) + 6 * log (x.Q + 4) + 24) := by
-      have : 0 ≤ log (C₀ * loopG x) := Real.log_nonneg (one_le_mul_of_one_le_of_one_le hC₀ hG)
-      have : 0 ≤ log ((x.Q : ℝ) + 4) := Real.log_nonneg (by linarith)
-      linarith
-    have hZ : 1 ≤ (x.Q : ℝ) * x.R / (x.δ * x.ξ * x.pAP * x.s₀) := by
-      rw [le_div_iff₀ (by positivity), one_mul]
-      have : x.δ * x.ξ * x.pAP * x.s₀ ≤ 1 := by
-        have : x.δ * x.ξ ≤ 1 := by nlinarith
-        have : x.δ * x.ξ * x.pAP ≤ 1 := by nlinarith
-        nlinarith
-      nlinarith
-    have e : (x.Q : ℝ) * x.R * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)
-        = x.Q * x.R / (x.δ * x.ξ * x.pAP * x.s₀) := by ring
-    rw [e] at hle
-    refine ⟨by positivity, ?_, hle⟩
-    exact add_nonneg zero_le_one (div_nonneg (Real.log_nonneg hZ) hlA.le)
-  · refine (isBigO_comp_on hpref hmapsR).congr' EventuallyEq.rfl
-      (eventually_principal.2 fun r hr => ?_)
-    obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
-    have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
-    show _ = r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
-          * log (r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
-        + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
-          * (1 / r.s₀ ^ 4 + r.Q ^ 4 * r.A ^ 2)
-          * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
-    simp only [Function.comp, toDistRun, toDist, one_div_one_div]
-    obtain ⟨e, e'⟩ := uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := r.R) hA' hδ hξ hp hs
-    rw [e, e']
-  · refine (isBigO_comp_on hsuff hmapsR).congr' EventuallyEq.rfl
-      (eventually_principal.2 fun r hr => ?_)
-    obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
-    have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
-    show _ = r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
-        + log (r.Q / r.δ) / r.pAP)
-    simp only [Function.comp, toDistRun, toDist]
-    rw [(uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := r.R) hA' hδ hξ hp hs).2]
-  · refine (isBigO_comp_on hprobes hmapsR).congr' EventuallyEq.rfl
-      (eventually_principal.2 fun r hr => ?_)
-    obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
-    have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
-    show _ = r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
-    simp only [Function.comp, toDistRun, toDist, one_div_one_div]
-    ring
-  · refine (isBigO_comp_on hreads hmapsR).congr' EventuallyEq.rfl
-      (eventually_principal.2 fun r hr => ?_)
-    obtain ⟨-, hA, hδ, -, -, hξ, -, hp, -, hs, -⟩ := hr
-    have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
-    simp only [Function.comp, toDistRun, toDist, one_div_one_div]
-    obtain ⟨e, e'⟩ := uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := r.R) hA' hδ hξ hp hs
-    rw [e, e']
-    ring
-  · exact isBigO_comp_on hho hmaps
-  -- the run, at `D` uniform
-  intro A _ _ _ Q _ Ω _ μ _ x M O L γ k L₁ hx hQ hA hL hη hpAPu hdom hL₀
-  have hxd := toDist_mem hx
-  have hrd : ({ toDist x with L } : RLStarDistRun) ∈ rlStarDistRunRegion := hxd
-  obtain ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
-  have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ1
-  have hA' : (2 : ℝ) ≤ x.A := by exact_mod_cast hA2
-  have hAc : (Fintype.card A : ℝ) = x.A := by exact_mod_cast hA
-  -- `D`'s first `k` letters weigh at most `p₀Tol`
-  have hp₀ : ((x.A : ℝ) ^ k)⁻¹ ≤ p₀Tol { toDist x with L } := by
-    have hc := hC _ hrd
-    have hpos' := hpos { toDist x with L }
-    have hG1 : 1 ≤ loopG x := loopG_ge_one ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩
-    obtain ⟨-, hsh⟩ := shape_toDist_le ⟨hQ1, hA2, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ L
-    have hc' : 1 / p₀Tol { toDist x with L } ≤ C₀ * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
-      rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_pos (one_div_pos.2 hpos')] at hc
-      obtain ⟨hs0, hsle⟩ := p₀Shape_le hrd
-      change _ ≤ C * |p₀Shape { toDist x with L }| at hc
-      rw [abs_of_nonneg hs0] at hc
-      have h8 : p₀Shape { toDist x with L } ≤ 8 * (2 * (((L : ℝ) + x.Q) ^ 6 * loopG x)) :=
-        hsle.trans (mul_le_mul_of_nonneg_left hsh (by norm_num))
-      refine hc.trans ((mul_le_mul_of_nonneg_right hCC₀ hs0).trans ?_)
-      refine (mul_le_mul_of_nonneg_left h8 ?_).trans (le_of_eq ?_)
-      · linarith [le_max_left 1 C]
-      · rw [hC₀d]; ring
-    have hpow := pow_of_tangent (E := C₀ * loopG x) hA' hQ'
-      (one_le_mul_of_one_le_of_one_le hC₀ hG1) hL₀
-    have h1 : 1 / p₀Tol { toDist x with L } ≤ (x.A : ℝ) ^ k := by
-      refine hc'.trans (le_of_eq_of_le ?_ hpow)
-      ring
-    rw [one_div] at h1
-    exact (inv_le_comm₀ (pow_pos (by linarith : (0 : ℝ) < x.A) k) hpos').2 h1
-  set m := L + Fintype.card Q + 3 + Fintype.card Q + 3 with hmd
-  have hpL : prefixLaw (uniformStrings (α := A) m) L = uniformStrings L :=
-    prefixLaw_uniformStrings (by omega)
-  have hpS : prefixLaw (uniformStrings (α := A) m) m = uniformStrings m :=
-    prefixLaw_uniformStrings le_rfl
-  have hwS : windowLaw (uniformStrings (α := A) m) k L₁ = windowStrings k L₁ :=
-    windowLaw_uniformStrings (by omega)
-  obtain ⟨settings, hwk, hcnt, hprob⟩ := hw (toDist x) M O L γ (uniformStrings m) hxd hQ
-    hA hL hη
-    (uniformStrings_long m)
-    (fun u => (uniformStrings_prefix_le (by omega) u).trans (by rw [hAc]; exact hp₀))
-    (fun i _ hi y a => by
-      have h := uniformStrings_floor (α := A) (show i + 1 ≤ m by omega) y a
-      show 1 / (x.A : ℝ) * _ ≤ _
-      rw [hAc] at h
-      rw [one_div_mul_eq_div, div_le_iff₀ (by positivity), mul_comm]
-      exact h)
-    (by rw [hpS]; exact hpAPu) (by rw [hpL]; exact hdom)
-  rw [hwS, hpS] at hcnt
-  rw [hwS, hpS, hpL] at hprob
-  exact ⟨settings, hwk, hcnt, hprob⟩
 
 /-- The reads' factors other than the prefix and suffix totals, at uniform strings. -/
 lemma uniform_factors {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
@@ -424,23 +289,6 @@ lemma uniform_search_start_le {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
     exact mul_le_mul ha hl3 (hl1.trans hl2) hb0
   · rw [e4, e3]
     exact mul_le_mul hQb ((hl2.trans hl3)) hl1 (mul_nonneg (by linarith) hb0)
-
-theorem rlStarClaimUniformSimple_of_claim (h : RLStarClaimUniform.{u, v, w}) :
-    RLStarClaimUniformSimple.{u, v, w} := by
-  obtain ⟨L₀, pref, suff, probes, reads, heldOut, hL₀, hp, hs, hpr, hrd, hh, hw⟩ := h
-  refine ⟨L₀, pref, suff, probes, reads, heldOut, hL₀,
-    hp.trans (isBigO_on 4 fun r hr => loop_pref_dom hr),
-    hs.trans (isBigO_on 2 fun r hr => loop_suff_dom hr), hpr,
-    hrd.trans (isBigO_on 32 fun r hr => ?_), hh, hw⟩
-  obtain ⟨hp0, hp0', hp1⟩ := loop_pref_dom hr
-  obtain ⟨hs0, hs0', hs1⟩ := loop_suff_dom hr
-  obtain ⟨hQ, hF, hPr, hlg, hρ, hHd⟩ := uniform_factors hr
-  obtain ⟨hPrle, hHdle, hlg2⟩ := uniform_search_start_le hr
-  have h4 := reads_dom hQ hp0 hp1 hs0 hs1 hF hPr hlg hρ hHd
-  have h2 := reads_two_term hQ hp0' hs0' hF hPr hlg2 hρ hHd hPrle hHdle
-  dsimp only
-  refine ⟨h4.1, h2.2.1, h4.2.2.trans ?_⟩
-  linarith [h2.2.2]
 
 end OrthoDFA
 

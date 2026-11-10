@@ -1,6 +1,7 @@
 import Mathlib.Analysis.Asymptotics.Defs
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import RLStar.LowLevelClaims.LoopDFA
+import RLStar.Code.LearnerLoopTrie
 
 /-!
 # The learner's costs, asymptotically
@@ -25,12 +26,6 @@ structure RLStarInputs where
 def rlStarRegion : Set RLStarInputs :=
   {x | 1 ≤ x.Q ∧ 2 ≤ x.A ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 1 ≤ x.R ∧ 0 < x.ξ ∧ x.ξ ≤ 1 ∧
     0 < x.pAP ∧ x.pAP ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2}
-
-/-- `L` the Python's length. -/
-structure RLStarRun extends RLStarInputs where
-  L : ℕ
-
-def rlStarRunRegion : Set RLStarRun := {r | r.toRLStarInputs ∈ rlStarRegion}
 
 /-- `β` the least rate at which the input distribution extends a prefix by any one letter. -/
 structure RLStarDistInputs extends RLStarInputs where
@@ -151,103 +146,127 @@ def RLStarClaim.{u, v, w} : Prop :=
     (∀ r, 0 < p₀Tol r) ∧
     RLStarWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes totalReads heldOut
 
-def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
-    (totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ) (heldOut : RLStarInputs → ℕ) :
-    Prop :=
-  ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
-    [Fintype Q] {Ω : Type w}
+/-- `Q` states, `A` letters, `ξ` the accuracy slack, `pAP` the share of suffixes that preserve
+membership, and the signal `s₀ = 1/2 − η₀`. -/
+structure RLStarUniformInputs where
+  Q : ℕ
+  A : ℕ
+  δ : ℝ
+  ξ : ℝ
+  pAP : ℝ
+  s₀ : ℝ
+
+def rlStarUniformRegion : Set RLStarUniformInputs :=
+  {x | 1 ≤ x.Q ∧ 2 ≤ x.A ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 0 < x.ξ ∧ x.ξ ≤ 1 ∧
+    0 < x.pAP ∧ x.pAP ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2}
+
+/-- `L` the Python's length. -/
+structure RLStarUniformRun extends RLStarUniformInputs where
+  L : ℕ
+
+def rlStarUniformRunRegion : Set RLStarUniformRun :=
+  {r | r.toRLStarUniformInputs ∈ rlStarUniformRegion}
+
+/-- Within `|Q| + 1` rounds the loop ends consistent and its DFA misjudges at most `ξ` of `T`'s
+strings, reading at most `totalReads` strings. -/
+def RLStarTrieSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype Q] {Ω : Type*}
+    [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
+    (O : Oracle μ (FreeMonoid A)) (D Dsf T : Measure (FreeMonoid A)) (M : _root_.DFA A Q) (ξ : ℝ)
+    (totalReads : ℝ)
+    (p : LoopDraws Ω A K settings.level3.harvestReadCap settings.level3.probeBudget) : Prop :=
+  (∃ rounds, indecisiveLStarTrieLoop settings cap O D Dsf p = some rounds ∧
+    rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
+      o.result.ending = .consistent ∧ T.real {w | ¬ o.result.hypothesis.TrieClassifies
+        (o.read O p.1) o.result.expanded w (M.eval w.toList ∈ M.accept)} ≤ ξ) ∧
+  ∃ S : Finset (FreeMonoid A), (S.card : ℝ) ≤ totalReads ∧
+    DependsOnlyOn (fun o => (trieLoopRoundsQ settings cap D Dsf p.2 K).eval o)
+      (fun w => O.mq w p.1) S
+
+def RLStarWithinUniform.{u, v, w} (L₀ : RLStarUniformInputs → ℝ)
+    (totalPref totalSuff totalProbes totalReads : RLStarUniformRun → ℝ) : Prop :=
+  ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v} [Fintype Q] {Ω : Type w}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (x : RLStarInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L : ℕ) (γ : ℝ),
-  let k : ℕ := (L + 1) / 2
-  let L₁ : ℕ := L + Fintype.card Q + 3
-  x ∈ rlStarRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
+    (x : RLStarUniformInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L : ℕ),
+  let Ls : ℕ := L + 2 * Fintype.card Q + 6
+  x ∈ rlStarUniformRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ 1 / 2 - x.s₀ →
-  x.pAP ≤ (uniformStrings (L₁ + Fintype.card Q + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-  (∃ q, q ∈ nonStartZoneStates M L x.R q ∧
-    1 - γ ≤ rerootAccuracy M L (nonStartZoneStates M L x.R q) q) →
+  x.pAP ≤ (uniformStrings Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   L₀ x ≤ L →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
-    settings.level3.walkStart = k ∧
     (∀ p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget,
-      ∀ rounds, indecisiveLStarLoop settings O (windowStrings k L₁)
-        (uniformStrings (L₁ + Fintype.card Q + 3)) p = some rounds →
-      ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
-        ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
-        ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    ((loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
-        settings.level3.probeBudget).prod
-        (Measure.pi fun _ : Fin (heldOut x) => uniformStrings L)).real
-      {q | ¬ RLStarSucceeds settings O (windowStrings k L₁)
-        (uniformStrings (L₁ + Fintype.card Q + 3)) (uniformStrings L) M (γ + x.ξ)
-        (totalReads { x with L }) q}
+      ∀ rounds, indecisiveLStarTrieLoop settings ((L + 1) / 2) O (uniformStrings L)
+          (uniformStrings Ls) p = some rounds →
+        ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
+          ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
+          ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
+    (loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
+        settings.level3.probeBudget).real
+      {p | ¬ RLStarTrieSucceeds settings ((L + 1) / 2) O (uniformStrings L) (uniformStrings Ls)
+        (uniformStrings L) M x.ξ (totalReads { x with L }) p}
       ≤ x.δ
 
 open Real in
-/-- `RLStarClaim` at uniform strings: `L₀` gives way to `p₀Tol`, and `1/|Σ|` to `β`. -/
+/-- Over uniform strings, the loop with local walk starts expanded below `⌈L/2⌉` letters, with no
+start premise: `RLStarClaim`'s bounds at `R = 1` and `β = 1/|Σ|`, once `L ≥ L₀`. -/
 def RLStarClaimUniform.{u, v, w} : Prop :=
-  ∃ (L₀ : RLStarInputs → ℝ) (totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ)
-    (heldOut : RLStarInputs → ℕ),
-    L₀ =O[𝓟 rlStarRegion] (fun x =>
-      1 + log (x.Q * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
-    totalPref =O[𝓟 rlStarRunRegion] (fun r =>
-      r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
-          * log (r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
-        + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
+  ∃ (L₀ : RLStarUniformInputs → ℝ)
+    (totalPref totalSuff totalProbes totalReads : RLStarUniformRun → ℝ),
+    L₀ =O[𝓟 rlStarUniformRegion] (fun x =>
+      1 + log (x.Q / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
+    totalPref =O[𝓟 rlStarUniformRunRegion] (fun r =>
+      r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
+          * log (r.Q * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
+        + r.Q ^ 2 * (r.L + r.Q) ^ 2 / r.ξ ^ 2
           * (1 / r.s₀ ^ 4 + r.Q ^ 4 * r.A ^ 2)
-          * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))) ∧
-    totalSuff =O[𝓟 rlStarRunRegion] (fun r =>
-      r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
+          * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀))) ∧
+    totalSuff =O[𝓟 rlStarUniformRunRegion] (fun r =>
+      r.Q * (log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)) ∧
-    totalProbes =O[𝓟 rlStarRunRegion] (fun r =>
-      r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)) ∧
-    totalReads =O[𝓟 rlStarRunRegion] (fun r =>
-      let nPref : ℝ := r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
-          * log (r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
-        + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
+    totalProbes =O[𝓟 rlStarUniformRunRegion] (fun r =>
+      r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) / r.ξ * log (r.Q * r.A / r.δ)) ∧
+    totalReads =O[𝓟 rlStarUniformRunRegion] (fun r =>
+      let nPref : ℝ := r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
+          * log (r.Q * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
+        + r.Q ^ 2 * (r.L + r.Q) ^ 2 / r.ξ ^ 2
           * (1 / r.s₀ ^ 4 + r.Q ^ 4 * r.A ^ 2)
-          * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
+          * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀))
       let nSuff : ℝ :=
-        r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
+        r.Q * (log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
           + log (r.Q / r.δ) / r.pAP)
-      let nProbe : ℝ :=
-        r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
+      let nProbe : ℝ := r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) / r.ξ * log (r.Q * r.A / r.δ)
       let nHeld : ℝ := log (r.Q / r.δ) / r.ξ ^ 2
-      let nFam : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
-      let ρInv : ℝ := r.R * r.A * (r.L + r.Q) / r.ξ
+      let nFam : ℝ := log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
+      let ρInv : ℝ := r.A * (r.L + r.Q) / r.ξ
       let lg : ℝ := log (r.L + r.Q + 1)
-      -- clusterings, counterexample search, harvest, start leaf
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q * nPref * nFam * lg * ρInv
         + nHeld * nFam) ∧
-    (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
-    RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut
+    RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads
 
 open Real in
+/-- `RLStarClaimUniform` with the prefix and suffix totals each a single product. -/
 def RLStarClaimUniformSimple.{u, v, w} : Prop :=
-  ∃ (L₀ : RLStarInputs → ℝ) (totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ)
-    (heldOut : RLStarInputs → ℕ),
-    L₀ =O[𝓟 rlStarRegion] (fun x =>
-      1 + log (x.Q * x.R / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
-    totalPref =O[𝓟 rlStarRunRegion] (fun r =>
-      r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
-        * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
-        / (r.ξ ^ 2 * r.s₀ ^ 4)) ∧
-    totalSuff =O[𝓟 rlStarRunRegion] (fun r =>
-      r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)) ∧
-    totalProbes =O[𝓟 rlStarRunRegion] (fun r =>
-      r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)) ∧
-    totalReads =O[𝓟 rlStarRunRegion] (fun r =>
-      let nPref : ℝ := r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
-        * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀))
-        / (r.ξ ^ 2 * r.s₀ ^ 4)
-      let nSuff : ℝ := r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
-      let nFam : ℝ := log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
-      let ρInv : ℝ := r.R * r.A * (r.L + r.Q) / r.ξ
+  ∃ (L₀ : RLStarUniformInputs → ℝ)
+    (totalPref totalSuff totalProbes totalReads : RLStarUniformRun → ℝ),
+    L₀ =O[𝓟 rlStarUniformRegion] (fun x =>
+      1 + log (x.Q / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
+    totalPref =O[𝓟 rlStarUniformRunRegion] (fun r =>
+      r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2
+        * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) / (r.ξ ^ 2 * r.s₀ ^ 4)) ∧
+    totalSuff =O[𝓟 rlStarUniformRunRegion] (fun r =>
+      r.Q * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)) ∧
+    totalProbes =O[𝓟 rlStarUniformRunRegion] (fun r =>
+      r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) / r.ξ * log (r.Q * r.A / r.δ)) ∧
+    totalReads =O[𝓟 rlStarUniformRunRegion] (fun r =>
+      let nPref : ℝ := r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2
+        * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) / (r.ξ ^ 2 * r.s₀ ^ 4)
+      let nSuff : ℝ := r.Q * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
+      let nFam : ℝ := log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
+      let ρInv : ℝ := r.A * (r.L + r.Q) / r.ξ
       let lg : ℝ := log (r.L + r.Q + 1)
       -- clusterings and harvest; the search's and start leaf's reads are within the harvest's
       nPref * (nSuff / r.Q + r.Q * nFam * lg * ρInv)) ∧
-    (fun x => (heldOut x : ℝ)) =O[𝓟 rlStarRegion] (fun x => log (x.Q / x.δ) / x.ξ ^ 2) ∧
-    RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads heldOut
+    RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads
 
 end OrthoDFA

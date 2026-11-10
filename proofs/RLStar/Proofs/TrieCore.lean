@@ -1,4 +1,4 @@
-import RLStar.Claims.RLStarTrie
+import RLStar.Claims.RLStar
 import RLStar.Proofs.TrieMisread
 import RLStar.Proofs.Trie
 import RLStar.Proofs.TrieAgree
