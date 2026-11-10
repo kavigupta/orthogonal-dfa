@@ -52,7 +52,7 @@ from orthogonal_dfa.l_star.tracker import SynthesisTracker
 SCHEMA_VERSION = 5
 
 #: Accuracy at which a hypothesis counts as a success.
-SUCCESS_THRESHOLD = 0.98
+SUCCESS_THRESHOLD = 0.95
 
 #: E-L*'s certificate targets the bar it is scored at.
 CERTIFIED_ERROR = 1 - SUCCESS_THRESHOLD
