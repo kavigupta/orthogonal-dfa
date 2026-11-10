@@ -520,5 +520,5 @@ def do_counterexample_driven_synthesis(
         )
         dfa = denoise_accept_labels(pst, best.dfa)
     tracker.on_corrected_dfa_found(dfa, best.round_index)
-    # The expanded prefixes' states are mostly copies of the leaves they lead to.
+    # The spelled-out prefixes' states are mostly copies of the leaves they lead to.
     return dfa.minify()

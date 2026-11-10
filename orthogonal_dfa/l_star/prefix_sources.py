@@ -59,8 +59,8 @@ class HarvestSource(RejectionSource):
         strings, start = provenance.sample_from()
         for string in strings:
             if string in self._seen:
-                # A repeat is not drawn again: its walk start is expanded instead.
-                provenance.round.expand_starts({start})
+                # A repeat is not drawn again: its walk start is spelled out instead.
+                provenance.round.spell_out_starts({start})
             else:
                 self._seen.add(string)
                 self._pool.append(string)

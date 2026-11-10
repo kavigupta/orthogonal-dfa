@@ -15,16 +15,16 @@ LEAVES = DFA(
 
 
 class TestTrie(unittest.TestCase):
-    def test_walk_start_passes_the_expanded_prefixes(self):
+    def test_walk_start_passes_the_spelled_out_prefixes(self):
         trie = Trie()
-        trie.expand({b"", b"\x01"})
+        trie.spell_out({b"", b"\x01"})
         self.assertEqual(2, trie.walk_start(b"\x01\x00\x00"))
         self.assertEqual(1, trie.walk_start(b"\x00\x01"))
         self.assertEqual(2, trie.depth)
 
-    def test_expanding_bumps_the_version(self):
+    def test_spelling_out_bumps_the_version(self):
         trie = Trie()
-        trie.expand({b""})
+        trie.spell_out({b""})
         self.assertEqual(1, trie.version)
 
     def test_empty_it_leaves_the_dfa_alone(self):
@@ -34,7 +34,7 @@ class TestTrie(unittest.TestCase):
         self,
     ):
         trie = Trie()
-        trie.expand({b"", b"\x00"})
+        trie.spell_out({b"", b"\x00"})
         dfa = trie.prepend(
             LEAVES, lambda v: None if v == b"\x01" else 0, lambda u: u == b"\x00"
         )

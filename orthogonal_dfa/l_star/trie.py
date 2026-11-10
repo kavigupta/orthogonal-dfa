@@ -6,11 +6,11 @@ from automata.fa.dfa import DFA
 
 
 class Trie:
-    """A set of prefixes, closed under prefixes by the callers that expand it."""
+    """A set of prefixes, closed under prefixes by its callers."""
 
     def __init__(self):
         self.prefixes: Set[bytes] = set()
-        #: Bumped at every expansion.
+        #: Bumped whenever prefixes are spelled out.
         self.version = 0
 
     @property
@@ -25,8 +25,8 @@ class Trie:
             k += 1
         return k
 
-    def expand(self, starts):
-        self.prefixes |= set(starts)
+    def spell_out(self, prefixes):
+        self.prefixes |= set(prefixes)
         self.version += 1
 
     def prepend(
