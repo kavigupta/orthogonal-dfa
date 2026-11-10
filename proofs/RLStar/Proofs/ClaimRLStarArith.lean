@@ -17,6 +17,38 @@ noncomputable section
 
 namespace OrthoDFA
 
+/-- `RLStarInputs` with `R`, the visit ratio of `nonStartZoneStates`, which the rates below carry;
+the claims run them at `R = 1`. -/
+structure RatioInputs where
+  Q : ℕ
+  A : ℕ
+  δ : ℝ
+  R : ℝ
+  ξ : ℝ
+  pAP : ℝ
+  s₀ : ℝ
+
+def ratioRegion : Set RatioInputs :=
+  {x | 1 ≤ x.Q ∧ 2 ≤ x.A ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 1 ≤ x.R ∧ 0 < x.ξ ∧ x.ξ ≤ 1 ∧
+    0 < x.pAP ∧ x.pAP ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2}
+
+structure RatioRun extends RatioInputs where
+  L : ℕ
+
+def ratioRunRegion : Set RatioRun := {r | r.toRatioInputs ∈ ratioRegion}
+
+/-- `β` the least rate at which the input distribution extends a prefix by any one letter. -/
+structure RLStarDistInputs extends RatioInputs where
+  β : ℝ
+
+def rlStarDistRegion : Set RLStarDistInputs :=
+  {x | x.toRatioInputs ∈ ratioRegion ∧ 0 < x.β ∧ x.β * x.A ≤ 1}
+
+structure RLStarDistRun extends RLStarDistInputs where
+  L : ℕ
+
+def rlStarDistRunRegion : Set RLStarDistRun := {r | r.toRLStarDistInputs ∈ rlStarDistRegion}
+
 open Real
 
 lemma div_inv_coord (x y : ℝ) : x / (1 / y) = x * y := by rw [div_div_eq_mul_div, div_one]
@@ -1632,60 +1664,9 @@ lemma rel_terms_le {Q A Ae iδ R iξ ip is : ℝ} {nQ nA : ℕ} (hQ : 1 ≤ Q) (
       _ = 2 ^ 40 * 36 * (Q ^ 5 * A ^ 2 * Ae ^ 2 * R ^ 2 * iξ ^ 2 * iδ * lY ^ 2) := by ring
       _ ≤ _ := mul_le_mul_of_nonneg_right (by norm_num) (by positivity)
 
-/-- `(L + Q)⁶ E ≤ A^⌈L/2⌉` once `L` passes the tangent bound on `6 log (L + 1)` at `24/log A`. -/
-lemma pow_of_tangent {A Q E : ℝ} {L : ℕ} (hA : 2 ≤ A) (hQ : 1 ≤ Q) (hE : 1 ≤ E)
-    (hL : 1 + 4 * (log E + 6 * log (Q + 4) + 24) / log A ≤ L) :
-    ((L : ℝ) + Q) ^ 6 * E ≤ A ^ ((L + 1) / 2) := by
-  have hl2 := Real.log_two_gt_d9
-  have ha : log 2 ≤ log A := log_two_le_log hA
-  have ha0 : 0 < log A := by linarith
-  have hL0 : (0 : ℝ) ≤ L := Nat.cast_nonneg L
-  have hk : (L : ℝ) ≤ 2 * (((L + 1) / 2 : ℕ) : ℝ) := by
-    exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)
-  have hlE : 0 ≤ log E := Real.log_nonneg hE
-  have hlQ : 0 ≤ log (Q + 4) := Real.log_nonneg (by linarith)
-  have hL' : 4 * (log E + 6 * log (Q + 4) + 24) ≤ ((L : ℝ) - 1) * log A := by
-    have := (div_le_iff₀ ha0).1 (show 4 * (log E + 6 * log (Q + 4) + 24) / log A ≤ (L : ℝ) - 1 by
-      linarith)
-    linarith
-  have hT0 : 0 < 24 / log A := by positivity
-  have hL1 : (0 : ℝ) < L + 1 := by linarith
-  have htan : log ((L : ℝ) + 1) ≤ log (24 / log A) + ((L : ℝ) + 1) * log A / 24 - 1 := by
-    have := Real.log_le_sub_one_of_pos (div_pos hL1 hT0)
-    rw [Real.log_div hL1.ne' hT0.ne'] at this
-    have e : ((L : ℝ) + 1) / (24 / log A) = ((L : ℝ) + 1) * log A / 24 := by field_simp
-    rw [e] at this
-    linarith
-  have hlT : log (24 / log A) ≤ 4 := by
-    have hT35 : 24 / log A ≤ 35 := by
-      rw [div_le_iff₀ ha0]; linarith
-    have h35 : (35 : ℝ) ≤ Real.exp 4 := by
-      have e4 : Real.exp 4 = Real.exp 1 ^ 4 := by rw [← Real.exp_nat_mul]; norm_num
-      rw [e4]
-      have : (2.7 : ℝ) ≤ Real.exp 1 := by have := Real.exp_one_gt_d9; linarith
-      have : (2.7 : ℝ) ^ 4 ≤ Real.exp 1 ^ 4 := pow_le_pow_left₀ (by norm_num) this 4
-      norm_num at this ⊢; linarith
-    calc log (24 / log A) ≤ log 35 := Real.log_le_log hT0 hT35
-      _ ≤ 4 := by rw [Real.log_le_iff_le_exp (by norm_num)]; exact h35
-  have hLQ : log ((L : ℝ) + Q) ≤ log ((L : ℝ) + 1) + log (Q + 4) := by
-    rw [← Real.log_mul hL1.ne' (by linarith)]
-    exact Real.log_le_log (by linarith) (by nlinarith)
-  have hmain : 6 * log ((L : ℝ) + Q) + log E ≤ (L : ℝ) * log A / 2 := by
-    linarith
-  have hk' : (L : ℝ) * log A / 2 ≤ (((L + 1) / 2 : ℕ) : ℝ) * log A := by
-    have := mul_le_mul_of_nonneg_right hk ha0.le
-    linarith
-  have hpos : (0 : ℝ) < ((L : ℝ) + Q) ^ 6 * E := by positivity
-  have hA0 : (0 : ℝ) < A := by linarith
-  rw [← Real.log_le_log_iff hpos (pow_pos hA0 _), Real.log_mul (by positivity) (by linarith),
-    Real.log_pow, Real.log_pow]
-  have e6 : ((6 : ℕ) : ℝ) = 6 := by norm_num
-  rw [e6]
-  linarith
-
 set_option maxHeartbeats 1000000 in -- `G`'s bound chains through many `gcongr` steps
-/-- `L₀` at a constant `C₀ ≥ 1` against `1 + log (|Q| R/(δ ξ pAP s₀))/log |Σ|`, in the inverted
-coordinates. -/
+/-- `k₀`'s `L`-free part at a constant `C₀ ≥ 1` against `1 + log (|Q| R/(δ ξ pAP s₀))/log |Σ|`,
+in the inverted coordinates. -/
 lemma loopL0_le {Q A R iδ iξ ip is C₀ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hR : 1 ≤ R) (hiδ : 2 ≤ iδ)
     (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 2 ≤ is) (hC₀ : 1 ≤ C₀) :
     1 ≤ Q ^ 9 * (A + Q) ^ 4 * R ^ 4 * log (Q * R * A * iδ * iξ * ip * is) ^ 3 * iδ * iξ ^ 4
@@ -1828,7 +1809,7 @@ open Asymptotics Filter
 
 set_option maxHeartbeats 1000000 in -- the populations' log against the rest's
 /-- `RLStarClaimUniform`'s prefix shape against `RLStarClaimUniformSimple`'s. -/
-lemma loop_pref_dom {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
+lemma loop_pref_dom {r : RatioRun} (hr : r ∈ ratioRunRegion) :
     0 ≤ r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
           * log (r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
         + r.Q ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2 / r.ξ ^ 2
@@ -1931,7 +1912,7 @@ lemma loop_pref_dom {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
   linarith
 
 /-- `RLStarClaimUniform`'s suffix shape against `RLStarClaimUniformSimple`'s. -/
-lemma loop_suff_dom {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
+lemma loop_suff_dom {r : RatioRun} (hr : r ∈ ratioRunRegion) :
     0 ≤ r.Q * (log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
         + log (r.Q / r.δ) / r.pAP)
       ∧ 0 ≤ r.Q * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
