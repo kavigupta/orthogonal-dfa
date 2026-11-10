@@ -10,13 +10,8 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
     BestRound,
     _accumulate_harvest,
     _publish_pool,
-    _reroot_pick,
-    _reroot_start,
     _StallDetector,
 )
-from orthogonal_dfa.l_star.fallbacks.score_patience import Selection
-from orthogonal_dfa.l_star.hypothesis_dfa import HypothesisDFA
-from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.prefix_populations import PoolState
 
 #: What draws more like the harvest, which these tests never ask.
@@ -168,84 +163,6 @@ class TestWhatARoundPublishes(unittest.TestCase):
         _publish_pool(pst, state)
 
         self.assertNotIn(("state", 0), pst.table.populations)
-
-
-def _funnel_hypothesis():
-    """Three leaves over a two-symbol alphabet: leaf 0 (accepting) absorbs, leaf 1
-    absorbs, and leaf 2 routes symbol 1 to leaf 0 and stays on symbol 0. Started at
-    leaf 2 a string reaches leaf 0 iff it holds a symbol 1; started at leaf 0 every
-    string absorbs, so only leaf 2 discriminates."""
-    tree = MidfixTree([b""])
-    tree.split(1, b"m")
-    hypothesis = HypothesisDFA(lambda _s: None, tree)
-    leaf0, leaf2 = (True,), (False, False)
-    edges = {
-        (leaf0, 0): leaf0,
-        (leaf0, 1): leaf0,
-        ((False, True), 0): (False, True),
-        ((False, True), 1): (False, True),
-        (leaf2, 0): leaf2,
-        (leaf2, 1): leaf0,
-    }
-    hypothesis.edges = {edge: (target, b"w") for edge, target in edges.items()}
-    return hypothesis
-
-
-def _contains_one(strings):
-    labels = [float(1 in s) for s in strings]
-    return [bytes(s) for s in strings], np.asarray(labels, dtype=float)
-
-
-class _ContainsOneOracle:
-    def membership_queries(self, strings):
-        return [int(1 in s) for s in strings]
-
-
-class _BitSampler:
-    def sample(self, rng, alphabet_size):
-        length = int(rng.integers(1, 4))
-        return bytes(int(rng.integers(alphabet_size)) for _ in range(length))
-
-
-class TestReroot(unittest.TestCase):
-    _PICK = (
-        _contains_one([[1], [0], [1, 0], [0, 0], [0, 1], [0, 0, 0]]),
-        _contains_one([[1], [0], [0, 1], [0, 0]]),
-    )
-
-    def _pst(self, *, reroot, drawing=False):
-        config = SimpleNamespace(counterexample_reroot=reroot)
-        if not drawing:
-            return SimpleNamespace(alphabet_size=2, config=config)
-        return SimpleNamespace(
-            alphabet_size=2,
-            config=config,
-            rng=np.random.default_rng(0),
-            oracle=_ContainsOneOracle(),
-            sampler=_BitSampler(),
-        )
-
-    def test_enabled_it_starts_at_the_leaf_that_scores_best_held_out(self):
-        hypothesis = _funnel_hypothesis()
-        dfa = hypothesis.to_dfa(2, 0)
-        pst = self._pst(reroot=True)
-        pick = _reroot_pick(pst, Selection(search=((), ()), pick=self._PICK))
-        self.assertEqual(2, _reroot_start(pst, hypothesis, dfa, pick).initial_state)
-
-    def test_off_it_keeps_the_given_start(self):
-        hypothesis = _funnel_hypothesis()
-        dfa = hypothesis.to_dfa(2, 0)
-        pst = self._pst(reroot=False)
-        pick = _reroot_pick(pst, Selection(search=((), ()), pick=self._PICK))
-        self.assertIsNone(pick)
-        self.assertIs(dfa, _reroot_start(pst, hypothesis, dfa, pick))
-
-    def test_enabled_without_a_selection_it_draws_its_own_set(self):
-        hypothesis = _funnel_hypothesis()
-        dfa = hypothesis.to_dfa(2, 0)
-        pst = self._pst(reroot=True, drawing=True)
-        pick = _reroot_pick(pst, None)
-        self.assertEqual(2, _reroot_start(pst, hypothesis, dfa, pick).initial_state)
 
 
 class TestBestRound(unittest.TestCase):

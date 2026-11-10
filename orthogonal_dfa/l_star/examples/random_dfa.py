@@ -39,8 +39,8 @@ def sample_admitted_dfas(
 ) -> List[DFA]:
     """
     The first ``count`` draws of `sample_random_dfa` that satisfy the
-    preconditions at ``length`` but the start-zone one, each draw's state count uniform in
-    ``[min_states, max_states]``.
+    preconditions at length, each draw's state count uniform in
+    [min_states, max_states].
 
     The state count is before minimisation; admitted DFAs are often smaller.
     """
@@ -48,9 +48,7 @@ def sample_admitted_dfas(
     while len(admitted) < count:
         num_states = int(rng.integers(min_states, max_states + 1))
         aut = sample_random_dfa(rng, num_states=num_states, alphabet_size=alphabet_size)
-        if preconditions.satisfies_preconditions(
-            aut, length=length, min_non_start_zone_accuracy=0.0
-        ):
+        if preconditions.satisfies_preconditions(aut, length=length):
             admitted.append(aut)
     return admitted
 
@@ -292,8 +290,7 @@ def sample_minimal_admitted_dfa(
     """
     A uniformly random transition table on ``num_states`` states in which every
     state is reachable from state 0, with each state accepting with probability
-    1/2, kept if it is minimal and satisfies the preconditions at ``length`` but the
-    start-zone one.
+    1/2, kept if it is minimal and satisfies the preconditions at length.
     """
     table = np.empty((num_states, alphabet_size), np.int64)
     while True:
@@ -307,7 +304,5 @@ def sample_minimal_admitted_dfa(
         if final_mask < 0:
             continue
         aut = dfa_from_table(table, final_mask)
-        if preconditions.satisfies_preconditions(
-            aut, length=length, min_non_start_zone_accuracy=0.0
-        ):
+        if preconditions.satisfies_preconditions(aut, length=length):
             return aut

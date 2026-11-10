@@ -1,5 +1,5 @@
-"""E-L* on targets the start-zone precondition rejects: the decision rides on
-states the window never or rarely lands in."""
+"""E-L* on targets whose decision rides on states the window never or rarely
+lands in."""
 
 import functools
 import unittest

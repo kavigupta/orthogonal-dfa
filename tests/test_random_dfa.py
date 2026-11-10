@@ -81,11 +81,7 @@ class TestSampleMinimalAdmittedDFA(unittest.TestCase):
             )
             self.assertEqual(len(aut.states), num_states)
             self.assertEqual(len(aut.minify().states), num_states)
-            self.assertTrue(
-                P.satisfies_preconditions(
-                    aut, length=40, min_non_start_zone_accuracy=0.0
-                )
-            )
+            self.assertTrue(P.satisfies_preconditions(aut, length=40))
 
 
 if __name__ == "__main__":

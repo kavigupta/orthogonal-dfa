@@ -88,10 +88,6 @@ class SearchConfig:
     #: Step past an undecided midpoint in a probe's search to the decided position
     #: nearest it.
     counterexample_skip_undecided: bool = False
-    #: Restart the round's DFA at the leaf scoring best on held-out strings, the
-    #: port of ``LoopDFA.lean``'s ``pickLeaf``. Draws its own held-out sample once a
-    #: run where no other setting leaves one to reuse.
-    counterexample_reroot: bool = False
     #: See ``CounterexampleSearchConfig.local_starts``.
     counterexample_local_starts: bool = True
 
