@@ -145,6 +145,26 @@ def cost_rows(cells: Sequence[dict]) -> List[Union[List[str], str]]:
     return rows
 
 
+#: Upstream's own benchmark setting, (m, pool, alpha), which experiments 1, 2 and
+#: 4 also run at.
+UPSTREAM_CONFIG = (80, 10, 1e-3)
+
+
+def _config(cell: dict) -> tuple:
+    lc = cell["learner_config"]
+    return lc["max_same_samples"], lc["suffix_pool_len_max"], lc["alpha"]
+
+
+def capal_fails_at_default(sweep: Sequence[dict]) -> set:
+    """Our benchmarks on which CAPAL at UPSTREAM_CONFIG fails every seed at
+    eta = 0.30; experiments 3 and 4 ask whether anything rescues these."""
+    runs = collections.defaultdict(list)
+    for c in sweep:
+        if _config(c) == UPSTREAM_CONFIG and c["eta"] == 0.30:
+            runs[c["benchmark"]].append(c)
+    return {b for b, cs in runs.items() if not any(map(succeeded, cs))}
+
+
 def sweep_rows(_cells: Sequence[dict]) -> List[List[str]]:
     """Experiment 3: the hyperparameter grid, one row per configuration.
 
@@ -152,21 +172,18 @@ def sweep_rows(_cells: Sequence[dict]) -> List[List[str]]:
     table says what was actually varied. Cells are successes out of the runs at
     that (config, eta), which is targets x seeds.
     """
-    cells = load_experiment("wall_sweep")
+    sweep = load_experiment("wall_sweep")
+    failing = capal_fails_at_default(sweep)
+    cells = [c for c in sweep if c["benchmark"] in failing]
     if not cells:
         return []
     etas = sorted({c["eta"] for c in cells})
     grid = collections.defaultdict(list)
     for c in cells:
-        lc = c["learner_config"]
-        grid[
-            (lc["max_same_samples"], lc["suffix_pool_len_max"], lc["alpha"], c["eta"])
-        ].append(c)
+        grid[(*_config(c), c["eta"])].append(c)
     rows = []
     for m, pool, alpha in sorted({(m, p, a) for m, p, a, _ in grid}):
-        # Bold marks upstream's own benchmark setting, which is also what
-        # experiments 1, 2 and 4 run at.
-        baseline = (m, pool, alpha) == (80, 10, 1e-3)
+        baseline = (m, pool, alpha) == UPSTREAM_CONFIG
 
         def mark(value: Any, bold: bool = baseline) -> str:
             return f"\\textbf{{{value}}}" if bold else str(value)
@@ -191,7 +208,8 @@ def budget_rows(_cells: Sequence[dict]) -> List[List[str]]:
     like-for-like; folding a stalled cell in would report CAPAL's score "at
     E-L*'s budget" for a run that never approached it.
     """
-    cells = load_experiment("matched_budget")
+    failing = capal_fails_at_default(load_experiment("wall_sweep"))
+    cells = [c for c in load_experiment("matched_budget") if c["benchmark"] in failing]
     if not cells:
         return []
     elstar = {
