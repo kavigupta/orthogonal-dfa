@@ -7,7 +7,7 @@ import RLStar.Code.TrieDFA
 `indecisiveLStarLoop` with level 3 run with local walk starts (`indecisiveLStarLevel3Trie`): each
 round clusters a suffix family over the populations so far, as there, and runs the round's probes
 from `D` off the clustering's keys at `walkStart` letters, each walked past the prefixes its round
-has expanded, each shorter than `cap`. A harvest's sampler walks its fresh probes past its
+has expanded: every string shorter than `walkStart`, and walk starts shorter than `cap`. A harvest's sampler walks its fresh probes past its
 round's expanded prefixes; a probe that harvests a string the clusterings read or the population
 drew before has its walk start expanded for the population's later draws. The loop stops at the
 first round that does not end in a harvest, and its DFA is that round's hypothesis with its
@@ -36,7 +36,7 @@ structure TrieHarvestSampler (α : Type*) where
   kh : ℕ
   hyp : HypothesisDFA α
   expanded : Finset (FreeMonoid α)
-  site : Random.TrieSite
+  site : Random.Level3Site
 
 structure TrieLoopHist (α : Type*) where
   pops : List (TrieHarvestSampler α)
@@ -104,7 +104,7 @@ def trieDrawListsQ {K : ℕ} (cap : ℕ) (D : Measure (FreeMonoid α)) (N M : �
 
 open scoped Classical in
 /-- `roundQ` with level 3 run with local walk starts. -/
-def trieRoundQ {K : ℕ} (settings : LoopSettings K) (y : ℝ) (cap : ℕ)
+def trieRoundQ {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
     (D Dsf : Measure (FreeMonoid α))
     (h : TrieLoopHist α)
     (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
@@ -125,7 +125,7 @@ def trieRoundQ {K : ℕ} (settings : LoopSettings K) (y : ℝ) (cap : ℕ)
             ∧ x ∈ ret mq ps none settings.η₀ settings.indecisionLimit settings.εcov
               settings.gateLevel B
           let F := clusterAt mq ps x B
-          ((Random.level3TrieQ settings.level3 y cap fun i =>
+          ((Random.level3TrieQ settings.level3 cap fun i =>
               drawFrom (avoidLaw D settings.level3.walkStart
                 (clusterKeys sched ps settings.level3.walkStart x)) (d.2 i)).subst
             (familyReadQ F B.lo (B.hi + 1))).map fun res =>
@@ -133,26 +133,26 @@ def trieRoundQ {K : ℕ} (settings : LoopSettings K) (y : ℝ) (cap : ℕ)
         else .pure none
     else .pure none
 
-def trieLoopRoundsQ {K : ℕ} (settings : LoopSettings K) (y : ℝ) (cap : ℕ)
+def trieLoopRoundsQ {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
     (D Dsf : Measure (FreeMonoid α))
     (draws : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     ℕ → Query (FreeMonoid α) ℝ (Option (List (TrieLoopRound α)))
   | 0 => .pure (some [])
-  | r + 1 => (trieLoopRoundsQ settings y cap D Dsf draws r).bind fun
+  | r + 1 => (trieLoopRoundsQ settings cap D Dsf draws r).bind fun
     | none => .pure none
     | some rs =>
       if h : r < K ∧ ∀ o ∈ rs, o.result.ending.harvested ≠ none then
-        (trieRoundQ settings y cap D Dsf (trieHistOf rs) (draws ⟨r, h.1⟩)).map fun oo =>
+        (trieRoundQ settings cap D Dsf (trieHistOf rs) (draws ⟨r, h.1⟩)).map fun oo =>
           oo.map fun o => rs ++ [o]
       else .pure (some rs)
 
 /-- The rounds the loop runs at the noise `p.1` and the draws `p.2`; `none` if a round fails. -/
-def indecisiveLStarTrieLoop {K : ℕ} (settings : LoopSettings K) (y : ℝ) (cap : ℕ)
+def indecisiveLStarTrieLoop {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
     (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
     (p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) :
     Option (List (TrieLoopRound α)) :=
-  (trieLoopRoundsQ settings y cap D Dsf p.2 K).eval fun w => O.mq w p.1
+  (trieLoopRoundsQ settings cap D Dsf p.2 K).eval fun w => O.mq w p.1
 
 end OrthoDFA
 

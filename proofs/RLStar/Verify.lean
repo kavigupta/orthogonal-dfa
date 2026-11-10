@@ -29,9 +29,7 @@ import RLStar.Proofs.SpurCount
 import RLStar.Proofs.SuccessiveDraws
 import RLStar.Proofs.TripartiteSearch
 import RLStar.Proofs.Trie
-import RLStar.Proofs.TrieSound
-import RLStar.Proofs.TrieCap
-import RLStar.Proofs.TrieEndsWell
+import RLStar.Proofs.TrieLoop
 import RLStar.Claims.RLStarTrie
 
 /-!
@@ -58,8 +56,7 @@ both. The loop runs level 5.
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
 `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
 `CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `Level3TrieRootOne`,
-`Level3TrieExpandedCard`, `Level3TrieCapFree`, `Level3TrieConsistentSound`,
-`Level3TrieConsistentCorrect`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
+`Level3TrieAgrees`, `TrieLoopAgrees`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
 `RunsKeepEdgesAtLeaves`.
 
@@ -69,9 +66,7 @@ The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`
 
 Open, stated but not proved: `RLStarTrieClaim`, stated in `RLStar.Claims.RLStarTrie`, the learner
 with local walk starts and no start premise. What is proved of it: `TrieProbeAgreeCorrect`,
-`TrieSinglePieceCorrect`, `Level3TrieRootOne`, `Level3TrieExpandedCard`, `Level3TrieCapFree`,
-`Level3TrieConsistentSound`, `Level3TrieConsistentCorrect`, and `Level3TrieRoundCorrect` given
-`Level3TrieYields`, which is open; both are stated in `RLStar.LowLevelClaims.TrieRound`.
+`TrieSinglePieceCorrect`, `Level3TrieRootOne`, `Level3TrieAgrees` and `TrieLoopAgrees`.
 -/
 
 namespace OrthoDFA
@@ -226,28 +221,12 @@ theorem level3_trie_root_one : Level3TrieRootOne := level3TrieRootOne
 
 #print axioms level3_trie_root_one
 
-theorem level3_trie_expanded_card : Level3TrieExpandedCard := level3TrieExpandedCard
+theorem level3_trie_agrees : Level3TrieAgrees := level3TrieAgrees_holds
 
-#print axioms level3_trie_expanded_card
+#print axioms level3_trie_agrees
 
-theorem level3_trie_cap_free : Level3TrieCapFree := level3TrieCapFree
+theorem trie_loop_agrees : TrieLoopAgrees := trieLoopAgrees_holds
 
-#print axioms level3_trie_cap_free
-
-theorem level3_trie_consistent_sound : Level3TrieConsistentSound := level3TrieConsistentSound
-
-#print axioms level3_trie_consistent_sound
-
-theorem level3_trie_consistent_correct : Level3TrieConsistentCorrect :=
-  level3TrieConsistentCorrect
-
-#print axioms level3_trie_consistent_correct
-
-universe u v w in
-theorem level3_trie_round_correct_of_yields :
-    Level3TrieYields.{u, v, w} → Level3TrieRoundCorrect.{u, v, w} :=
-  level3TrieRoundCorrect_of_yields
-
-#print axioms level3_trie_round_correct_of_yields
+#print axioms trie_loop_agrees
 
 end OrthoDFA

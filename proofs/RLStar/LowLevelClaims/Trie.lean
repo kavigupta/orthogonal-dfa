@@ -1,4 +1,5 @@
 import RLStar.Code.TrieDFA
+import RLStar.Code.LearnerLoopTrie
 import RLStar.LowLevelClaims.Level3Claim
 import RLStar.LowLevelClaims.CoveredStart
 
@@ -12,12 +13,12 @@ the DFA then misjudges at most the probes that disagree plus the strings the roo
 (`TrieSinglePieceCorrect`), with no start, zone or edge argument.
 
 `Level3TrieRootOne`: every tree a round grows reads `ε` at its root, as level 3's do.
-`Level3TrieExpandedCard`: a round expands at most `cap` prefixes of each probe.
-`Level3TrieCapFree`: a cap of at least `K` binds only where some draw's first `K` letters are
-another's prefix followed by a midfix, which is rare once `A^K` beats `P³(K+1)`.
 
-`Level3TrieConsistentSound`: a consistent ending certifies its rate, for any fixed reads, and so
-its DFA's error (`Level3TrieConsistentCorrect`).
+`Level3TrieAgrees`: probes at least `walkStart` long with distinct first `walkStart` letters run
+as level 3's, nothing expanded past the complete trie. `TrieLoopAgrees`: where, besides, every
+harvested population's probes have first `walkStart` letters of no string the clusterings read and
+of no probe of an earlier batch, the loop with local walk starts returns the loop's rounds and reads
+the same strings.
 -/
 
 noncomputable section
@@ -59,53 +60,73 @@ def TrieSinglePieceCorrect : Prop :=
       ≤ D.real (trieDisagreeSet read X H) + D.real (misreadSet read L)
 
 def Level3TrieRootOne : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (y : ℝ) (cap : ℕ)
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (cap : ℕ)
     (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α),
-    ∃ r a, (indecisiveLStarLevel3Trie C y cap read draws).hypothesis.tree = .node 1 r a
+    ∃ r a, (indecisiveLStarLevel3Trie C cap read draws).hypothesis.tree = .node 1 r a
 
-def Level3TrieExpandedCard : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (y : ℝ) (cap : ℕ)
+def Level3TrieAgrees : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (cap : ℕ)
     (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α),
-    (indecisiveLStarLevel3Trie C y cap read draws).expanded.card ≤ P * cap
+    (∀ i, C.walkStart ≤ (draws i).toList.length) →
+    Function.Injective (fun i => prefixOf (draws i) C.walkStart) →
+    indecisiveLStarLevel3Trie C cap read draws
+      = ⟨(indecisiveLStarLevel3 C read draws).hypothesis, completeTrie C.walkStart,
+        (indecisiveLStarLevel3 C read draws).ending⟩
 
-/-- With `p₀ ≥ max_u P_D(x's first K letters are u)` and `K ≤ cap, cap'`,
-    P(the rounds under cap and cap' differ ∨ some expanded prefix has length ≥ K) ≤ P³(K+1)p₀
-over the probes. -/
-def Level3TrieCapFree : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (y : ℝ)
-    (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (K cap cap' P : ℕ) (p₀ : ℝ), (∀ u, D.real {x | prefixOf x K = u} ≤ p₀) → K ≤ cap → K ≤ cap' →
-    (Measure.pi fun _ : Fin P => D).real
-      {draws | indecisiveLStarLevel3Trie C y cap read draws
-          ≠ indecisiveLStarLevel3Trie C y cap' read draws
-        ∨ ∃ u ∈ (indecisiveLStarLevel3Trie C y cap read draws).expanded, K ≤ u.toList.length}
-      ≤ P ^ 3 * (K + 1) * p₀
+section Lift
 
-/-- For any fixed reads, `P(consistent ∧ P_D(probe disagrees) > ε) ≤ δ` over the probes. -/
-def Level3TrieConsistentSound : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (y : ℝ) (cap : ℕ)
-    (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D],
-    0 < C.δ → 0 < C.disagreementRate → C.disagreementRate < 1 →
-    (Measure.pi fun _ : Fin C.probeBudget => D).real
-      {draws | let r := indecisiveLStarLevel3Trie C y cap read draws
-        r.ending = .consistent
-          ∧ C.disagreementRate < D.real (trieDisagreeSet read r.expanded r.hypothesis)}
-      ≤ C.δ
+variable {α : Type*} [Fintype α] [DecidableEq α] (k : ℕ)
 
-/-- For any fixed reads and language `L`,
-    P(consistent ∧ P_D(DFA(x) ≠ [x ∈ L]) > ε + P_D(root misreads x)) ≤ δ
-over the probes. -/
-def Level3TrieConsistentCorrect : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (y : ℝ) (cap : ℕ)
-    (read : FreeMonoid α → ARU) (L : Set (FreeMonoid α)) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D],
-    0 < C.δ → 0 < C.disagreementRate → C.disagreementRate < 1 →
-    (Measure.pi fun _ : Fin C.probeBudget => D).real
-      {draws | let r := indecisiveLStarLevel3Trie C y cap read draws
-        r.ending = .consistent
-          ∧ C.disagreementRate + D.real (misreadSet read L)
-            < D.real {x | ¬ r.hypothesis.TrieClassifies read r.expanded x (x ∈ L)}}
-      ≤ C.δ
+def liftSampler (s : HarvestSampler α) : TrieHarvestSampler α :=
+  ⟨s.family, s.kl, s.kh, s.hyp, completeTrie k, s.site⟩
+
+def liftRound (o : LoopRound α) : TrieLoopRound α :=
+  ⟨o.state, o.family, ⟨o.result.hypothesis, completeTrie k, o.result.ending⟩, o.prefs, o.suffs⟩
+
+def liftHist (h : LoopHist α) : TrieLoopHist α :=
+  ⟨h.pops.map (liftSampler k), h.prefs, h.suffs⟩
+
+/-- The first `M` batches of `N` probes drawn by `u` from `D`: each at least `k` long, with first
+`k` letters those of no string of `T` and of no probe of an earlier batch. -/
+def BatchesGood (D : Measure (FreeMonoid α)) (N M : ℕ) (T : Finset (FreeMonoid α))
+    (u : ℕ → unitInterval × (Fin N → unitInterval)) : Prop :=
+  ∀ n < M, ∀ t, k ≤ (drawFrom D ((u n).2 t)).toList.length
+    ∧ (∀ z ∈ T, prefixOf z k ≠ prefixOf (drawFrom D ((u n).2 t)) k)
+    ∧ ∀ m < n, ∀ t', prefixOf (drawFrom D ((u m).2 t')) k ≠ prefixOf (drawFrom D ((u n).2 t)) k
+
+/-- The level-3 probes `u` draws from `D` off the keys `K₀`: each at least `k` long, with distinct
+first `k` letters. -/
+def L3Good (D : Measure (FreeMonoid α)) (K₀ : Finset (FreeMonoid α)) {P : ℕ}
+    (u : Fin P → unitInterval) : Prop :=
+  (∀ i, k ≤ (drawFrom (avoidLaw D k K₀) (u i)).toList.length)
+    ∧ Function.Injective fun i => prefixOf (drawFrom (avoidLaw D k K₀) (u i)) k
+
+end Lift
+
+/-- Round `d` after the history `h`, at the answers `rd`: every harvested population's batches are
+good, and where the loop's round returns, its level-3 probes are. -/
+def TrieRoundGood {α : Type*} [Fintype α] [DecidableEq α] {K : ℕ} (settings : LoopSettings K)
+    (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
+    (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (rd : FreeMonoid α → ℝ) : Prop :=
+  (∀ i : Fin K, BatchesGood settings.level3.walkStart D settings.level3.harvestReadCap
+      settings.scanCap h.prefs (d.1.2.1 (some i)))
+    ∧ ∀ o, (roundQ settings D Dsf h d).eval rd = some o →
+      L3Good settings.level3.walkStart D
+        (o.prefs.image fun p => prefixOf p settings.level3.walkStart) d.2
+
+def TrieLoopAgrees : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] {K : ℕ} (rd : FreeMonoid α → ℝ)
+    (settings : LoopSettings K) (cap : ℕ) (D Dsf : Measure (FreeMonoid α))
+    (draws : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget),
+    (∀ r (hr : r < K) rs, (loopRoundsQ settings D Dsf draws r).eval rd = some rs →
+      (∀ o ∈ rs, o.result.ending.harvested ≠ none) →
+      TrieRoundGood settings D Dsf (histOf rs) (draws ⟨r, hr⟩) rd) →
+    (trieLoopRoundsQ settings cap D Dsf draws K).eval rd
+        = ((loopRoundsQ settings D Dsf draws K).eval rd).map
+          (List.map (liftRound settings.level3.walkStart))
+      ∧ (trieLoopRoundsQ settings cap D Dsf draws K).reads rd
+        = (loopRoundsQ settings D Dsf draws K).reads rd
 
 end OrthoDFA
 
