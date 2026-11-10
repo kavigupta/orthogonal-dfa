@@ -54,15 +54,15 @@ def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads :
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
     [Fintype Q] {Ω : Type w}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (x : RLStarInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L : ℕ)
+    (x : RLStarInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L k : ℕ)
     (D : Measure (FreeMonoid A)) [IsProbabilityMeasure D],
-  let k : ℕ := (L + 1) / 2
   let L₁ : ℕ := L + Fintype.card Q + 3
   let Ls : ℕ := L₁ + Fintype.card Q + 3
   x ∈ rlStarRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ 1 / 2 - x.s₀ →
   (∀ᵐ w ∂D, Ls ≤ w.toList.length) →
+  k ≤ L →
   (∀ u, D.real {w | prefixOf w k = u} ≤ p₀Tol { x with L }) →
   x.pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
@@ -126,19 +126,18 @@ def RLStarClaim.{u, v, w} : Prop :=
     (∀ r, 0 < p₀Tol r) ∧
     RLStarWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes totalReads
 
-def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
+def RLStarWithinUniform.{u, v, w} (k₀ : RLStarRun → ℝ)
     (totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
     [Fintype Q] {Ω : Type w}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    (x : RLStarInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L : ℕ),
-  let k : ℕ := (L + 1) / 2
+    (x : RLStarInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L k : ℕ),
   let L₁ : ℕ := L + Fintype.card Q + 3
   x ∈ rlStarRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   O.η ≤ 1 / 2 - x.s₀ →
   x.pAP ≤ (uniformStrings (L₁ + Fintype.card Q + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-  L₀ x ≤ L →
+  k₀ { x with L } ≤ k → k ≤ L →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
     (∀ p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
@@ -156,11 +155,11 @@ def RLStarWithinUniform.{u, v, w} (L₀ : RLStarInputs → ℝ)
       ≤ x.δ
 
 open Real in
-/-- `RLStarClaim` at uniform strings: `L₀` gives way to `p₀Tol`. -/
+/-- `RLStarClaim` at uniform strings: `p₀Tol` gives way to `k₀`. -/
 def RLStarClaimUniform.{u, v, w} : Prop :=
-  ∃ (L₀ : RLStarInputs → ℝ) (totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ),
-    L₀ =O[𝓟 rlStarRegion] (fun x =>
-      1 + log (x.Q / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
+  ∃ (k₀ totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ),
+    k₀ =O[𝓟 rlStarRunRegion] (fun r =>
+      1 + log ((r.L + r.Q) / (r.δ * r.ξ * r.pAP * r.s₀)) / log r.A) ∧
     totalPref =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
           * log (r.Q * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
@@ -188,13 +187,13 @@ def RLStarClaimUniform.{u, v, w} : Prop :=
       let lg : ℝ := log (r.L + r.Q + 1)
       -- clusterings, counterexample search, harvest
       nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q * nPref * nFam * lg * ρInv) ∧
-    RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads
+    RLStarWithinUniform.{u, v, w} k₀ totalPref totalSuff totalProbes totalReads
 
 open Real in
 def RLStarClaimUniformSimple.{u, v, w} : Prop :=
-  ∃ (L₀ : RLStarInputs → ℝ) (totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ),
-    L₀ =O[𝓟 rlStarRegion] (fun x =>
-      1 + log (x.Q / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
+  ∃ (k₀ totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ),
+    k₀ =O[𝓟 rlStarRunRegion] (fun r =>
+      1 + log ((r.L + r.Q) / (r.δ * r.ξ * r.pAP * r.s₀)) / log r.A) ∧
     totalPref =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2
         * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀))
@@ -213,6 +212,6 @@ def RLStarClaimUniformSimple.{u, v, w} : Prop :=
       let lg : ℝ := log (r.L + r.Q + 1)
       -- clusterings and harvest; the search's reads are within the harvest's
       nPref * (nSuff / r.Q + r.Q * nFam * lg * ρInv)) ∧
-    RLStarWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads
+    RLStarWithinUniform.{u, v, w} k₀ totalPref totalSuff totalProbes totalReads
 
 end OrthoDFA

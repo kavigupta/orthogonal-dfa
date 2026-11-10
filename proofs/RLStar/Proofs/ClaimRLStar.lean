@@ -67,7 +67,7 @@ theorem rlStarClaim_holds : RLStarClaim := by
   -- the run
   intro α _ _ _ σ _ Ω _ μ _ x
   obtain ⟨Q, A, δ, ξ, pAP, s₀⟩ := x
-  intro M O L D _ k L₁ Ls hx hQ hA hLang hη hlong hpre hpAPu
+  intro M O L k D _ L₁ Ls hx hQ hA hLang hη hlong hkL hpre hpAPu
   subst hQ hA
   obtain ⟨hQ1, hA2, hδ, hδ2, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
   have hA' : (2 : ℝ) ≤ Fintype.card α := by exact_mod_cast hA2
@@ -91,7 +91,7 @@ theorem rlStarClaim_holds : RLStarClaim := by
   obtain ⟨settings, hwk, hprobe, hprob⟩ := trie_loop_tol (Ω := Ω) (μ := μ) M O L k k
     (1 / 2 - s₀) (ξ / (2 * 1)) δ pAP (ξ / 4) ξ (1 / (1 / (Fintype.card α : ℝ)))
     (2 ^ 30 * T ^ 9) D hLang hη hη₀ hc0 hc1 hδ (by linarith) hp (by positivity) hA2
-    (le_of_eq (one_div_one_div _).symm) (by omega) hlong hpre' hpAPu le_rfl
+    (le_of_eq (one_div_one_div _).symm) hkL hlong hpre' hpAPu le_rfl
     (by linarith)
   exact ⟨settings, hwk, hprobe, hprob⟩
 
