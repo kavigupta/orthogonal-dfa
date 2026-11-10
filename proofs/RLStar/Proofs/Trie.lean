@@ -161,8 +161,8 @@ theorem expandedIn_skipRepeat {W : Finset (FreeMonoid α)} {s : TrieState α} {x
     TrieExpandedIn cap W (s.skipRepeat cap o (prefixOf x k)) := by
   refine ⟨?_, hs.2⟩
   intro v hv
-  simp only [TrieState.skipRepeat, Finset.mem_union, List.mem_toFinset, List.mem_filter,
-    List.mem_cons, List.mem_map, decide_eq_true_eq] at hv
+  simp only [TrieState.skipRepeat, TrieState.skipExpands, Finset.mem_union, List.mem_toFinset,
+    List.mem_filter, List.mem_cons, List.mem_map, decide_eq_true_eq] at hv
   rcases hv with hv | ⟨hv, hlen⟩
   · exact hs.1 hv
   rcases hv with rfl | ⟨p, hp, rfl⟩

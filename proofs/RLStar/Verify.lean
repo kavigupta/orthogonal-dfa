@@ -29,6 +29,7 @@ import RLStar.Proofs.SpurCount
 import RLStar.Proofs.SuccessiveDraws
 import RLStar.Proofs.TripartiteSearch
 import RLStar.Proofs.Trie
+import RLStar.Proofs.TrieSound
 import RLStar.Claims.RLStarTrie
 
 /-!
@@ -55,7 +56,7 @@ both. The loop runs level 5.
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
 `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
 `CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `Level3TrieRootOne`,
-`Level3TrieExpandedCard`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
+`Level3TrieExpandedCard`, `Level3TrieConsistentSound`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
 `RunsKeepEdgesAtLeaves`.
 
@@ -64,9 +65,9 @@ The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`
 `RLStarClaimUniform` and `RLStarClaimUniformSimple`.
 
 Open, stated but not proved: `RLStarTrieClaim`, stated in `RLStar.Claims.RLStarTrie`, the learner
-with local walk starts and no start premise, and `Level3TrieConsistentSound`, stated in
-`RLStar.LowLevelClaims.Trie`. What is proved of it: `TrieProbeAgreeCorrect`,
-`TrieSinglePieceCorrect`, `Level3TrieRootOne` and `Level3TrieExpandedCard`.
+with local walk starts and no start premise. What is proved of it: `TrieProbeAgreeCorrect`,
+`TrieSinglePieceCorrect`, `Level3TrieRootOne`, `Level3TrieExpandedCard` and
+`Level3TrieConsistentSound`.
 -/
 
 namespace OrthoDFA
@@ -224,5 +225,9 @@ theorem level3_trie_root_one : Level3TrieRootOne := level3TrieRootOne
 theorem level3_trie_expanded_card : Level3TrieExpandedCard := level3TrieExpandedCard
 
 #print axioms level3_trie_expanded_card
+
+theorem level3_trie_consistent_sound : Level3TrieConsistentSound := level3TrieConsistentSound
+
+#print axioms level3_trie_consistent_sound
 
 end OrthoDFA

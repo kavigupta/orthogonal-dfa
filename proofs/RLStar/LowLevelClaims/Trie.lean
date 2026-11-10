@@ -14,8 +14,7 @@ the DFA then misjudges at most the probes that disagree plus the strings the roo
 `Level3TrieRootOne`: every tree a round grows reads `ε` at its root, as level 3's do.
 `Level3TrieExpandedCard`: a round expands at most `cap` prefixes of each probe.
 
-`Level3TrieConsistentSound` is the open half: a consistent ending certifies its rate, for any
-fixed reads.
+`Level3TrieConsistentSound`: a consistent ending certifies its rate, for any fixed reads.
 -/
 
 noncomputable section
@@ -70,7 +69,7 @@ def Level3TrieExpandedCard : Prop :=
 def Level3TrieConsistentSound : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (cap : ℕ)
     (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D],
-    0 < C.δ → 0 < C.disagreementRate →
+    0 < C.δ → 0 < C.disagreementRate → C.disagreementRate < 1 →
     (Measure.pi fun _ : Fin C.probeBudget => D).real
       {draws | let r := indecisiveLStarLevel3Trie C cap read draws
         r.ending = .consistent

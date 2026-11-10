@@ -9,14 +9,19 @@ it the round has expanded (`walkStartIn`), none at first.
   sift, at the ends' rate.
 * A probe whose harvest string (`harvestString`) was read before since the hypothesis last changed
   is skipped, and the probe that first read it is uncounted; the walk starts of both are expanded,
-  those shorter than `cap`. The other counts stand, and no test runs on a skip. The harvest tests
-  count neither probe; the success test counts both as disagreeing.
+  those shorter than `cap`. The harvest counts stand, and no test runs on a skip.
+* The success test counts every probe since the hypothesis or the expanded prefixes last changed,
+  a skipped one as disagreeing, at the level of that stretch: the `j`-th stretch of the round tests
+  at `δ / (8 (j + 1) (j + 2))`.
 
 Known modelling gap. The starts test runs at the ends' rate and alternative, where the Python's runs
 at its stuck rate.
 
 Known modelling gap. The Python's success test (`succeeds_at`) counts neither a skipped probe nor
 the probe it uncounts (`SiteCounts.drop`), where here both count as disagreeing probes.
+
+Known modelling gap. The Python's success test keeps counting across expansions, at the level of the
+hypothesis, where here an expansion that changes the expanded prefixes restarts it.
 -/
 
 namespace OrthoDFA
@@ -44,24 +49,31 @@ def startString : Outcome α → List (FreeMonoid α)
 
 def harvestString (o : Outcome α) : List (FreeMonoid α) := endsString o ++ middleString o
 
-/-- The counts are since the hypothesis last changed; `hypotheses` counts the changes before.
-`counted` holds the outcomes of the probes counted, `uncounted` how many were skipped or uncounted,
-and `seen` each harvest string read with the walk start of the probe that first read it. -/
+/-- The harvest counts are since the hypothesis last changed; `hypotheses` counts the changes
+before. `counted` holds the outcomes of the probes counted and `seen` each harvest string read with
+the walk start of the probe that first read it. The success counts are since the hypothesis or the
+expanded prefixes last changed; `stretches` counts the changes before. -/
 structure TrieState (α : Type*) where
   tree : DTree α
   edges : Edges α
   expanded : Finset (FreeMonoid α)
   hypotheses : ℕ
   counted : List (Outcome α)
-  uncounted : ℕ
   seen : List (FreeMonoid α × FreeMonoid α)
+  stretches : ℕ
+  successProbes : ℕ
+  successDisagree : ℕ
 
-def newTrieHypothesis (T : DTree α) (E : Edges α) (X : Finset (FreeMonoid α)) (j : ℕ) :
+def newTrieHypothesis (T : DTree α) (E : Edges α) (X : Finset (FreeMonoid α)) (j m : ℕ) :
     TrieState α :=
-  ⟨T, E, X, j, [], 0, []⟩
+  ⟨T, E, X, j, [], [], m, 0, 0⟩
 
 /-- The root reads at `ε`; no edge is learned and no prefix expanded. -/
-def trieInitialState : TrieState α := newTrieHypothesis (.node 1 .leaf .leaf) (fun _ => none) ∅ 0
+def trieInitialState : TrieState α :=
+  newTrieHypothesis (.node 1 .leaf .leaf) (fun _ => none) ∅ 0 0
+
+/-- What the success test counts as disagreeing. -/
+def successDisagrees (o : Outcome α) : Bool := searches o || !(endsString o).isEmpty
 
 def TrieState.probeCount (s : TrieState α) : ℕ := s.counted.length
 
@@ -81,20 +93,29 @@ variable (C : Level3Settings)
 def countTrieOutcome (s : TrieState α) (o : Outcome α) (u : FreeMonoid α) : TrieState α :=
   { s with
     counted := s.counted ++ [o]
-    seen := s.seen ++ (harvestString o).map fun z => (z, u) }
+    seen := s.seen ++ (harvestString o).map fun z => (z, u)
+    successProbes := s.successProbes + 1
+    successDisagree := s.successDisagree + if successDisagrees o then 1 else 0 }
+
+open scoped Classical in
+/-- The prefixes a skip of a probe with outcome `o`, walked from `u`, expands. -/
+noncomputable def TrieState.skipExpands (cap : ℕ) (s : TrieState α) (o : Outcome α)
+    (u : FreeMonoid α) : Finset (FreeMonoid α) :=
+  s.expanded ∪ ((u :: (s.seen.filter fun p => p.1 ∈ harvestString o).map Prod.snd).filter
+    fun v => v.toList.length < cap).toFinset
 
 open scoped Classical in
 /-- The probe with outcome `o`, walked from `u`, skipped: the probe that first read its harvest
 string uncounted, and both walk starts shorter than `cap` expanded. -/
 noncomputable def TrieState.skipRepeat (cap : ℕ) (s : TrieState α) (o : Outcome α)
     (u : FreeMonoid α) : TrieState α :=
-  let R := harvestString o
-  let kept := s.counted.filter fun o' => ∀ z ∈ harvestString o', z ∉ R
+  let X := s.skipExpands cap o u
   { s with
-    counted := kept
-    uncounted := s.uncounted + (s.counted.length - kept.length) + 1
-    expanded := s.expanded ∪ ((u :: (s.seen.filter fun p => p.1 ∈ R).map Prod.snd).filter
-      fun v => v.toList.length < cap).toFinset }
+    counted := s.counted.filter fun o' => ∀ z ∈ harvestString o', z ∉ harvestString o
+    expanded := X
+    stretches := if X = s.expanded then s.stretches else s.stretches + 1
+    successProbes := if X = s.expanded then s.successProbes + 1 else 0
+    successDisagree := if X = s.expanded then s.successDisagree + 1 else 0 }
 
 open scoped Classical in
 /-- The tests, in turn: the probes stopping undecided at their start sift, then level 3's. -/
@@ -109,9 +130,8 @@ noncomputable def runTrieTests (s : TrieState α) : Option (RoundEnd TrieSite) :
       ∧ seqRate C.middleRate C.middleAlternative (C.level s.hypotheses) s.searchCount
         (s.siteStrings .middles).length then
     some (.harvest .middles)
-  else if seqRate C.disagreementRate C.disagreementAlternative (C.level s.hypotheses)
-      (s.probeCount + s.uncounted) (s.searchCount + (s.siteStrings .ends).length + s.uncounted)
-    then some .consistent
+  else if seqRate C.disagreementRate C.disagreementAlternative (C.level s.stretches)
+      s.successProbes s.successDisagree then some .consistent
   else none
 
 noncomputable def applyTrieTests (s : TrieState α) : TrieState α ⊕ RoundEnd TrieSite :=
@@ -135,7 +155,7 @@ noncomputable def splitTrieLeafQ (s : TrieState α) (p : List Bool) (c : α) (t 
     Query (FreeMonoid α) ARU (TrieState α) :=
   ((HypothesisDFA.mk s.tree s.edges).splitQ
     (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p).map
-    fun H => newTrieHypothesis H.tree H.edges s.expanded (s.hypotheses + 1)
+    fun H => newTrieHypothesis H.tree H.edges s.expanded (s.hypotheses + 1) (s.stretches + 1)
 
 open scoped Classical in
 noncomputable def applyTrieProbeQ (s : TrieState α) (x : FreeMonoid α) :
@@ -148,7 +168,7 @@ noncomputable def applyTrieProbeQ (s : TrieState α) (x : FreeMonoid α) :
     match o with
     | .unlearnedEdge p c u t =>
       .pure (.inl (newTrieHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
-        s.expanded (s.hypotheses + 1)))
+        s.expanded (s.hypotheses + 1) (s.stretches + 1)))
     | .wrongEdge p c _ t =>
       match s.edges (p, c) with
       | some (t₀, _) => (splitTrieLeafQ s p c t t₀).map .inl
