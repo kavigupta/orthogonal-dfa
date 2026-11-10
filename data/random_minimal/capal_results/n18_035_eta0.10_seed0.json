@@ -20,12 +20,12 @@
     "extra_len_max": 8,
     "eta_hat": 0.15
   },
-  "learned_states": 41,
-  "accuracy": 0.9754,
+  "learned_states": 12,
+  "accuracy": 0.9032,
   "converged": false,
-  "queries_total": 42996,
+  "queries_total": 1967,
   "equivalence_queries": 200,
-  "seconds": 862.002,
+  "seconds": 2.251,
   "error_type": null,
   "error": null
 }
