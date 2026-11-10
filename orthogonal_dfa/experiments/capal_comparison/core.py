@@ -36,12 +36,26 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
-from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH, learn_dfa
+from orthogonal_dfa.l_star.counterexample_synthesis import (
+    do_counterexample_driven_synthesis,
+)
+from orthogonal_dfa.l_star.learn import (
+    DEFAULT_ACC_THRESHOLD,
+    DEFAULT_SAMPLE_LENGTH,
+    build_pst,
+    learn_dfa,
+)
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.tracker import SynthesisTracker
 
 #: Bump when the emitted record shape changes incompatibly.
 SCHEMA_VERSION = 5
+
+#: Accuracy at which a hypothesis counts as a success.
+SUCCESS_THRESHOLD = 0.98
+
+#: E-L*'s certificate targets the bar it is scored at.
+CERTIFIED_ERROR = 1 - SUCCESS_THRESHOLD
 
 #: Wall-clock a single cell may take. Neither learner has an internal bound on
 #: how long it searches, so without this one target stalls the whole sweep.
@@ -335,6 +349,7 @@ def run_elstar_cell(
             "min_signal_strength": signal_strength,
             "min_suffix_frequency": min_suffix_frequency,
             "sample_length": sample_length,
+            "certified_error": CERTIFIED_ERROR,
         },
         equivalence_queries=0,
     )
@@ -365,13 +380,16 @@ def run_elstar_cell(
         with time_limit(timeout), contextlib.redirect_stdout(
             io.StringIO()
         ), contextlib.redirect_stderr(io.StringIO()):
-            dfa = learn_dfa(
+            pst = build_pst(
                 counting_creator,
                 min_signal_strength=signal_strength,
                 seed=seed,
                 min_suffix_frequency=min_suffix_frequency,
                 sampler=UniformSampler(sample_length),
-                tracker=tracker,
+            )
+            pst.config.certified_error = CERTIFIED_ERROR
+            dfa = do_counterexample_driven_synthesis(
+                pst, acc_threshold=DEFAULT_ACC_THRESHOLD, tracker=tracker
             )
     except CellTimeout:
         cell.error_type = "Timeout"

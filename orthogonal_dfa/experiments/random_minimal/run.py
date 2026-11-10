@@ -53,7 +53,7 @@ ALPHABET_SIZE = 2
 # targets with fewer than this share of strings on either side are redrawn
 MIN_MINORITY_RATE = 0.05
 TARGET_SCHEMA_VERSION = 1
-RESULT_SCHEMA_VERSION = 2
+RESULT_SCHEMA_VERSION = 3
 DATA_DIR = REPO_ROOT / "data" / "random_minimal"
 FAMILY = "random_minimal"
 
