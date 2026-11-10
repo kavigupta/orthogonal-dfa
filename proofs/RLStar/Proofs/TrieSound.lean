@@ -369,8 +369,14 @@ end Random
 
 open MeasureTheory Random
 
-theorem level3TrieConsistentSound : Level3TrieConsistentSound := by
-  intro α _ _ C y cap read D _ hδ hρ0 hρ1
+theorem trieConsistent_le {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (y : ℝ)
+    (cap : ℕ) (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (hδ : 0 < C.δ) (hρ0 : 0 < C.disagreementRate) (hρ1 : C.disagreementRate < 1) :
+    (Measure.pi fun _ : Fin C.probeBudget => D)
+      {draws | let r := indecisiveLStarLevel3Trie C y cap read draws
+        r.ending = .consistent
+          ∧ C.disagreementRate < D.real (trieDisagreeSet read r.expanded r.hypothesis)}
+      ≤ ENNReal.ofReal (C.δ / 8) := by
   classical
   have hsub : {draws : Fin C.probeBudget → FreeMonoid α |
       let r := indecisiveLStarLevel3Trie C y cap read draws
@@ -402,10 +408,12 @@ theorem level3TrieConsistentSound : Level3TrieConsistentSound := by
       _ = ∑' i, ENNReal.ofReal (C.level i) :=
           (tsum_eq_stretchTail (fun j => ENNReal.ofReal (C.level j))).symm
       _ ≤ _ := tsum_level_le C hδ.le
-  calc _ ≤ (Measure.pi fun _ : Fin C.probeBudget => D).real
-        {xs | AnyB (trieStep C y cap read) (FalseConsistent C y cap read D) trieInitialState
-          (List.ofFn xs)} := measureReal_mono hsub
-    _ ≤ C.δ / 8 := ENNReal.toReal_le_of_le_ofReal (by positivity) htot
+  exact (measure_mono hsub).trans htot
+
+theorem level3TrieConsistentSound : Level3TrieConsistentSound := by
+  intro α _ _ C y cap read D _ hδ hρ0 hρ1
+  calc _ ≤ C.δ / 8 :=
+        ENNReal.toReal_le_of_le_ofReal (by positivity) (trieConsistent_le C y cap read D hδ hρ0 hρ1)
     _ ≤ C.δ := by linarith
 
 theorem level3TrieConsistentCorrect : Level3TrieConsistentCorrect := by
