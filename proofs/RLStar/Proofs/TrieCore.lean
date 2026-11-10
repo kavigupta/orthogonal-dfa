@@ -51,6 +51,89 @@ lemma length_trieLoopRoundsQ_le {K : ℕ} (settings : LoopSettings K) (cap : ℕ
       subst h
       omega
 
+lemma trieRoundQ_prefs {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
+    (D Dsf : Measure (FreeMonoid α)) (h : TrieLoopHist α)
+    (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (rd : FreeMonoid α → ℝ) (o : TrieLoopRound α)
+    (ho : (trieRoundQ settings cap D Dsf h d).eval rd = some o) :
+    ∃ (pops : Finset (Option (Fin K))) (x : Run Unit (FreeMonoid α) (Option (Fin K))),
+      o.prefs = roundPrefs (settings.schedule pops) pops x
+        ∧ o.suffs = roundSuffs (settings.schedule pops) x := by
+  unfold trieRoundQ at ho
+  rw [Query.eval_bind] at ho
+  split at ho
+  · simp at ho
+  · dsimp only at ho
+    split_ifs at ho
+    · rw [Query.eval_bind] at ho
+      split_ifs at ho
+      · rw [Query.eval_map] at ho
+        cases ho
+        exact ⟨_, _, rfl, rfl⟩
+      · simp at ho
+    · simp at ho
+
+lemma trieLoopRoundsQ_prefs {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
+    (D Dsf : Measure (FreeMonoid α))
+    (draws : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (rd : FreeMonoid α → ℝ) :
+    ∀ r rs, (trieLoopRoundsQ settings cap D Dsf draws r).eval rd = some rs →
+      ∀ o ∈ rs, ∃ (pops : Finset (Option (Fin K))) (x : Run Unit (FreeMonoid α) (Option (Fin K))),
+        o.prefs = roundPrefs (settings.schedule pops) pops x
+          ∧ o.suffs = roundSuffs (settings.schedule pops) x
+  | 0, rs, h => by
+    simp only [trieLoopRoundsQ, Query.eval_pure, Option.some.injEq] at h
+    subst h
+    simp
+  | r + 1, rs, h => by
+    rw [trieLoopRoundsQ, Query.eval_bind] at h
+    rcases hr : (trieLoopRoundsQ settings cap D Dsf draws r).eval rd with _ | rs'
+    · rw [hr] at h
+      simp at h
+    have ih := trieLoopRoundsQ_prefs settings cap D Dsf draws rd r rs' hr
+    rw [hr] at h
+    simp only at h
+    split_ifs at h with hc
+    · rw [Query.eval_map] at h
+      obtain ⟨o, ho, rfl⟩ := Option.map_eq_some_iff.1 h
+      intro o' ho'
+      rcases List.mem_append.1 ho' with h1 | h1
+      · exact ih o' h1
+      · rw [List.mem_singleton] at h1
+        subst h1
+        exact trieRoundQ_prefs settings cap D Dsf _ _ rd _ ho
+    · simp only [Query.eval_pure, Option.some.injEq] at h
+      subst h
+      exact ih
+
+lemma trie_rounds_counts {Ω : Type*} {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
+    (D Dsf : Measure (FreeMonoid α))
+    (draws : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (rd : FreeMonoid α → ℝ) (ω : Ω) (a b : ℕ)
+    (hab : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
+      (roundPrefs (settings.schedule pops) pops x).card ≤ a
+        ∧ (roundSuffs (settings.schedule pops) x).card ≤ b)
+    (rounds : List (TrieLoopRound α))
+    (h : (trieLoopRoundsQ settings cap D Dsf draws K).eval rd = some rounds) :
+    rounds.length ≤ K ∧ (rounds.map fun o => o.prefs.card).sum ≤ K * a
+      ∧ (rounds.map fun o => o.suffs.card).sum ≤ K * b := by
+  have hlen := length_trieLoopRoundsQ_le settings cap D Dsf draws rd K rounds h
+  have hro := trieLoopRoundsQ_prefs settings cap D Dsf draws rd K rounds h
+  have hsum : ∀ (f : TrieLoopRound α → ℕ) (c : ℕ), (∀ o ∈ rounds, f o ≤ c) →
+      (rounds.map f).sum ≤ K * c := fun f c hf => by
+    refine (List.sum_le_card_nsmul _ c fun n hn => ?_).trans ?_
+    · obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hn
+      exact hf o ho
+    · rw [List.length_map, smul_eq_mul]
+      exact Nat.mul_le_mul_right _ hlen
+  refine ⟨hlen, hsum _ a fun o ho => ?_, hsum _ b fun o ho => ?_⟩
+  · obtain ⟨pops, x, e, -⟩ := hro o ho
+    rw [e]
+    exact (hab pops (ω, x.2)).1
+  · obtain ⟨pops, x, -, e⟩ := hro o ho
+    rw [e]
+    exact (hab pops (ω, x.2)).2
+
 variable [Nonempty α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 
 lemma misMean_split (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (kl kh L : ℕ) :
@@ -119,7 +202,9 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
             settings.level3.probeBudget) rounds,
           indecisiveLStarTrieLoop settings cap O (uniformStrings L) (uniformStrings Ls) p
             = some rounds →
-        rounds.length ≤ Fintype.card σ + 1) ∧
+        rounds.length ≤ Fintype.card σ + 1
+          ∧ ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ (Q + 1) * (6 * (Q + 2) * RB)
+          ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1)) ∧
       (loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget).real
         {p | ¬ RLStarTrieSucceeds settings cap O (uniformStrings L) (uniformStrings Ls)
@@ -268,8 +353,26 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
         ∧ misMean O F kl kh L + t < misFrac O F kl kh L ω} with hBmisd
   have hlenT : ∀ (p : LoopDraws Ω α (Fintype.card σ + 1) NH T) rounds,
       indecisiveLStarTrieLoop settings cap O (uniformStrings L) (uniformStrings Ls) p
-        = some rounds → rounds.length ≤ Fintype.card σ + 1 := fun p rounds h =>
-    length_trieLoopRoundsQ_le settings cap _ _ p.2 _ _ rounds h
+        = some rounds → rounds.length ≤ Fintype.card σ + 1
+          ∧ ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ (Q + 1) * (6 * (Q + 2) * RB)
+          ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1) := by
+    intro p rounds h
+    obtain ⟨hlr, hpr, hsu⟩ := trie_rounds_counts settings cap _ _ p.2 _ p.1 _ _ hab rounds h
+    have hQ : Q = (Fintype.card σ : ℝ) := rfl
+    have e : ∀ f : TrieLoopRound α → ℕ, (rounds.map fun o => (f o : ℝ)).sum
+        = ((rounds.map f).sum : ℝ) := fun f => by
+      rw [Nat.cast_list_sum, List.map_map]; rfl
+    refine ⟨hlr, (e _).trans_le ((Nat.cast_le.2 hpr).trans ?_),
+      (e _).trans_le ((Nat.cast_le.2 hsu).trans ?_)⟩
+    · calc (((Fintype.card σ + 1) * (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊) : ℕ) : ℝ)
+          = (Q + 1) * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ)) := by rw [hQ]; push_cast; ring
+        _ ≤ (Q + 1) * (6 * (Q + 2) * RB) :=
+          mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (Nat.floor_le hRB0)
+            (by linarith only [hQ0])) (by linarith only [hQ0])
+    · calc (((Fintype.card σ + 1) * (⌊PB⌋₊ + 1) : ℕ) : ℝ)
+          = (Q + 1) * ((⌊PB⌋₊ : ℝ) + 1) := by rw [hQ]; push_cast; ring
+        _ ≤ (Q + 1) * (PB + 1) :=
+          mul_le_mul_of_nonneg_left (by linarith only [Nat.floor_le hPB0]) (by linarith only [hQ0])
   refine ⟨settings, hwalk, hbud, hHN, hSC, hlenT, ?_⟩
   have hsub : {p | ¬ RLStarTrieSucceeds settings cap O (uniformStrings L) (uniformStrings Ls)
         (uniformStrings L) M ξT

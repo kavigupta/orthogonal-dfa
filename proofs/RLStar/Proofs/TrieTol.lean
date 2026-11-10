@@ -64,8 +64,12 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
             settings.level3.probeBudget) rounds,
           indecisiveLStarTrieLoop settings tcap O (uniformStrings L) (uniformStrings Ls) p
             = some rounds →
-        (rounds.length * settings.level3.probeBudget : ℝ)
-          ≤ (Q + 1) * loopBudget (L + Q + 4) Q A Ae δ c) ∧
+        ((rounds.map fun o => o.prefs.card).sum : ℝ)
+            ≤ (Q + 1) * (6 * (Q + 2) * loopCount (L + Q + 4) Q A Ae δ c ξ pAP η₀)
+          ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ)
+            ≤ (Q + 1) * (loopPool (L + Q + 4) Q A Ae δ c ξ pAP η₀ + 1)
+          ∧ (rounds.length * settings.level3.probeBudget : ℝ)
+            ≤ (Q + 1) * loopBudget (L + Q + 4) Q A Ae δ c) ∧
       (loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget).real
         {p | ¬ RLStarTrieSucceeds settings tcap O (uniformStrings L) (uniformStrings Ls)
@@ -390,11 +394,14 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
       (mul_le_mul_of_nonneg_left hcount (by linarith only [hQ0])) (by linarith only [hPBf]) hFV
       hB₃ le_rfl (Nat.cast_le.2 (Nat.ceil_mono hBle)) le_rfl le_rfl le_rfl
   refine ⟨settings, hwalk, fun p rounds hr => ?_, ?_⟩
-  · have hlr := hlenT p rounds hr
+  · obtain ⟨hlr, hpr, hsu⟩ := hlenT p rounds hr
     have hlen' : (rounds.length : ℝ) ≤ Q + 1 := by
       show _ ≤ (Fintype.card σ : ℝ) + 1
       exact_mod_cast hlr
     rw [hℓe]
+    have hPBf1 : PB + 1 ≤ loopPool ℓ Q A Ae δ c ξ pAP η₀ + 1 := by linarith only [hPBf]
+    refine ⟨hpr.trans (mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hcount
+        (by linarith only [hQ0])) hQ1'), hsu.trans (mul_le_mul_of_nonneg_left hPBf1 hQ1'), ?_⟩
     calc (rounds.length * settings.level3.probeBudget : ℝ)
         ≤ (Q + 1) * (K₁ * ℓ) := mul_le_mul hlen' (hbud.trans hB₃) (Nat.cast_nonneg _) hQ1'
       _ = (Q + 1) * loopBudget ℓ Q A Ae δ c := rfl
