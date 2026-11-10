@@ -1037,6 +1037,29 @@
       "seconds": 35.921,
       "error_type": null,
       "error": null
+    },
+    {
+      "benchmark": "regex_two_1111",
+      "family": "ours",
+      "learner": "E-L*",
+      "eta": 0.3,
+      "seed": 0,
+      "target_states": 9,
+      "alphabet_size": 2,
+      "learner_config": {
+        "min_signal_strength": 0.2,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.020000000000000018
+      },
+      "learned_states": 9,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 3254222,
+      "equivalence_queries": 0,
+      "seconds": 47.564,
+      "error_type": null,
+      "error": null
     }
   ]
 }
