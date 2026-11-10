@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "benchmark": "n12_077",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -10,25 +10,24 @@
   "learner_config": {
     "min_signal_strength": 0.2,
     "min_suffix_frequency": 0.02,
-    "sample_length": 40
+    "sample_length": 40,
+    "certified_error": 0.020000000000000018
   },
-  "learned_states": null,
-  "accuracy": null,
-  "converged": null,
-  "queries_total": 104852889,
+  "learned_states": 19,
+  "accuracy": 0.9992,
+  "converged": false,
+  "queries_total": 118063546,
   "equivalence_queries": 0,
-  "seconds": 4698.829,
-  "error_type": "SourceDry",
-  "error": "SourceDry: Source boundary found no new samples in 2062 attempts",
+  "seconds": 4977.986,
+  "error_type": null,
+  "error": null,
   "target": {
     "states": 12,
     "alphabet_size": 2,
     "accepting_states": 4,
     "acceptance_rate": 0.5554925886744968,
     "class_preserving_fraction": 0.021543530255257792,
-    "non_start_zone_accuracy_ceiling": 0.5530099868774414,
     "unvisited_states": 2,
-    "starts": 2,
     "endpoint_mass_min": 0.0,
     "endpoint_mass_max": 0.5553920885377011,
     "depth_max": 6,
@@ -46,8 +45,8 @@
       "ending": "harvest starts",
       "hypothesis_states": 2,
       "hypothesis_edges": 4,
-      "sampling_seconds": 6.8241171687841415,
-      "probing_seconds": 1.5783559903502464,
+      "sampling_seconds": 4.758839674293995,
+      "probing_seconds": 1.4534836262464523,
       "queries_at_search_end": 185175,
       "certified": null,
       "consistency": 0.910828025477707
@@ -61,8 +60,8 @@
       "ending": "success",
       "hypothesis_states": 10,
       "hypothesis_edges": 20,
-      "sampling_seconds": 1770.6150426194072,
-      "probing_seconds": 8.441454708576202,
+      "sampling_seconds": 1165.0628836154938,
+      "probing_seconds": 13.330209322273731,
       "queries_at_search_end": 26480860,
       "certified": false,
       "consistency": 0.997563946406821
@@ -76,8 +75,8 @@
       "ending": "harvest starts",
       "hypothesis_states": 3,
       "hypothesis_edges": 4,
-      "sampling_seconds": 343.2672571763396,
-      "probing_seconds": 3.738225296139717,
+      "sampling_seconds": 417.15921126306057,
+      "probing_seconds": 4.665161095559597,
       "queries_at_search_end": 35330104,
       "certified": null,
       "consistency": 0.9401041666666666
@@ -91,8 +90,8 @@
       "ending": "harvest starts",
       "hypothesis_states": 3,
       "hypothesis_edges": 6,
-      "sampling_seconds": 933.9582647308707,
-      "probing_seconds": 4.079997003078461,
+      "sampling_seconds": 1151.5544648990035,
+      "probing_seconds": 5.5897228345274925,
       "queries_at_search_end": 61818568,
       "certified": null,
       "consistency": 0.9382352941176471
@@ -106,8 +105,8 @@
       "ending": "harvest stuck",
       "hypothesis_states": 9,
       "hypothesis_edges": 16,
-      "sampling_seconds": 2.255766309797764,
-      "probing_seconds": 12.378557987511158,
+      "sampling_seconds": 6.4520412385463715,
+      "probing_seconds": 18.59833562374115,
       "queries_at_search_end": 62469968,
       "certified": null,
       "consistency": 0.9318181818181818
@@ -121,12 +120,27 @@
       "ending": "success",
       "hypothesis_states": 10,
       "hypothesis_edges": 20,
-      "sampling_seconds": 570.2194143384695,
-      "probing_seconds": 14.913925841450691,
+      "sampling_seconds": 670.7359854876995,
+      "probing_seconds": 15.675089411437511,
       "queries_at_search_end": 77889421,
       "certified": false,
       "consistency": 1.0
+    },
+    {
+      "prefixes": 1275,
+      "representative_prefixes": 223,
+      "suffixes": 7239,
+      "family_size": 148,
+      "probes": 1303,
+      "ending": "harvest starts",
+      "hypothesis_states": 5,
+      "hypothesis_edges": 8,
+      "sampling_seconds": 1472.8729114681482,
+      "probing_seconds": 8.760516591370106,
+      "queries_at_search_end": 117968942,
+      "certified": null,
+      "consistency": 0.9351535836177475
     }
   ],
-  "chosen_round": null
+  "chosen_round": 5
 }

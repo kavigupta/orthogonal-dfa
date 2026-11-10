@@ -54,7 +54,7 @@
       "converged": false,
       "queries_total": 3254856,
       "equivalence_queries": 21,
-      "seconds": 248.537,
+      "seconds": 245.919,
       "error_type": "BudgetExhausted",
       "error": "stopped at the 3254856 distinct-query budget"
     },
@@ -86,7 +86,7 @@
       "converged": false,
       "queries_total": 3254856,
       "equivalence_queries": 23,
-      "seconds": 248.534,
+      "seconds": 247.247,
       "error_type": "BudgetExhausted",
       "error": "stopped at the 3254856 distinct-query budget"
     },
@@ -118,7 +118,7 @@
       "converged": false,
       "queries_total": 3254856,
       "equivalence_queries": 20,
-      "seconds": 210.762,
+      "seconds": 209.513,
       "error_type": "BudgetExhausted",
       "error": "stopped at the 3254856 distinct-query budget"
     },
@@ -150,7 +150,7 @@
       "converged": false,
       "queries_total": 1300438,
       "equivalence_queries": 500,
-      "seconds": 315.888,
+      "seconds": 317.219,
       "error_type": "Stalled",
       "error": "stopped after 500 iterations having used 1300438 of the 3746864 query budget"
     },
@@ -182,7 +182,7 @@
       "converged": false,
       "queries_total": 3746864,
       "equivalence_queries": 41,
-      "seconds": 174.602,
+      "seconds": 176.298,
       "error_type": "BudgetExhausted",
       "error": "stopped at the 3746864 distinct-query budget"
     },
@@ -214,7 +214,7 @@
       "converged": false,
       "queries_total": 3193194,
       "equivalence_queries": 500,
-      "seconds": 1277.97,
+      "seconds": 1271.264,
       "error_type": "Stalled",
       "error": "stopped after 500 iterations having used 3193194 of the 3746864 query budget"
     },
@@ -246,7 +246,7 @@
       "converged": false,
       "queries_total": 1686143,
       "equivalence_queries": 500,
-      "seconds": 856.458,
+      "seconds": 846.111,
       "error_type": "Stalled",
       "error": "stopped after 500 iterations having used 1686143 of the 3254222 query budget"
     },
@@ -278,7 +278,7 @@
       "converged": false,
       "queries_total": 3254222,
       "equivalence_queries": 21,
-      "seconds": 153.115,
+      "seconds": 154.492,
       "error_type": "BudgetExhausted",
       "error": "stopped at the 3254222 distinct-query budget"
     },
@@ -310,7 +310,7 @@
       "converged": false,
       "queries_total": 3254222,
       "equivalence_queries": 23,
-      "seconds": 145.769,
+      "seconds": 145.702,
       "error_type": "BudgetExhausted",
       "error": "stopped at the 3254222 distinct-query budget"
     },
@@ -342,7 +342,7 @@
       "converged": false,
       "queries_total": 46040,
       "equivalence_queries": 500,
-      "seconds": 75.1,
+      "seconds": 75.407,
       "error_type": "Stalled",
       "error": "stopped after 500 iterations having used 46040 of the 7692958 query budget"
     },
@@ -374,7 +374,7 @@
       "converged": false,
       "queries_total": 50012,
       "equivalence_queries": 500,
-      "seconds": 86.732,
+      "seconds": 87.175,
       "error_type": "Stalled",
       "error": "stopped after 500 iterations having used 50012 of the 7692958 query budget"
     },
@@ -406,7 +406,7 @@
       "converged": false,
       "queries_total": 38057,
       "equivalence_queries": 500,
-      "seconds": 54.235,
+      "seconds": 53.749,
       "error_type": "Stalled",
       "error": "stopped after 500 iterations having used 38057 of the 7692958 query budget"
     },
@@ -438,7 +438,7 @@
       "converged": false,
       "queries_total": 150037,
       "equivalence_queries": 500,
-      "seconds": 374.426,
+      "seconds": 378.01,
       "error_type": "Stalled",
       "error": "stopped after 500 iterations having used 150037 of the 7724054 query budget"
     },
@@ -470,7 +470,7 @@
       "converged": false,
       "queries_total": 150037,
       "equivalence_queries": 500,
-      "seconds": 394.178,
+      "seconds": 392.954,
       "error_type": "Stalled",
       "error": "stopped after 500 iterations having used 150037 of the 7724054 query budget"
     },
@@ -502,7 +502,7 @@
       "converged": false,
       "queries_total": 22005,
       "equivalence_queries": 500,
-      "seconds": 28.063,
+      "seconds": 28.249,
       "error_type": "Stalled",
       "error": "stopped after 500 iterations having used 22005 of the 7724054 query budget"
     }
