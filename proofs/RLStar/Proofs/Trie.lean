@@ -80,10 +80,10 @@ theorem trieSinglePieceCorrect : TrieSinglePieceCorrect := by
 
 section RootOne
 
-variable (C : Level3Settings) (cap : ℕ) (read : FreeMonoid α → ARU)
+variable (C : Level3Settings) (y : ℝ) (cap : ℕ) (read : FreeMonoid α → ARU)
 
 omit [Fintype α] [DecidableEq α] in
-theorem rootOne_applyTrieTests {s s' : TrieState α} (h : applyTrieTests C s = .inl s') :
+theorem rootOne_applyTrieTests {s s' : TrieState α} (h : applyTrieTests C y s = .inl s') :
     s'.tree = s.tree := by
   unfold applyTrieTests at h
   split at h
@@ -91,7 +91,7 @@ theorem rootOne_applyTrieTests {s s' : TrieState α} (h : applyTrieTests C s = .
   · cases h; rfl
 
 theorem rootOne_applyTrieProbe {s s' : TrieState α} (x : FreeMonoid α) (hs : RootOne s.tree)
-    (h : (applyTrieProbeQ C cap s x).eval read = .inl s') : RootOne s'.tree := by
+    (h : (applyTrieProbeQ C y cap s x).eval read = .inl s') : RootOne s'.tree := by
   unfold applyTrieProbeQ at h
   rw [eval_bind] at h
   generalize (probeOrAgreeQ s.tree s.edges (walkStartIn s.expanded x) x).eval read = o at h
@@ -110,24 +110,24 @@ theorem rootOne_applyTrieProbe {s s' : TrieState α} (x : FreeMonoid α) (hs : R
       change RootOne (HypothesisDFA.split read ⟨s.tree, s.edges⟩ _ p).tree
       rw [HypothesisDFA.split_tree]
       exact rootOne_splitAt hs _ _
-    · rw [eval_pure] at h; rw [rootOne_applyTrieTests C h]; exact hs
-  | _ => rw [eval_pure] at h; rw [rootOne_applyTrieTests C h]; exact hs
+    · rw [eval_pure] at h; rw [rootOne_applyTrieTests C y h]; exact hs
+  | _ => rw [eval_pure] at h; rw [rootOne_applyTrieTests C y h]; exact hs
 
 theorem rootOne_runTrieProbes : ∀ (s : TrieState α) (xs : List (FreeMonoid α)),
-    RootOne s.tree → RootOne ((runTrieProbesQ C cap s xs).eval read).1.tree
+    RootOne s.tree → RootOne ((runTrieProbesQ C y cap s xs).eval read).1.tree
   | s, [], hs => hs
   | s, x :: xs, hs => by
     unfold runTrieProbesQ
     rw [eval_bind]
-    rcases ho : (applyTrieProbeQ C cap s x).eval read with s' | e
-    · exact rootOne_runTrieProbes s' xs (rootOne_applyTrieProbe C cap read x hs ho)
+    rcases ho : (applyTrieProbeQ C y cap s x).eval read with s' | e
+    · exact rootOne_runTrieProbes s' xs (rootOne_applyTrieProbe C y cap read x hs ho)
     · exact hs
 
 end RootOne
 
 section Expanded
 
-variable (C : Level3Settings) (cap : ℕ) (read : FreeMonoid α → ARU)
+variable (C : Level3Settings) (y : ℝ) (cap : ℕ) (read : FreeMonoid α → ARU)
 
 open scoped Classical in
 /-- The prefixes shorter than `cap` of the strings of `W`. -/
@@ -149,7 +149,7 @@ def TrieExpandedIn (W : Finset (FreeMonoid α)) (s : TrieState α) : Prop :=
   s.expanded ⊆ shortPrefixes cap W ∧ ∀ p ∈ s.seen, ∃ x ∈ W, ∃ k, p.2 = prefixOf x k
 
 omit [Fintype α] [DecidableEq α] in
-theorem applyTrieTests_inl {s s' : TrieState α} (h : applyTrieTests C s = .inl s') : s' = s := by
+theorem applyTrieTests_inl {s s' : TrieState α} (h : applyTrieTests C y s = .inl s') : s' = s := by
   unfold applyTrieTests at h
   split at h
   · cases h
@@ -173,7 +173,7 @@ theorem expandedIn_skipRepeat {W : Finset (FreeMonoid α)} {s : TrieState α} {x
 
 theorem expandedIn_applyTrieProbe {W : Finset (FreeMonoid α)} {s s' : TrieState α}
     {x : FreeMonoid α} (hx : x ∈ W) (hs : TrieExpandedIn cap W s)
-    (h : (applyTrieProbeQ C cap s x).eval read = .inl s') : TrieExpandedIn cap W s' := by
+    (h : (applyTrieProbeQ C y cap s x).eval read = .inl s') : TrieExpandedIn cap W s' := by
   unfold applyTrieProbeQ at h
   rw [eval_bind] at h
   generalize (probeOrAgreeQ s.tree s.edges (walkStartIn s.expanded x) x).eval read = o at h
@@ -182,10 +182,10 @@ theorem expandedIn_applyTrieProbe {W : Finset (FreeMonoid α)} {s s' : TrieState
     subst h
     exact expandedIn_skipRepeat cap hx o _ hs
   rw [if_neg hr] at h
-  have hc : ∀ o', applyTrieTests C (countTrieOutcome s o' (prefixOf x (walkStartIn s.expanded x)))
+  have hc : ∀ o', applyTrieTests C y (countTrieOutcome s o' (prefixOf x (walkStartIn s.expanded x)))
       = .inl s' → TrieExpandedIn cap W s' := by
     intro o' h'
-    rw [applyTrieTests_inl C h']
+    rw [applyTrieTests_inl C y h']
     refine ⟨hs.1, ?_⟩
     intro p hp
     simp only [countTrieOutcome, List.mem_append, List.mem_map] at hp
@@ -207,33 +207,33 @@ theorem expandedIn_applyTrieProbe {W : Finset (FreeMonoid α)} {s s' : TrieState
 
 theorem expandedIn_runTrieProbes (W : Finset (FreeMonoid α)) :
     ∀ (s : TrieState α) (xs : List (FreeMonoid α)), (∀ x ∈ xs, x ∈ W) →
-      TrieExpandedIn cap W s → TrieExpandedIn cap W ((runTrieProbesQ C cap s xs).eval read).1
+      TrieExpandedIn cap W s → TrieExpandedIn cap W ((runTrieProbesQ C y cap s xs).eval read).1
   | s, [], _, hs => hs
   | s, x :: xs, hW, hs => by
     unfold runTrieProbesQ
     rw [eval_bind]
-    rcases ho : (applyTrieProbeQ C cap s x).eval read with s' | e
+    rcases ho : (applyTrieProbeQ C y cap s x).eval read with s' | e
     · exact expandedIn_runTrieProbes W s' xs (fun y hy => hW y (List.mem_cons_of_mem _ hy))
-        (expandedIn_applyTrieProbe C cap read (hW x List.mem_cons_self) hs ho)
+        (expandedIn_applyTrieProbe C y cap read (hW x List.mem_cons_self) hs ho)
     · exact hs
 
 end Expanded
 
 theorem level3TrieRootOne : Level3TrieRootOne := by
-  intro α _ _ C cap read P draws
-  have h := rootOne_runTrieProbes C cap read trieInitialState (List.ofFn draws) ⟨_, _, rfl⟩
+  intro α _ _ C y cap read P draws
+  have h := rootOne_runTrieProbes C y cap read trieInitialState (List.ofFn draws) ⟨_, _, rfl⟩
   unfold indecisiveLStarLevel3Trie level3TrieQ
   rw [eval_map]
   exact h
 
 theorem level3TrieExpandedCard : Level3TrieExpandedCard := by
-  intro α _ _ C cap read P draws
+  intro α _ _ C y cap read P draws
   classical
   let W : Finset (FreeMonoid α) := Finset.univ.image draws
-  have h := expandedIn_runTrieProbes C cap read W trieInitialState (List.ofFn draws)
+  have h := expandedIn_runTrieProbes C y cap read W trieInitialState (List.ofFn draws)
     (fun x hx => by simpa [W] using hx)
     ⟨by simp [trieInitialState, newTrieHypothesis], by simp [trieInitialState, newTrieHypothesis]⟩
-  have hsub : (indecisiveLStarLevel3Trie C cap read draws).expanded ⊆ shortPrefixes cap W := by
+  have hsub : (indecisiveLStarLevel3Trie C y cap read draws).expanded ⊆ shortPrefixes cap W := by
     unfold indecisiveLStarLevel3Trie level3TrieQ
     rw [eval_map]
     exact h.1

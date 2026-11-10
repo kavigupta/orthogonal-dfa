@@ -36,16 +36,16 @@ def rlStarTrieRunRegion : Set RLStarTrieRun := {r | r.toRLStarTrieInputs ∈ rlS
 /-- Within `|Q| + 1` rounds the loop ends consistent and its DFA misjudges at most `ξ` of `T`'s
 strings, reading at most `totalReads` strings. -/
 def RLStarTrieSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype Q] {Ω : Type*}
-    [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
+    [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K) (y : ℝ) (cap : ℕ)
     (O : Oracle μ (FreeMonoid A)) (D Dsf T : Measure (FreeMonoid A)) (M : _root_.DFA A Q) (ξ : ℝ)
     (totalReads : ℝ)
     (p : LoopDraws Ω A K settings.level3.harvestReadCap settings.level3.probeBudget) : Prop :=
-  (∃ rounds, indecisiveLStarTrieLoop settings cap O D Dsf p = some rounds ∧
+  (∃ rounds, indecisiveLStarTrieLoop settings y cap O D Dsf p = some rounds ∧
     rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
       o.result.ending = .consistent ∧ T.real {w | ¬ o.result.hypothesis.TrieClassifies
         (o.read O p.1) o.result.expanded w (M.eval w.toList ∈ M.accept)} ≤ ξ) ∧
   ∃ S : Finset (FreeMonoid A), (S.card : ℝ) ≤ totalReads ∧
-    DependsOnlyOn (fun o => (trieLoopRoundsQ settings cap D Dsf p.2 K).eval o)
+    DependsOnlyOn (fun o => (trieLoopRoundsQ settings y cap D Dsf p.2 K).eval o)
       (fun w => O.mq w p.1) S
 
 def RLStarTrieWithinUniform.{u, v, w} (L₀ : RLStarTrieInputs → ℝ)
@@ -59,15 +59,15 @@ def RLStarTrieWithinUniform.{u, v, w} (L₀ : RLStarTrieInputs → ℝ)
   O.η ≤ 1 / 2 - x.s₀ →
   x.pAP ≤ (uniformStrings Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   L₀ x ≤ L →
-  ∃ settings : LoopSettings (Fintype.card Q + 1),
+  ∃ (settings : LoopSettings (Fintype.card Q + 1)) (y : ℝ),
     (∀ p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget,
-      ∀ rounds, indecisiveLStarTrieLoop settings ((L + 1) / 2) O (uniformStrings L)
+      ∀ rounds, indecisiveLStarTrieLoop settings y ((L + 1) / 2) O (uniformStrings L)
           (uniformStrings Ls) p = some rounds →
         (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
     (loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).real
-      {p | ¬ RLStarTrieSucceeds settings ((L + 1) / 2) O (uniformStrings L) (uniformStrings Ls)
+      {p | ¬ RLStarTrieSucceeds settings y ((L + 1) / 2) O (uniformStrings L) (uniformStrings Ls)
         (uniformStrings L) M x.ξ (totalReads { x with L }) p}
       ≤ x.δ
 

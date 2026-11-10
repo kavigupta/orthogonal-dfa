@@ -122,17 +122,17 @@ theorem tsum_level_le (C : Level3Settings) (hδ : 0 ≤ C.δ) :
   nlinarith
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
-  (C : Level3Settings) (cap : ℕ) (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α))
+  (C : Level3Settings) (y : ℝ) (cap : ℕ) (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α))
 
 def trieStep (s : TrieState α) (x : FreeMonoid α) : TrieState α ⊕ RoundEnd TrieSite :=
-  (applyTrieProbeQ C cap s x).eval read
+  (applyTrieProbeQ C y cap s x).eval read
 
 def trieDis (s : TrieState α) : Set (FreeMonoid α) :=
   trieDisagreeSet read s.expanded ⟨s.tree, s.edges⟩
 
 /-- The step ends the round consistent while more than `ε` of the probes disagree. -/
 def FalseConsistent (s : TrieState α) (x : FreeMonoid α) : Prop :=
-  trieStep C cap read s x = .inr .consistent ∧ C.disagreementRate < D.real (trieDis read s)
+  trieStep C y cap read s x = .inr .consistent ∧ C.disagreementRate < D.real (trieDis read s)
 
 def SameStretch (s s' : TrieState α) : Prop := s'.stretches = s.stretches
 
@@ -163,14 +163,14 @@ theorem mem_of_harvestString (H : HypothesisDFA α) (X : Finset (FreeMonoid α))
 
 omit [Fintype α] [DecidableEq α] in
 theorem applyTrieTests_inr {t : TrieState α} {e : RoundEnd TrieSite}
-    (h : applyTrieTests C t = .inr e) : runTrieTests C t = some e := by
+    (h : applyTrieTests C y t = .inr e) : runTrieTests C y t = some e := by
   unfold applyTrieTests at h
   split at h
   · rename_i e' he'; simp only [Sum.inr.injEq] at h; rw [he', h]
   · simp at h
 
 omit [Fintype α] [DecidableEq α] in
-theorem runTrieTests_consistent {t : TrieState α} (h : runTrieTests C t = some .consistent) :
+theorem runTrieTests_consistent {t : TrieState α} (h : runTrieTests C y t = some .consistent) :
     seqRate C.disagreementRate C.disagreementAlternative (C.level t.stretches) t.successProbes
       t.successDisagree := by
   unfold runTrieTests at h
@@ -196,7 +196,7 @@ theorem counted_step {s : TrieState α} {x : FreeMonoid α} {o : Outcome α}
 
 open scoped Classical in
 theorem trieStep_inl {s s' : TrieState α} {x : FreeMonoid α}
-    (h : trieStep C cap read s x = .inl s') :
+    (h : trieStep C y cap read s x = .inl s') :
     (s'.stretches = s.stretches ∧ s'.tree = s.tree ∧ s'.edges = s.edges
         ∧ s'.expanded = s.expanded ∧ s'.successProbes = s.successProbes + 1
         ∧ s'.successDisagree = s.successDisagree + if x ∈ trieDis read s then 1 else 0)
@@ -218,13 +218,13 @@ theorem trieStep_inl {s s' : TrieState α} {x : FreeMonoid α}
       simp [TrieState.skipRepeat, hX]
   rw [if_neg hr] at h
   have hc : ∀ (_ : ∀ p c u t, o ≠ .unlearnedEdge p c u t),
-      applyTrieTests C (countTrieOutcome s o (prefixOf x (walkStartIn s.expanded x))) = .inl s' →
+      applyTrieTests C y (countTrieOutcome s o (prefixOf x (walkStartIn s.expanded x))) = .inl s' →
       (s'.stretches = s.stretches ∧ s'.tree = s.tree ∧ s'.edges = s.edges
         ∧ s'.expanded = s.expanded ∧ s'.successProbes = s.successProbes + 1
         ∧ s'.successDisagree = s.successDisagree + if x ∈ trieDis read s then 1 else 0)
       ∨ (s'.stretches = s.stretches + 1 ∧ s'.successProbes = 0 ∧ s'.successDisagree = 0) :=
     fun hne h' => by
-    rw [applyTrieTests_inl C h']
+    rw [applyTrieTests_inl C y h']
     exact Or.inl (counted_step read ho hne)
   cases o with
   | unlearnedEdge p c u t =>
@@ -244,7 +244,7 @@ theorem trieStep_inl {s s' : TrieState α} {x : FreeMonoid α}
 
 open scoped Classical in
 theorem trieStep_consistent {s : TrieState α} {x : FreeMonoid α}
-    (h : trieStep C cap read s x = .inr .consistent) :
+    (h : trieStep C y cap read s x = .inr .consistent) :
     seqRate C.disagreementRate C.disagreementAlternative (C.level s.stretches)
       (s.successProbes + 1) (s.successDisagree + if x ∈ trieDis read s then 1 else 0) := by
   unfold trieStep applyTrieProbeQ at h
@@ -256,12 +256,12 @@ theorem trieStep_consistent {s : TrieState α} {x : FreeMonoid α}
     cases h
   rw [if_neg hr] at h
   have hc : ∀ (_ : ∀ p c u t, o ≠ .unlearnedEdge p c u t),
-      applyTrieTests C (countTrieOutcome s o (prefixOf x (walkStartIn s.expanded x)))
+      applyTrieTests C y (countTrieOutcome s o (prefixOf x (walkStartIn s.expanded x)))
         = .inr .consistent →
       seqRate C.disagreementRate C.disagreementAlternative (C.level s.stretches)
         (s.successProbes + 1) (s.successDisagree + if x ∈ trieDis read s then 1 else 0) :=
     fun hne h' => by
-    have hf := runTrieTests_consistent C (applyTrieTests_inr C h')
+    have hf := runTrieTests_consistent C y (applyTrieTests_inr C y h')
     obtain ⟨hj, -, -, -, hn, hd⟩ := counted_step read ho hne
     rw [hj, hn, hd] at hf
     exact hf
@@ -284,7 +284,7 @@ theorem segB_fires (s₀ : TrieState α) :
     ∀ (xs ys : List (FreeMonoid α)) (s : TrieState α), s.stretches = s₀.stretches →
       trieDis read s = trieDis read s₀ → s.successProbes = ys.length →
       s.successDisagree = ys.countP (fun y => decide (y ∈ trieDis read s₀)) →
-      SegB (trieStep C cap read) (FalseConsistent C cap read D) SameStretch s xs →
+      SegB (trieStep C y cap read) (FalseConsistent C y cap read D) SameStretch s xs →
       C.disagreementRate < D.real (trieDis read s₀) ∧ ∃ n, n ≤ xs.length ∧
         seqRate C.disagreementRate C.disagreementAlternative (C.level s₀.stretches)
           (ys.length + n) ((ys ++ xs.take n).countP fun y => decide (y ∈ trieDis read s₀))
@@ -292,11 +292,11 @@ theorem segB_fires (s₀ : TrieState α) :
   | x :: xs, ys, s, hj, hP, hn, hh, h => by
     rcases h with ⟨hc, hbad⟩ | ⟨s', hst, hsm, hseg⟩
     · refine ⟨hP ▸ hbad, 1, by simp, ?_⟩
-      have hf := trieStep_consistent C cap read hc
+      have hf := trieStep_consistent C y cap read hc
       rw [hn, hh, hj, hP] at hf
       convert hf using 2
       simp [List.countP_append]
-    · rcases trieStep_inl C cap read hst with ⟨hj', hT, hE, hX, hn', hh'⟩ | ⟨hj', -, -⟩
+    · rcases trieStep_inl C y cap read hst with ⟨hj', hT, hE, hX, hn', hh'⟩ | ⟨hj', -, -⟩
       · have hP' : trieDis read s' = trieDis read s₀ := by
           rw [← hP]; unfold trieDis; rw [hT, hE, hX]
         obtain ⟨hb, n, hnl, hf⟩ := segB_fires s₀ xs (ys ++ [x]) s' (hj'.trans hj) hP'
@@ -313,18 +313,18 @@ theorem trieSeg_le [IsProbabilityMeasure D] (s₀ : TrieState α) (h0 : s₀.suc
     (h0' : s₀.successDisagree = 0) (hρ0 : 0 < C.disagreementRate) (hρ1 : C.disagreementRate < 1)
     (hδ : 0 < C.δ) (N : ℕ) :
     (Measure.pi fun _ : Fin N => D)
-        {xs | SegB (trieStep C cap read) (FalseConsistent C cap read D) SameStretch s₀
+        {xs | SegB (trieStep C y cap read) (FalseConsistent C y cap read D) SameStretch s₀
           (List.ofFn xs)}
       ≤ ENNReal.ofReal (C.level s₀.stretches) := by
   classical
   by_cases hbad : C.disagreementRate < D.real (trieDis read s₀)
-  · have hsub : {xs : Fin N → FreeMonoid α | SegB (trieStep C cap read)
-          (FalseConsistent C cap read D) SameStretch s₀ (List.ofFn xs)}
+  · have hsub : {xs : Fin N → FreeMonoid α | SegB (trieStep C y cap read)
+          (FalseConsistent C y cap read D) SameStretch s₀ (List.ofFn xs)}
         ⊆ {xs | ∃ n ≤ N, seqRate C.disagreementRate C.disagreementAlternative
           (C.level s₀.stretches) n
             (((List.ofFn xs).take n).countP fun x => decide (x ∈ trieDis read s₀))} := by
       intro xs hxs
-      obtain ⟨-, n, hn, hf⟩ := segB_fires C cap read D s₀ (List.ofFn xs) [] s₀ rfl rfl
+      obtain ⟨-, n, hn, hf⟩ := segB_fires C y cap read D s₀ (List.ofFn xs) [] s₀ rfl rfl
         (by simp [h0]) (by simp [h0']) hxs
       exact ⟨n, by simpa using hn, by simpa using hf⟩
     have hsound := seqRateSound D (· ∈ trieDis read s₀) C.disagreementRate
@@ -338,26 +338,26 @@ theorem trieSeg_le [IsProbabilityMeasure D] (s₀ : TrieState α) (h0 : s₀.suc
       _ = ENNReal.ofReal ((Measure.pi fun _ : Fin N => D).real _) :=
           (ofReal_measureReal (measure_ne_top _ _)).symm
       _ ≤ _ := ENNReal.ofReal_le_ofReal (by convert hsound)
-  · have : {xs : Fin N → FreeMonoid α | SegB (trieStep C cap read)
-        (FalseConsistent C cap read D) SameStretch s₀ (List.ofFn xs)} = ∅ := by
+  · have : {xs : Fin N → FreeMonoid α | SegB (trieStep C y cap read)
+        (FalseConsistent C y cap read D) SameStretch s₀ (List.ofFn xs)} = ∅ := by
       ext xs
       simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
       intro hxs
-      exact hbad (segB_fires C cap read D s₀ (List.ofFn xs) [] s₀ rfl rfl (by simp [h0])
+      exact hbad (segB_fires C y cap read D s₀ (List.ofFn xs) [] s₀ rfl rfl (by simp [h0])
         (by simp [h0']) hxs).1
     rw [this, measure_empty]
     exact bot_le
 
 /-- A run ending consistent at more than `ε` disagreeing probes has a falsely consistent step. -/
 theorem anyB_of_run : ∀ (s : TrieState α) (xs : List (FreeMonoid α)),
-    ((runTrieProbesQ C cap s xs).eval read).2 = .consistent →
-    C.disagreementRate < D.real (trieDis read ((runTrieProbesQ C cap s xs).eval read).1) →
-    AnyB (trieStep C cap read) (FalseConsistent C cap read D) s xs
+    ((runTrieProbesQ C y cap s xs).eval read).2 = .consistent →
+    C.disagreementRate < D.real (trieDis read ((runTrieProbesQ C y cap s xs).eval read).1) →
+    AnyB (trieStep C y cap read) (FalseConsistent C y cap read D) s xs
   | s, [], h, _ => by simp [runTrieProbesQ] at h
   | s, x :: xs, h, hb => by
     unfold runTrieProbesQ at h hb
     rw [eval_bind] at h hb
-    rcases hst : (applyTrieProbeQ C cap s x).eval read with s' | e
+    rcases hst : (applyTrieProbeQ C y cap s x).eval read with s' | e
     · rw [hst] at h hb
       exact Or.inr ⟨s', hst, anyB_of_run s' xs h hb⟩
     · rw [hst, eval_pure] at h hb
@@ -370,30 +370,31 @@ end Random
 open MeasureTheory Random
 
 theorem level3TrieConsistentSound : Level3TrieConsistentSound := by
-  intro α _ _ C cap read D _ hδ hρ0 hρ1
+  intro α _ _ C y cap read D _ hδ hρ0 hρ1
   classical
   have hsub : {draws : Fin C.probeBudget → FreeMonoid α |
-      let r := indecisiveLStarLevel3Trie C cap read draws
+      let r := indecisiveLStarLevel3Trie C y cap read draws
       r.ending = .consistent
         ∧ C.disagreementRate < D.real (trieDisagreeSet read r.expanded r.hypothesis)}
-      ⊆ {xs | AnyB (trieStep C cap read) (FalseConsistent C cap read D) trieInitialState
+      ⊆ {xs | AnyB (trieStep C y cap read) (FalseConsistent C y cap read D) trieInitialState
           (List.ofFn xs)} := by
     intro xs hxs
     simp only [Set.mem_setOf_eq, indecisiveLStarLevel3Trie, level3TrieQ, Query.eval_map] at hxs
-    exact anyB_of_run C cap read D _ _ hxs.1 hxs.2
-  have hany := anyB_le_tail (trieStep C cap read) (FalseConsistent C cap read D) SameStretch D
+    exact anyB_of_run C y cap read D _ _ hxs.1 hxs.2
+  have hany := anyB_le_tail (trieStep C y cap read) (FalseConsistent C y cap read D) SameStretch D
     (fun s => s.stretches) (fun j => ENNReal.ofReal (C.level j))
     (fun s => s.successProbes = 0 ∧ s.successDisagree = 0)
     (fun _ _ _ _ hsm => hsm)
     (fun s x s' hst hsm => by
-      rcases trieStep_inl C cap read hst with ⟨hj, -⟩ | ⟨hj, h0, h0'⟩
+      rcases trieStep_inl C y cap read hst with ⟨hj, -⟩ | ⟨hj, h0, h0'⟩
       · exact absurd hj hsm
       · exact ⟨⟨h0, h0'⟩, hj⟩)
-    (fun s hF N => trieSeg_le C cap read D s hF.1 hF.2 hρ0 hρ1 hδ N) C.probeBudget trieInitialState
-  have hseg0 := trieSeg_le C cap read D (trieInitialState : TrieState α) rfl rfl hρ0 hρ1 hδ
+    (fun s hF N => trieSeg_le C y cap read D s hF.1 hF.2 hρ0 hρ1 hδ N) C.probeBudget
+    trieInitialState
+  have hseg0 := trieSeg_le C y cap read D (trieInitialState : TrieState α) rfl rfl hρ0 hρ1 hδ
     C.probeBudget
   have htot : (Measure.pi fun _ : Fin C.probeBudget => D)
-      {xs | AnyB (trieStep C cap read) (FalseConsistent C cap read D) trieInitialState
+      {xs | AnyB (trieStep C y cap read) (FalseConsistent C y cap read D) trieInitialState
         (List.ofFn xs)} ≤ ENNReal.ofReal (C.δ / 8) := by
     calc _ ≤ _ := hany
       _ ≤ ENNReal.ofReal (C.level 0) + stretchTail (fun j => ENNReal.ofReal (C.level j)) 0 :=
@@ -402,17 +403,17 @@ theorem level3TrieConsistentSound : Level3TrieConsistentSound := by
           (tsum_eq_stretchTail (fun j => ENNReal.ofReal (C.level j))).symm
       _ ≤ _ := tsum_level_le C hδ.le
   calc _ ≤ (Measure.pi fun _ : Fin C.probeBudget => D).real
-        {xs | AnyB (trieStep C cap read) (FalseConsistent C cap read D) trieInitialState
+        {xs | AnyB (trieStep C y cap read) (FalseConsistent C y cap read D) trieInitialState
           (List.ofFn xs)} := measureReal_mono hsub
     _ ≤ C.δ / 8 := ENNReal.toReal_le_of_le_ofReal (by positivity) htot
     _ ≤ C.δ := by linarith
 
 theorem level3TrieConsistentCorrect : Level3TrieConsistentCorrect := by
-  intro α _ _ C cap read L D _ hδ hρ0 hρ1
+  intro α _ _ C y cap read L D _ hδ hρ0 hρ1
   refine le_trans (measureReal_mono fun draws hd => ?_)
-    (level3TrieConsistentSound C cap read D hδ hρ0 hρ1)
+    (level3TrieConsistentSound C y cap read D hδ hρ0 hρ1)
   refine ⟨hd.1, lt_of_not_ge fun hle => absurd hd.2 (not_lt.2 ?_)⟩
-  exact (trieSinglePieceCorrect read _ _ (level3TrieRootOne C cap read draws) L D).trans
+  exact (trieSinglePieceCorrect read _ _ (level3TrieRootOne C y cap read draws) L D).trans
     (by linarith)
 
 end OrthoDFA

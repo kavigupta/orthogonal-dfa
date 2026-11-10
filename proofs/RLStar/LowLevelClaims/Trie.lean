@@ -57,22 +57,22 @@ def TrieSinglePieceCorrect : Prop :=
       ≤ D.real (trieDisagreeSet read X H) + D.real (misreadSet read L)
 
 def Level3TrieRootOne : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (cap : ℕ)
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (y : ℝ) (cap : ℕ)
     (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α),
-    ∃ r a, (indecisiveLStarLevel3Trie C cap read draws).hypothesis.tree = .node 1 r a
+    ∃ r a, (indecisiveLStarLevel3Trie C y cap read draws).hypothesis.tree = .node 1 r a
 
 def Level3TrieExpandedCard : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (cap : ℕ)
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (y : ℝ) (cap : ℕ)
     (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α),
-    (indecisiveLStarLevel3Trie C cap read draws).expanded.card ≤ P * cap
+    (indecisiveLStarLevel3Trie C y cap read draws).expanded.card ≤ P * cap
 
 /-- For any fixed reads, `P(consistent ∧ P_D(probe disagrees) > ε) ≤ δ` over the probes. -/
 def Level3TrieConsistentSound : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (cap : ℕ)
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (y : ℝ) (cap : ℕ)
     (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D],
     0 < C.δ → 0 < C.disagreementRate → C.disagreementRate < 1 →
     (Measure.pi fun _ : Fin C.probeBudget => D).real
-      {draws | let r := indecisiveLStarLevel3Trie C cap read draws
+      {draws | let r := indecisiveLStarLevel3Trie C y cap read draws
         r.ending = .consistent
           ∧ C.disagreementRate < D.real (trieDisagreeSet read r.expanded r.hypothesis)}
       ≤ C.δ
@@ -81,12 +81,12 @@ def Level3TrieConsistentSound : Prop :=
     P(consistent ∧ P_D(DFA(x) ≠ [x ∈ L]) > ε + P_D(root misreads x)) ≤ δ
 over the probes. -/
 def Level3TrieConsistentCorrect : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (cap : ℕ)
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (y : ℝ) (cap : ℕ)
     (read : FreeMonoid α → ARU) (L : Set (FreeMonoid α)) (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D],
     0 < C.δ → 0 < C.disagreementRate → C.disagreementRate < 1 →
     (Measure.pi fun _ : Fin C.probeBudget => D).real
-      {draws | let r := indecisiveLStarLevel3Trie C cap read draws
+      {draws | let r := indecisiveLStarLevel3Trie C y cap read draws
         r.ending = .consistent
           ∧ C.disagreementRate + D.real (misreadSet read L)
             < D.real {x | ¬ r.hypothesis.TrieClassifies read r.expanded x (x ∈ L)}}

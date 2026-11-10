@@ -6,19 +6,20 @@ import RLStar.Code.Level3HarvestCode
 Level 3 (`indecisiveLStarLevel3`) with each probe walked from its own start: past every prefix of
 it the round has expanded (`walkStartIn`), none at first.
 * Before level 3's tests, the starts test fires on the probes stopping undecided at their start
-  sift, at the ends' rate.
+  sift. It and the ends test run at the harvest rate `y`, against `2y`.
 * A probe whose harvest string (`harvestString`) was read before since the hypothesis last changed
-  is skipped, and the probe that first read it is uncounted; the walk starts of both are expanded,
-  those shorter than `cap`. The harvest counts stand, and no test runs on a skip.
+  is skipped: no test runs on it, and its walk start and that of the probe that first read the
+  string are expanded, those shorter than `cap`. The tests count it all the same.
 * The success test counts every probe since the hypothesis or the expanded prefixes last changed,
   a skipped one as disagreeing, at the level of that stretch: the `j`-th stretch of the round tests
   at `δ / (8 (j + 1) (j + 2))`.
 
-Known modelling gap. The starts test runs at the ends' rate and alternative, where the Python's runs
-at its stuck rate.
+Known modelling gap. The starts and ends tests run at `y`, where the Python's run at its stuck rate
+and at its ends rate.
 
-Known modelling gap. The Python's success test (`succeeds_at`) counts neither a skipped probe nor
-the probe it uncounts (`SiteCounts.drop`), where here both count as disagreeing probes.
+Known modelling gap. The Python's tests count neither a skipped probe nor the probe that first read
+its string (`SiteCounts.drop`), where here both count, the skipped one at its site and as
+disagreeing.
 
 Known modelling gap. The Python's success test keeps counting across expansions, at the level of the
 hypothesis, where here an expansion that changes the expanded prefixes restarts it.
@@ -50,7 +51,7 @@ def startString : Outcome α → List (FreeMonoid α)
 def harvestString (o : Outcome α) : List (FreeMonoid α) := endsString o ++ middleString o
 
 /-- The harvest counts are since the hypothesis last changed; `hypotheses` counts the changes
-before. `counted` holds the outcomes of the probes counted and `seen` each harvest string read with
+before. `counted` holds the outcomes of the probes since and `seen` each harvest string read with
 the walk start of the probe that first read it. The success counts are since the hypothesis or the
 expanded prefixes last changed; `stretches` counts the changes before. -/
 structure TrieState (α : Type*) where
@@ -87,7 +88,7 @@ def TrieState.siteStrings (s : TrieState α) : TrieSite → List (FreeMonoid α)
 
 section
 
-variable (C : Level3Settings)
+variable (C : Level3Settings) (y : ℝ)
 
 /-- The probe with outcome `o`, walked from `u`, counted into the stretch. -/
 def countTrieOutcome (s : TrieState α) (o : Outcome α) (u : FreeMonoid α) : TrieState α :=
@@ -105,13 +106,13 @@ noncomputable def TrieState.skipExpands (cap : ℕ) (s : TrieState α) (o : Outc
     fun v => v.toList.length < cap).toFinset
 
 open scoped Classical in
-/-- The probe with outcome `o`, walked from `u`, skipped: the probe that first read its harvest
-string uncounted, and both walk starts shorter than `cap` expanded. -/
+/-- The probe with outcome `o`, walked from `u`, skipped: counted, and its walk start and that of
+the probe that first read its harvest string expanded, those shorter than `cap`. -/
 noncomputable def TrieState.skipRepeat (cap : ℕ) (s : TrieState α) (o : Outcome α)
     (u : FreeMonoid α) : TrieState α :=
   let X := s.skipExpands cap o u
   { s with
-    counted := s.counted.filter fun o' => ∀ z ∈ harvestString o', z ∉ harvestString o
+    counted := s.counted ++ [o]
     expanded := X
     stretches := if X = s.expanded then s.stretches else s.stretches + 1
     successProbes := if X = s.expanded then s.successProbes + 1 else 0
@@ -120,10 +121,10 @@ noncomputable def TrieState.skipRepeat (cap : ℕ) (s : TrieState α) (o : Outco
 open scoped Classical in
 /-- The tests, in turn: the probes stopping undecided at their start sift, then level 3's. -/
 noncomputable def runTrieTests (s : TrieState α) : Option (RoundEnd TrieSite) :=
-  if seqRate C.endsRate C.endsAlternative (C.level s.hypotheses) s.probeCount
+  if seqRate y (2 * y) (C.level s.hypotheses) s.probeCount
       (s.siteStrings .starts).length then
     some (.harvest .starts)
-  else if seqRate C.endsRate C.endsAlternative (C.level s.hypotheses) s.probeCount
+  else if seqRate y (2 * y) (C.level s.hypotheses) s.probeCount
       (s.siteStrings .ends).length then
     some (.harvest .ends)
   else if C.searchShare * s.probeCount ≤ s.searchCount
@@ -135,7 +136,7 @@ noncomputable def runTrieTests (s : TrieState α) : Option (RoundEnd TrieSite) :
   else none
 
 noncomputable def applyTrieTests (s : TrieState α) : TrieState α ⊕ RoundEnd TrieSite :=
-  match runTrieTests C s with
+  match runTrieTests C y s with
   | some e => .inr e
   | none => .inl s
 
@@ -148,7 +149,7 @@ end
 
 section Query
 
-variable [DecidableEq α] [Fintype α] (C : Level3Settings) (cap : ℕ)
+variable [DecidableEq α] [Fintype α] (C : Level3Settings) (y : ℝ) (cap : ℕ)
 
 /-- The leaf `p` split on `c` and the midfix where the leaves `t` and `t₀` part. -/
 noncomputable def splitTrieLeafQ (s : TrieState α) (p : List Bool) (c : α) (t t₀ : List Bool) :
@@ -172,26 +173,26 @@ noncomputable def applyTrieProbeQ (s : TrieState α) (x : FreeMonoid α) :
     | .wrongEdge p c _ t =>
       match s.edges (p, c) with
       | some (t₀, _) => (splitTrieLeafQ s p c t t₀).map .inl
-      | none => .pure (applyTrieTests C (countTrieOutcome s o (prefixOf x k)))
-    | _ => .pure (applyTrieTests C (countTrieOutcome s o (prefixOf x k)))
+      | none => .pure (applyTrieTests C y (countTrieOutcome s o (prefixOf x k)))
+    | _ => .pure (applyTrieTests C y (countTrieOutcome s o (prefixOf x k)))
 
 /-- The state the probes end in, and how; `failed` where they ran out. -/
 noncomputable def runTrieProbesQ :
     TrieState α → List (FreeMonoid α) → Query (FreeMonoid α) ARU (TrieState α × RoundEnd TrieSite)
   | s, [] => .pure (s, .failed)
   | s, x :: xs =>
-    (applyTrieProbeQ C cap s x).bind fun
+    (applyTrieProbeQ C y cap s x).bind fun
     | .inl s' => runTrieProbesQ s' xs
     | .inr e => .pure (s, e)
 
 noncomputable def level3TrieQ {P : ℕ} (draws : Fin P → FreeMonoid α) :
     Query (FreeMonoid α) ARU (TrieResult α) :=
-  (runTrieProbesQ C cap trieInitialState (List.ofFn draws)).map fun r =>
+  (runTrieProbesQ C y cap trieInitialState (List.ofFn draws)).map fun r =>
     ⟨⟨r.1.tree, r.1.edges⟩, r.1.expanded, r.2⟩
 
 noncomputable def indecisiveLStarLevel3Trie (read : FreeMonoid α → ARU) {P : ℕ}
     (draws : Fin P → FreeMonoid α) : TrieResult α :=
-  (level3TrieQ C cap draws).eval read
+  (level3TrieQ C y cap draws).eval read
 
 end Query
 
