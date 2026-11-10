@@ -47,16 +47,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 1485384
+        "query_budget": 3254856
       },
-      "learned_states": 16,
-      "accuracy": 0.4584,
+      "learned_states": 20,
+      "accuracy": 0.743,
       "converged": false,
-      "queries_total": 1485384,
-      "equivalence_queries": 8,
-      "seconds": 67.754,
+      "queries_total": 3254856,
+      "equivalence_queries": 21,
+      "seconds": 248.537,
       "error_type": "BudgetExhausted",
-      "error": "stopped at the 1485384 distinct-query budget"
+      "error": "stopped at the 3254856 distinct-query budget"
     },
     {
       "benchmark": "parity_mod9_allowed_3_6",
@@ -79,16 +79,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 1485384
+        "query_budget": 3254856
       },
-      "learned_states": 12,
-      "accuracy": 0.8846,
+      "learned_states": 25,
+      "accuracy": 0.7614,
       "converged": false,
-      "queries_total": 1485384,
-      "equivalence_queries": 8,
-      "seconds": 67.954,
+      "queries_total": 3254856,
+      "equivalence_queries": 23,
+      "seconds": 248.534,
       "error_type": "BudgetExhausted",
-      "error": "stopped at the 1485384 distinct-query budget"
+      "error": "stopped at the 3254856 distinct-query budget"
     },
     {
       "benchmark": "parity_mod9_allowed_3_6",
@@ -111,16 +111,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 1485384
+        "query_budget": 3254856
       },
-      "learned_states": 17,
-      "accuracy": 0.6952,
+      "learned_states": 24,
+      "accuracy": 0.8258,
       "converged": false,
-      "queries_total": 1485384,
-      "equivalence_queries": 10,
-      "seconds": 59.593,
+      "queries_total": 3254856,
+      "equivalence_queries": 20,
+      "seconds": 210.762,
       "error_type": "BudgetExhausted",
-      "error": "stopped at the 1485384 distinct-query budget"
+      "error": "stopped at the 3254856 distinct-query budget"
     },
     {
       "benchmark": "regex_subseq_1010101",
@@ -143,16 +143,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 2174000
+        "query_budget": 3746864
       },
       "learned_states": 8,
       "accuracy": 0.8176,
       "converged": false,
       "queries_total": 1300438,
       "equivalence_queries": 500,
-      "seconds": 315.199,
+      "seconds": 315.888,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 1300438 of the 2174000 query budget"
+      "error": "stopped after 500 iterations having used 1300438 of the 3746864 query budget"
     },
     {
       "benchmark": "regex_subseq_1010101",
@@ -175,16 +175,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 2174000
+        "query_budget": 3746864
       },
-      "learned_states": 16,
-      "accuracy": 0.6024,
+      "learned_states": 25,
+      "accuracy": 0.8372,
       "converged": false,
-      "queries_total": 2174000,
-      "equivalence_queries": 31,
-      "seconds": 78.855,
+      "queries_total": 3746864,
+      "equivalence_queries": 41,
+      "seconds": 174.602,
       "error_type": "BudgetExhausted",
-      "error": "stopped at the 2174000 distinct-query budget"
+      "error": "stopped at the 3746864 distinct-query budget"
     },
     {
       "benchmark": "regex_subseq_1010101",
@@ -207,16 +207,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 2174000
+        "query_budget": 3746864
       },
-      "learned_states": 13,
+      "learned_states": 15,
       "accuracy": 0.8176,
       "converged": false,
-      "queries_total": 2174000,
-      "equivalence_queries": 102,
-      "seconds": 214.136,
-      "error_type": "BudgetExhausted",
-      "error": "stopped at the 2174000 distinct-query budget"
+      "queries_total": 3193194,
+      "equivalence_queries": 500,
+      "seconds": 1277.97,
+      "error_type": "Stalled",
+      "error": "stopped after 500 iterations having used 3193194 of the 3746864 query budget"
     },
     {
       "benchmark": "regex_two_1111",
@@ -239,16 +239,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 1189838
+        "query_budget": 3254222
       },
       "learned_states": 9,
       "accuracy": 0.6386,
       "converged": false,
-      "queries_total": 1189838,
-      "equivalence_queries": 68,
-      "seconds": 114.389,
-      "error_type": "BudgetExhausted",
-      "error": "stopped at the 1189838 distinct-query budget"
+      "queries_total": 1686143,
+      "equivalence_queries": 500,
+      "seconds": 856.458,
+      "error_type": "Stalled",
+      "error": "stopped after 500 iterations having used 1686143 of the 3254222 query budget"
     },
     {
       "benchmark": "regex_two_1111",
@@ -271,16 +271,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 1189838
+        "query_budget": 3254222
       },
-      "learned_states": 14,
-      "accuracy": 0.6792,
+      "learned_states": 21,
+      "accuracy": 0.7616,
       "converged": false,
-      "queries_total": 1189838,
-      "equivalence_queries": 12,
-      "seconds": 30.613,
+      "queries_total": 3254222,
+      "equivalence_queries": 21,
+      "seconds": 153.115,
       "error_type": "BudgetExhausted",
-      "error": "stopped at the 1189838 distinct-query budget"
+      "error": "stopped at the 3254222 distinct-query budget"
     },
     {
       "benchmark": "regex_two_1111",
@@ -303,16 +303,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 1189838
+        "query_budget": 3254222
       },
-      "learned_states": 14,
-      "accuracy": 0.6436,
+      "learned_states": 18,
+      "accuracy": 0.6512,
       "converged": false,
-      "queries_total": 1189838,
-      "equivalence_queries": 12,
-      "seconds": 33.135,
+      "queries_total": 3254222,
+      "equivalence_queries": 23,
+      "seconds": 145.769,
       "error_type": "BudgetExhausted",
-      "error": "stopped at the 1189838 distinct-query budget"
+      "error": "stopped at the 3254222 distinct-query budget"
     },
     {
       "benchmark": "regex_alt_1111_or_0000_11_3sym",
@@ -335,16 +335,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 2646686
+        "query_budget": 7692958
       },
       "learned_states": 8,
       "accuracy": 0.9272,
       "converged": false,
       "queries_total": 46040,
       "equivalence_queries": 500,
-      "seconds": 74.381,
+      "seconds": 75.1,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 46040 of the 2646686 query budget"
+      "error": "stopped after 500 iterations having used 46040 of the 7692958 query budget"
     },
     {
       "benchmark": "regex_alt_1111_or_0000_11_3sym",
@@ -367,16 +367,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 2646686
+        "query_budget": 7692958
       },
       "learned_states": 8,
       "accuracy": 0.9272,
       "converged": false,
       "queries_total": 50012,
       "equivalence_queries": 500,
-      "seconds": 86.733,
+      "seconds": 86.732,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 50012 of the 2646686 query budget"
+      "error": "stopped after 500 iterations having used 50012 of the 7692958 query budget"
     },
     {
       "benchmark": "regex_alt_1111_or_0000_11_3sym",
@@ -399,16 +399,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 2646686
+        "query_budget": 7692958
       },
       "learned_states": 8,
       "accuracy": 0.9272,
       "converged": false,
       "queries_total": 38057,
       "equivalence_queries": 500,
-      "seconds": 54.336,
+      "seconds": 54.235,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 38057 of the 2646686 query budget"
+      "error": "stopped after 500 iterations having used 38057 of the 7692958 query budget"
     },
     {
       "benchmark": "regex_alt_111_or_000_3sym",
@@ -431,16 +431,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 4971542
+        "query_budget": 7724054
       },
       "learned_states": 18,
       "accuracy": 0.9062,
       "converged": false,
       "queries_total": 150037,
       "equivalence_queries": 500,
-      "seconds": 371.801,
+      "seconds": 374.426,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 150037 of the 4971542 query budget"
+      "error": "stopped after 500 iterations having used 150037 of the 7724054 query budget"
     },
     {
       "benchmark": "regex_alt_111_or_000_3sym",
@@ -463,16 +463,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 4971542
+        "query_budget": 7724054
       },
       "learned_states": 16,
       "accuracy": 0.6778,
       "converged": false,
       "queries_total": 150037,
       "equivalence_queries": 500,
-      "seconds": 392.691,
+      "seconds": 394.178,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 150037 of the 4971542 query budget"
+      "error": "stopped after 500 iterations having used 150037 of the 7724054 query budget"
     },
     {
       "benchmark": "regex_alt_111_or_000_3sym",
@@ -495,16 +495,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 4971542
+        "query_budget": 7724054
       },
       "learned_states": 4,
       "accuracy": 0.1092,
       "converged": false,
       "queries_total": 22005,
       "equivalence_queries": 500,
-      "seconds": 27.853,
+      "seconds": 28.063,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 22005 of the 4971542 query budget"
+      "error": "stopped after 500 iterations having used 22005 of the 7724054 query budget"
     }
   ]
 }
