@@ -110,9 +110,7 @@ def _boundary_source(pst, state, *, acc_threshold) -> None:
         known=state.seen,
         acc_threshold=acc_threshold,
         # Its search walked deeper because its reads repeated, so they may run out.
-        retirable=any(
-            read.round.k > read.round.config.k for read in state.harvest_reads
-        ),
+        retirable=any(read.round.trie.prefixes for read in state.harvest_reads),
     )
 
 
@@ -247,7 +245,6 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
         counterexample_search_config(
             acc_threshold,
             pst.config.acceptable_fnr,
-            pst.config.counterexample_local_starts,
         ),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),

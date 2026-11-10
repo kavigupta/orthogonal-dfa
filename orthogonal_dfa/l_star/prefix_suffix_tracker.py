@@ -88,8 +88,6 @@ class SearchConfig:
     #: Step past an undecided midpoint in a probe's search to the decided position
     #: nearest it.
     counterexample_skip_undecided: bool = False
-    #: See ``CounterexampleSearchConfig.local_starts``.
-    counterexample_local_starts: bool = True
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for
