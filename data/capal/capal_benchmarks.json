@@ -608,14 +608,14 @@
         "min_signal_strength": 0.45,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 330334,
+      "queries_total": 248414,
       "equivalence_queries": 0,
-      "seconds": 10.362,
+      "seconds": 8.538,
       "error_type": null,
       "error": null
     },
@@ -661,14 +661,14 @@
         "min_signal_strength": 0.4,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 839655,
+      "queries_total": 348135,
       "equivalence_queries": 0,
-      "seconds": 20.147,
+      "seconds": 10.285,
       "error_type": null,
       "error": null
     },
@@ -714,14 +714,14 @@
         "min_signal_strength": 0.3,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 2170343,
+      "queries_total": 1023463,
       "equivalence_queries": 0,
-      "seconds": 49.076,
+      "seconds": 27.03,
       "error_type": null,
       "error": null
     },
@@ -767,14 +767,14 @@
         "min_signal_strength": 0.2,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 9043639,
+      "queries_total": 6586039,
       "equivalence_queries": 0,
-      "seconds": 193.02,
+      "seconds": 144.363,
       "error_type": null,
       "error": null
     },
@@ -1972,14 +1972,14 @@
         "min_signal_strength": 0.45,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 7,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 72509,
+      "queries_total": 44861,
       "equivalence_queries": 0,
-      "seconds": 2.625,
+      "seconds": 2.54,
       "error_type": null,
       "error": null
     },
@@ -2025,14 +2025,14 @@
         "min_signal_strength": 0.4,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 7,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 112847,
+      "queries_total": 48335,
       "equivalence_queries": 0,
-      "seconds": 3.94,
+      "seconds": 2.8,
       "error_type": null,
       "error": null
     },
@@ -2078,14 +2078,14 @@
         "min_signal_strength": 0.3,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 230978,
+      "queries_total": 101954,
       "equivalence_queries": 0,
-      "seconds": 7.263,
+      "seconds": 3.714,
       "error_type": null,
       "error": null
     },
@@ -2131,14 +2131,14 @@
         "min_signal_strength": 0.2,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 7,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 410116,
+      "queries_total": 299524,
       "equivalence_queries": 0,
-      "seconds": 10.805,
+      "seconds": 8.036,
       "error_type": null,
       "error": null
     },
@@ -2184,14 +2184,14 @@
         "min_signal_strength": 0.45,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 3,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 60934,
+      "queries_total": 39430,
       "equivalence_queries": 0,
-      "seconds": 2.554,
+      "seconds": 2.236,
       "error_type": null,
       "error": null
     },
@@ -2237,14 +2237,14 @@
         "min_signal_strength": 0.4,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 3,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 87283,
+      "queries_total": 44275,
       "equivalence_queries": 0,
-      "seconds": 3.304,
+      "seconds": 2.691,
       "error_type": null,
       "error": null
     },
@@ -2290,14 +2290,14 @@
         "min_signal_strength": 0.3,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 3,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 202946,
+      "queries_total": 129218,
       "equivalence_queries": 0,
-      "seconds": 6.951,
+      "seconds": 5.292,
       "error_type": null,
       "error": null
     },
@@ -2343,14 +2343,14 @@
         "min_signal_strength": 0.2,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 3,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 447196,
+      "queries_total": 299740,
       "equivalence_queries": 0,
-      "seconds": 11.475,
+      "seconds": 8.176,
       "error_type": null,
       "error": null
     },
@@ -4124,14 +4124,14 @@
         "min_signal_strength": 0.45,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 4,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 84325,
+      "queries_total": 55653,
       "equivalence_queries": 0,
-      "seconds": 3.565,
+      "seconds": 3.059,
       "error_type": null,
       "error": null
     },
@@ -4177,14 +4177,14 @@
         "min_signal_strength": 0.4,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 4,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 96239,
+      "queries_total": 71663,
       "equivalence_queries": 0,
-      "seconds": 3.415,
+      "seconds": 3.317,
       "error_type": null,
       "error": null
     },
@@ -4230,14 +4230,14 @@
         "min_signal_strength": 0.3,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 4,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 253546,
+      "queries_total": 167530,
       "equivalence_queries": 0,
-      "seconds": 7.475,
+      "seconds": 6.225,
       "error_type": null,
       "error": null
     },
@@ -4283,14 +4283,14 @@
         "min_signal_strength": 0.2,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 4,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 605000,
+      "queries_total": 408392,
       "equivalence_queries": 0,
-      "seconds": 14.225,
+      "seconds": 11.002,
       "error_type": null,
       "error": null
     },
@@ -4720,14 +4720,14 @@
         "min_signal_strength": 0.45,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 44755,
+      "queries_total": 32467,
       "equivalence_queries": 0,
-      "seconds": 2.077,
+      "seconds": 2.331,
       "error_type": null,
       "error": null
     },
@@ -4773,14 +4773,14 @@
         "min_signal_strength": 0.4,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 79644,
+      "queries_total": 50972,
       "equivalence_queries": 0,
-      "seconds": 2.94,
+      "seconds": 2.839,
       "error_type": null,
       "error": null
     },
@@ -4826,14 +4826,14 @@
         "min_signal_strength": 0.3,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 158286,
+      "queries_total": 109134,
       "equivalence_queries": 0,
-      "seconds": 4.849,
+      "seconds": 4.576,
       "error_type": null,
       "error": null
     },
@@ -4879,14 +4879,14 @@
         "min_signal_strength": 0.2,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 538114,
+      "queries_total": 292354,
       "equivalence_queries": 0,
-      "seconds": 12.007,
+      "seconds": 8.444,
       "error_type": null,
       "error": null
     },
@@ -4932,14 +4932,14 @@
         "min_signal_strength": 0.45,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 48996,
+      "queries_total": 36708,
       "equivalence_queries": 0,
-      "seconds": 2.219,
+      "seconds": 2.446,
       "error_type": null,
       "error": null
     },
@@ -4985,14 +4985,14 @@
         "min_signal_strength": 0.4,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 70792,
+      "queries_total": 42120,
       "equivalence_queries": 0,
-      "seconds": 2.761,
+      "seconds": 2.481,
       "error_type": null,
       "error": null
     },
@@ -5038,14 +5038,14 @@
         "min_signal_strength": 0.3,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 157592,
+      "queries_total": 108440,
       "equivalence_queries": 0,
-      "seconds": 4.532,
+      "seconds": 4.207,
       "error_type": null,
       "error": null
     },
@@ -5091,14 +5091,14 @@
         "min_signal_strength": 0.2,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 497600,
+      "queries_total": 300992,
       "equivalence_queries": 0,
-      "seconds": 11.593,
+      "seconds": 8.964,
       "error_type": null,
       "error": null
     },
@@ -5336,14 +5336,14 @@
         "min_signal_strength": 0.45,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 3,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 48429,
+      "queries_total": 42285,
       "equivalence_queries": 0,
-      "seconds": 2.056,
+      "seconds": 2.422,
       "error_type": null,
       "error": null
     },
@@ -5389,14 +5389,14 @@
         "min_signal_strength": 0.4,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 3,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 87386,
+      "queries_total": 44378,
       "equivalence_queries": 0,
-      "seconds": 2.864,
+      "seconds": 2.851,
       "error_type": null,
       "error": null
     },
@@ -5442,14 +5442,14 @@
         "min_signal_strength": 0.3,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 3,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 209678,
+      "queries_total": 123662,
       "equivalence_queries": 0,
-      "seconds": 5.63,
+      "seconds": 4.706,
       "error_type": null,
       "error": null
     },
@@ -5495,14 +5495,14 @@
         "min_signal_strength": 0.2,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 3,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 443412,
+      "queries_total": 295956,
       "equivalence_queries": 0,
-      "seconds": 9.84,
+      "seconds": 8.066,
       "error_type": null,
       "error": null
     },
@@ -5548,14 +5548,14 @@
         "min_signal_strength": 0.45,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 458548,
+      "queries_total": 171828,
       "equivalence_queries": 0,
-      "seconds": 10.523,
+      "seconds": 6.646,
       "error_type": null,
       "error": null
     },
@@ -5601,14 +5601,14 @@
         "min_signal_strength": 0.4,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 1151742,
+      "queries_total": 578302,
       "equivalence_queries": 0,
-      "seconds": 27.466,
+      "seconds": 18.887,
       "error_type": null,
       "error": null
     },
@@ -5654,14 +5654,14 @@
         "min_signal_strength": 0.3,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 4192224,
+      "queries_total": 1898464,
       "equivalence_queries": 0,
-      "seconds": 86.395,
+      "seconds": 46.528,
       "error_type": null,
       "error": null
     },
@@ -5707,14 +5707,14 @@
         "min_signal_strength": 0.2,
         "min_suffix_frequency": 0.02,
         "sample_length": 40,
-        "certified_error": 0.020000000000000018
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 13287858,
+      "queries_total": 12107860,
       "equivalence_queries": 0,
-      "seconds": 281.526,
+      "seconds": 257.199,
       "error_type": null,
       "error": null
     },
