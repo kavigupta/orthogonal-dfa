@@ -132,9 +132,9 @@ def reusable_cells(out_path: Path, key: Callable[[dict], tuple]) -> Dict[tuple, 
     reusable too -- `complete` says whether the sweep as a whole got there, not
     whether an individual cell is sound.
 
-    Reuse is keyed on identity, and on CERTIFIED_ERROR for E-L* cells, so it
-    cannot notice that the *learner* changed underneath it. Delete the JSON after
-    touching anything else that moves the numbers.
+    Reuse is keyed on identity, and on CERTIFIED_ERROR for E-L* cells that ran, so
+    it cannot notice that the *learner* changed underneath it. Delete the JSON
+    after touching anything else that moves the numbers.
     """
     if not out_path.exists():
         return {}
@@ -150,6 +150,7 @@ def reusable_cells(out_path: Path, key: Callable[[dict], tuple]) -> Dict[tuple, 
         key(c): c
         for c in payload.get("cells", [])
         if c["learner"] != LEARNER_ELSTAR
+        or c["error_type"] == "ExcludedOutOfRegime"
         or c["learner_config"].get("certified_error") == CERTIFIED_ERROR
     }
 
