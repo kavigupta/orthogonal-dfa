@@ -735,6 +735,36 @@ lemma distReads_isBigO : distReads =O[𝓟 rlStarDistRunRegion]
       obtain ⟨h1, h2, h4, h5⟩ := shapes_nonneg hr; exact ⟨h5, by linarith⟩)
   exact (((t1.add t2).add t3).add t4).add t5
 
+/-- `distReads` with no held-out strings. -/
+def distLoopReads (r : RLStarDistRun) : ℝ :=
+  learnerReads (r.Q + 1) (6 * (r.Q + 2) * distCount r) (distPool r + 1) (distFam r)
+    (distBudget r) r.Q (⌈distHB r⌉₊ : ℝ) (distLg r) r.A 0
+
+lemma distLoopReads_isBigO : distLoopReads =O[𝓟 rlStarDistRunRegion]
+    (fun r => shCluster r + shSearch r + shHarvest r) := by
+  have hg : ∀ f : RLStarDistRun → ℝ, (∀ r ∈ rlStarDistRunRegion, 0 ≤ f r ∧
+      f r ≤ shCluster r + shSearch r + shHarvest r) →
+      f =O[𝓟 rlStarDistRunRegion] (fun r => shCluster r + shSearch r + shHarvest r) :=
+    fun f h => isBigO_on 1 fun r hr => ⟨(h r hr).1, (h r hr).1.trans (h r hr).2,
+      (h r hr).2.trans_eq (one_mul _).symm⟩
+  have t1 := (bigO_dist _ (by norm_num) fun _ hr => cluster_pw hr).trans
+    (hg shCluster fun r hr => by
+      obtain ⟨h1, h2, h4, -⟩ := shapes_nonneg hr; exact ⟨h1, by linarith⟩)
+  have t2 := (bigO_dist _ (by norm_num) fun _ hr => search_pw hr).trans
+    (hg shSearch fun r hr => by
+      obtain ⟨h1, h2, h4, -⟩ := shapes_nonneg hr; exact ⟨h2, by linarith⟩)
+  have t3 := (bigO_dist _ (by norm_num) fun _ hr => resift_search_pw hr).trans
+    (hg shSearch fun r hr => by
+      obtain ⟨h1, h2, h4, -⟩ := shapes_nonneg hr; exact ⟨h2, by linarith⟩)
+  have t4 := (bigO_dist _ (by norm_num) fun _ hr => harvest_pw hr).trans
+    (hg shHarvest fun r hr => by
+      obtain ⟨h1, h2, h4, -⟩ := shapes_nonneg hr; exact ⟨h4, by linarith⟩)
+  have t5 : (fun r : RLStarDistRun => readsStart 0 (distFam r)) =O[𝓟 rlStarDistRunRegion]
+      (fun r => shCluster r + shSearch r + shHarvest r) := by
+    simp only [readsStart, zero_mul]
+    exact isBigO_zero _ _
+  exact (((t1.add t2).add t3).add t4).add t5
+
 end OrthoDFA
 
 end
