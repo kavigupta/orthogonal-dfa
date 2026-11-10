@@ -276,6 +276,160 @@ theorem trie_batches_round_le {Tb : ℕ} {p₀ : ℝ}
 
 end Round
 
+section Bridge
+
+variable (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α))
+  (settings : LoopSettings K)
+  (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
+
+omit [IsProbabilityMeasure μ] in
+lemma histAlike_of_harvested {r : ℕ} (hr : r ≤ K)
+    (hall : AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r)) :
+    (histCodes settings O P.D Dsf p.1 p.2 r).length = r
+      ∧ HistAlike (lenBound P.D) (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r))
+        (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)) := by
+  set draws := persistDraws p
+  have hdec := decodeHist_alike (L := lenBound P.D) (N := codeLen settings P.D) settings.level3
+    le_rfl (idealRounds settings O P.D Dsf draws r) (idealRounds_result settings O P.D Dsf draws r)
+    hall
+  have hc : histCodes settings O P.D Dsf p.1 p.2 r
+      = codesOf (codeLen settings P.D) (idealRounds settings O P.D Dsf draws r) := rfl
+  refine ⟨?_, by rw [hc]; exact hdec⟩
+  rw [hc, length_codesOf (codeLen settings P.D) P.D settings.level3.walkStart,
+    length_harvestsOf hall, length_eq_of_allHarvested settings O P.D Dsf draws hr hall]
+
+omit [IsProbabilityMeasure μ] in
+lemma ret_of_alike {h h' : SpecHist α} (hh : HistAlike (lenBound P.D) h h')
+    (c : ClusterDraws Ω α K settings.level3.harvestReadCap)
+    (hret : ∃ B ∈ settings.schedule (loopPopulations K h'.pops.length),
+      idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap h' c
+        ∈ ret O.mq (loopPopulations K h'.pops.length) none settings.η₀ settings.indecisionLimit
+          settings.εcov settings.gateLevel B) :
+    ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
+      idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap h c
+        ∈ ret O.mq (loopPopulations K h.pops.length) none settings.η₀ settings.indecisionLimit
+          settings.εcov settings.gateLevel B := by
+  rw [hh.length, idealRun_alike hh P.D Dsf (ae_lenBound P.length_le)]
+  exact hret
+
+omit [IsProbabilityMeasure μ] in
+lemma histOK_of_good
+    (hrg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
+      RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r))
+        (persistDraws p ⟨r, hr⟩)) :
+    ∀ r, r ≤ K → AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
+      HistOK settings O P.D Dsf p.1 p.2 r
+  | 0, _, _ => trivial
+  | r + 1, hr, hall => by
+    have hall' : AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) := fun o ho =>
+      hall o ((idealRounds_prefix settings O P.D Dsf (persistDraws p) r).subset ho)
+    refine ⟨histOK_of_good hrg r (by omega) hall', fun hK _ => ?_⟩
+    obtain ⟨-, hh⟩ := histAlike_of_harvested O P Dsf settings p (by omega) hall'
+    exact ret_of_alike O P Dsf settings hh _ (hrg r hK hall').2.2
+
+lemma foldr_prefs_card (l : List (SpecRound α)) {a : ℕ} (h : ∀ o ∈ l, o.prefs.card ≤ a) :
+    (l.foldr (fun (o : SpecRound α) T => o.prefs ∪ T) ∅).card ≤ l.length * a := by
+  induction l with
+  | nil => simp
+  | cons o l ih =>
+    simp only [List.foldr_cons, List.length_cons]
+    refine (Finset.card_union_le _ _).trans ?_
+    have := ih fun o' ho' => h o' (by simp [ho'])
+    have := h o (by simp)
+    nlinarith
+
+omit [IsProbabilityMeasure μ] in
+lemma idealRounds_prefs_card {a : ℕ}
+    (hab : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
+      (roundPrefs (settings.schedule pops) pops x).card ≤ a)
+    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
+      settings.level3.probeBudget) :
+    ∀ r, ∀ o ∈ idealRounds settings O P.D Dsf draws r, o.prefs.card ≤ a
+  | 0 => by simp [idealRounds]
+  | r + 1 => by
+    intro o ho
+    rw [idealRounds_succ] at ho
+    split_ifs at ho
+    · rcases List.mem_append.1 ho with h | h
+      · exact idealRounds_prefs_card hab draws r o h
+      · rw [List.mem_singleton] at h
+        subst h
+        exact hab _ _
+    · exact idealRounds_prefs_card hab draws r o ho
+
+omit [IsProbabilityMeasure μ] in
+/-- Where every round the filled draws run is good, and no round's probes or batches fail their
+distinctness, the loop with local walk starts meets `TrieLoopAgrees`'s premise. -/
+theorem trieRoundGood_of {Tb : ℕ}
+    (hrg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
+      RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r))
+        (persistDraws p ⟨r, hr⟩))
+    (hpr : ∀ r, r < K → AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
+      (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).prefs.card ≤ Tb)
+    (hL3 : ∀ r (hr : r < K), ¬ (HistOK settings O P.D Dsf p.1 p.2 r
+        ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
+        ∧ Returns settings O P.D Dsf (decodeHist
+            (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1)
+        ∧ ¬ L3Good settings.level3.walkStart P.D
+          (roundKeys settings P.D Dsf (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r))
+            (p.1, (p.2 ⟨r, hr⟩).1)) (p.2 ⟨r, hr⟩).2))
+    (hTop : ∀ r (hr : r < K), ¬ (HistOK settings O P.D Dsf p.1 p.2 r
+        ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
+        ∧ (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).prefs.card ≤ Tb
+        ∧ ∃ i : Fin K, ¬ BatchesGood settings.level3.walkStart P.D settings.level3.harvestReadCap
+          settings.scanCap (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).prefs
+          ((p.2 ⟨r, hr⟩).1.2.1 (some i)))) :
+    ∀ r (hr : r < K) rs,
+      (loopRoundsQ settings P.D Dsf p.2 r).eval (fun w => O.mq w p.1) = some rs →
+      (∀ o ∈ rs, o.result.ending.harvested ≠ none) →
+      TrieRoundGood settings P.D Dsf (histOf rs) (p.2 ⟨r, hr⟩) (fun w => O.mq w p.1) := by
+  intro r hr rs hrs hharv
+  set draws := persistDraws p
+  obtain ⟨e1, e2⟩ := eval_loopRoundsQ O p.1 settings P.D Dsf p.2 r
+  have hloop : loopRounds settings O P.D Dsf draws r
+      = some (idealRounds settings O P.D Dsf draws r) :=
+    loopRounds_eq_some settings O P.D Dsf draws hrg r
+  have hread : ∀ o ∈ idealRounds settings O P.D Dsf draws r, o.ReadsAt O p.1 :=
+    e2 _ hloop
+  rw [show persistDraws (p.1, p.2) = draws from rfl, hloop] at e1
+  rw [e1, Option.map_some, Option.some.injEq] at hrs
+  subst hrs
+  have hall : AllHarvested (idealRounds settings O P.D Dsf draws r) := fun o ho =>
+    hharv o.data (List.mem_map_of_mem ho)
+  obtain ⟨hlen, hh⟩ := histAlike_of_harvested O P Dsf settings p hr.le hall
+  have hok := histOK_of_good O P Dsf settings p hrg r hr.le hall
+  have hgood := hrg r hr hall
+  have hret : Returns settings O P.D Dsf (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r))
+      (p.1, (p.2 ⟨r, hr⟩).1) := ret_of_alike O P Dsf settings hh _ hgood.2.2
+  have hprefs : (histOf ((idealRounds settings O P.D Dsf draws r).map SpecRound.data)).prefs
+      = (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).prefs := by
+    rw [hh.2.1]
+    simp only [histOf, specHistOf, List.foldr_map, SpecRound.data]
+    rfl
+  refine ⟨fun i => ?_, fun o ho => ?_⟩
+  · rw [hprefs]
+    by_contra hbad
+    exact hTop r hr ⟨hok, hlen, by rw [hh.2.1]; exact hpr r hr hall, i, hbad⟩
+  · obtain ⟨f1, -⟩ := eval_roundQ O p.1 settings P.D Dsf
+      (histOf ((idealRounds settings O P.D Dsf draws r).map SpecRound.data)) (p.2 ⟨r, hr⟩)
+    rw [← specHistOf_eq O p.1 hread] at f1
+    rw [f1, loopRound_eq_some settings O P.D Dsf _ (p.1, p.2 ⟨r, hr⟩) hgood.1 hgood.2.1 hgood.2.2,
+      Option.map_some, Option.some.injEq] at ho
+    subst ho
+    have hkeys : ((roundOf settings O P.D (specHistOf (idealRounds settings O P.D Dsf draws r))
+        (idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap
+          (specHistOf (idealRounds settings O P.D Dsf draws r)) (p.1, (p.2 ⟨r, hr⟩).1))
+        (p.2 ⟨r, hr⟩).2).data.prefs).image (fun q => prefixOf q settings.level3.walkStart)
+        = roundKeys settings P.D Dsf (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r))
+          (p.1, (p.2 ⟨r, hr⟩).1) := by
+      show clusterKeys _ _ _ _ = clusterKeys _ _ _ _
+      rw [hh.length, idealRun_alike hh P.D Dsf (ae_lenBound P.length_le)]
+    rw [hkeys]
+    by_contra hbad
+    exact hL3 r hr ⟨hok, hlen, hret, hbad⟩
+
+end Bridge
+
 end OrthoDFA
 
 end
