@@ -16,18 +16,22 @@ Three seeds per cell, against one for the head-to-head experiments.
 the same cell, at eta=0.30. It is slow because it runs CAPAL with a large query budget,
 and so is not a sweep. A saved cell is reused only while E-L*'s spend is unchanged.
 
-    python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep
-    python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep --matched-budget
+    python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep --processes 4
+    python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep --processes 4 --matched-budget
 """
 
 from __future__ import annotations
 
 import argparse
+import functools
 import itertools
 import json
+import multiprocessing
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from .benchmark import Benchmark
 from .core import REPO_ROOT, Cell, eval_words, write_experiment
 from .our_targets import OUR_BENCHMARK_NAMES, our_benchmarks
 from .sweep import capal_cell, reusable_cells
@@ -126,6 +130,7 @@ def main() -> None:  # pylint: disable=too-many-statements
         default=None,
         help="Restrict to these config labels (see CONFIGS / MATCHED_BUDGET_CONFIGS).",
     )
+    ap.add_argument("--processes", type=int, required=True)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -154,14 +159,11 @@ def main() -> None:  # pylint: disable=too-many-statements
         print(f"{out_path} has every cell; nothing to run.", flush=True)
         return
 
-    by = {b.name: b for b in our_benchmarks()}
-    benchmarks = [by[n] for n in names]
-
-    cells: List[Cell] = []
+    cells: Dict[tuple, Cell] = {k: Cell(**c) for k, c in previous.items()}
     config = {
         "etas": list(etas),
         "seeds": list(args.seeds),
-        "benchmarks": [b.name for b in benchmarks],
+        "benchmarks": list(names),
         "configs": labels,
         "matched_budget": args.matched_budget,
     }
@@ -176,71 +178,67 @@ def main() -> None:  # pylint: disable=too-many-statements
         )
     )
 
-    def flush(complete: bool = False) -> None:
-        # Until the sweep finishes, carry the cells it has not reached yet:
-        # this file is their only copy. The final write is the grid alone.
-        done_keys = {
-            (c.benchmark, c.learner_config["label"], c.eta, c.seed) for c in cells
-        }
-        carried = (
-            []
-            if complete
-            else [Cell(**c) for k, c in previous.items() if k not in done_keys]
-        )
+    def write(keys: Sequence[tuple], complete: bool) -> None:
         write_experiment(
             out_path,
             experiment=experiment,
             generated_by="orthogonal_dfa.experiments.capal_comparison.run_wall_sweep",
             description=description,
             config=config,
-            cells=[*cells, *carried],
+            cells=[cells[k] for k in keys],
             complete=complete,
         )
 
-    total = len(benchmarks) * len(etas) * len(sweep_configs) * len(args.seeds)
-    done = 0
-    for b in benchmarks:
-        words = eval_words(b.symbols)
-        truth = b.truth()
-        for eta in etas:
-            for (label, kwargs), seed in itertools.product(sweep_configs, args.seeds):
-                done += 1
-                print(
-                    f"[{done}/{total}] {b.name} eta={eta:.2f} {label} seed={seed}",
-                    flush=True,
-                )
-                cached = previous.get((b.name, label, eta, seed))
-                budget = budgets.get((b.name, eta))
-                if is_current(cached, budget):
-                    cells.append(Cell(**cached))
-                    print("   [reused]", flush=True)
-                    continue
-                if args.matched_budget and budget is None:
-                    print("   skipped: E-L* has no spend recorded here", flush=True)
-                    continue
-                cell = capal_cell(
-                    b,
-                    eta=eta,
-                    seed=seed,
-                    words=words,
-                    truth=truth,
-                    query_budget=budget,
-                    **kwargs,
-                )
-                cell.learner_config["label"] = label
-                if args.matched_budget:
-                    cell.learner_config["query_budget"] = budget
-                cells.append(cell)
-                print(
-                    f"   -> acc={cell.accuracy} conv={cell.converged} "
-                    f"states={cell.learned_states}/{b.target_states} "
-                    f"mq={cell.queries_total} eq={cell.equivalence_queries} ({cell.seconds:.1f}s)",
-                    flush=True,
-                )
-                flush()
+    kwargs_of = dict(sweep_configs)
+    tasks = [
+        (name, label, kwargs_of[label], eta, seed, budgets.get((name, eta)))
+        for name, label, eta, seed in grid
+        if not is_current(
+            previous.get((name, label, eta, seed)), budgets.get((name, eta))
+        )
+    ]
+    print(f"Reusing {len(grid) - len(tasks)} of {len(grid)} cells.", flush=True)
+    # Until the final write, which is the grid alone, carry saved cells outside the
+    # grid: this file is their only copy.
+    with multiprocessing.Pool(args.processes) as pool:
+        for i, cell in enumerate(pool.imap_unordered(_run_cell, tasks), start=1):
+            cells[cell_key(asdict(cell))] = cell
+            print(
+                f"[{i}/{len(tasks)}] {cell.benchmark} eta={cell.eta:.2f} "
+                f"{cell.learner_config['label']} seed={cell.seed}\n"
+                f"   -> acc={cell.accuracy} conv={cell.converged} "
+                f"states={cell.learned_states} "
+                f"mq={cell.queries_total} eq={cell.equivalence_queries} "
+                f"({cell.seconds:.1f}s)",
+                flush=True,
+            )
+            write(list(cells), complete=False)
 
-    flush(complete=True)
-    print(f"\nWrote {out_path} ({len(cells)} cells)")
+    write(grid, complete=True)
+    print(f"\nWrote {out_path} ({len(grid)} cells)")
+
+
+@functools.cache
+def _our_benchmarks() -> Dict[str, Benchmark]:
+    return {b.name: b for b in our_benchmarks()}
+
+
+def _run_cell(task: tuple) -> Cell:
+    name, label, kwargs, eta, seed, budget = task
+    b = _our_benchmarks()[name]
+    cell = capal_cell(
+        b,
+        eta=eta,
+        seed=seed,
+        words=eval_words(b.symbols),
+        truth=b.truth(),
+        query_budget=budget,
+        **kwargs,
+    )
+    cell.learner_config["label"] = label
+    if budget is not None:
+        cell.learner_config["query_budget"] = budget
+    return cell
 
 
 if __name__ == "__main__":
