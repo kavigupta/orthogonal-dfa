@@ -49,7 +49,7 @@ def RLStarTrieSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fint
       (fun w => O.mq w p.1) S
 
 def RLStarTrieWithinUniform.{u, v, w} (L₀ : RLStarTrieInputs → ℝ)
-    (totalProbes totalReads : RLStarTrieRun → ℝ) : Prop :=
+    (totalPref totalSuff totalProbes totalReads : RLStarTrieRun → ℝ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v} [Fintype Q] {Ω : Type w}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (x : RLStarTrieInputs) (M : _root_.DFA A Q) (O : Oracle μ (FreeMonoid A)) (L : ℕ),
@@ -64,7 +64,9 @@ def RLStarTrieWithinUniform.{u, v, w} (L₀ : RLStarTrieInputs → ℝ)
           settings.level3.probeBudget,
       ∀ rounds, indecisiveLStarTrieLoop settings ((L + 1) / 2) O (uniformStrings L)
           (uniformStrings Ls) p = some rounds →
-        (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
+        ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
+          ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
+          ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
     (loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
         settings.level3.probeBudget).real
       {p | ¬ RLStarTrieSucceeds settings ((L + 1) / 2) O (uniformStrings L) (uniformStrings Ls)
@@ -72,15 +74,38 @@ def RLStarTrieWithinUniform.{u, v, w} (L₀ : RLStarTrieInputs → ℝ)
       ≤ x.δ
 
 open Real in
-/-- Polynomially many probes and reads, at a length logarithmic in the inputs. -/
+/-- `RLStarClaimUniform`'s bounds at `R = 1`. -/
 def RLStarTrieClaim.{u, v, w} : Prop :=
-  ∃ (L₀ : RLStarTrieInputs → ℝ) (totalProbes totalReads : RLStarTrieRun → ℝ) (c : ℕ),
+  ∃ (L₀ : RLStarTrieInputs → ℝ) (totalPref totalSuff totalProbes totalReads : RLStarTrieRun → ℝ),
     L₀ =O[𝓟 rlStarTrieRegion] (fun x =>
       1 + log (x.Q / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A) ∧
+    totalPref =O[𝓟 rlStarTrieRunRegion] (fun r =>
+      r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
+          * log (r.Q * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
+        + r.Q ^ 2 * (r.L + r.Q) ^ 2 / r.ξ ^ 2
+          * (1 / r.s₀ ^ 4 + r.Q ^ 4 * r.A ^ 2)
+          * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀))) ∧
+    totalSuff =O[𝓟 rlStarTrieRunRegion] (fun r =>
+      r.Q * (log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
+        + log (r.Q / r.δ) / r.pAP)) ∧
     totalProbes =O[𝓟 rlStarTrieRunRegion] (fun r =>
-      (r.Q * r.A * (r.L + 1) / (r.δ * r.ξ * r.pAP * r.s₀)) ^ c) ∧
+      r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) / r.ξ * log (r.Q * r.A / r.δ)) ∧
     totalReads =O[𝓟 rlStarTrieRunRegion] (fun r =>
-      (r.Q * r.A * (r.L + 1) / (r.δ * r.ξ * r.pAP * r.s₀)) ^ c) ∧
-    RLStarTrieWithinUniform.{u, v, w} L₀ totalProbes totalReads
+      let nPref : ℝ := r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
+          * log (r.Q * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
+        + r.Q ^ 2 * (r.L + r.Q) ^ 2 / r.ξ ^ 2
+          * (1 / r.s₀ ^ 4 + r.Q ^ 4 * r.A ^ 2)
+          * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀))
+      let nSuff : ℝ :=
+        r.Q * (log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.pAP * r.s₀ ^ 2)
+          + log (r.Q / r.δ) / r.pAP)
+      let nProbe : ℝ := r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) / r.ξ * log (r.Q * r.A / r.δ)
+      let nHeld : ℝ := log (r.Q / r.δ) / r.ξ ^ 2
+      let nFam : ℝ := log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
+      let ρInv : ℝ := r.A * (r.L + r.Q) / r.ξ
+      let lg : ℝ := log (r.L + r.Q + 1)
+      nPref * nSuff / r.Q + nProbe * nFam * r.Q * lg + r.Q * nPref * nFam * lg * ρInv
+        + nHeld * nFam) ∧
+    RLStarTrieWithinUniform.{u, v, w} L₀ totalPref totalSuff totalProbes totalReads
 
 end OrthoDFA
