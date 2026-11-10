@@ -196,14 +196,21 @@ theorem rlStarClaimUniform_holds : RLStarClaimUniform := by
     rw [Nat.cast_pow]
     exact hZ.trans hpow
   have hLs : L + Fintype.card σ + 3 + Fintype.card σ + 3 = L + 2 * Fintype.card σ + 6 := by omega
+  have hpL : prefixLaw (uniformStrings (α := α) (L + 2 * Fintype.card σ + 6)) L
+      = uniformStrings L := prefixLaw_uniformStrings (by omega)
+  have hpS : prefixLaw (uniformStrings (α := α) (L + 2 * Fintype.card σ + 6))
+      (L + 2 * Fintype.card σ + 6) = uniformStrings (L + 2 * Fintype.card σ + 6) :=
+    prefixLaw_uniformStrings le_rfl
   obtain ⟨settings, -, hprobe, hprob⟩ := trie_loop_tol (Ω := Ω) (μ := μ) M O L K ((L + 1) / 2)
-    (1 / 2 - s₀) (ξ / (2 * 1)) δ pAP (ξ / 4) ξ (1 / (1 / (Fintype.card α : ℝ))) hLang hη hη₀
+    (1 / 2 - s₀) (ξ / (2 * 1)) δ pAP (ξ / 4) ξ (1 / (1 / (Fintype.card α : ℝ)))
+    ((Fintype.card α : ℝ) ^ K) (uniformStrings (L + 2 * Fintype.card σ + 6)) hLang hη hη₀
     hc0 hc1 hδ (by linarith) hp (by positivity) hA2 (le_of_eq (one_div_one_div _).symm)
-    (by omega) (by rw [hLs]; exact hpAPu) hK1 (by linarith)
-  refine ⟨settings, fun p rounds hrnd => hprobe p rounds (by rw [hLs]; exact hrnd), ?_⟩
-  refine (measureReal_mono fun p hp => ?_).trans hprob
+    (by omega) (by rw [hLs]; exact uniformStrings_long _)
+    (fun u => uniformStrings_prefix_le (by omega) u) (by rw [hLs, hpS]; exact hpAPu) hK1
+    (by linarith)
+  simp only [hLs, hpL, hpS] at hprobe hprob
+  refine ⟨settings, hprobe, (measureReal_mono fun p hp => ?_).trans hprob⟩
   intro h
-  rw [hLs] at h
   exact hp (trieSucceeds_mono (learnerReads_zero_le (Nat.cast_nonneg _) (fam_pw hr).1) h)
 
 theorem rlStarClaimUniformSimple_holds : RLStarClaimUniformSimple := by

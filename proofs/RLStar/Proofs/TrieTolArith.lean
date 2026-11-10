@@ -209,10 +209,10 @@ lemma tol_FV {X pAP lp PB P₀ ℓ Lm E₁ T : ℝ} (hX : 0 ≤ X) (hp : 0 < pAP
   linarith only [h2, hlp, hPB, k1, k2, hT, hX]
 
 /-- The family's misread tail, `F ≤ T` letters past a length-`L` cut. -/
-lemma tol_k6 {A T c δ : ℝ} {F L Ls : ℕ} (hA : 2 ≤ A) (hT1 : 1 ≤ T) (hδ : 0 < δ)
+lemma tol_k6 {A T c δ X : ℝ} {F Ls : ℕ} (hA : 2 ≤ A) (hT1 : 1 ≤ T) (hδ : 0 < δ)
     (hFT : (F : ℝ) ≤ T) (hAT : A ≤ T) (hLsT : (Ls : ℝ) + 1 ≤ 2 * T) (hcT : 1 ≤ c * T)
-    (hδT : 1 / δ ≤ T) (hAL : 2 ^ 30 * T ^ 9 ≤ A ^ L) :
-    2 * ((F : ℝ) + 1) ^ 3 * (A ^ Ls + 1) ^ F * Real.exp (-2 * A ^ L * c ^ 2) ≤ δ / 8 := by
+    (hδT : 1 / δ ≤ T) (hAL : 2 ^ 30 * T ^ 9 ≤ X) :
+    2 * ((F : ℝ) + 1) ^ 3 * (A ^ Ls + 1) ^ F * Real.exp (-2 * X * c ^ 2) ≤ δ / 8 := by
   have hT0 : 0 ≤ T := by linarith only [hT1]
   have hA0 : 0 < A := by linarith only [hA]
   have hA1 : 1 ≤ A := by linarith only [hA]
@@ -235,7 +235,7 @@ lemma tol_k6 {A T c δ : ℝ} {F L Ls : ℕ} (hA : 2 ≤ A) (hT1 : 1 ≤ T) (hδ
     calc (A ^ Ls + 1) ^ F ≤ Real.exp (A * ((Ls : ℝ) + 1)) ^ F :=
           pow_le_pow_left₀ (by positivity) (b1.trans b2) F
       _ = Real.exp (A * ((Ls : ℝ) + 1) * F) := by rw [← Real.exp_nat_mul]; ring_nf
-  have hexp : 3 * (F : ℝ) + A * ((Ls : ℝ) + 1) * F + Real.log (16 / δ) ≤ 2 * A ^ L * c ^ 2 := by
+  have hexp : 3 * (F : ℝ) + A * ((Ls : ℝ) + 1) * F + Real.log (16 / δ) ≤ 2 * X * c ^ 2 := by
     have l1 : Real.log (16 / δ) ≤ 16 * T := by
       have h := Real.log_le_sub_one_of_pos (show (0 : ℝ) < 16 / δ by positivity)
       have e : 16 / δ = 16 * (1 / δ) := by ring
@@ -246,7 +246,7 @@ lemma tol_k6 {A T c δ : ℝ} {F L Ls : ℕ} (hA : 2 ≤ A) (hT1 : 1 ≤ T) (hδ
     have hT3 : T ≤ T ^ 3 := le_self_pow₀ hT1 (by norm_num)
     have l3 : 3 * (F : ℝ) + A * ((Ls : ℝ) + 1) * F + Real.log (16 / δ) ≤ 21 * T ^ 3 := by
       linarith only [l1, l2, hT3, hFT]
-    have l4 : 2 ^ 31 * T ^ 7 ≤ 2 * A ^ L * c ^ 2 := by
+    have l4 : 2 ^ 31 * T ^ 7 ≤ 2 * X * c ^ 2 := by
       have h7 : T ^ 7 ≤ T ^ 9 * c ^ 2 := by
         have h' : 1 ≤ (c * T) ^ 2 := one_le_pow₀ hcT
         have e : T ^ 9 * c ^ 2 = T ^ 7 * (c * T) ^ 2 := by ring
@@ -258,19 +258,19 @@ lemma tol_k6 {A T c δ : ℝ} {F L Ls : ℕ} (hA : 2 ≤ A) (hT1 : 1 ≤ T) (hδ
       linarith only [this, pow_nonneg hT0 7]
     linarith only [l3, l4, l5]
   have hlog : Real.exp (3 * F) * Real.exp (A * ((Ls : ℝ) + 1) * F)
-      * Real.exp (-2 * A ^ L * c ^ 2) ≤ δ / 16 := by
+      * Real.exp (-2 * X * c ^ 2) ≤ δ / 16 := by
     rw [← Real.exp_add, ← Real.exp_add]
-    calc Real.exp (3 * F + A * ((Ls : ℝ) + 1) * F + -2 * A ^ L * c ^ 2)
+    calc Real.exp (3 * F + A * ((Ls : ℝ) + 1) * F + -2 * X * c ^ 2)
         ≤ Real.exp (-Real.log (16 / δ)) := Real.exp_le_exp.2 (by linarith only [hexp])
       _ = δ / 16 := by
           rw [Real.exp_neg, Real.exp_log (by positivity), inv_div]
-  have hE0 : 0 ≤ Real.exp (-2 * A ^ L * c ^ 2) := (Real.exp_pos _).le
+  have hE0 : 0 ≤ Real.exp (-2 * X * c ^ 2) := (Real.exp_pos _).le
   have hP : 0 ≤ (A ^ Ls + 1) ^ F := by positivity
-  calc 2 * ((F : ℝ) + 1) ^ 3 * (A ^ Ls + 1) ^ F * Real.exp (-2 * A ^ L * c ^ 2)
+  calc 2 * ((F : ℝ) + 1) ^ 3 * (A ^ Ls + 1) ^ F * Real.exp (-2 * X * c ^ 2)
       ≤ 2 * Real.exp (3 * F) * Real.exp (A * ((Ls : ℝ) + 1) * F)
-        * Real.exp (-2 * A ^ L * c ^ 2) := by gcongr
+        * Real.exp (-2 * X * c ^ 2) := by gcongr
     _ = 2 * (Real.exp (3 * F) * Real.exp (A * ((Ls : ℝ) + 1) * F)
-        * Real.exp (-2 * A ^ L * c ^ 2)) := by ring
+        * Real.exp (-2 * X * c ^ 2)) := by ring
     _ ≤ 2 * (δ / 16) := by gcongr
     _ = δ / 8 := by ring
 

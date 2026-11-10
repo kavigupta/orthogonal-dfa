@@ -5,10 +5,10 @@ import RLStar.Proofs.TrieAgree
 import RLStar.Proofs.LoopDFA
 
 /-!
-# The loop with local walk starts over the strings of length `L`
+# The loop with local walk starts over `D`'s first `L` letters
 
-`loop_simple_checks` at `P.D` uniform over the strings of length `L` leaves a last round passing
-its checks. Where besides each round's probes and harvested batches have distinct first
+`loop_simple_checks` at `P.D` the law of `D`'s first `L` letters leaves a last round passing its
+checks, once `D` holds at most `p₀` on any first `k` letters. Where besides each round's probes and harvested batches have distinct first
 `walkStart` letters (`TrieStage`), the loop with local walk starts runs that loop's rounds and reads
 (`trieLoopAgrees_holds`), and its DFA misjudges at most the last round's disagreeing probes plus
 the strings its family misreads (`trieSinglePieceCorrect`). Those are at most the family's mean
@@ -136,19 +136,21 @@ lemma trie_rounds_counts {Ω : Type*} {K : ℕ} (settings : LoopSettings K) (cap
 
 variable [Nonempty α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 
-lemma misMean_split (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (kl kh L : ℕ) :
-    misMean O F kl kh L = ∫ x, misreadProb O F kl kh x ∂(uniformStrings L)
-      + ∫ x, readProb O F kl kh x .undecided ∂(uniformStrings L) := by
+lemma misMean_split (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (kl kh : ℕ)
+    {T : Measure (FreeMonoid α)} [IsFiniteMeasure T] {L : ℕ}
+    (hT : T {x | x.toList.length ≠ L} = 0) :
+    misMean O F kl kh T = ∫ x, misreadProb O F kl kh x ∂T
+      + ∫ x, readProb O F kl kh x .undecided ∂T := by
   unfold misMean
-  rw [integral_uniformStrings, integral_uniformStrings, integral_uniformStrings]
-  unfold uavg
-  rw [← add_div, ← Finset.sum_add_distrib]
+  rw [integral_eq_sum_vector hT, integral_eq_sum_vector hT, integral_eq_sum_vector hT,
+    ← Finset.sum_add_distrib]
+  simp only [mul_add]
 
 set_option maxHeartbeats 8000000 in -- the settings meet `loop_simple_checks`'s conditions
-/-- The loop with local walk starts below `k` letters, over the strings of length `L`: its DFA
+/-- The loop with local walk starts below `k` letters, over `D`'s first `L` letters: its DFA
 misjudges at most `ξT` of them, reading at most `learnerReads` strings, but for chance `δ`. -/
 theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L k cap : ℕ)
-    (η₀ c δ pAP ξ ξT t Ae : ℝ) :
+    (η₀ c δ pAP ξ ξT t Ae p₀ : ℝ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] :
     let Q : ℝ := Fintype.card σ
     let A : ℝ := Fintype.card α
     let kN : ℕ := (L + 1) / 2
@@ -183,37 +185,38 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     let SH : ℝ := 24 * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
     let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
     let Tb : ℝ := (Q + 1) * (6 * (Q + 2) * RB)
-    let p₀ : ℝ := (A ^ k)⁻¹
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
     2 ≤ Fintype.card α → A ≤ Ae → 1 ≤ k → k ≤ L → 0 ≤ t →
-    pAP ≤ (uniformStrings Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+    (∀ᵐ w ∂D, Ls ≤ w.toList.length) → 0 < p₀ → (∀ u, D.real {w | prefixOf w k = u} ≤ p₀) →
+    pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
     p₀ ≤ capP * ε / 1536 →
     1536 * Real.log (16 * (Q + 1) * Kc / δ') * p₀ ≤ ε →
     6 * J * RB * p₀ ≤ 1 / 2 →
     16 * B₃ ^ 2 * p₀ ≤ δ' →
     (Q + 1) ^ 2 * (SC * HN * Tb + (SC * HN) ^ 2) * p₀ ≤ δ / 8 →
-    2 * ((⌊FV⌋₊ : ℝ) + 1) ^ 3 * (A ^ Ls + 1) ^ ⌊FV⌋₊ * Real.exp (-2 * A ^ L * t ^ 2) ≤ δ / 8 →
+    2 * ((⌊FV⌋₊ : ℝ) + 1) ^ 3 * (A ^ Ls + 1) ^ ⌊FV⌋₊ * Real.exp (-2 * t ^ 2 / p₀) ≤ δ / 8 →
     ε + ε / 96 + (1025 / 1024 + 3 / 8) * εcov + t ≤ ξT →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
       (settings.level3.harvestReadCap : ℝ) ≤ HN ∧ (settings.scanCap : ℝ) ≤ SC ∧
       (∀ (p : LoopDraws Ω α (Fintype.card σ + 1) settings.level3.harvestReadCap
             settings.level3.probeBudget) rounds,
-          indecisiveLStarTrieLoop settings cap O (uniformStrings L) (uniformStrings Ls) p
+          indecisiveLStarTrieLoop settings cap O (prefixLaw D L) (prefixLaw D Ls) p
             = some rounds →
         rounds.length ≤ Fintype.card σ + 1
           ∧ ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ (Q + 1) * (6 * (Q + 2) * RB)
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1)) ∧
       (loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget).real
-        {p | ¬ RLStarTrieSucceeds settings cap O (uniformStrings L) (uniformStrings Ls)
-          (uniformStrings L) M ξT
+        {p | ¬ RLStarTrieSucceeds settings cap O (prefixLaw D L) (prefixLaw D Ls)
+          (prefixLaw D L) M ξT
           (learnerReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV B₃ Q (⌈HB⌉₊ : ℝ)
             ((3 + Nat.clog 2 L₁ : ℕ) : ℝ) A 0) p}
         ≤ δ := by
-  intro Q A kN L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB capP Kc SC HN FV SH HB Tb p₀
-    hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL ht hpAPu hk1 hk2 hk3 hk4 hk5 hk6 hξT
+  intro Q A kN L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB capP Kc SC HN FV SH HB Tb
+    hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL ht hlong hp₀0 hpreD hpAPu hk1 hk2 hk3 hk4 hk5
+    hk6 hξT
   classical
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
   have hA2' : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
@@ -245,16 +248,18 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     show δ / (8 * (Q + 1)) < 1
     rw [div_lt_one (by positivity)]
     linarith
-  have hp₀0 : 0 < p₀ := inv_pos.2 (pow_pos hA0 k)
   have hkLs : k ≤ Ls := by show k ≤ L + Fintype.card σ + 3 + Fintype.card σ + 3; omega
-  have hlenL : ∀ᵐ x ∂(uniformStrings (α := α) L), x.toList.length ≤ L₁ :=
+  have hLLs : L ≤ Ls := by show L ≤ L + Fintype.card σ + 3 + Fintype.card σ + 3; omega
+  have hTL : prefixLaw D L {x | x.toList.length ≠ L} = 0 :=
+    prefixLaw_length D (hlong.mono fun w hw => hLLs.trans hw)
+  have hlenL : ∀ᵐ x ∂(prefixLaw D L), x.toList.length ≤ L₁ :=
     ae_iff.2 (measure_mono_null (fun x hx => by
-      simp only [Set.mem_setOf_eq, not_le] at hx ⊢
+      simp only [Set.mem_ofPred_eq, not_le] at hx ⊢
       change L + Fintype.card σ + 3 < x.toList.length at hx
-      omega) (uniformStrings_length L))
-  let P : PrefixDistribution α := ⟨uniformStrings L, inferInstance, L₁, hlenL⟩
-  have hPD : P.D = uniformStrings L := rfl
-  have hpre : ∀ u, P.D.real {x | prefixOf x k = u} ≤ p₀ := fun u => uniformStrings_prefix_le hkL u
+      omega) hTL)
+  let P : PrefixDistribution α := ⟨prefixLaw D L, inferInstance, L₁, hlenL⟩
+  have hPD : P.D = prefixLaw D L := rfl
+  have hpre : ∀ u, P.D.real {x | prefixOf x k = u} ≤ p₀ := prefixLaw_prefix_le D hkL hpreD
   have hpm : prefixMax P.D k ≤ p₀ := by
     unfold prefixMax
     exact ciSup_le hpre
@@ -298,15 +303,12 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       have := mul_nonpos_of_nonpos_of_nonneg hc0 hε0.le
       linarith
     linarith
-  set Dsf : Measure (FreeMonoid α) := uniformStrings Ls with hDsfd
+  set Dsf : Measure (FreeMonoid α) := prefixLaw D Ls with hDsfd
   have hatom : ∀ v : FreeMonoid α, Dsf.real {v} ≤ capP := fun v => by
-    refine (uniformStrings_singleton_le Ls v).trans ?_
-    have h1 : 1 / A ^ Ls ≤ p₀ := by
-      rw [one_div]
-      exact inv_anti₀ (pow_pos hA0 k) (pow_le_pow_right₀ (by linarith) hkLs)
+    refine (prefixLaw_singleton_le D hkLs hpreD v).trans ?_
     have : capP * ε ≤ capP * 1 := mul_le_mul_of_nonneg_left (by linarith) hcap0.le
     linarith
-  have hD := hmain Dsf inferInstance (uniformStrings_length Ls) hpAPu hatom
+  have hD := hmain Dsf inferInstance (prefixLaw_length D hlong) hpAPu hatom
   set T := settings.level3.probeBudget
   set NH := settings.level3.harvestReadCap
   set μL := loopMeasure μ α (Fintype.card σ + 1) NH T
@@ -317,7 +319,9 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     rw [hwalk]; exact hpre
   have hkW : ∀ᵐ x ∂P.D, settings.level3.walkStart ≤ x.toList.length := by
     rw [hwalk]
-    exact (uniformStrings_long L).mono fun x hx => hkL.trans hx
+    exact ae_iff.2 (measure_mono_null (fun x hx => by
+      simp only [Set.mem_ofPred_eq, not_le] at hx ⊢
+      omega) hTL)
   set Bloop : Set (Ω × (Fin (Fintype.card σ + 1)
       → RoundDraws α (Fintype.card σ + 1) NH T)) :=
     {p | let rounds := idealRounds settings O P.D Dsf (persistDraws p) (Fintype.card σ + 1)
@@ -350,9 +354,9 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
           ((p.2 r).1.2.1 (some i))} with hBTd
   set Bmis : Set Ω := {ω | ∃ (F : Finset (FreeMonoid α)) (kl kh : ℕ),
       (∀ v ∈ F, v.toList.length = Ls) ∧ F.card ≤ ⌊FV⌋₊
-        ∧ misMean O F kl kh L + t < misFrac O F kl kh L ω} with hBmisd
+        ∧ misMean O F kl kh (prefixLaw D L) + t < misFrac O F kl kh (prefixLaw D L) ω} with hBmisd
   have hlenT : ∀ (p : LoopDraws Ω α (Fintype.card σ + 1) NH T) rounds,
-      indecisiveLStarTrieLoop settings cap O (uniformStrings L) (uniformStrings Ls) p
+      indecisiveLStarTrieLoop settings cap O (prefixLaw D L) (prefixLaw D Ls) p
         = some rounds → rounds.length ≤ Fintype.card σ + 1
           ∧ ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ (Q + 1) * (6 * (Q + 2) * RB)
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1) := by
@@ -374,8 +378,8 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
         _ ≤ (Q + 1) * (PB + 1) :=
           mul_le_mul_of_nonneg_left (by linarith only [Nat.floor_le hPB0]) (by linarith only [hQ0])
   refine ⟨settings, hwalk, hbud, hHN, hSC, hlenT, ?_⟩
-  have hsub : {p | ¬ RLStarTrieSucceeds settings cap O (uniformStrings L) (uniformStrings Ls)
-        (uniformStrings L) M ξT
+  have hsub : {p | ¬ RLStarTrieSucceeds settings cap O (prefixLaw D L) (prefixLaw D Ls)
+        (prefixLaw D L) M ξT
         (learnerReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV B₃ Q (⌈HB⌉₊ : ℝ)
           ((3 + Nat.clog 2 L₁ : ℕ) : ℝ) A 0) p}
       ⊆ ((Bloop ∪ ⋃ r, B3 r) ∪ ⋃ r, BT r) ∪ Prod.fst ⁻¹' Bmis := by
@@ -433,7 +437,7 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       omega
     refine ⟨⟨_, t1, by simpa using hlen, liftRound settings.level3.walkStart o.data,
       by simp [List.getLast?_map, Option.mem_def.1 ho], hcons, ?_⟩, ?_⟩
-    · show (uniformStrings L).real {w | ¬ o.result.hypothesis.TrieClassifies (o.data.read O p.1)
+    · show (prefixLaw D L).real {w | ¬ o.result.hypothesis.TrieClassifies (o.data.read O p.1)
           (completeTrie settings.level3.walkStart) w (M.eval w.toList ∈ M.accept)} ≤ ξT
       rw [← hro, hwalk]
       have eL : {w | ¬ o.result.hypothesis.TrieClassifies o.read (completeTrie k) w
@@ -443,8 +447,8 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
         simp only [Set.mem_setOf_eq, hL]
       rw [eL]
       refine (trieSinglePieceCorrect o.read o.result.hypothesis (completeTrie k)
-        (rootOne_of_classSet _ _ hch.2.2.1) O.L (uniformStrings L)).trans ?_
-      have hdis : (uniformStrings L).real
+        (rootOne_of_classSet _ _ hch.2.2.1) O.L (prefixLaw D L)).trans ?_
+      have hdis : (prefixLaw D L).real
           (Random.trieDisagreeSet o.read (completeTrie k) o.result.hypothesis)
           ≤ ε + ε / 96 := by
         refine le_trans ?_ hch.2.1
@@ -459,25 +463,25 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
           · exact Or.inr hxl
         refine (measureReal_mono hsub (measure_ne_top _ _)).trans
           ((measureReal_union_le _ _).trans ?_)
-        have h0 : (uniformStrings L).real {x : FreeMonoid α | x.toList.length ≠ L} = 0 := by
-          rw [measureReal_def, uniformStrings_length, ENNReal.toReal_zero]
+        have h0 : (prefixLaw D L).real {x : FreeMonoid α | x.toList.length ≠ L} = 0 := by
+          rw [measureReal_def, hTL, ENNReal.toReal_zero]
         rw [h0, add_zero]
-      have hmis : (uniformStrings L).real (Random.misreadSet o.read O.L)
+      have hmis : (prefixLaw D L).real (Random.misreadSet o.read O.L)
           ≤ (1025 / 1024 + 3 / 8) * εcov + t := by
-        have e : (uniformStrings L).real (Random.misreadSet o.read O.L)
-            = misFrac O o.family o.state.lo (o.state.hi + 1) L p.1 := by
+        have e : (prefixLaw D L).real (Random.misreadSet o.read O.L)
+            = misFrac O o.family o.state.lo (o.state.hi + 1) (prefixLaw D L) p.1 := by
           rw [hro]; rfl
         rw [e]
-        have h1 : misFrac O o.family o.state.lo (o.state.hi + 1) L p.1
-            ≤ misMean O o.family o.state.lo (o.state.hi + 1) L + t :=
+        have h1 : misFrac O o.family o.state.lo (o.state.hi + 1) (prefixLaw D L) p.1
+            ≤ misMean O o.family o.state.lo (o.state.hi + 1) (prefixLaw D L) + t :=
           not_lt.1 fun h => hnm ⟨o.family, o.state.lo, o.state.hi + 1, hlenF, hcardF, h⟩
         have h2 := hch.1.2.1
         have h3 := hch.1.2.2
-        rw [misMean_split] at h1
-        change ∫ x, misreadProb O o.family o.state.lo (o.state.hi + 1) x ∂(uniformStrings L)
+        rw [misMean_split O _ _ _ hTL] at h1
+        change ∫ x, misreadProb O o.family o.state.lo (o.state.hi + 1) x ∂(prefixLaw D L)
           ≤ 1025 / 1024 * εcov at h2
         change ∫ x, readProb O o.family o.state.lo (o.state.hi + 1) x .undecided
-          ∂(uniformStrings L) ≤ 3 / 8 * εcov at h3
+          ∂(prefixLaw D L) ≤ 3 / 8 * εcov at h3
         linarith
       linarith
     · refine ⟨(trieLoopRoundsQ settings cap P.D Dsf p.2 (Fintype.card σ + 1)).reads rd, ?_,
@@ -576,7 +580,8 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       rw [← Set.prod_univ, measureReal_def, measureReal_def, Measure.prod_prod, measure_univ,
         mul_one]
     rw [e]
-    exact (misread_union_le O L Ls ⌊FV⌋₊ ht).trans hk6
+    exact (misread_union_le O hTL (fun v => prefixLaw_singleton_le D hkL hpreD _) Ls ⌊FV⌋₊
+      ht).trans hk6
   refine (measureReal_mono hsub (measure_ne_top _ _)).trans ?_
   have u1 := measureReal_union_le (μ := μL) ((Bloop ∪ ⋃ r, B3 r) ∪ ⋃ r, BT r) (Prod.fst ⁻¹' Bmis)
   have u2 := measureReal_union_le (μ := μL) (Bloop ∪ ⋃ r, B3 r) (⋃ r, BT r)
