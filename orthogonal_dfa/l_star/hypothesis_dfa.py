@@ -1,6 +1,6 @@
 """HypothesisDFA: a discrimination tree and the edges learned between its leaves."""
 
-from typing import Callable, Dict, Optional, Set, Tuple
+from typing import Callable, Dict, Optional, Tuple
 
 from automata.fa.dfa import DFA
 
@@ -18,8 +18,6 @@ class HypothesisDFA:
         self.cut, self.tree = cut, tree
         self.leaves = set(tree.leaf_paths())
         self.edges: Dict[Edge, Tuple[Path, bytes]] = {}
-        #: Prefixes the DFA spells out letter by letter instead of sifting.
-        self.expanded: Set[bytes] = set()
         #: Bumped at every change.
         self.version = 0
 
@@ -28,10 +26,6 @@ class HypothesisDFA:
 
     def set_edge(self, edge: Edge, value: Tuple[Path, bytes]):
         self.edges[edge] = value
-        self.version += 1
-
-    def expand(self, starts):
-        self.expanded |= set(starts)
         self.version += 1
 
     def split_leaf(self, leaf: Path, midfix: bytes):
@@ -58,17 +52,8 @@ class HypothesisDFA:
             edges[(source, letter)] = (target, witness)
         self.edges = edges
 
-    def to_dfa(
-        self,
-        alphabet_size: int,
-        initial_state: int,
-        classify: Optional[Callable[[bytes], Optional[int]]] = None,
-        accepts: Optional[Callable[[bytes], Optional[bool]]] = None,
-    ) -> DFA:
-        """An unlearned edge loops on its leaf. Each expanded prefix gets a state of
-        its own, accepting where ``accepts`` says so, whose children not expanded go
-        to the leaf ``classify`` gives them, or to ``initial_state`` where it
-        abstains."""
+    def to_dfa(self, alphabet_size: int, initial_state: int) -> DFA:
+        """An unlearned edge loops on its leaf."""
         ids = {path: self.tree.leaf_at(path) for path in self.leaves}
         transitions = {
             ids[path]: {
@@ -77,29 +62,11 @@ class HypothesisDFA:
             }
             for path in self.leaves
         }
-        final_states = self.tree.accepting_leaves()
-        if self.expanded:
-            first = max(transitions) + 1
-            trie = {u: first + i for i, u in enumerate(sorted(self.expanded))}
-
-            def child(v):
-                if v in trie:
-                    return trie[v]
-                leaf = classify(v)
-                return initial_state if leaf is None else leaf
-
-            for u, state in trie.items():
-                transitions[state] = {
-                    c: child(u + bytes([c])) for c in range(alphabet_size)
-                }
-            final_states |= {state for u, state in trie.items() if accepts(u)}
-            if b"" in trie:
-                initial_state = trie[b""]
         return DFA(
             states=set(transitions),
             input_symbols=set(range(alphabet_size)),
             transitions=transitions,
             initial_state=initial_state,
-            final_states=final_states,
+            final_states=self.tree.accepting_leaves(),
             allow_partial=False,
         )

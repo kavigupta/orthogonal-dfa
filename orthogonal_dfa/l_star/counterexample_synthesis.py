@@ -241,7 +241,7 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
         )
     score_patience = ScorePatience.from_config(
         pst.config,
-        lambda hypothesis: held_out_phi(_hypothesis_dfa(pst, hypothesis), *selection),
+        lambda search: held_out_phi(_hypothesis_dfa(pst, search), *selection),
     )
     search = CounterexampleSearch(
         counterexample_search_config(
@@ -274,7 +274,7 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
             fallback.close(search.hypothesis, pst.alphabet_size)
         else:
             score_patience.guarded(
-                search.hypothesis,
+                search,
                 lambda: fallback.close(search.hypothesis, pst.alphabet_size),
             )
     return search, ending
@@ -292,7 +292,7 @@ def _best_search(pst, vs, *, acc_threshold, index, selection, reroot_pick, track
             acc_threshold=acc_threshold,
             selection=None if selection is None else selection.search,
         )
-        dfa = _hypothesis_dfa(pst, search.hypothesis)
+        dfa = _hypothesis_dfa(pst, search)
         pick_score = None if selection is None else held_out_phi(dfa, *selection.pick)
         tracker.on_restart_ended(0, search, ending, dfa, pick_score, index)
         return search, ending, _reroot_start(pst, search.hypothesis, dfa, reroot_pick)
@@ -302,7 +302,7 @@ def _best_search(pst, vs, *, acc_threshold, index, selection, reroot_pick, track
         search, ending = _counterexample_search(
             pst, vs, acc_threshold=acc_threshold, selection=selection.search
         )
-        dfa = _hypothesis_dfa(pst, search.hypothesis)
+        dfa = _hypothesis_dfa(pst, search)
         phi = held_out_phi(dfa, *selection.pick)
         print(f"[round {index}] restart {i}: {ending.kind}, held-out phi {phi:.3f}")
         tracker.on_restart_ended(i, search, ending, dfa, phi, index)
@@ -344,15 +344,16 @@ def _selection_sample(pst):
     return Selection(search=tuple(halves[:2]), pick=tuple(halves[2:]))
 
 
-def _hypothesis_dfa(pst, hypothesis):
+def _hypothesis_dfa(pst, search):
+    hypothesis = search.hypothesis
     boundary = pst.decision_boundary
     decide, _ = oracle_decider(
         pst.oracle, hypothesis.tree.base_family, boundary, boundary
     )
     initial = hypothesis.tree.classify(b"", decide)
-    return hypothesis.to_dfa(
-        pst.alphabet_size,
-        0 if initial is None else initial,
+    leaves = hypothesis.to_dfa(pst.alphabet_size, 0 if initial is None else initial)
+    return search.trie.prepend(
+        leaves,
         lambda v: hypothesis.tree.classify(v, decide),
         lambda u: decide(u, hypothesis.tree.root[0]),
     )
