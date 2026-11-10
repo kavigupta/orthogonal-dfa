@@ -37,7 +37,6 @@ def configure(pst):
     config.counterexample_score_patience = 500
     config.counterexample_harvest_tests = False
     config.rank_rounds_by_held_out = True
-    config.counterexample_local_starts = False
 
 
 class RestartRecorder(SynthesisTracker):

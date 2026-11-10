@@ -6,7 +6,6 @@ import pytest
 from automata.fa.dfa import DFA
 from parameterized import parameterized
 
-from orthogonal_dfa.l_star import preconditions as P
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     AllFramesClosedOracle,
@@ -125,37 +124,12 @@ ANOTHER_POOR_CASE_TARGET = _poor_case_target(
     }
 )
 
-#: Targets E-L* cannot learn to the default threshold, kept because they are
-#: the counterexamples that found the behaviour, not because they are typical.
+#: Only prefixes no length-40 sample draws end in state 0, so the learner has to
+#: place it from the empty prefix.
 POOR_CASE_TARGETS = [
     ("counterexample", POOR_CASE_TARGET),
     ("another_counterexample", ANOTHER_POOR_CASE_TARGET),
 ]
-
-
-def _assert_bar_is_what_the_target_allows(testcase, target):
-    """Why these targets get a lowered threshold, and why 0.97 in particular.
-
-    No other state transitions into state 0, so a prefix ends there only by
-    never leaving it, and none of length 40 does.  E-L* names a state by the
-    prefixes that end in it, so it cannot anchor one here and must re-root
-    where it can, misclassifying whatever state 0 decides differently.
-
-    What is left caps short of the 0.99 the preconditions ask for, and close
-    enough to the default 0.98 that the rounds spent reaching for it land or
-    not by noise -- but comfortably above 0.97, which is where assertDFA's own
-    tolerance already sat.
-    """
-    testcase.assertLess(
-        P.non_start_zone_accuracy_ceiling(target, length=40),
-        0.99,
-        "target would be admissible; no need to lower",
-    )
-    testcase.assertGreater(
-        P.non_start_zone_accuracy_at(target, length=40),
-        0.975,
-        "0.97 is not the bar this target allows",
-    )
 
 
 class TestLStar(unittest.TestCase):
@@ -217,29 +191,10 @@ class TestLStar(unittest.TestCase):
         assertDFA(self, dfa, oracle_creator, symbols=3, sampler=DEFAULT_SAMPLER)
 
     @parameterized.expand(POOR_CASE_TARGETS)
-    def test_poor_case_learned_at_a_reachable_bar(self, _name, target):
-        _assert_bar_is_what_the_target_allows(self, target)
+    def test_poor_case(self, _name, target):
         oracle_creator = lambda nm, s, _dfa=target: NoisyOracle(DFAOracle(_dfa), nm, s)
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0, acc_threshold=0.97
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
-
-    @parameterized.expand(POOR_CASE_TARGETS)
-    def test_poor_case_terminates_at_the_default_bar(self, _name, target):
-        # The lowered threshold is what these targets can reach, not what the
-        # learner needs to survive: asked for accuracy the target does not
-        # have, synthesis must run out of patience and return rather than keep
-        # buying prefixes for a gate no family will satisfy. Only termination
-        # is asserted -- the DFA it settles on is expected to be imperfect, so
-        # there is nothing correct to check it against.
-        oracle_creator = lambda nm, s, _dfa=target: NoisyOracle(DFAOracle(_dfa), nm, s)
-
-        assert_terminates(
-            lambda: learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0),
-            seconds=300,
-            message="synthesis did not terminate within the timeout",
-        )
 
 
 @pytest.mark.slow

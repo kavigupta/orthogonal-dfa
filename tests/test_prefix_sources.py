@@ -17,7 +17,7 @@ from orthogonal_dfa.l_star.round_end import HARVEST_ENDS, HARVEST_STUCK, Ending
 from tests.counterexample_common import EVEN, PARITY_EDGES, parity_cut, quiet_search
 
 #: A round whose walk starts never move.
-_STILL = SimpleNamespace(expand_starts=lambda starts: None)
+_STILL = SimpleNamespace(spell_out_starts=lambda starts: None)
 
 
 class _Finds:

@@ -18,7 +18,8 @@ from .fallbacks.members import MemberFallback
 from .fallbacks.score_patience import ScorePatience
 from .hypothesis_dfa import Cut, HypothesisDFA, Path
 from .midfix_tree import MidfixTree
-from .round_end import HARVESTS, OUT_OF_PROBES, Ending, SiteCounts, ending_test
+from .round_end import OUT_OF_PROBES, Ending, SiteCounts, ending_test
+from .trie import Trie
 
 
 class CounterexampleSearch:
@@ -35,13 +36,12 @@ class CounterexampleSearch:
         bisect: Callable = plain_bisect,
         score_patience: Optional[ScorePatience] = None,
     ):
-        """A harvest that repeats a string deepens the walk start instead of ending
-        the search, up to ``max_k``."""
         self.config = config
         self.hypothesis = HypothesisDFA(cut, tree)
+        self.trie = Trie()
         self.counts = SiteCounts()
         self.probes = 0
-        self.k, self.max_k = config.k, max_k
+        self.max_k = max_k
         self.member_fallback = member_fallback
         self.bisect = bisect
         self.score_patience = score_patience
@@ -62,7 +62,7 @@ class CounterexampleSearch:
         start = x[: self.walk_start(x)]
         outcome, charged = self.probe(x)
         self.probes += 1
-        if self.config.local_starts and self._skips_repeat(charged, start):
+        if self._skips_repeat(charged, start):
             return None
         if isinstance(outcome, Member):
             self.hypothesis.set_edge(outcome.edge, (outcome.target, outcome.witness))
@@ -76,30 +76,17 @@ class CounterexampleSearch:
         ending = ending_test(self.counts, self.config, self.hypothesis.tree.depth)
         if self.score_patience is not None:
             self.score_patience.record(charged)
-        # Before the filter: without harvest tests a harvest still deepens.
-        if ending is not None and self._deepens(ending):
-            return None
         if self.score_patience is not None:
             ending = self.score_patience.filter(ending, self.counts, self.config)
         return ending
 
     def walk_start(self, x: bytes) -> int:
-        """Past every expanded prefix of ``x``, with local starts."""
-        if not self.config.local_starts:
-            return self.k
-        expanded, k = self.hypothesis.expanded, 0
-        while k < len(x) and x[:k] in expanded:
-            k += 1
-        return k
-
-    def _deepens(self, ending: Ending) -> bool:
-        if self.config.local_starts:
-            return False
-        return self._deepens_globally(ending)
+        """Past every spelled-out prefix of x."""
+        return self.trie.walk_start(x)
 
     def _skips_repeat(self, charged: Charges, start: bytes) -> bool:
         """A probe reading a harvest string already read is not counted, nor is the
-        probe that first read it; both walk starts are expanded."""
+        probe that first read it; both walk starts are spelled out."""
         repeated = [
             z
             for z in charged.ends + charged.middle
@@ -111,31 +98,13 @@ class CounterexampleSearch:
         for z in repeated:
             starts |= self.counts.origins.get(z, set())
             self.counts.drop(z)
-        self.expand_starts(starts)
+        self.spell_out_starts(starts)
         return True
 
-    def expand_starts(self, starts):
-        if not self.config.local_starts:
-            return
-        starts = {u for u in starts if len(u) < self.max_k} - self.hypothesis.expanded
+    def spell_out_starts(self, starts):
+        starts = {u for u in starts if len(u) < self.max_k} - self.trie.prefixes
         if starts:
-            self.hypothesis.expand(starts)
-            self.k = 1 + max(len(u) for u in self.hypothesis.expanded)
-
-    def _deepens_globally(self, ending: Ending) -> bool:
-        """Walk deeper in place of a harvest that repeats a string, which a deeper
-        start stops reaching.  The counts restart, or the test that just fired would
-        fire again at once."""
-        if (
-            self.k >= self.max_k
-            or ending.kind not in HARVESTS
-            or len(set(ending.harvest)) == len(ending.harvest)
-        ):
-            return False
-        self.k = min(self.k + 1, self.max_k)
-        self.counts = SiteCounts()
-        print(f"  {ending.kind} repeated a string; k now {self.k}")
-        return True
+            self.trie.spell_out(starts)
 
     def probe(self, x: bytes) -> Tuple[Outcome, Charges]:
         k = self.walk_start(x)

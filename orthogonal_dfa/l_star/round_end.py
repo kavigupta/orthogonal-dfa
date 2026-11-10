@@ -84,7 +84,7 @@ def ending_test(
     depth: int,
 ) -> Optional[Ending]:
     """The harvest tests, then the success test."""
-    if config.local_starts and seq_rate(
+    if seq_rate(
         config.stuck_rate,
         config.stuck_alternative,
         config.level,
@@ -132,5 +132,5 @@ def succeeds_at(
         config.disagreement_alternative,
         config.level,
         probes,
-        counts.searches + len(counts.stuck) + config.local_starts * len(counts.starts),
+        counts.searches + len(counts.stuck) + len(counts.starts),
     )

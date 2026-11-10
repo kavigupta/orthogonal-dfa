@@ -214,7 +214,7 @@ def run_sweep(
         "elstar_regime": {n: asdict(r) for n, r in regime.items()},
         "elstar_regime_source": (
             "orthogonal_dfa/l_star/preconditions.py "
-            "(satisfies_preconditions, default thresholds but the start-zone one)"
+            "(satisfies_preconditions, default thresholds)"
         ),
     }
     excluded = [n for n, r in regime.items() if not r.satisfied]

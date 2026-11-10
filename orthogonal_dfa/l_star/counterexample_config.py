@@ -25,13 +25,6 @@ class CounterexampleSearchConfig:
     acc_threshold: float
     #: The share of prefixes the family may leave undecided.
     acceptable_fnr: float
-    #: Deepen only the walk starts whose reads repeat, spelling those prefixes out in
-    #: the DFA, rather than every probe's.
-    local_starts: bool
-
-    @property
-    def k(self) -> int:
-        return 0
 
     @property
     def disagreement_rate(self) -> float:
@@ -73,7 +66,7 @@ class CounterexampleSearchConfig:
 
 
 def counterexample_search_config(
-    acc_threshold: float, acceptable_fnr: float, local_starts: bool
+    acc_threshold: float, acceptable_fnr: float
 ) -> CounterexampleSearchConfig:
     return CounterexampleSearchConfig(
         level=1e-3,
@@ -86,5 +79,4 @@ def counterexample_search_config(
         disagreement_alternative_ratio=0.1,
         acc_threshold=acc_threshold,
         acceptable_fnr=acceptable_fnr,
-        local_starts=local_starts,
     )
