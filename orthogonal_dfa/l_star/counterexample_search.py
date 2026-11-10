@@ -19,6 +19,7 @@ from .fallbacks.score_patience import ScorePatience
 from .hypothesis_dfa import Cut, HypothesisDFA, Path
 from .midfix_tree import MidfixTree
 from .round_end import HARVESTS, OUT_OF_PROBES, Ending, SiteCounts, ending_test
+from .trie import Trie
 
 
 class CounterexampleSearch:
@@ -39,6 +40,7 @@ class CounterexampleSearch:
         the search, up to ``max_k``."""
         self.config = config
         self.hypothesis = HypothesisDFA(cut, tree)
+        self.trie = Trie()
         self.counts = SiteCounts()
         self.probes = 0
         self.k, self.max_k = config.k, max_k
@@ -87,10 +89,7 @@ class CounterexampleSearch:
         """Past every expanded prefix of ``x``, with local starts."""
         if not self.config.local_starts:
             return self.k
-        expanded, k = self.hypothesis.expanded, 0
-        while k < len(x) and x[:k] in expanded:
-            k += 1
-        return k
+        return self.trie.walk_start(x)
 
     def _deepens(self, ending: Ending) -> bool:
         if self.config.local_starts:
@@ -117,10 +116,10 @@ class CounterexampleSearch:
     def expand_starts(self, starts):
         if not self.config.local_starts:
             return
-        starts = {u for u in starts if len(u) < self.max_k} - self.hypothesis.expanded
+        starts = {u for u in starts if len(u) < self.max_k} - self.trie.prefixes
         if starts:
-            self.hypothesis.expand(starts)
-            self.k = 1 + max(len(u) for u in self.hypothesis.expanded)
+            self.trie.expand(starts)
+            self.k = self.trie.depth
 
     def _deepens_globally(self, ending: Ending) -> bool:
         """Walk deeper in place of a harvest that repeats a string, which a deeper

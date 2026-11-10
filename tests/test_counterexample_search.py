@@ -250,7 +250,7 @@ class TestBestHypothesis(unittest.TestCase):
             {},
             max_probes=4,
             score_patience=ScorePatience(
-                lambda h: -len(h.edges), 100, harvest_tests=True
+                lambda s: -len(s.hypothesis.edges), 100, harvest_tests=True
             ),
         )
         search.run(itertools.repeat(b"\x01\x00"))
