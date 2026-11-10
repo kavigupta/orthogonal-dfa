@@ -13,6 +13,8 @@ the DFA then misjudges at most the probes that disagree plus the strings the roo
 
 `Level3TrieRootOne`: every tree a round grows reads `ε` at its root, as level 3's do.
 `Level3TrieExpandedCard`: a round expands at most `cap` prefixes of each probe.
+`Level3TrieCapFree`: a cap of at least `K` binds only where some draw's first `K` letters are
+another's prefix followed by a midfix, which is rare once `A^K` beats `P³(K+1)`.
 
 `Level3TrieConsistentSound`: a consistent ending certifies its rate, for any fixed reads, and so
 its DFA's error (`Level3TrieConsistentCorrect`).
@@ -65,6 +67,19 @@ def Level3TrieExpandedCard : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (y : ℝ) (cap : ℕ)
     (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α),
     (indecisiveLStarLevel3Trie C y cap read draws).expanded.card ≤ P * cap
+
+/-- With `p₀ ≥ max_u P_D(x's first K letters are u)` and `K ≤ cap, cap'`,
+    P(the rounds under cap and cap' differ ∨ some expanded prefix has length ≥ K) ≤ P³(K+1)p₀
+over the probes. -/
+def Level3TrieCapFree : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (y : ℝ)
+    (read : FreeMonoid α → ARU) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (K cap cap' P : ℕ) (p₀ : ℝ), (∀ u, D.real {x | prefixOf x K = u} ≤ p₀) → K ≤ cap → K ≤ cap' →
+    (Measure.pi fun _ : Fin P => D).real
+      {draws | indecisiveLStarLevel3Trie C y cap read draws
+          ≠ indecisiveLStarLevel3Trie C y cap' read draws
+        ∨ ∃ u ∈ (indecisiveLStarLevel3Trie C y cap read draws).expanded, K ≤ u.toList.length}
+      ≤ P ^ 3 * (K + 1) * p₀
 
 /-- For any fixed reads, `P(consistent ∧ P_D(probe disagrees) > ε) ≤ δ` over the probes. -/
 def Level3TrieConsistentSound : Prop :=
