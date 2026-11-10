@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "benchmark": "n18_080",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -10,14 +10,15 @@
   "learner_config": {
     "min_signal_strength": 0.2,
     "min_suffix_frequency": 0.02,
-    "sample_length": 40
+    "sample_length": 40,
+    "certified_error": 0.020000000000000018
   },
   "learned_states": 18,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 3702365,
+  "queries_total": 5766749,
   "equivalence_queries": 0,
-  "seconds": 178.093,
+  "seconds": 150.08,
   "error_type": null,
   "error": null,
   "target": {
@@ -46,8 +47,8 @@
       "ending": "harvest stuck",
       "hypothesis_states": 13,
       "hypothesis_edges": 24,
-      "sampling_seconds": 5.619727402925491,
-      "probing_seconds": 31.932838283479214,
+      "sampling_seconds": 3.619750216603279,
+      "probing_seconds": 17.911322191357613,
       "queries_at_search_end": 704809,
       "certified": null,
       "consistency": 0.8571428571428571
@@ -61,8 +62,8 @@
       "ending": "harvest middles",
       "hypothesis_states": 13,
       "hypothesis_edges": 26,
-      "sampling_seconds": 1.8679159209132195,
-      "probing_seconds": 45.989725202322006,
+      "sampling_seconds": 0.9103939458727837,
+      "probing_seconds": 35.89553201198578,
       "queries_at_search_end": 1822436,
       "certified": null,
       "consistency": 0.9393063583815029
@@ -76,8 +77,8 @@
       "ending": "success",
       "hypothesis_states": 18,
       "hypothesis_edges": 36,
-      "sampling_seconds": 5.388383790850639,
-      "probing_seconds": 57.30559178441763,
+      "sampling_seconds": 3.5083191841840744,
+      "probing_seconds": 29.936585545539856,
       "queries_at_search_end": 3169341,
       "certified": true,
       "consistency": 1.0

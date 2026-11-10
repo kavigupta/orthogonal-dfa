@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "benchmark": "n18_026",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -10,14 +10,15 @@
   "learner_config": {
     "min_signal_strength": 0.2,
     "min_suffix_frequency": 0.02,
-    "sample_length": 40
+    "sample_length": 40,
+    "certified_error": 0.020000000000000018
   },
   "learned_states": 18,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 19612998,
+  "queries_total": 21382470,
   "equivalence_queries": 0,
-  "seconds": 1212.891,
+  "seconds": 820.81,
   "error_type": null,
   "error": null,
   "target": {
@@ -46,8 +47,8 @@
       "ending": "harvest middles",
       "hypothesis_states": 3,
       "hypothesis_edges": 4,
-      "sampling_seconds": 16.250370502471924,
-      "probing_seconds": 5.857046291232109,
+      "sampling_seconds": 9.152327753603458,
+      "probing_seconds": 2.9313644617795944,
       "queries_at_search_end": 418602,
       "certified": null,
       "consistency": 0.4
@@ -61,8 +62,8 @@
       "ending": "harvest starts",
       "hypothesis_states": 10,
       "hypothesis_edges": 19,
-      "sampling_seconds": 134.7401533946395,
-      "probing_seconds": 12.078437596559525,
+      "sampling_seconds": 79.67858772724867,
+      "probing_seconds": 7.033438578248024,
       "queries_at_search_end": 2743306,
       "certified": null,
       "consistency": 0.4666666666666667
@@ -76,8 +77,8 @@
       "ending": "harvest middles",
       "hypothesis_states": 13,
       "hypothesis_edges": 26,
-      "sampling_seconds": 483.6375683695078,
-      "probing_seconds": 50.552535355091095,
+      "sampling_seconds": 272.96221828460693,
+      "probing_seconds": 28.750543773174286,
       "queries_at_search_end": 10363525,
       "certified": null,
       "consistency": 0.9705
@@ -91,8 +92,8 @@
       "ending": "success",
       "hypothesis_states": 18,
       "hypothesis_edges": 36,
-      "sampling_seconds": 437.5821597725153,
-      "probing_seconds": 18.293672390282154,
+      "sampling_seconds": 323.2417427673936,
+      "probing_seconds": 19.03374246507883,
       "queries_at_search_end": 18805686,
       "certified": true,
       "consistency": 1.0

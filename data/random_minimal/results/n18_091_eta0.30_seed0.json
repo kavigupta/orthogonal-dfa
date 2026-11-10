@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "benchmark": "n18_091",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -10,16 +10,17 @@
   "learner_config": {
     "min_signal_strength": 0.2,
     "min_suffix_frequency": 0.02,
-    "sample_length": 40
+    "sample_length": 40,
+    "certified_error": 0.020000000000000018
   },
-  "learned_states": null,
-  "accuracy": null,
-  "converged": null,
-  "queries_total": 10630891,
+  "learned_states": 18,
+  "accuracy": 1.0,
+  "converged": true,
+  "queries_total": 13341981,
   "equivalence_queries": 0,
-  "seconds": 628.054,
-  "error_type": "SourceDry",
-  "error": "SourceDry: Source boundary found no new samples in 2062 attempts",
+  "seconds": 538.35,
+  "error_type": null,
+  "error": null,
   "target": {
     "states": 18,
     "alphabet_size": 2,
@@ -46,8 +47,8 @@
       "ending": "harvest ends",
       "hypothesis_states": 6,
       "hypothesis_edges": 11,
-      "sampling_seconds": 36.01902848482132,
-      "probing_seconds": 8.06683074682951,
+      "sampling_seconds": 10.54885470122099,
+      "probing_seconds": 3.7749351784586906,
       "queries_at_search_end": 557598,
       "certified": null,
       "consistency": 0.4666666666666667
@@ -61,12 +62,27 @@
       "ending": "harvest stuck",
       "hypothesis_states": 13,
       "hypothesis_edges": 21,
-      "sampling_seconds": 62.99148806929588,
-      "probing_seconds": 16.792547546327114,
+      "sampling_seconds": 25.70899434387684,
+      "probing_seconds": 6.875025495886803,
       "queries_at_search_end": 1557911,
       "certified": null,
       "consistency": 0.4666666666666667
+    },
+    {
+      "prefixes": 1024,
+      "representative_prefixes": 624,
+      "suffixes": 1769,
+      "family_size": 148,
+      "probes": 735,
+      "ending": "success",
+      "hypothesis_states": 18,
+      "hypothesis_edges": 36,
+      "sampling_seconds": 437.56871355324984,
+      "probing_seconds": 11.681527353823185,
+      "queries_at_search_end": 11182025,
+      "certified": true,
+      "consistency": 1.0
     }
   ],
-  "chosen_round": null
+  "chosen_round": 2
 }

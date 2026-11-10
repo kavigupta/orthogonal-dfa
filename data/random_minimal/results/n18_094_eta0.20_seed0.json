@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "benchmark": "n18_094",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -10,14 +10,15 @@
   "learner_config": {
     "min_signal_strength": 0.3,
     "min_suffix_frequency": 0.02,
-    "sample_length": 40
+    "sample_length": 40,
+    "certified_error": 0.020000000000000018
   },
   "learned_states": 18,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 1446060,
+  "queries_total": 3510444,
   "equivalence_queries": 0,
-  "seconds": 71.245,
+  "seconds": 88.454,
   "error_type": null,
   "error": null,
   "target": {
@@ -46,8 +47,8 @@
       "ending": "harvest middles",
       "hypothesis_states": 10,
       "hypothesis_edges": 20,
-      "sampling_seconds": 6.220438607037067,
-      "probing_seconds": 7.238132417201996,
+      "sampling_seconds": 3.2351784855127335,
+      "probing_seconds": 4.33523266017437,
       "queries_at_search_end": 253126,
       "certified": null,
       "consistency": 0.9340277777777778
@@ -61,8 +62,8 @@
       "ending": "harvest stuck",
       "hypothesis_states": 13,
       "hypothesis_edges": 23,
-      "sampling_seconds": 2.339335657656193,
-      "probing_seconds": 10.77197316288948,
+      "sampling_seconds": 0.9593784511089325,
+      "probing_seconds": 7.599695660173893,
       "queries_at_search_end": 577556,
       "certified": null,
       "consistency": 0.8181818181818182
@@ -76,8 +77,8 @@
       "ending": "harvest middles",
       "hypothesis_states": 3,
       "hypothesis_edges": 4,
-      "sampling_seconds": 2.486582100391388,
-      "probing_seconds": 2.8274891674518585,
+      "sampling_seconds": 1.6405194848775864,
+      "probing_seconds": 2.4042210951447487,
       "queries_at_search_end": 688205,
       "certified": null,
       "consistency": 0.8695652173913043
@@ -91,8 +92,8 @@
       "ending": "success",
       "hypothesis_states": 18,
       "hypothesis_edges": 36,
-      "sampling_seconds": 2.5916106775403023,
-      "probing_seconds": 16.249087817966938,
+      "sampling_seconds": 1.774880275130272,
+      "probing_seconds": 10.287986524403095,
       "queries_at_search_end": 1044594,
       "certified": true,
       "consistency": 1.0

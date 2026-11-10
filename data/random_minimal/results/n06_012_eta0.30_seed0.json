@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "benchmark": "n06_012",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -10,14 +10,15 @@
   "learner_config": {
     "min_signal_strength": 0.2,
     "min_suffix_frequency": 0.02,
-    "sample_length": 40
+    "sample_length": 40,
+    "certified_error": 0.020000000000000018
   },
   "learned_states": 8,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 1348946,
+  "queries_total": 2233682,
   "equivalence_queries": 0,
-  "seconds": 60.428,
+  "seconds": 53.142,
   "error_type": null,
   "error": null,
   "target": {
@@ -46,8 +47,8 @@
       "ending": "success",
       "hypothesis_states": 6,
       "hypothesis_edges": 10,
-      "sampling_seconds": 36.565170496702194,
-      "probing_seconds": 6.650374427437782,
+      "sampling_seconds": 19.892354406416416,
+      "probing_seconds": 4.148646295070648,
       "queries_at_search_end": 882174,
       "certified": true,
       "consistency": 1.0

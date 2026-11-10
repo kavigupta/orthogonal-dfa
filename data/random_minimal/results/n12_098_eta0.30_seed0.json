@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "benchmark": "n12_098",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -10,14 +10,15 @@
   "learner_config": {
     "min_signal_strength": 0.2,
     "min_suffix_frequency": 0.02,
-    "sample_length": 40
+    "sample_length": 40,
+    "certified_error": 0.020000000000000018
   },
   "learned_states": 12,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 28167482,
+  "queries_total": 28141850,
   "equivalence_queries": 0,
-  "seconds": 1699.721,
+  "seconds": 1149.691,
   "error_type": null,
   "error": null,
   "target": {
@@ -46,8 +47,8 @@
       "ending": "harvest middles",
       "hypothesis_states": 2,
       "hypothesis_edges": 4,
-      "sampling_seconds": 8.501535758376122,
-      "probing_seconds": 11.867383658885956,
+      "sampling_seconds": 3.377104103565216,
+      "probing_seconds": 6.011124819517136,
       "queries_at_search_end": 354751,
       "certified": null,
       "consistency": 0.9373040752351097
@@ -61,8 +62,8 @@
       "ending": "harvest starts",
       "hypothesis_states": 11,
       "hypothesis_edges": 21,
-      "sampling_seconds": 16.951824888586998,
-      "probing_seconds": 60.92447558790445,
+      "sampling_seconds": 10.301421128213406,
+      "probing_seconds": 34.63109739124775,
       "queries_at_search_end": 1784948,
       "certified": false,
       "consistency": 0.988
@@ -76,8 +77,8 @@
       "ending": "harvest middles",
       "hypothesis_states": 2,
       "hypothesis_edges": 4,
-      "sampling_seconds": 108.07550320774317,
-      "probing_seconds": 9.857678785920143,
+      "sampling_seconds": 73.64486431330442,
+      "probing_seconds": 7.537521965801716,
       "queries_at_search_end": 4555288,
       "certified": null,
       "consistency": 0.9103448275862069
@@ -91,8 +92,8 @@
       "ending": "success",
       "hypothesis_states": 12,
       "hypothesis_edges": 24,
-      "sampling_seconds": 798.032226793468,
-      "probing_seconds": 44.44143299013376,
+      "sampling_seconds": 416.93252067267895,
+      "probing_seconds": 20.139056406915188,
       "queries_at_search_end": 13665791,
       "certified": false,
       "consistency": 1.0
@@ -106,8 +107,8 @@
       "ending": "harvest stuck",
       "hypothesis_states": 9,
       "hypothesis_edges": 17,
-      "sampling_seconds": 28.55873081088066,
-      "probing_seconds": 44.37910530716181,
+      "sampling_seconds": 10.459500953555107,
+      "probing_seconds": 27.576168946921825,
       "queries_at_search_end": 14898375,
       "certified": null,
       "consistency": 0.978
@@ -121,8 +122,8 @@
       "ending": "harvest middles",
       "hypothesis_states": 9,
       "hypothesis_edges": 17,
-      "sampling_seconds": 350.7152896001935,
-      "probing_seconds": 59.1975025460124,
+      "sampling_seconds": 313.1410328000784,
+      "probing_seconds": 79.298767760396,
       "queries_at_search_end": 24772487,
       "certified": null,
       "consistency": 0.9695
@@ -136,8 +137,8 @@
       "ending": "success",
       "hypothesis_states": 11,
       "hypothesis_edges": 22,
-      "sampling_seconds": 3.7314371690154076,
-      "probing_seconds": 25.290693439543247,
+      "sampling_seconds": 5.567466460168362,
+      "probing_seconds": 36.69025945663452,
       "queries_at_search_end": 27015638,
       "certified": false,
       "consistency": 0.989

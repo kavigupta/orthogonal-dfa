@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "benchmark": "n18_077",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -10,14 +10,15 @@
   "learner_config": {
     "min_signal_strength": 0.3,
     "min_suffix_frequency": 0.02,
-    "sample_length": 40
+    "sample_length": 40,
+    "certified_error": 0.020000000000000018
   },
-  "learned_states": 41,
-  "accuracy": 0.9946,
-  "converged": false,
-  "queries_total": 11767086,
+  "learned_states": 18,
+  "accuracy": 1.0,
+  "converged": true,
+  "queries_total": 23480628,
   "equivalence_queries": 0,
-  "seconds": 1018.028,
+  "seconds": 1149.117,
   "error_type": null,
   "error": null,
   "target": {
@@ -46,8 +47,8 @@
       "ending": "harvest middles",
       "hypothesis_states": 2,
       "hypothesis_edges": 4,
-      "sampling_seconds": 2.6680837497115135,
-      "probing_seconds": 4.344228930771351,
+      "sampling_seconds": 1.92743568867445,
+      "probing_seconds": 3.3485010266304016,
       "queries_at_search_end": 137878,
       "certified": null,
       "consistency": 0.9238095238095239
@@ -61,8 +62,8 @@
       "ending": "harvest starts",
       "hypothesis_states": 2,
       "hypothesis_edges": 4,
-      "sampling_seconds": 53.52642647922039,
-      "probing_seconds": 2.892716273665428,
+      "sampling_seconds": 31.88303404301405,
+      "probing_seconds": 1.8822592720389366,
       "queries_at_search_end": 824304,
       "certified": null,
       "consistency": 0.9323308270676691
@@ -76,8 +77,8 @@
       "ending": "harvest starts",
       "hypothesis_states": 6,
       "hypothesis_edges": 11,
-      "sampling_seconds": 1.021970123052597,
-      "probing_seconds": 7.669264383614063,
+      "sampling_seconds": 0.6068262010812759,
+      "probing_seconds": 4.421669244766235,
       "queries_at_search_end": 994894,
       "certified": null,
       "consistency": 0.9282700421940928
@@ -91,12 +92,72 @@
       "ending": "harvest starts",
       "hypothesis_states": 17,
       "hypothesis_edges": 33,
-      "sampling_seconds": 860.5660879686475,
-      "probing_seconds": 62.88942302763462,
+      "sampling_seconds": 517.2422240972519,
+      "probing_seconds": 36.89368932694197,
       "queries_at_search_end": 11226137,
-      "certified": true,
+      "certified": false,
       "consistency": 0.9905
+    },
+    {
+      "prefixes": 1059,
+      "representative_prefixes": 632,
+      "suffixes": 1578,
+      "family_size": 63,
+      "probes": 1613,
+      "ending": "success",
+      "hypothesis_states": 18,
+      "hypothesis_edges": 36,
+      "sampling_seconds": 3.1122943460941315,
+      "probing_seconds": 11.665932312607765,
+      "queries_at_search_end": 13481856,
+      "certified": false,
+      "consistency": 1.0
+    },
+    {
+      "prefixes": 1064,
+      "representative_prefixes": 637,
+      "suffixes": 1938,
+      "family_size": 63,
+      "probes": 1406,
+      "ending": "success",
+      "hypothesis_states": 18,
+      "hypothesis_edges": 36,
+      "sampling_seconds": 3.0506556183099747,
+      "probing_seconds": 15.009307585656643,
+      "queries_at_search_end": 14252526,
+      "certified": false,
+      "consistency": 1.0
+    },
+    {
+      "prefixes": 1071,
+      "representative_prefixes": 644,
+      "suffixes": 2598,
+      "family_size": 60,
+      "probes": 1279,
+      "ending": "success",
+      "hypothesis_states": 18,
+      "hypothesis_edges": 36,
+      "sampling_seconds": 216.1478892341256,
+      "probing_seconds": 8.632885783910751,
+      "queries_at_search_end": 18469724,
+      "certified": false,
+      "consistency": 1.0
+    },
+    {
+      "prefixes": 1076,
+      "representative_prefixes": 649,
+      "suffixes": 2598,
+      "family_size": 62,
+      "probes": 3918,
+      "ending": "success",
+      "hypothesis_states": 18,
+      "hypothesis_edges": 36,
+      "sampling_seconds": 185.73224594444036,
+      "probing_seconds": 33.006131678819656,
+      "queries_at_search_end": 22821022,
+      "certified": true,
+      "consistency": 1.0
     }
   ],
-  "chosen_round": 3
+  "chosen_round": 7
 }

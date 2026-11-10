@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "benchmark": "n06_041",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -10,14 +10,15 @@
   "learner_config": {
     "min_signal_strength": 0.2,
     "min_suffix_frequency": 0.02,
-    "sample_length": 40
+    "sample_length": 40,
+    "certified_error": 0.020000000000000018
   },
   "learned_states": 6,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 4836015,
+  "queries_total": 59377344,
   "equivalence_queries": 0,
-  "seconds": 418.242,
+  "seconds": 2689.192,
   "error_type": null,
   "error": null,
   "target": {
@@ -46,8 +47,8 @@
       "ending": "harvest starts",
       "hypothesis_states": 2,
       "hypothesis_edges": 4,
-      "sampling_seconds": 11.822665639221668,
-      "probing_seconds": 2.3045564889907837,
+      "sampling_seconds": 4.716031603515148,
+      "probing_seconds": 1.670277662575245,
       "queries_at_search_end": 185855,
       "certified": null,
       "consistency": 0.8095238095238095
@@ -61,8 +62,8 @@
       "ending": "success",
       "hypothesis_states": 6,
       "hypothesis_edges": 12,
-      "sampling_seconds": 344.42090728878975,
-      "probing_seconds": 12.358349584043026,
+      "sampling_seconds": 159.90292328596115,
+      "probing_seconds": 5.588587872684002,
       "queries_at_search_end": 4070243,
       "certified": false,
       "consistency": 1.0
@@ -76,12 +77,72 @@
       "ending": "success",
       "hypothesis_states": 6,
       "hypothesis_edges": 12,
-      "sampling_seconds": 19.130572482943535,
-      "probing_seconds": 8.931454695761204,
+      "sampling_seconds": 7.418482303619385,
+      "probing_seconds": 5.442018017172813,
       "queries_at_search_end": 4633463,
-      "certified": true,
+      "certified": false,
+      "consistency": 1.0
+    },
+    {
+      "prefixes": 825,
+      "representative_prefixes": 625,
+      "suffixes": 1775,
+      "family_size": 149,
+      "probes": 403,
+      "ending": "success",
+      "hypothesis_states": 6,
+      "hypothesis_edges": 12,
+      "sampling_seconds": 127.48233032226562,
+      "probing_seconds": 3.427184484899044,
+      "queries_at_search_end": 7722315,
+      "certified": false,
+      "consistency": 1.0
+    },
+    {
+      "prefixes": 1228,
+      "representative_prefixes": 1028,
+      "suffixes": 2665,
+      "family_size": 148,
+      "probes": 406,
+      "ending": "success",
+      "hypothesis_states": 6,
+      "hypothesis_edges": 12,
+      "sampling_seconds": 888.9008841961622,
+      "probing_seconds": 5.2231317684054375,
+      "queries_at_search_end": 26815586,
+      "certified": false,
+      "consistency": 1.0
+    },
+    {
+      "prefixes": 1231,
+      "representative_prefixes": 1031,
+      "suffixes": 3257,
+      "family_size": 148,
+      "probes": 448,
+      "ending": "success",
+      "hypothesis_states": 6,
+      "hypothesis_edges": 12,
+      "sampling_seconds": 592.0157433077693,
+      "probing_seconds": 3.6987170204520226,
+      "queries_at_search_end": 40083188,
+      "certified": false,
+      "consistency": 1.0
+    },
+    {
+      "prefixes": 1436,
+      "representative_prefixes": 1236,
+      "suffixes": 4135,
+      "family_size": 148,
+      "probes": 435,
+      "ending": "success",
+      "hypothesis_states": 6,
+      "hypothesis_edges": 12,
+      "sampling_seconds": 851.8705382496119,
+      "probing_seconds": 4.519100338220596,
+      "queries_at_search_end": 59201916,
+      "certified": false,
       "consistency": 1.0
     }
   ],
-  "chosen_round": 2
+  "chosen_round": 1
 }
