@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "benchmark": "luhn",
   "family": "luhn",
   "learner": "E-L*",
@@ -11,16 +11,18 @@
     "min_signal_strength": 0.2,
     "min_suffix_frequency": 0.02,
     "sample_length": 16,
-    "certified_error": 0.020000000000000018
+    "certified_error": 0.050000000000000044
   },
   "learned_states": 100,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 62919234,
+  "queries_total": 13832770,
   "equivalence_queries": 0,
-  "seconds": 847.658,
+  "seconds": 229.255,
   "error_type": null,
   "error": null,
+  "error_at_length": 0.0,
+  "equivalent": true,
   "target": {
     "states": 100,
     "alphabet_size": 10,
@@ -45,8 +47,8 @@
       "ending": "success",
       "hypothesis_states": 100,
       "hypothesis_edges": 1000,
-      "sampling_seconds": 14.508052602410316,
-      "probing_seconds": 115.79005712270737,
+      "sampling_seconds": 14.902758792042732,
+      "probing_seconds": 117.9935152605176,
       "queries_at_search_end": 6255279,
       "certified": true,
       "consistency": 1.0

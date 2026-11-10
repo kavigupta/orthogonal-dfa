@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "benchmark": "n12_083",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -11,14 +11,14 @@
     "min_signal_strength": 0.4,
     "min_suffix_frequency": 0.02,
     "sample_length": 40,
-    "certified_error": 0.020000000000000018
+    "certified_error": 0.050000000000000044
   },
-  "learned_states": 17,
-  "accuracy": 0.9906,
+  "learned_states": 14,
+  "accuracy": 0.988,
   "converged": false,
-  "queries_total": 5801614,
+  "queries_total": 441288,
   "equivalence_queries": 0,
-  "seconds": 142.416,
+  "seconds": 16.628,
   "error_type": null,
   "error": null,
   "target": {
@@ -45,72 +45,12 @@
       "ending": "harvest middles",
       "hypothesis_states": 2,
       "hypothesis_edges": 4,
-      "sampling_seconds": 1.0924529433250427,
-      "probing_seconds": 3.329196847975254,
+      "sampling_seconds": 1.1704658195376396,
+      "probing_seconds": 4.462411127984524,
       "queries_at_search_end": 137468,
-      "certified": false,
-      "consistency": 0.9895
-    },
-    {
-      "prefixes": 432,
-      "representative_prefixes": 232,
-      "suffixes": 117,
-      "family_size": 29,
-      "probes": 2607,
-      "ending": "success",
-      "hypothesis_states": 7,
-      "hypothesis_edges": 12,
-      "sampling_seconds": 0.552737757563591,
-      "probing_seconds": 13.186345025897026,
-      "queries_at_search_end": 2630670,
-      "certified": false,
-      "consistency": 0.988
-    },
-    {
-      "prefixes": 508,
-      "representative_prefixes": 308,
-      "suffixes": 175,
-      "family_size": 29,
-      "probes": 1125,
-      "ending": "success",
-      "hypothesis_states": 5,
-      "hypothesis_edges": 8,
-      "sampling_seconds": 1.1559066697955132,
-      "probing_seconds": 4.496957860887051,
-      "queries_at_search_end": 3153061,
-      "certified": false,
-      "consistency": 0.9895
-    },
-    {
-      "prefixes": 513,
-      "representative_prefixes": 313,
-      "suffixes": 233,
-      "family_size": 29,
-      "probes": 1678,
-      "ending": "success",
-      "hypothesis_states": 5,
-      "hypothesis_edges": 8,
-      "sampling_seconds": 0.8378908485174179,
-      "probing_seconds": 6.572720102965832,
-      "queries_at_search_end": 3645808,
-      "certified": false,
-      "consistency": 0.9855
-    },
-    {
-      "prefixes": 625,
-      "representative_prefixes": 425,
-      "suffixes": 233,
-      "family_size": 29,
-      "probes": 1198,
-      "ending": "harvest starts",
-      "hypothesis_states": 5,
-      "hypothesis_edges": 9,
-      "sampling_seconds": 0.7820468693971634,
-      "probing_seconds": 3.7548877596855164,
-      "queries_at_search_end": 4041078,
       "certified": true,
-      "consistency": 0.9942154736080984
+      "consistency": 0.9895
     }
   ],
-  "chosen_round": 4
+  "chosen_round": 0
 }

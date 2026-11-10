@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "benchmark": "n12_072",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -11,14 +11,14 @@
     "min_signal_strength": 0.2,
     "min_suffix_frequency": 0.02,
     "sample_length": 40,
-    "certified_error": 0.020000000000000018
+    "certified_error": 0.050000000000000044
   },
-  "learned_states": 12,
+  "learned_states": 20,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 3149701,
+  "queries_total": 2452431,
   "equivalence_queries": 0,
-  "seconds": 93.677,
+  "seconds": 134.249,
   "error_type": null,
   "error": null,
   "target": {
@@ -45,8 +45,8 @@
       "ending": "harvest starts",
       "hypothesis_states": 2,
       "hypothesis_edges": 0,
-      "sampling_seconds": 5.515063874423504,
-      "probing_seconds": 0.13975144177675247,
+      "sampling_seconds": 6.285239219665527,
+      "probing_seconds": 0.23646456003189087,
       "queries_at_search_end": 193969,
       "certified": null,
       "consistency": 0.4666666666666667
@@ -60,8 +60,8 @@
       "ending": "harvest starts",
       "hypothesis_states": 6,
       "hypothesis_edges": 9,
-      "sampling_seconds": 18.75350623577833,
-      "probing_seconds": 5.904440484941006,
+      "sampling_seconds": 27.752009391784668,
+      "probing_seconds": 9.55503461509943,
       "queries_at_search_end": 915661,
       "certified": null,
       "consistency": 0.3333333333333333
@@ -69,33 +69,48 @@
     {
       "prefixes": 621,
       "representative_prefixes": 221,
-      "suffixes": 2065,
-      "family_size": 146,
-      "probes": 216,
-      "ending": "harvest middles",
-      "hypothesis_states": 7,
-      "hypothesis_edges": 12,
-      "sampling_seconds": 5.21328417211771,
-      "probing_seconds": 5.678544610738754,
-      "queries_at_search_end": 1289021,
+      "suffixes": 1771,
+      "family_size": 149,
+      "probes": 100,
+      "ending": "harvest stuck",
+      "hypothesis_states": 10,
+      "hypothesis_edges": 19,
+      "sampling_seconds": 6.4783680737018585,
+      "probing_seconds": 2.699455939233303,
+      "queries_at_search_end": 1149683,
       "certified": null,
-      "consistency": 0.36666666666666664
+      "consistency": 0.8333333333333334
     },
     {
-      "prefixes": 852,
-      "representative_prefixes": 452,
+      "prefixes": 632,
+      "representative_prefixes": 232,
+      "suffixes": 2365,
+      "family_size": 149,
+      "probes": 318,
+      "ending": "harvest stuck",
+      "hypothesis_states": 12,
+      "hypothesis_edges": 20,
+      "sampling_seconds": 13.169665202498436,
+      "probing_seconds": 6.6171354204416275,
+      "queries_at_search_end": 1558851,
+      "certified": null,
+      "consistency": 0.43333333333333335
+    },
+    {
+      "prefixes": 643,
+      "representative_prefixes": 243,
       "suffixes": 2659,
       "family_size": 149,
-      "probes": 583,
+      "probes": 590,
       "ending": "success",
       "hypothesis_states": 12,
       "hypothesis_edges": 24,
-      "sampling_seconds": 25.0085491836071,
-      "probing_seconds": 6.6586389392614365,
-      "queries_at_search_end": 2259125,
+      "sampling_seconds": 16.50394858419895,
+      "probing_seconds": 20.265431232750416,
+      "queries_at_search_end": 2042193,
       "certified": true,
       "consistency": 1.0
     }
   ],
-  "chosen_round": 3
+  "chosen_round": 4
 }
