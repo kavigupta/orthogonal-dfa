@@ -407,6 +407,14 @@ theorem level3TrieConsistentSound : Level3TrieConsistentSound := by
     _ ≤ C.δ / 8 := ENNReal.toReal_le_of_le_ofReal (by positivity) htot
     _ ≤ C.δ := by linarith
 
+theorem level3TrieConsistentCorrect : Level3TrieConsistentCorrect := by
+  intro α _ _ C cap read L D _ hδ hρ0 hρ1
+  refine le_trans (measureReal_mono fun draws hd => ?_)
+    (level3TrieConsistentSound C cap read D hδ hρ0 hρ1)
+  refine ⟨hd.1, lt_of_not_ge fun hle => absurd hd.2 (not_lt.2 ?_)⟩
+  exact (trieSinglePieceCorrect read _ _ (level3TrieRootOne C cap read draws) L D).trans
+    (by linarith)
+
 end OrthoDFA
 
 end

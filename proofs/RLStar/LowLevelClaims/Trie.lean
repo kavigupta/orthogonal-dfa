@@ -14,7 +14,8 @@ the DFA then misjudges at most the probes that disagree plus the strings the roo
 `Level3TrieRootOne`: every tree a round grows reads `ε` at its root, as level 3's do.
 `Level3TrieExpandedCard`: a round expands at most `cap` prefixes of each probe.
 
-`Level3TrieConsistentSound`: a consistent ending certifies its rate, for any fixed reads.
+`Level3TrieConsistentSound`: a consistent ending certifies its rate, for any fixed reads, and so
+its DFA's error (`Level3TrieConsistentCorrect`).
 -/
 
 noncomputable section
@@ -74,6 +75,21 @@ def Level3TrieConsistentSound : Prop :=
       {draws | let r := indecisiveLStarLevel3Trie C cap read draws
         r.ending = .consistent
           ∧ C.disagreementRate < D.real (trieDisagreeSet read r.expanded r.hypothesis)}
+      ≤ C.δ
+
+/-- For any fixed reads and language `L`,
+    P(consistent ∧ P_D(DFA(x) ≠ [x ∈ L]) > ε + P_D(root misreads x)) ≤ δ
+over the probes. -/
+def Level3TrieConsistentCorrect : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings) (cap : ℕ)
+    (read : FreeMonoid α → ARU) (L : Set (FreeMonoid α)) (D : Measure (FreeMonoid α))
+    [IsProbabilityMeasure D],
+    0 < C.δ → 0 < C.disagreementRate → C.disagreementRate < 1 →
+    (Measure.pi fun _ : Fin C.probeBudget => D).real
+      {draws | let r := indecisiveLStarLevel3Trie C cap read draws
+        r.ending = .consistent
+          ∧ C.disagreementRate + D.real (misreadSet read L)
+            < D.real {x | ¬ r.hypothesis.TrieClassifies read r.expanded x (x ∈ L)}}
       ≤ C.δ
 
 end OrthoDFA

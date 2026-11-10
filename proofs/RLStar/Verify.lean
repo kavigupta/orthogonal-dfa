@@ -56,7 +56,8 @@ both. The loop runs level 5.
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
 `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
 `CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `Level3TrieRootOne`,
-`Level3TrieExpandedCard`, `Level3TrieConsistentSound`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
+`Level3TrieExpandedCard`, `Level3TrieConsistentSound`, `Level3TrieConsistentCorrect`,
+`RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
 `RunsKeepEdgesAtLeaves`.
 
@@ -66,8 +67,8 @@ The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`
 
 Open, stated but not proved: `RLStarTrieClaim`, stated in `RLStar.Claims.RLStarTrie`, the learner
 with local walk starts and no start premise. What is proved of it: `TrieProbeAgreeCorrect`,
-`TrieSinglePieceCorrect`, `Level3TrieRootOne`, `Level3TrieExpandedCard` and
-`Level3TrieConsistentSound`.
+`TrieSinglePieceCorrect`, `Level3TrieRootOne`, `Level3TrieExpandedCard`,
+`Level3TrieConsistentSound` and `Level3TrieConsistentCorrect`.
 -/
 
 namespace OrthoDFA
@@ -229,5 +230,10 @@ theorem level3_trie_expanded_card : Level3TrieExpandedCard := level3TrieExpanded
 theorem level3_trie_consistent_sound : Level3TrieConsistentSound := level3TrieConsistentSound
 
 #print axioms level3_trie_consistent_sound
+
+theorem level3_trie_consistent_correct : Level3TrieConsistentCorrect :=
+  level3TrieConsistentCorrect
+
+#print axioms level3_trie_consistent_correct
 
 end OrthoDFA
