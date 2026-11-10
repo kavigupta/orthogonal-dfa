@@ -9,14 +9,15 @@
   "alphabet_size": 2,
   "learner_config": {
     "min_signal_strength": 0.4,
-    "min_suffix_frequency": 0.02
+    "min_suffix_frequency": 0.02,
+    "sample_length": 40
   },
   "learned_states": 18,
   "accuracy": 1.0,
   "converged": true,
   "queries_total": 298336,
   "equivalence_queries": 0,
-  "seconds": 13.817,
+  "seconds": 17.344,
   "error_type": null,
   "error": null,
   "target": {
@@ -45,8 +46,8 @@
       "ending": "harvest middles",
       "hypothesis_states": 2,
       "hypothesis_edges": 2,
-      "sampling_seconds": 1.1993864104151726,
-      "probing_seconds": 0.4618489071726799,
+      "sampling_seconds": 1.9849650859832764,
+      "probing_seconds": 0.5912460088729858,
       "queries_at_search_end": 29541,
       "certified": null,
       "consistency": 0.5333333333333333
@@ -60,8 +61,8 @@
       "ending": "success",
       "hypothesis_states": 18,
       "hypothesis_edges": 36,
-      "sampling_seconds": 0.9287329092621803,
-      "probing_seconds": 6.127451732754707,
+      "sampling_seconds": 1.1220822259783745,
+      "probing_seconds": 7.147265113890171,
       "queries_at_search_end": 151408,
       "certified": true,
       "consistency": 1.0

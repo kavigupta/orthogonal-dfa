@@ -9,14 +9,15 @@
   "alphabet_size": 2,
   "learner_config": {
     "min_signal_strength": 0.4,
-    "min_suffix_frequency": 0.02
+    "min_suffix_frequency": 0.02,
+    "sample_length": 40
   },
   "learned_states": 18,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 1288096,
+  "queries_total": 304981,
   "equivalence_queries": 0,
-  "seconds": 78.017,
+  "seconds": 18.888,
   "error_type": null,
   "error": null,
   "target": {
@@ -41,46 +42,31 @@
       "representative_prefixes": 400,
       "suffixes": 59,
       "family_size": 29,
-      "probes": 1302,
+      "probes": 687,
       "ending": "harvest middles",
       "hypothesis_states": 2,
       "hypothesis_edges": 4,
-      "sampling_seconds": 1.0297551974654198,
-      "probing_seconds": 2.3403745889663696,
-      "queries_at_search_end": 63720,
+      "sampling_seconds": 1.0950168892741203,
+      "probing_seconds": 1.6783863604068756,
+      "queries_at_search_end": 45687,
       "certified": null,
-      "consistency": 0.7
+      "consistency": 0.9024390243902439
     },
     {
-      "prefixes": 831,
-      "representative_prefixes": 631,
-      "suffixes": 392,
-      "family_size": 31,
-      "probes": 3611,
-      "ending": "harvest middles",
-      "hypothesis_states": 6,
-      "hypothesis_edges": 11,
-      "sampling_seconds": 36.62594427913427,
-      "probing_seconds": 24.753912515938282,
-      "queries_at_search_end": 984531,
-      "certified": null,
-      "consistency": 0.4666666666666667
-    },
-    {
-      "prefixes": 862,
-      "representative_prefixes": 462,
-      "suffixes": 1064,
-      "family_size": 32,
-      "probes": 582,
+      "prefixes": 431,
+      "representative_prefixes": 231,
+      "suffixes": 175,
+      "family_size": 29,
+      "probes": 624,
       "ending": "success",
       "hypothesis_states": 18,
       "hypothesis_edges": 36,
-      "sampling_seconds": 3.0543947145342827,
-      "probing_seconds": 4.838915139436722,
-      "queries_at_search_end": 1146512,
+      "sampling_seconds": 1.9993533119559288,
+      "probing_seconds": 7.484748937189579,
+      "queries_at_search_end": 163597,
       "certified": true,
       "consistency": 1.0
     }
   ],
-  "chosen_round": 2
+  "chosen_round": 1
 }

@@ -9,14 +9,15 @@
   "alphabet_size": 2,
   "learner_config": {
     "min_signal_strength": 0.3,
-    "min_suffix_frequency": 0.02
+    "min_suffix_frequency": 0.02,
+    "sample_length": 40
   },
   "learned_states": 18,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 1475242,
+  "queries_total": 627751,
   "equivalence_queries": 0,
-  "seconds": 91.323,
+  "seconds": 31.208,
   "error_type": null,
   "error": null,
   "target": {
@@ -41,46 +42,31 @@
       "representative_prefixes": 400,
       "suffixes": 187,
       "family_size": 62,
-      "probes": 201,
+      "probes": 93,
       "ending": "harvest middles",
       "hypothesis_states": 2,
       "hypothesis_edges": 2,
-      "sampling_seconds": 2.784738764166832,
-      "probing_seconds": 1.5688125118613243,
-      "queries_at_search_end": 79630,
+      "sampling_seconds": 2.413341611623764,
+      "probing_seconds": 0.7052664905786514,
+      "queries_at_search_end": 64250,
       "certified": null,
-      "consistency": 0.6
+      "consistency": 0.7
     },
     {
       "prefixes": 431,
       "representative_prefixes": 231,
-      "suffixes": 489,
+      "suffixes": 431,
       "family_size": 60,
-      "probes": 489,
-      "ending": "harvest middles",
-      "hypothesis_states": 16,
-      "hypothesis_edges": 30,
-      "sampling_seconds": 3.186155028641224,
-      "probing_seconds": 8.072843313217163,
-      "queries_at_search_end": 259326,
-      "certified": null,
-      "consistency": 0.5
-    },
-    {
-      "prefixes": 662,
-      "representative_prefixes": 462,
-      "suffixes": 678,
-      "family_size": 63,
-      "probes": 546,
+      "probes": 642,
       "ending": "success",
       "hypothesis_states": 18,
       "hypothesis_edges": 36,
-      "sampling_seconds": 54.57347151637077,
-      "probing_seconds": 9.563383683562279,
-      "queries_at_search_end": 1191030,
+      "sampling_seconds": 2.76031032204628,
+      "probing_seconds": 14.880842082202435,
+      "queries_at_search_end": 355447,
       "certified": true,
       "consistency": 1.0
     }
   ],
-  "chosen_round": 2
+  "chosen_round": 1
 }

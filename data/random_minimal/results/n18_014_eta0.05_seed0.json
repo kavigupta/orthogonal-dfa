@@ -9,14 +9,15 @@
   "alphabet_size": 2,
   "learner_config": {
     "min_signal_strength": 0.45,
-    "min_suffix_frequency": 0.02
+    "min_suffix_frequency": 0.02,
+    "sample_length": 40
   },
   "learned_states": 18,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 167351,
+  "queries_total": 291627,
   "equivalence_queries": 0,
-  "seconds": 8.737,
+  "seconds": 28.449,
   "error_type": null,
   "error": null,
   "target": {
@@ -41,31 +42,46 @@
       "representative_prefixes": 400,
       "suffixes": 190,
       "family_size": 21,
-      "probes": 267,
+      "probes": 150,
       "ending": "harvest middles",
       "hypothesis_states": 2,
       "hypothesis_edges": 4,
-      "sampling_seconds": 0.9208684042096138,
-      "probing_seconds": 1.0663038566708565,
-      "queries_at_search_end": 30182,
+      "sampling_seconds": 1.6174070686101913,
+      "probing_seconds": 0.9479043260216713,
+      "queries_at_search_end": 25285,
       "certified": null,
-      "consistency": 0.26666666666666666
+      "consistency": 0.43333333333333335
     },
     {
       "prefixes": 631,
       "representative_prefixes": 431,
-      "suffixes": 442,
-      "family_size": 21,
-      "probes": 539,
+      "suffixes": 542,
+      "family_size": 22,
+      "probes": 150,
+      "ending": "harvest starts",
+      "hypothesis_states": 6,
+      "hypothesis_edges": 7,
+      "sampling_seconds": 12.077449582517147,
+      "probing_seconds": 0.7847638726234436,
+      "queries_at_search_end": 108061,
+      "certified": null,
+      "consistency": 0.5666666666666667
+    },
+    {
+      "prefixes": 641,
+      "representative_prefixes": 441,
+      "suffixes": 542,
+      "family_size": 20,
+      "probes": 1028,
       "ending": "success",
       "hypothesis_states": 18,
       "hypothesis_edges": 36,
-      "sampling_seconds": 1.3374831825494766,
-      "probing_seconds": 2.9610796123743057,
-      "queries_at_search_end": 100546,
+      "sampling_seconds": 0.5472006648778915,
+      "probing_seconds": 6.766604013741016,
+      "queries_at_search_end": 186959,
       "certified": true,
       "consistency": 1.0
     }
   ],
-  "chosen_round": 1
+  "chosen_round": 2
 }

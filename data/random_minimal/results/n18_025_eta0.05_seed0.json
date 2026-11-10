@@ -9,14 +9,15 @@
   "alphabet_size": 2,
   "learner_config": {
     "min_signal_strength": 0.45,
-    "min_suffix_frequency": 0.02
+    "min_suffix_frequency": 0.02,
+    "sample_length": 40
   },
   "learned_states": 18,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 145486,
+  "queries_total": 180427,
   "equivalence_queries": 0,
-  "seconds": 7.78,
+  "seconds": 10.911,
   "error_type": null,
   "error": null,
   "target": {
@@ -41,31 +42,46 @@
       "representative_prefixes": 400,
       "suffixes": 211,
       "family_size": 21,
-      "probes": 235,
+      "probes": 41,
       "ending": "harvest middles",
       "hypothesis_states": 2,
-      "hypothesis_edges": 4,
-      "sampling_seconds": 1.124853476881981,
-      "probing_seconds": 1.4829449355602264,
-      "queries_at_search_end": 38642,
+      "hypothesis_edges": 2,
+      "sampling_seconds": 1.0587764158844948,
+      "probing_seconds": 0.2328093945980072,
+      "queries_at_search_end": 23770,
       "certified": null,
-      "consistency": 0.23333333333333334
+      "consistency": 0.2
     },
     {
       "prefixes": 431,
       "representative_prefixes": 231,
-      "suffixes": 497,
+      "suffixes": 629,
       "family_size": 22,
-      "probes": 514,
+      "probes": 161,
+      "ending": "harvest stuck",
+      "hypothesis_states": 4,
+      "hypothesis_edges": 6,
+      "sampling_seconds": 1.3939745798707008,
+      "probing_seconds": 0.7515168711543083,
+      "queries_at_search_end": 50691,
+      "certified": null,
+      "consistency": 0.7333333333333333
+    },
+    {
+      "prefixes": 442,
+      "representative_prefixes": 242,
+      "suffixes": 629,
+      "family_size": 21,
+      "probes": 504,
       "ending": "success",
       "hypothesis_states": 18,
       "hypothesis_edges": 36,
-      "sampling_seconds": 0.8980934023857117,
-      "probing_seconds": 2.060900032520294,
-      "queries_at_search_end": 86214,
+      "sampling_seconds": 0.5201242044568062,
+      "probing_seconds": 2.477466456592083,
+      "queries_at_search_end": 87100,
       "certified": true,
       "consistency": 1.0
     }
   ],
-  "chosen_round": 1
+  "chosen_round": 2
 }

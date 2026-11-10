@@ -9,63 +9,49 @@
   "alphabet_size": 2,
   "learner_config": {
     "min_signal_strength": 0.2,
-    "min_suffix_frequency": 0.02
+    "min_suffix_frequency": 0.02,
+    "sample_length": 40
   },
   "learned_states": 6,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 1669197,
+  "queries_total": 1418298,
   "equivalence_queries": 0,
-  "seconds": 78.908,
+  "seconds": 98.552,
   "error_type": null,
   "error": null,
   "target": {
     "states": 6,
     "alphabet_size": 2,
-    "accepting_states": 3,
-    "acceptance_rate": 0.4999950609553707,
-    "class_preserving_fraction": 0.03158409589650546,
-    "non_start_zone_accuracy_ceiling": 0.9999999999999998,
-    "unvisited_states": 0,
-    "starts": 6,
-    "endpoint_mass_min": 0.08333657969524211,
-    "endpoint_mass_max": 0.2500042678493628,
+    "accepting_states": 4,
+    "acceptance_rate": 0.6285714285731956,
+    "class_preserving_fraction": 0.040905670377469505,
+    "non_start_zone_accuracy_ceiling": 0.7981414794921875,
+    "unvisited_states": 1,
+    "starts": 5,
+    "endpoint_mass_min": 0.0,
+    "endpoint_mass_max": 0.3428571428594296,
     "depth_max": 4,
     "separating_length_max": 2,
     "separating_length_mean": 0.5333333333333333,
-    "synchronizing_probability": 0.503515454751323
+    "synchronizing_probability": 0.14303839977401367
   },
   "rounds": [
     {
-      "prefixes": 400,
-      "representative_prefixes": 400,
-      "suffixes": 2802,
-      "family_size": 147,
-      "probes": 140,
-      "ending": "harvest middles",
+      "prefixes": 800,
+      "representative_prefixes": 800,
+      "suffixes": 2499,
+      "family_size": 149,
+      "probes": 405,
+      "ending": "success",
       "hypothesis_states": 5,
       "hypothesis_edges": 10,
-      "sampling_seconds": 31.321422807872295,
-      "probing_seconds": 5.684576153755188,
-      "queries_at_search_end": 715925,
-      "certified": null,
-      "consistency": 0.3
-    },
-    {
-      "prefixes": 631,
-      "representative_prefixes": 431,
-      "suffixes": 3531,
-      "family_size": 145,
-      "probes": 469,
-      "ending": "success",
-      "hypothesis_states": 6,
-      "hypothesis_edges": 12,
-      "sampling_seconds": 22.847845815122128,
-      "probing_seconds": 7.832803286612034,
-      "queries_at_search_end": 1366153,
+      "sampling_seconds": 75.88900015503168,
+      "probing_seconds": 7.680821567773819,
+      "queries_at_search_end": 1155710,
       "certified": true,
-      "consistency": 0.9985835694050992
+      "consistency": 1.0
     }
   ],
-  "chosen_round": 1
+  "chosen_round": 0
 }

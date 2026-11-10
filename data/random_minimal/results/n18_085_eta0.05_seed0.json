@@ -9,14 +9,15 @@
   "alphabet_size": 2,
   "learner_config": {
     "min_signal_strength": 0.45,
-    "min_suffix_frequency": 0.02
+    "min_suffix_frequency": 0.02,
+    "sample_length": 40
   },
   "learned_states": 18,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 593451,
+  "queries_total": 415960,
   "equivalence_queries": 0,
-  "seconds": 44.236,
+  "seconds": 28.06,
   "error_type": null,
   "error": null,
   "target": {
@@ -41,31 +42,46 @@
       "representative_prefixes": 400,
       "suffixes": 43,
       "family_size": 21,
-      "probes": 3324,
+      "probes": 1024,
       "ending": "harvest middles",
       "hypothesis_states": 2,
       "hypothesis_edges": 4,
-      "sampling_seconds": 0.8311198651790619,
-      "probing_seconds": 6.247721940279007,
-      "queries_at_search_end": 104832,
+      "sampling_seconds": 1.144011601805687,
+      "probing_seconds": 2.0165402367711067,
+      "queries_at_search_end": 40984,
       "certified": null,
-      "consistency": 0.8571428571428571
+      "consistency": 0.9176470588235294
     },
     {
       "prefixes": 631,
       "representative_prefixes": 431,
-      "suffixes": 196,
+      "suffixes": 127,
       "family_size": 23,
       "probes": 563,
+      "ending": "harvest middles",
+      "hypothesis_states": 5,
+      "hypothesis_edges": 8,
+      "sampling_seconds": 3.3033151403069496,
+      "probing_seconds": 3.9236591458320618,
+      "queries_at_search_end": 140198,
+      "certified": null,
+      "consistency": 0.8942307692307693
+    },
+    {
+      "prefixes": 662,
+      "representative_prefixes": 262,
+      "suffixes": 127,
+      "family_size": 21,
+      "probes": 599,
       "ending": "success",
       "hypothesis_states": 18,
       "hypothesis_edges": 36,
-      "sampling_seconds": 23.34103698283434,
-      "probing_seconds": 7.33825995773077,
-      "queries_at_search_end": 430265,
+      "sampling_seconds": 0.5870300978422165,
+      "probing_seconds": 8.199427917599678,
+      "queries_at_search_end": 258993,
       "certified": true,
       "consistency": 1.0
     }
   ],
-  "chosen_round": 1
+  "chosen_round": 2
 }

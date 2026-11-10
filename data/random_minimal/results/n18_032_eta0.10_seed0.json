@@ -9,14 +9,15 @@
   "alphabet_size": 2,
   "learner_config": {
     "min_signal_strength": 0.4,
-    "min_suffix_frequency": 0.02
+    "min_suffix_frequency": 0.02,
+    "sample_length": 40
   },
   "learned_states": 18,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 511031,
+  "queries_total": 1297457,
   "equivalence_queries": 0,
-  "seconds": 32.229,
+  "seconds": 113.381,
   "error_type": null,
   "error": null,
   "target": {
@@ -41,31 +42,46 @@
       "representative_prefixes": 400,
       "suffixes": 88,
       "family_size": 29,
-      "probes": 713,
+      "probes": 221,
       "ending": "harvest middles",
       "hypothesis_states": 2,
       "hypothesis_edges": 4,
-      "sampling_seconds": 1.1098019927740097,
-      "probing_seconds": 2.592651776969433,
-      "queries_at_search_end": 59777,
+      "sampling_seconds": 1.2131863161921501,
+      "probing_seconds": 0.9196248352527618,
+      "queries_at_search_end": 31898,
       "certified": null,
-      "consistency": 0.7666666666666667
+      "consistency": 0.8
     },
     {
       "prefixes": 631,
       "representative_prefixes": 431,
-      "suffixes": 464,
+      "suffixes": 184,
+      "family_size": 32,
+      "probes": 485,
+      "ending": "harvest middles",
+      "hypothesis_states": 13,
+      "hypothesis_edges": 26,
+      "sampling_seconds": 2.3145955577492714,
+      "probing_seconds": 5.960258588194847,
+      "queries_at_search_end": 150550,
+      "certified": null,
+      "consistency": 0.8431372549019608
+    },
+    {
+      "prefixes": 862,
+      "representative_prefixes": 462,
+      "suffixes": 532,
       "family_size": 31,
-      "probes": 789,
+      "probes": 1964,
       "ending": "success",
       "hypothesis_states": 18,
       "hypothesis_edges": 36,
-      "sampling_seconds": 17.50452248007059,
-      "probing_seconds": 6.680731512606144,
-      "queries_at_search_end": 390073,
+      "sampling_seconds": 73.34962362796068,
+      "probing_seconds": 21.097148150205612,
+      "queries_at_search_end": 1111444,
       "certified": true,
       "consistency": 1.0
     }
   ],
-  "chosen_round": 1
+  "chosen_round": 2
 }

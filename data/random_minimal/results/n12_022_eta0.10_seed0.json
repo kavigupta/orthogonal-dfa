@@ -9,14 +9,15 @@
   "alphabet_size": 2,
   "learner_config": {
     "min_signal_strength": 0.4,
-    "min_suffix_frequency": 0.02
+    "min_suffix_frequency": 0.02,
+    "sample_length": 40
   },
-  "learned_states": 10,
-  "accuracy": 0.9964,
+  "learned_states": 18,
+  "accuracy": 0.9924,
   "converged": false,
-  "queries_total": 317355,
+  "queries_total": 350865,
   "equivalence_queries": 0,
-  "seconds": 13.604,
+  "seconds": 20.035,
   "error_type": null,
   "error": null,
   "target": {
@@ -41,13 +42,13 @@
       "representative_prefixes": 400,
       "suffixes": 262,
       "family_size": 29,
-      "probes": 519,
+      "probes": 526,
       "ending": "success",
       "hypothesis_states": 10,
       "hypothesis_edges": 20,
-      "sampling_seconds": 1.832809865474701,
-      "probing_seconds": 2.7960674166679382,
-      "queries_at_search_end": 93625,
+      "sampling_seconds": 2.8070899918675423,
+      "probing_seconds": 4.754071921110153,
+      "queries_at_search_end": 94477,
       "certified": true,
       "consistency": 0.991
     }
