@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
-from orthogonal_dfa.l_star.learn import learn_dfa
+from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH, learn_dfa
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.tracker import SynthesisTracker
 
@@ -65,7 +65,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 #: Shared evaluation settings, for the word list both learners are scored on.
 EVAL_COUNT = 5000
-EVAL_MAX_LEN = 40
 EVAL_SEED = 0x1234
 
 
@@ -111,18 +110,13 @@ def eta_to_signal_strength(eta: float) -> float:
 # -- shared evaluation --------------------------------------------------------
 
 
-def eval_words(
-    symbols: int,
-    *,
-    count: int = EVAL_COUNT,
-    max_len: int = EVAL_MAX_LEN,
-    seed: int = EVAL_SEED,
-) -> List[List[int]]:
-    """The fixed word list every hypothesis is scored on, as symbol indices."""
-    rng = random.Random(seed)
+def eval_words(symbols: int) -> List[List[int]]:
+    """The fixed word list every hypothesis is scored on, as symbol indices: uniform
+    strings of E-L*'s probe length, the length its guarantee is stated at."""
+    rng = random.Random(EVAL_SEED)
     return [
-        [rng.randrange(symbols) for _ in range(rng.randint(1, max_len))]
-        for _ in range(count)
+        [rng.randrange(symbols) for _ in range(DEFAULT_SAMPLE_LENGTH)]
+        for _ in range(EVAL_COUNT)
     ]
 
 
