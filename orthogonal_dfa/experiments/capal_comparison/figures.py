@@ -256,6 +256,9 @@ OUR_LABELS = {
     "regex_two_1111": r"\texttt{.*1111.*1111.*}",
     "regex_alt_1111_or_0000_11_3sym": r"\texttt{.*(1111|0000)11.*}, ternary",
     "regex_alt_111_or_000_3sym": r"\texttt{.*(111|000).*}, ternary",
+    "regex_prefix_1111": r"\texttt{1111.*}",
+    "binary_divisible_by_5": r"binary $x \equiv 0 \pmod 5$",
+    "prefix_majority_5": r"majority of $x_{1..5}$ is 1",
 }
 DIFFICULTY_ORDER = ["Simple", "Normal", "Difficult"]
 GRID_PANELS = [
