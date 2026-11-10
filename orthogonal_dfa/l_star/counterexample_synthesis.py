@@ -349,6 +349,8 @@ def _hypothesis_dfa(pst, search):
     )
     initial = hypothesis.tree.classify(b"", decide)
     leaves = hypothesis.to_dfa(pst.alphabet_size, 0 if initial is None else initial)
+    if not pst.config.counterexample_prepend_trie:
+        return leaves
     return search.trie.prepend(
         leaves,
         lambda v: hypothesis.tree.classify(v, decide),

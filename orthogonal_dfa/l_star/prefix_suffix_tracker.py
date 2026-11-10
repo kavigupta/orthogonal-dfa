@@ -88,6 +88,9 @@ class SearchConfig:
     #: Step past an undecided midpoint in a probe's search to the decided position
     #: nearest it.
     counterexample_skip_undecided: bool = False
+    #: Off, the search still walks from its spelled-out starts, but the DFA leaves
+    #: them out: its start state is the leaf the empty prefix classifies to.
+    counterexample_prepend_trie: bool = True
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for
