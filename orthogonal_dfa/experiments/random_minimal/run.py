@@ -39,7 +39,7 @@ from orthogonal_dfa.l_star.examples.random_dfa import (
     sample_minimal_admitted_dfa,
 )
 from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH
-from orthogonal_dfa.l_star.preconditions import acceptance_rate
+from orthogonal_dfa.l_star.preconditions import acceptance_rate, dfa_tables
 from orthogonal_dfa.l_star.structures import NoisyOracle
 from orthogonal_dfa.l_star.tracker import SynthesisTracker
 
@@ -53,7 +53,7 @@ ALPHABET_SIZE = 2
 # targets with fewer than this share of strings on either side are redrawn
 MIN_MINORITY_RATE = 0.05
 TARGET_SCHEMA_VERSION = 1
-RESULT_SCHEMA_VERSION = 4
+RESULT_SCHEMA_VERSION = 5
 DATA_DIR = REPO_ROOT / "data" / "random_minimal"
 FAMILY = "random_minimal"
 
@@ -150,6 +150,7 @@ class _RoundRecorder(SynthesisTracker):
         self.oracle = oracle
         self.rounds = []
         self.chosen_round = None
+        self.learned = None
 
     def on_round_summarized(self, summary, round_index):
         assert len(self.rounds) == round_index
@@ -169,6 +170,49 @@ class _RoundRecorder(SynthesisTracker):
 
     def on_corrected_dfa_found(self, dfa, round_index):
         self.chosen_round = round_index
+        self.learned = dfa
+
+
+def _product(learned: DFA, target: DFA) -> Tuple[np.ndarray, np.ndarray, int]:
+    """The product of the two DFAs' tables, and per pair whether they disagree."""
+    assert learned.input_symbols == target.input_symbols
+    _, a, a_final, a_initial = dfa_tables(learned)
+    _, b, b_final, b_initial = dfa_tables(target)
+    table = a[:, None, :] * len(b) + b[None, :, :]
+    disagree = a_final[:, None] != b_final[None, :]
+    return (
+        table.reshape(-1, a.shape[1]),
+        disagree.ravel(),
+        a_initial * len(b) + b_initial,
+    )
+
+
+def error_at_length(learned: DFA, target: DFA, length: int) -> float:
+    """P(learned(x) != target(x)) for x uniform over strings of the given length."""
+    table, disagree, initial = _product(learned, target)
+    dist = np.zeros(len(table))
+    dist[initial] = 1.0
+    for _ in range(length):
+        nxt = np.zeros_like(dist)
+        for c in range(table.shape[1]):
+            np.add.at(nxt, table[:, c], dist / table.shape[1])
+        dist = nxt
+    return float(dist[disagree].sum())
+
+
+def equivalent(learned: DFA, target: DFA) -> bool:
+    table, disagree, initial = _product(learned, target)
+    seen = {initial}
+    frontier = [initial]
+    while frontier:
+        q = frontier.pop()
+        if disagree[q]:
+            return False
+        for nxt in table[q]:
+            if int(nxt) not in seen:
+                seen.add(int(nxt))
+                frontier.append(int(nxt))
+    return True
 
 
 def _ensure_target(args: Tuple[Path, int, int]) -> str:
@@ -217,11 +261,18 @@ def run_and_write(
         target_states=len(target.states),
         tracker=recorder,
     )
+    learned = recorder.learned if cell.accuracy is not None else None
     write_json(
         path,
         {
             "schema_version": RESULT_SCHEMA_VERSION,
             **asdict(cell),
+            "error_at_length": (
+                None
+                if learned is None
+                else error_at_length(learned, target, sample_length)
+            ),
+            "equivalent": None if learned is None else equivalent(learned, target),
             "target": target_metrics(target, length=sample_length),
             "rounds": recorder.rounds,
             "chosen_round": recorder.chosen_round,
