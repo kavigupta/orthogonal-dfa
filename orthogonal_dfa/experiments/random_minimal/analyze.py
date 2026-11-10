@@ -90,8 +90,7 @@ def summary_cells(runs: Sequence[dict]) -> List[str]:
     rounds = [len(r["rounds"]) for r in scored]
     return [
         _pct(np.mean([succeeded(r) for r in runs])),
-        _pct(np.mean([r["error_at_length"] == 0.0 for r in runs])),
-        _pct(np.mean([r["equivalent"] is True for r in runs])),
+        _pct(np.mean([r["accuracy"] == 1.0 for r in runs])),
         f"{min(r['accuracy'] for r in scored):.3f}" if scored else "--",
         _millions(_geometric_mean(queries)) if queries else "--",
         _millions(max(queries)) if queries else "--",
@@ -242,7 +241,6 @@ def fragments(results: Sequence[dict]) -> Dict[str, str]:
                 "States",
                 r"$\eta$",
                 "Success",
-                "Exact at $L$",
                 "Exact",
                 "Lowest accuracy",
                 "MQ geo.\\ mean",
@@ -250,7 +248,7 @@ def fragments(results: Sequence[dict]) -> Dict[str, str]:
                 "Rounds geo.\\ mean",
                 "Rounds max",
             ],
-            "llrrrrrrrr",
+            "llrrrrrrr",
             summary_rows(results),
         ),
     }
