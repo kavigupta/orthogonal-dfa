@@ -24,11 +24,14 @@ OUT_DIR = REPO_ROOT / "figures" / "luhn"
 def summary(results: Sequence[dict]) -> str:
     etas = {r["eta"] for r in results}
     assert len(etas) == 1, etas
-    _, exact, lowest, mq_mean, mq_max, rounds_mean, rounds_max = summary_cells(results)
+    _, exact_at_length, exact, lowest, mq_mean, mq_max, rounds_mean, rounds_max = (
+        summary_cells(results)
+    )
     rows = [
         ["Exact", exact, r"MQ geo.\ mean", mq_mean],
-        ["Lowest accuracy", lowest, "MQ max", mq_max],
-        [r"Rounds geo.\ mean", rounds_mean, "Rounds max", rounds_max],
+        [r"Exact at $L$", exact_at_length, "MQ max", mq_max],
+        ["Lowest accuracy", lowest, r"Rounds geo.\ mean", rounds_mean],
+        ["", "", "Rounds max", rounds_max],
     ]
     return "\n".join(
         [r"\begin{tabular}{lr@{\hspace{2em}}lr}"]

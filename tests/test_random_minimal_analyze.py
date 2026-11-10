@@ -10,7 +10,16 @@ from orthogonal_dfa.experiments.random_minimal import analyze, run
 
 
 def _result(
-    states, eta, accuracy, *, learned_states, queries=100, rounds=1, error_type=None
+    states,
+    eta,
+    accuracy,
+    *,
+    learned_states,
+    error_at_length,
+    equivalent,
+    queries=100,
+    rounds=1,
+    error_type=None,
 ):
     return {
         "schema_version": run.RESULT_SCHEMA_VERSION,
@@ -20,6 +29,8 @@ def _result(
         "seed": 0,
         "accuracy": accuracy,
         "learned_states": learned_states,
+        "error_at_length": error_at_length,
+        "equivalent": equivalent,
         "queries_total": queries,
         "seconds": 1.0,
         "error_type": error_type,
@@ -30,12 +41,45 @@ def _result(
 
 class TestAnalyze(unittest.TestCase):
     RESULTS = [
-        _result(4, 0.05, 1.0, learned_states=4, queries=100_000),
-        _result(4, 0.05, 0.995, learned_states=4, queries=200_000, rounds=3),
-        _result(4, 0.05, 0.9, learned_states=3, queries=300_000),
-        _result(4, 0.05, None, learned_states=None, error_type="Timeout"),
-        _result(8, 0.05, 1.0, learned_states=8),
-        _result(8, 0.1, 1.0, learned_states=8),
+        _result(
+            4,
+            0.05,
+            1.0,
+            learned_states=6,
+            error_at_length=0.0,
+            equivalent=False,
+            queries=100_000,
+        ),
+        _result(
+            4,
+            0.05,
+            0.995,
+            learned_states=4,
+            error_at_length=0.004,
+            equivalent=False,
+            queries=200_000,
+            rounds=3,
+        ),
+        _result(
+            4,
+            0.05,
+            0.9,
+            learned_states=3,
+            error_at_length=0.1,
+            equivalent=False,
+            queries=300_000,
+        ),
+        _result(
+            4,
+            0.05,
+            None,
+            learned_states=None,
+            error_at_length=None,
+            equivalent=None,
+            error_type="Timeout",
+        ),
+        _result(8, 0.05, 1.0, learned_states=8, error_at_length=0.0, equivalent=True),
+        _result(8, 0.1, 1.0, learned_states=8, error_at_length=0.0, equivalent=True),
     ]
 
     def test_summary(self):
@@ -47,6 +91,7 @@ class TestAnalyze(unittest.TestCase):
                 "0.05",
                 r"50\%",
                 r"25\%",
+                r"0\%",
                 "0.900",
                 "0.18M",
                 "0.30M",
