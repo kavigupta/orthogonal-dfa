@@ -21,11 +21,11 @@
     "eta_hat": 0.2
   },
   "learned_states": 36,
-  "accuracy": 0.8676,
+  "accuracy": 0.8052,
   "converged": false,
   "queries_total": 22277,
   "equivalence_queries": 200,
-  "seconds": 260.535,
+  "seconds": 182.816,
   "error_type": null,
   "error": null
 }

@@ -23,12 +23,7 @@ import re
 import statistics
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
-from .core import LEARNER_CAPAL, LEARNER_ELSTAR, REPO_ROOT
-
-#: Accuracy at which a hypothesis counts as a success. E-L* synthesises to
-#: `learn.DEFAULT_ACC_THRESHOLD`, so holding either learner to exactness would
-#: be holding it to a bar neither aims at.
-SUCCESS_THRESHOLD = 0.98
+from .core import LEARNER_CAPAL, LEARNER_ELSTAR, REPO_ROOT, SUCCESS_THRESHOLD
 
 DATA_DIR = REPO_ROOT / "data" / "capal"
 OUT_DIR = REPO_ROOT / "figures" / "capal-comparison"

@@ -23,9 +23,9 @@
   "learned_states": 16,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 6137,
-  "equivalence_queries": 22,
-  "seconds": 1.322,
+  "queries_total": 5508,
+  "equivalence_queries": 20,
+  "seconds": 0.378,
   "error_type": null,
   "error": null
 }
