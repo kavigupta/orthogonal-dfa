@@ -2,11 +2,14 @@ import RLStar.Proofs.ClaimRLStarArith
 import RLStar.Proofs.DFABridge
 
 /-!
-# Main's shapes at uniform strings
+# The uniform claims from the general one
 
-At `β = 1/|Σ|`, `1/p₀Tol`'s shape is at most `2 (L + |Q|)⁶ loopG`, `loopG` free of `L`
-(`shape_toDist_le`), and the probes' and held-out reads' shapes are within the harvest's
-(`uniform_search_start_le`).
+`RLStarClaimUniform` is `RLStarClaim` at `D` uniform over the strings of length `L + 2|Q| + 6`:
+uniform strings hold `|Σ|^-k` on any first `k` letters, and `1/p₀Tol` is at most
+`((L + |Q|)⁶ C₀ G)⁹` for a constant `C₀`, `G` free of `L`, so `L ≥ L₀` gives
+`((L + |Q|)⁶ C₀ G)⁹ ≤ |Σ|^k` (`pow_of_tangent`). `RLStarClaimUniformSimple` follows from
+`RLStarClaimUniform`, the prefix and suffix totals' shapes bounded by their products, and the
+search's reads by the harvest's.
 -/
 
 noncomputable section
@@ -16,9 +19,12 @@ namespace OrthoDFA
 open MeasureTheory Asymptotics Filter Real
 
 /-- A uniform instance as a general one, at `β = 1/|Σ|`. -/
-def toDist (x : RLStarInputs) : RLStarDistInputs := { toRLStarInputs := x, β := 1 / x.A }
+def toDist (x : RatioInputs) : RLStarDistInputs := { toRatioInputs := x, β := 1 / x.A }
 
-lemma toDist_mem {x : RLStarInputs} (hx : x ∈ rlStarRegion) : toDist x ∈ rlStarDistRegion := by
+def toDistRun (r : RatioRun) : RLStarDistRun :=
+  { toRLStarDistInputs := toDist r.toRatioInputs, L := r.L }
+
+lemma toDist_mem {x : RatioInputs} (hx : x ∈ ratioRegion) : toDist x ∈ rlStarDistRegion := by
   have hA : (2 : ℝ) ≤ x.A := by exact_mod_cast hx.2.1
   refine ⟨hx, ?_, ?_⟩
   · show 0 < 1 / (x.A : ℝ); positivity
@@ -26,12 +32,12 @@ lemma toDist_mem {x : RLStarInputs} (hx : x ∈ rlStarRegion) : toDist x ∈ rlS
     rw [one_div_mul_cancel (by positivity)]
 
 /-- `1/p₀Tol`'s shape at `β = 1/|Σ|` is at most `2 (L + |Q|)⁵ loopG`. -/
-def loopG (x : RLStarInputs) : ℝ :=
+def loopG (x : RatioInputs) : ℝ :=
   x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
     * log (x.Q * x.R * x.A * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)) ^ 3
     * (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 2 * (1 / x.s₀) ^ 6
 
-lemma shape_toDist_le {x : RLStarInputs} (hx : x ∈ rlStarRegion) (L : ℕ) :
+lemma shape_toDist_le {x : RatioInputs} (hx : x ∈ ratioRegion) (L : ℕ) :
     0 ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β) ^ 4 * x.R ^ 4
         * log (((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
@@ -106,7 +112,7 @@ lemma shape_toDist_le {x : RLStarInputs} (hx : x ∈ rlStarRegion) (L : ℕ) :
     _ ≤ 2 * (((L : ℝ) + x.Q) ^ 6 * (x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K)) := by
       gcongr
 
-lemma loopG_ge_one {x : RLStarInputs} (hx : x ∈ rlStarRegion) : 1 ≤ loopG x := by
+lemma loopG_ge_one {x : RatioInputs} (hx : x ∈ ratioRegion) : 1 ≤ loopG x := by
   obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
   exact (loopL0_le (iδ := 1 / x.δ) (iξ := 1 / x.ξ) (ip := 1 / x.pAP) (is := 1 / x.s₀) (C₀ := 1)
     (by exact_mod_cast hQ) (by exact_mod_cast hA) hR ((le_div_iff₀ hδ).2 (by linarith))
@@ -119,8 +125,149 @@ lemma uniform_rewrite {X R A δ ξ pAP s₀ : ℝ} (hA : 0 < A) (hδ : 0 < δ) (
       ∧ X * R / (1 / A * δ * ξ * s₀) = X * A * R / (δ * ξ * s₀) :=
   ⟨by field_simp, by field_simp⟩
 
+/-- A claims' instance as one of the rates', at `R = 1`. -/
+def ratioOne (x : RLStarInputs) : RatioInputs := ⟨x.Q, x.A, x.δ, 1, x.ξ, x.pAP, x.s₀⟩
+
+def ratioOneRun (r : RLStarRun) : RatioRun :=
+  { toRatioInputs := ratioOne r.toRLStarInputs, L := r.L }
+
+lemma ratioOne_mem {x : RLStarInputs} (hx : x ∈ rlStarRegion) : ratioOne x ∈ ratioRegion := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hx
+  exact ⟨h1, h2, h3, h4, le_rfl, h5, h6, h7, h8, h9, h10⟩
+
+lemma p₀Shape_one {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
+    p₀Shape (toDistRun (ratioOneRun r)) =
+      (r.L + r.Q) ^ 4 * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀))
+          * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) * r.Q ^ 3 * r.A / r.ξ
+          * (r.Q ^ 2 * r.A ^ 2 / r.ξ ^ 3
+              * (1 / r.s₀ ^ 6 + r.Q ^ 2 * r.A / r.s₀ ^ 5 + r.Q ^ 4 * r.A / r.s₀ ^ 4)
+            + 1 / (r.δ * r.pAP ^ 2 * r.s₀ ^ 2))
+        + (r.L + r.Q) ^ 2 * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀))
+          * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) ^ 2 * r.Q ^ 6 * r.A ^ 2
+          / (r.ξ ^ 4 * r.δ * r.s₀ ^ 4)
+        + (r.L + r.Q) ^ 2 * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
+          * r.Q ^ 5 * r.A ^ 4 / (r.ξ ^ 2 * r.δ) := by
+  obtain ⟨-, hA, hδ, -, hξ, -, hp, -, hs, -⟩ := hr
+  have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
+  simp only [p₀Shape, toDistRun, ratioOneRun, ratioOne, toDist, one_div_one_div]
+  rw [(uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := 1) hA' hδ hξ hp hs).1,
+    (uniform_rewrite (X := (r.Q : ℝ)) (R := 1) hA' hδ hξ hp hs).1]
+  simp only [mul_one, one_pow]
+  ring
+
+theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
+    RLStarClaimUniform.{u, v, w} := by
+  obtain ⟨p₀Tol, tp, ts, tpr, tr, hp₀, hpref, hsuff, hprobes, hreads, hpos, hw⟩ := h
+  obtain ⟨C, hC⟩ := isBigO_principal.1 hp₀
+  set C₀ := 16 * max 1 C with hC₀d
+  have hC₀ : 1 ≤ C₀ := by rw [hC₀d]; linarith [le_max_left 1 C]
+  refine ⟨fun x => 1 + 4 * 9 * (log (C₀ * loopG (ratioOne x)) + 6 * log (x.Q + 4)
+      + 6 * log 9 + 24) / log x.A, tp, ts, tpr, tr, ?_, hpref, hsuff, hprobes, hreads, ?_⟩
+  · refine isBigO_on (9 * (263 + 6 * log (9 ^ 6 * C₀))) fun x hx => ?_
+    obtain ⟨hQ, hA, hδ, hδ2, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
+    have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ
+    have hA' : (2 : ℝ) ≤ x.A := by exact_mod_cast hA
+    have hC9 : 1 ≤ 9 ^ 6 * C₀ := by linarith
+    obtain ⟨hG, hle⟩ := loopL0_le (R := 1) (iδ := 1 / x.δ) (iξ := 1 / x.ξ) (ip := 1 / x.pAP)
+      (is := 1 / x.s₀) hQ' hA' le_rfl ((le_div_iff₀ hδ).2 (by linarith))
+      ((le_div_iff₀ hξ).2 (by linarith)) ((le_div_iff₀ hp).2 (by linarith))
+      ((le_div_iff₀ hs).2 (by linarith)) hC9
+    change 1 ≤ loopG (ratioOne x) at hG
+    change 1 + 4 * (log (9 ^ 6 * C₀ * loopG (ratioOne x)) + 6 * log ((x.Q : ℝ) + 4) + 24)
+        / log x.A ≤ (263 + 6 * log (9 ^ 6 * C₀))
+          * (1 + log ((x.Q : ℝ) * 1 * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀))
+            / log x.A) at hle
+    have hlA : 0 < log (x.A : ℝ) := Real.log_pos (by linarith)
+    have hl9 : log (9 ^ 6 * C₀ * loopG (ratioOne x))
+        = 6 * log 9 + log (C₀ * loopG (ratioOne x)) := by
+      rw [mul_assoc, Real.log_mul (by norm_num)
+        (ne_of_gt (by linarith [one_le_mul_of_one_le_of_one_le hC₀ hG])), Real.log_pow]
+      push_cast; ring
+    have e : (x.Q : ℝ) * 1 * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)
+        = x.Q / (x.δ * x.ξ * x.pAP * x.s₀) := by ring
+    rw [hl9, e] at hle
+    have hlCG : 0 ≤ log (C₀ * loopG (ratioOne x)) :=
+      Real.log_nonneg (one_le_mul_of_one_le_of_one_le hC₀ hG)
+    have hlQ : 0 ≤ log ((x.Q : ℝ) + 4) := Real.log_nonneg (by linarith)
+    have hl9' : 0 ≤ log (9 : ℝ) := Real.log_nonneg (by norm_num)
+    have hZ : 1 ≤ (x.Q : ℝ) / (x.δ * x.ξ * x.pAP * x.s₀) := by
+      rw [le_div_iff₀ (by positivity), one_mul]
+      have : x.δ * x.ξ * x.pAP * x.s₀ ≤ 1 := by
+        have : x.δ * x.ξ ≤ 1 := by nlinarith
+        have : x.δ * x.ξ * x.pAP ≤ 1 := by nlinarith
+        nlinarith
+      linarith
+    have hT0 : 0 ≤ 1 + log ((x.Q : ℝ) / (x.δ * x.ξ * x.pAP * x.s₀)) / log x.A :=
+      add_nonneg zero_le_one (div_nonneg (Real.log_nonneg hZ) hlA.le)
+    set u := 4 * (6 * log 9 + log (C₀ * loopG (ratioOne x)) + 6 * log ((x.Q : ℝ) + 4) + 24)
+      / log x.A with hud
+    have hu0 : 0 ≤ u := div_nonneg (by linarith) hlA.le
+    have eL : 1 + 4 * 9 * (log (C₀ * loopG (ratioOne x)) + 6 * log ((x.Q : ℝ) + 4)
+        + 6 * log 9 + 24) / log x.A = 1 + 9 * u := by rw [hud]; ring
+    refine ⟨?_, hT0, ?_⟩
+    · show 0 ≤ 1 + 4 * 9 * (log (C₀ * loopG (ratioOne x)) + 6 * log ((x.Q : ℝ) + 4)
+        + 6 * log 9 + 24) / log x.A
+      rw [eL]; linarith
+    · show 1 + 4 * 9 * (log (C₀ * loopG (ratioOne x)) + 6 * log ((x.Q : ℝ) + 4)
+        + 6 * log 9 + 24) / log x.A ≤ _
+      rw [eL]
+      linarith
+  -- the run, at `D` uniform
+  intro A _ _ _ Q _ Ω _ μ _ x M O L k L₁ hx hQ hA hL hη hpAPu hL₀
+  have hr : ({ x with L } : RLStarRun) ∈ rlStarRunRegion := hx
+  have hxr := ratioOne_mem hx
+  have hrd : toDistRun (ratioOneRun { x with L }) ∈ rlStarDistRunRegion := toDist_mem hxr
+  have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hx.1
+  have hA' : (2 : ℝ) ≤ x.A := by exact_mod_cast hx.2.1
+  have hAc : (Fintype.card A : ℝ) = x.A := by exact_mod_cast hA
+  -- `D`'s first `k` letters weigh at most `p₀Tol`
+  have hp₀k : ((x.A : ℝ) ^ k)⁻¹ ≤ p₀Tol { x with L } := by
+    have hpos' := hpos { x with L }
+    have hc : ‖1 / p₀Tol { x with L }‖
+        ≤ C * ‖p₀Shape (toDistRun (ratioOneRun { x with L })) ^ 9‖ := by
+      rw [p₀Shape_one hr]; exact hC _ hr
+    have hG1 : 1 ≤ loopG (ratioOne x) := loopG_ge_one hxr
+    obtain ⟨hs0, hsle⟩ := p₀Shape_le hrd
+    obtain ⟨-, hsh⟩ := shape_toDist_le hxr L
+    rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_pos (one_div_pos.2 hpos'),
+      abs_of_nonneg (pow_nonneg hs0 9)] at hc
+    change _ ≤ 2 * (((L : ℝ) + x.Q) ^ 6 * loopG (ratioOne x)) at hsh
+    have h8 : p₀Shape (toDistRun (ratioOneRun { x with L }))
+        ≤ 16 * (((L : ℝ) + x.Q) ^ 6 * loopG (ratioOne x)) :=
+      (hsle.trans (mul_le_mul_of_nonneg_left hsh (by norm_num))).trans_eq (by ring)
+    obtain ⟨y, hyd⟩ : ∃ y, y = ((L : ℝ) + x.Q) ^ 6 * loopG (ratioOne x) := ⟨_, rfl⟩
+    rw [← hyd] at h8
+    have hy : 0 ≤ y := hyd ▸ mul_nonneg (by positivity) (by linarith)
+    have hm1 : 1 ≤ max 1 C := le_max_left 1 C
+    have hc' : 1 / p₀Tol { x with L } ≤ (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne x))) ^ 9 :=
+      calc 1 / p₀Tol { x with L }
+          ≤ max 1 C * (16 * y) ^ 9 :=
+            hc.trans (mul_le_mul (le_max_right 1 C) (pow_le_pow_left₀ hs0 h8 9)
+              (pow_nonneg hs0 9) (by linarith))
+        _ ≤ max 1 C ^ 9 * (16 * y) ^ 9 :=
+            mul_le_mul_of_nonneg_right (le_self_pow₀ hm1 (by norm_num)) (by positivity)
+        _ = _ := by rw [hC₀d, hyd]; ring
+    have hpow := pow_of_tangent (E := C₀ * loopG (ratioOne x)) (m := 9) hA' hQ'
+      (one_le_mul_of_one_le_of_one_le hC₀ hG1) (by norm_num)
+      (by simpa only [Nat.cast_ofNat] using hL₀)
+    have h1 : 1 / p₀Tol { x with L } ≤ (x.A : ℝ) ^ k := hc'.trans hpow
+    rw [one_div] at h1
+    exact (inv_le_comm₀ (pow_pos (by linarith : (0 : ℝ) < x.A) k) hpos').2 h1
+  set m := L + Fintype.card Q + 3 + Fintype.card Q + 3 with hmd
+  have hpL : prefixLaw (uniformStrings (α := A) m) L = uniformStrings L :=
+    prefixLaw_uniformStrings (by omega)
+  have hpS : prefixLaw (uniformStrings (α := A) m) m = uniformStrings m :=
+    prefixLaw_uniformStrings le_rfl
+  obtain ⟨settings, hwk, hcnt, hprob⟩ := hw x M O L (uniformStrings m) hx hQ hA hL hη
+    (uniformStrings_long m)
+    (fun u => (uniformStrings_prefix_le (by omega) u).trans (by rw [hAc]; exact hp₀k))
+    (by rw [hpS]; exact hpAPu)
+  rw [hpL, hpS] at hcnt
+  rw [hpL, hpS] at hprob
+  exact ⟨settings, hwk, hcnt, hprob⟩
+
 /-- The reads' factors other than the prefix and suffix totals, at uniform strings. -/
-lemma uniform_factors {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
+lemma uniform_factors {r : RatioRun} (hr : r ∈ ratioRunRegion) :
     0 < (r.Q : ℝ)
       ∧ 0 ≤ log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.s₀)) / r.s₀ ^ 2
       ∧ 0 ≤ r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
@@ -211,7 +358,7 @@ lemma reads_two_term {Q P S F Pr lg ρ Hd : ℝ} (hQ : 0 < Q) (hP : 0 ≤ P) (hS
 
 /-- At uniform strings, `N_probe ≤ N_pref / ρ`, `n_held ≤ |Q| N_pref / ρ` and
 `log(L + |Q| + 1) ≥ 1/2`. -/
-lemma uniform_search_start_le {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
+lemma uniform_search_start_le {r : RatioRun} (hr : r ∈ ratioRunRegion) :
     r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) * r.R / r.ξ * log (r.Q * r.A / r.δ)
         ≤ r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.R ^ 2
             * log ((r.L + r.Q) * r.A * r.R / (r.δ * r.ξ * r.pAP * r.s₀)) / (r.ξ ^ 2 * r.s₀ ^ 4)
@@ -289,6 +436,31 @@ lemma uniform_search_start_le {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
     exact mul_le_mul ha hl3 (hl1.trans hl2) hb0
   · rw [e4, e3]
     exact mul_le_mul hQb ((hl2.trans hl3)) hl1 (mul_nonneg (by linarith) hb0)
+
+theorem rlStarClaimUniformSimple_of_claim (h : RLStarClaimUniform.{u, v, w}) :
+    RLStarClaimUniformSimple.{u, v, w} := by
+  obtain ⟨L₀, pref, suff, probes, reads, hL₀, hp, hs, hpr, hrd, hw⟩ := h
+  refine ⟨L₀, pref, suff, probes, reads, hL₀,
+    hp.trans (isBigO_on 4 fun r hr => ?_), hs.trans (isBigO_on 2 fun r hr => ?_), hpr,
+    hrd.trans (isBigO_on 32 fun r hr => ?_), hw⟩
+  · have h := loop_pref_dom (r := ratioOneRun r) (ratioOne_mem hr)
+    simp only [ratioOneRun, ratioOne, mul_one, one_pow] at h
+    exact h
+  · have h := loop_suff_dom (r := ratioOneRun r) (ratioOne_mem hr)
+    simp only [ratioOneRun, ratioOne, mul_one] at h
+    exact h
+  have hr' : ratioOneRun r ∈ ratioRunRegion := ratioOne_mem hr
+  obtain ⟨hp0, hp0', hp1⟩ := loop_pref_dom hr'
+  obtain ⟨hs0, hs0', hs1⟩ := loop_suff_dom hr'
+  obtain ⟨hQ, hF, hPr, hlg, hρ, -⟩ := uniform_factors hr'
+  obtain ⟨hPrle, -, hlg2⟩ := uniform_search_start_le hr'
+  have h4 := reads_dom (Hd := 0) hQ hp0 hp1 hs0 hs1 hF hPr hlg hρ le_rfl
+  have h2 := reads_two_term (Hd := 0) hQ hp0' hs0' hF hPr hlg2 hρ le_rfl hPrle
+    (mul_nonneg (mul_nonneg hQ.le hp0') hρ)
+  simp only [ratioOneRun, ratioOne, mul_one, one_mul, one_pow, zero_mul, add_zero] at h4 h2
+  dsimp only
+  refine ⟨h4.1, h2.2.1, h4.2.2.trans ?_⟩
+  linarith [h2.2.2]
 
 end OrthoDFA
 

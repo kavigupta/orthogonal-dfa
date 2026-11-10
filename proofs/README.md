@@ -8,15 +8,13 @@
   reads are wrong at most `κ` times as often as undecided ends well within a stated big-O probe
   budget, harvest slope and slack, given stated bounds on how spread the walk starts and how small
   `κ` must be.
-- `RLStarClaim` (`Claims/RLStar.lean`): over an input distribution `D` and a target admitted by the
-  relative rule at visit ratio `R`, but for chance `δ` the loop's DFA is right on all but `γ + ξ`
-  of `D`'s strings of length `L`, every round's tree has at most `|Q| + 2` leaves, and the whole
-  run's prefixes, suffixes and probes are each within a stated big-O shape. But for chance `δ`, the
-  run's output also depends on at most `totalReads` of the oracle's answers, `totalReads` within a
-  stated big-O shape.
-- `RLStarClaimUniform` (`Claims/RLStar.lean`): over uniform strings, the loop with local walk
-  starts expanded below `⌈L/2⌉` letters, with no start premise: but for chance `δ` its DFA is
-  right on all but `ξ` of the strings of length `L`, with `RLStarClaim`'s per-term bounds at
-  `R = 1`, once `L` is past a stated big-O length `L₀`.
+- `RLStarClaim` (`Claims/RLStar.lean`): over an input distribution `D` that puts at most a
+  stated big-O `p₀Tol` on any first `⌈L/2⌉` letters, but for chance `δ` the loop's DFA is right on
+  all but `ξ` of `D`'s strings of length `L`, every round's tree has at most `|Q| + 2` leaves, and
+  the whole run's prefixes, suffixes and probes are each within a stated big-O shape. But for
+  chance `δ`, the run's output also depends on at most `totalReads` of the oracle's answers,
+  `totalReads` within a stated big-O shape.
+- `RLStarClaimUniform` (`Claims/RLStar.lean`): `RLStarClaim` over uniform strings, once `L` is past
+  a stated big-O length `L₀`.
 - `RLStarClaimUniformSimple` (`Claims/RLStar.lean`): `RLStarClaimUniform` with the prefix and
   suffix totals each a single product.

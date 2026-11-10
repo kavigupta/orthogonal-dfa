@@ -25,8 +25,8 @@ lemma trieSucceeds_mono {K : ℕ} {settings : LoopSettings K} {cap : ℕ}
     {O : Oracle μ (FreeMonoid α)} {D Dsf T : Measure (FreeMonoid α)} {M : _root_.DFA α σ} {ξ R R' : ℝ}
     (hR : R ≤ R')
     {p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget}
-    (h : RLStarTrieSucceeds settings cap O D Dsf T M ξ R p) :
-    RLStarTrieSucceeds settings cap O D Dsf T M ξ R' p := by
+    (h : RLStarSucceeds settings cap O D Dsf T M ξ R p) :
+    RLStarSucceeds settings cap O D Dsf T M ξ R' p := by
   obtain ⟨h1, S, hS, hdep⟩ := h
   exact ⟨h1, S, hS.trans hR, hdep⟩
 
@@ -74,7 +74,7 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
             ≤ (Q + 1) * loopBudget (L + Q + 4) Q A Ae δ c) ∧
       (loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget).real
-        {p | ¬ RLStarTrieSucceeds settings tcap O (prefixLaw D L) (prefixLaw D Ls)
+        {p | ¬ RLStarSucceeds settings tcap O (prefixLaw D L) (prefixLaw D Ls)
           (prefixLaw D L) M ξT
           (learnerReads (Q + 1) (6 * (Q + 2) * loopCount (L + Q + 4) Q A Ae δ c ξ pAP η₀)
             (loopPool (L + Q + 4) Q A Ae δ c ξ pAP η₀ + 1) (loopFam (L + Q + 4) Q A Ae δ c ξ η₀)

@@ -209,7 +209,7 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1)) ∧
       (loopMeasure μ α (Fintype.card σ + 1) settings.level3.harvestReadCap
           settings.level3.probeBudget).real
-        {p | ¬ RLStarTrieSucceeds settings cap O (prefixLaw D L) (prefixLaw D Ls)
+        {p | ¬ RLStarSucceeds settings cap O (prefixLaw D L) (prefixLaw D Ls)
           (prefixLaw D L) M ξT
           (learnerReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV B₃ Q (⌈HB⌉₊ : ℝ)
             ((3 + Nat.clog 2 L₁ : ℕ) : ℝ) A 0) p}
@@ -378,7 +378,7 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
         _ ≤ (Q + 1) * (PB + 1) :=
           mul_le_mul_of_nonneg_left (by linarith only [Nat.floor_le hPB0]) (by linarith only [hQ0])
   refine ⟨settings, hwalk, hbud, hHN, hSC, hlenT, ?_⟩
-  have hsub : {p | ¬ RLStarTrieSucceeds settings cap O (prefixLaw D L) (prefixLaw D Ls)
+  have hsub : {p | ¬ RLStarSucceeds settings cap O (prefixLaw D L) (prefixLaw D Ls)
         (prefixLaw D L) M ξT
         (learnerReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV B₃ Q (⌈HB⌉₊ : ℝ)
           ((3 + Nat.clog 2 L₁ : ℕ) : ℝ) A 0) p}
@@ -435,8 +435,8 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       have hF' : F4 = o.family := hF
       rw [← hF']
       omega
-    refine ⟨⟨_, t1, by simpa using hlen, liftRound settings.level3.walkStart o.data,
-      by simp [List.getLast?_map, Option.mem_def.1 ho], hcons, ?_⟩, ?_⟩
+    refine ⟨⟨_, t1, ⟨by simpa using hlen, liftRound settings.level3.walkStart o.data,
+      by simp [List.getLast?_map, Option.mem_def.1 ho], hcons, ?_⟩, ?_⟩, ?_⟩
     · show (prefixLaw D L).real {w | ¬ o.result.hypothesis.TrieClassifies (o.data.read O p.1)
           (completeTrie settings.level3.walkStart) w (M.eval w.toList ∈ M.accept)} ≤ ξT
       rw [← hro, hwalk]
@@ -484,6 +484,10 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
           ∂(prefixLaw D L) ≤ 3 / 8 * εcov at h3
         linarith
       linarith
+    · intro o' ho'
+      obtain ⟨o'', ho'', rfl⟩ := List.mem_map.1 ho'
+      obtain ⟨o₃, ho₃, rfl⟩ := List.mem_map.1 ho''
+      exact hlv o₃ ho₃
     · refine ⟨(trieLoopRoundsQ settings cap P.D Dsf p.2 (Fintype.card σ + 1)).reads rd, ?_,
         fun o' ho' => (Query.eval_congr _ _ ho').1⟩
       rw [t2]

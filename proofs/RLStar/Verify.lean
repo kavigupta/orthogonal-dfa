@@ -6,7 +6,6 @@ import RLStar.Proofs.Budget
 import RLStar.Proofs.ClaimTrainFamily
 import RLStar.Proofs.ClaimCounterexSynth
 import RLStar.Proofs.ClaimRLStar
-import RLStar.Proofs.ClaimRLStarTrie
 import RLStar.Proofs.ClusteringQuality
 import RLStar.Proofs.CoveredStart
 import RLStar.Proofs.DTree
@@ -62,8 +61,8 @@ The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBo
 
 The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`:
 `TrainFamilyClaim`, `CounterexSynthClaim`, `RLStarClaim`,
-`RLStarClaimUniform` and `RLStarClaimUniformSimple`. The uniform claims are of the learner with
-local walk starts (`indecisiveLStarTrieLoop`) and have no start premise.
+`RLStarClaimUniform` and `RLStarClaimUniformSimple`. The `RLStar` claims are of the learner with
+local walk starts (`indecisiveLStarTrieLoop`).
 -/
 
 namespace OrthoDFA
