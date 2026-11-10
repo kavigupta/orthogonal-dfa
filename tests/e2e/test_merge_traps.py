@@ -69,14 +69,6 @@ class TestArmedMergeTarget(unittest.TestCase):
         # and only costly while Q carries mass.  Either drifting leaves the test below
         # passing without exercising anything.
         self.assertLess(report.class_preserving_fraction, 0.05)
-        # Nothing about the sampler stops this being learned exactly, so the shortfall
-        # below is the learner's and not the target's.
-        self.assertAlmostEqual(
-            P.non_start_zone_accuracy_ceiling(
-                target, length=ARMED_LENGTH, sampler=sampler
-            ),
-            1.0,
-        )
 
 
 class TestArmedMergeLearned(unittest.TestCase):

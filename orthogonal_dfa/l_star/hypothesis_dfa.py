@@ -63,7 +63,7 @@ class HypothesisDFA:
             for path in self.leaves
         }
         return DFA(
-            states=set(ids.values()),
+            states=set(transitions),
             input_symbols=set(range(alphabet_size)),
             transitions=transitions,
             initial_state=initial_state,
