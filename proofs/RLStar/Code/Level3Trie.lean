@@ -9,7 +9,8 @@ it the round has expanded (`walkStartIn`), none at first.
   sift. It and the ends test run at the harvest rate `y`, against `2y`.
 * A probe whose harvest string (`harvestString`) was read before since the hypothesis last changed
   is skipped: no test runs on it, and its walk start and that of the probe that first read the
-  string are expanded, those shorter than `cap`. The tests count it all the same.
+  string are expanded, those shorter than `cap`. The harvest tests count neither it nor that first
+  probe.
 * The success test counts every probe since the hypothesis or the expanded prefixes last changed,
   a skipped one as disagreeing, at the level of that stretch: the `j`-th stretch of the round tests
   at `δ / (8 (j + 1) (j + 2))`.
@@ -17,9 +18,8 @@ it the round has expanded (`walkStartIn`), none at first.
 Known modelling gap. The starts and ends tests run at `y`, where the Python's run at its stuck rate
 and at its ends rate.
 
-Known modelling gap. The Python's tests count neither a skipped probe nor the probe that first read
-its string (`SiteCounts.drop`), where here both count, the skipped one at its site and as
-disagreeing.
+Known modelling gap. The Python's success test counts neither a skipped probe nor the probe that
+first read its string (`SiteCounts.drop`), where here both count, the skipped one as disagreeing.
 
 Known modelling gap. The Python's success test keeps counting across expansions, at the level of the
 hypothesis, where here an expansion that changes the expanded prefixes restarts it.
@@ -106,13 +106,13 @@ noncomputable def TrieState.skipExpands (cap : ℕ) (s : TrieState α) (o : Outc
     fun v => v.toList.length < cap).toFinset
 
 open scoped Classical in
-/-- The probe with outcome `o`, walked from `u`, skipped: counted, and its walk start and that of
-the probe that first read its harvest string expanded, those shorter than `cap`. -/
+/-- The probe with outcome `o`, walked from `u`, skipped: uncounted, with the probe that first read
+its harvest string, and their walk starts expanded, those shorter than `cap`. -/
 noncomputable def TrieState.skipRepeat (cap : ℕ) (s : TrieState α) (o : Outcome α)
     (u : FreeMonoid α) : TrieState α :=
   let X := s.skipExpands cap o u
   { s with
-    counted := s.counted ++ [o]
+    counted := s.counted.filter fun o' => ∀ z ∈ harvestString o', z ∉ harvestString o
     expanded := X
     stretches := if X = s.expanded then s.stretches else s.stretches + 1
     successProbes := if X = s.expanded then s.successProbes + 1 else 0
