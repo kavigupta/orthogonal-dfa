@@ -77,7 +77,7 @@ def ClusteringQualityGuarantee : Prop :=
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         4 * (populations.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
       (∀ B ∈ states,
-        2 ^ 14 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
+        2 ^ 32 * (B.nsuff : ℝ) * collisionMass Dsf ≤ pAP ^ 2) →
         1 - δ - α ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
                 streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)

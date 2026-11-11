@@ -76,7 +76,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
             4 * (pops.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
           (∀ B ∈ schedule pops,
-            2 ^ 14 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δc * pAP) →
+            2 ^ 32 * (B.nsuff : ℝ) * collisionMass Dsf ≤ pAP ^ 2) →
           (runMeasure μ D Dsf).real
             {x | ¬ ((∃ B ∈ schedule pops, streams (fun _ => ∅) none x
                 ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
@@ -434,7 +434,7 @@ def LoopCore : Prop :=
   4 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * cap
     ≤ (slack - m) ^ 2 →
   8 * ((K : ℝ) + 1) * NP * cap ≤ slack - m →
-  2 ^ 15 * NS * cap ≤ δc * (pAP - ms) →
+  2 ^ 33 * NS * cap ≤ (pAP - ms) ^ 2 →
   6 * K * (K + 1) * NP * cap ≤ m →
   K * (NS + 1) * cap ≤ ms →
   1 ≤ C.walkStart → prefixMax P.D C.walkStart ≤ cap * C.harvestRate / 2 →
@@ -682,10 +682,10 @@ theorem loop_core_holds : LoopCore := by
         rw [(hsizes pops B (by rw [hs]; exact hB)).1]
         exact_mod_cast hNSb pops hpops
       have hcc := mul_le_mul hns hcolS hcolS0 (by positivity)
-      calc 2 ^ 14 * (B.nsuff : ℝ) * collisionMass Lsf
-          = 2 ^ 14 * ((B.nsuff : ℝ) * collisionMass Lsf) := by ring
-        _ ≤ 2 ^ 14 * (NS * (2 * cap)) := mul_le_mul_of_nonneg_left hcc (by norm_num)
-        _ = 2 ^ 15 * NS * cap := by ring
+      calc 2 ^ 32 * (B.nsuff : ℝ) * collisionMass Lsf
+          = 2 ^ 32 * ((B.nsuff : ℝ) * collisionMass Lsf) := by ring
+        _ ≤ 2 ^ 32 * (NS * (2 * cap)) := mul_le_mul_of_nonneg_left hcc (by norm_num)
+        _ = 2 ^ 33 * NS * cap := by ring
         _ ≤ _ := hq3
   -- the history's reads number at most `6 (K + 1) NP` prefixes and `NS + 1` suffixes a round
   have hcodes : ∀ (ω : Ω) (g : Fin K → RoundDraws α K settings.level3.harvestReadCap T) (r : ℕ),

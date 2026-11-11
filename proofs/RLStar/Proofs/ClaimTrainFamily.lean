@@ -420,8 +420,8 @@ private def atomTolW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, isl, iu, iw, 
 open scoped Classical in
 private def collTolW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
   if 0 < nJ ∧ 0 < iδ ∧ 0 < ip ∧ 0 < ie ∧ 0 < isl ∧ 0 < iu ∧ 0 < is then
-    1 / (2 * iδ) * (1 / ip)
-      / (2 ^ 13 * max 1 (nsuffW (nJ, iδ, ip, ie, isl, iu, iw, is, nH)))
+    (1 / ip) ^ 2
+      / (2 ^ 32 * max 1 (nsuffW (nJ, iδ, ip, ie, isl, iu, iw, is, nH)))
   else 1
 
 private lemma tol_pos (v : ClusterVec) : 0 < atomTolW v ∧ 0 < collTolW v := by
@@ -733,9 +733,9 @@ private lemma atomTolW_isBigO : (fun v => 1 / atomTolW v) =O[𝓟 vecRegion]
 
 private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 vecRegion]
     (fun (_, iδ, ip, ie, _, iu, iw, is, _) =>
-      iδ * ip * (log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip)
+      ip ^ 2 * (log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip)
       : ClusterVec → ℝ) := by
-  refine isBigO_on (2 ^ 22) fun b hb => ?_
+  refine isBigO_on (2 ^ 40) fun b hb => ?_
   obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := b
   obtain ⟨hJ, hiδ, hip, hie, hisl, hiu, hiw, his, -⟩ := region hb
   obtain ⟨-, hx, -⟩ := prods hJ hiδ hip hie hiu hiw his
@@ -757,12 +757,12 @@ private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 vecRegion]
     have : 0 ≤ log iδ * ip := by positivity
     linarith
   have hM : max 1 N ≤ 240 * G := max_le hG1 hs
-  have hA0 : 0 < 1 / (2 * iδ) * (1 / ip) / (2 ^ 13 * max 1 N) := by positivity
+  have hA0 : 0 < (1 / ip) ^ 2 / (2 ^ 32 * max 1 N) := by positivity
   refine ⟨(one_div_pos.2 hA0).le, by positivity, ?_⟩
-  rw [one_div_div, show 2 ^ 13 * max 1 N / (1 / (2 * iδ) * (1 / ip))
-      = 2 ^ 14 * (max 1 N * iδ * ip) by field_simp]
-  have : max 1 N * iδ * ip ≤ (240 * G) * iδ * ip := by gcongr
-  have : 0 ≤ iδ * ip * G := by positivity
+  rw [one_div_div, show 2 ^ 32 * max 1 N / (1 / ip) ^ 2 = 2 ^ 32 * (max 1 N * ip ^ 2) by
+    field_simp]
+  have : max 1 N * ip ^ 2 ≤ (240 * G) * ip ^ 2 := by gcongr
+  have : 0 ≤ ip ^ 2 * G := by positivity
   linarith
 
 /-- No strings harvested. -/
@@ -841,7 +841,7 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
         / (512 * log (max 2 (64 * populations.card * (3 + 2 * logb 2 (max 1 (nprefW v)))
           / (δ / 2))))) := by
     simp only [v, atomTolW, if_pos hcond, one_div_one_div, half_eq]
-  have ec : collTolW v = δ / 2 * pAP / (2 ^ 13 * max 1 (nsuffW v)) := by
+  have ec : collTolW v = pAP ^ 2 / (2 ^ 32 * max 1 (nsuffW v)) := by
     simp only [v, collTolW, if_pos hcond, one_div_one_div, half_eq]
   have hks : ∀ B ∈ states, (B.k : ℝ) ≤ kW v ∧ (B.nsuff : ℝ) ≤ nsuffW v := fun B hB => by
     rw [ek, es]; exact hkn B hB
@@ -921,8 +921,8 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
     have : 0 < max 1 (nsuffW v) := lt_max_of_lt_left one_pos
     rw [le_div_iff₀ (by positivity)] at h
     have hc0 : 0 ≤ collisionMass Dsf := tsum_nonneg fun t => sq_nonneg _
-    calc 2 ^ 13 * (B.nsuff : ℝ) * collisionMass Dsf
-        ≤ 2 ^ 13 * max 1 (nsuffW v) * collisionMass Dsf := by
+    calc 2 ^ 32 * (B.nsuff : ℝ) * collisionMass Dsf
+        ≤ 2 ^ 32 * max 1 (nsuffW v) * collisionMass Dsf := by
           gcongr; exact (hks B hB).2.trans (le_max_right _ _)
       _ ≤ _ := by linarith
 
