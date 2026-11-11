@@ -13,7 +13,7 @@ the inverse rates, so the batches' collisions and the family's misreads fit too.
 
 noncomputable section
 
-set_option maxHeartbeats 400000
+set_option maxHeartbeats 1000000
 
 namespace OrthoDFA
 
@@ -223,7 +223,7 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
       = T := by rw [hℓe, hTd]; exact hMI
   rw [hTe] at hZ
   obtain ⟨hT1, hTlE, hTE₁, hlℓ, hTℓ, hTaℓ, hTaε⟩ :=
-    tol_T_le (E₂ := 0) hℓ1 hΛ1 haε1 hE₁1 le_rfl hE₃0 hlg hEd (by rw [hTd]; ring)
+    tol_T_le (E₂ := 0) (T := T) hℓ1 hΛ1 haε1 hE₁1 le_rfl hE₃0 hlg hEd (by rw [hTd]; ring)
   have hT0 : 0 ≤ T := by linarith only [hT1]
   have hℓ0 : 0 ≤ ℓ := by linarith only [hℓ1]
   have hl2 : 1 ≤ ℓ ^ 2 * (1 + Real.log ℓ) :=
@@ -261,7 +261,8 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
   have hJ0 : 0 ≤ J := by rw [hJd]; linarith only [hQ0]
   -- the probes' avoided mass, from the cap's last term
   have hk3' : 6 * J * RB * (Ak)⁻¹ ≤ 1 / 2 := by
-    have hc6 : cap ≤ 1 / (6 * J * (RB + 1)) := (min_le_right _ _).trans (min_le_right _ _)
+    have hc6 : cap ≤ 1 / (6 * J * (RB + 1)) :=
+      (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_right _ _))
     have hcap0 : 0 ≤ cap := (by positivity : (0 : ℝ) ≤ 1 / (E₁ * (ℓ ^ 3 * (1 + Real.log ℓ)))).trans
       hcap
     have hε1 : ε ≤ 1 := by
@@ -343,7 +344,10 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
       refine Real.log_le_log (by positivity) ?_
       show 16 / δ ≤ 16 * (Q + 1) * Kc / (δ / (8 * (Q + 1)))
       rw [div_div_eq_mul_div, div_le_div_iff_of_pos_right hδ]
-      have : 1 ≤ (Q + 1) * Kc * (8 * (Q + 1)) := by nlinarith only [hQ0, hKc1]
+      have hq : 1 ≤ Q + 1 := by linarith only [hQ0]
+      have : 1 ≤ (Q + 1) * Kc * (8 * (Q + 1)) :=
+        one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le hq hKc1)
+          (by linarith only [hQ0])
       nlinarith only [this]
     have hET : E ≤ T := by
       have hl4 : 1 ≤ ℓ ^ 4 * (1 + Real.log ℓ) :=
