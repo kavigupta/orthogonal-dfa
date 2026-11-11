@@ -57,6 +57,12 @@ def phi_maximizing_states(counts, accepts):
     return best
 
 
+def above_rate_states(counts, accepts):
+    """The states whose strings are accepted more often than the strings overall."""
+    rate = sum(accepts.values()) / sum(counts.values())
+    return {s for s in counts if accepts[s] > rate * counts[s]}
+
+
 def held_out_phi(dfa, fit, read) -> float:
     """corr between ``read``'s labels and the DFA's verdicts on its strings, where the
     accepting states are ``phi_maximizing_states`` on ``fit``; the DFA's own accepting
