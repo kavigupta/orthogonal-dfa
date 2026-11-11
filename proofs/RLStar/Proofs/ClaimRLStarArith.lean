@@ -105,11 +105,11 @@ lemma loopΘs_le {Q A ic iξ is : ℝ} (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hic : 1 �
       (by positivity : 0 ≤ ic * is)]
 
 lemma loopW₀_inv (Q A iδ : ℝ) :
-    loopW₀ Q A (1 / iδ) = Real.exp 1 * Real.sqrt (1 / iδ / (8 * (Q + 1)))
+    loopW₀ Q A (1 / iδ) = 2 * Real.exp 2
       * (16 / 5 * (Q * ((Q + 2) * A + 1) + 2 * A + 1)
         * Real.log (8 * (Q * ((Q + 2) * A + 1) + 2 * A + 1)
           * (Q * ((Q + 2) * A + 1) + 2 * A + 1 + 1) * (8 * (Q + 1) * iδ))
-        + 3 + (Q + 2) * A * (Q + 1)) / 2 + 1 := by
+        + 3 + (Q + 2) * A * (Q + 1)) + 1 := by
   unfold loopW₀
   dsimp only
   congr 5
@@ -218,28 +218,35 @@ lemma loopW₀_le {Q A iδ X : ℝ} (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hiδ : 1 ≤ 
     have : y ≤ 8 * (7 * X ^ 3) * (7 * X ^ 3 + X ^ 3) * (8 * (X + X) * X) := by
       rw [hy]; gcongr <;> nlinarith [one_le_pow₀ (n := 3) hX]
     nlinarith
-  have hlog := Real.log_le_self (by linarith : (0 : ℝ) ≤ y)
+  have hlog : Real.log y ≤ 18 * X := by
+    have h1 : Real.log y ≤ 13 * Real.log 2 + 8 * Real.log X :=
+      calc Real.log y ≤ Real.log (2 ^ 13 * X ^ 8) := Real.log_le_log (by linarith) hyX
+        _ = 13 * Real.log 2 + 8 * Real.log X := by
+          rw [Real.log_mul (by positivity) (by positivity), Real.log_pow, Real.log_pow]
+          push_cast; ring
+    have h2 := Real.log_two_lt_d9
+    have h3 : Real.log X ≤ X := (Real.log_le_sub_one_of_pos (by linarith)).trans (by linarith)
+    linarith
   have hlog0 : 0 ≤ Real.log y := Real.log_nonneg hy1
   set Wm := 16 / 5 * S * Real.log y + 3 + (Q + 2) * A * (Q + 1) with hWm
   have hWm0 : 0 ≤ Wm := by rw [hWm]; positivity
-  have hWmX : Wm ≤ 2 ^ 18 * X ^ 11 := by
-    have h1 : 16 / 5 * S * Real.log y ≤ 16 / 5 * (7 * X ^ 3) * (2 ^ 13 * X ^ 8) := by
-      gcongr; linarith
+  have hWmX : Wm ≤ 2 ^ 9 * X ^ 11 := by
+    have h1 : 16 / 5 * S * Real.log y ≤ 16 / 5 * (7 * X ^ 3) * (18 * X) := by
+      gcongr
     have h2 : (Q + 2) * A * (Q + 1) ≤ (X + 2 * X) * X * (X + X) := by gcongr <;> linarith
     have h3 : X ^ 3 ≤ X ^ 11 := pow_le_pow_right₀ hX (by norm_num)
+    have h5 : X ^ 4 ≤ X ^ 11 := pow_le_pow_right₀ hX (by norm_num)
     have h4 : 1 ≤ X ^ 11 := one_le_pow₀ hX
     rw [hWm]
     nlinarith
-  have hsq : Real.sqrt (1 / iδ / (8 * (Q + 1))) ≤ 1 := by
-    rw [Real.sqrt_le_one]
-    rw [div_le_one (by positivity), div_le_iff₀ (by positivity)]
-    nlinarith
-  have he : Real.exp 1 ≤ 3 := by have := Real.exp_one_lt_d9; linarith
-  have hsq0 : 0 ≤ Real.sqrt (1 / iδ / (8 * (Q + 1))) := Real.sqrt_nonneg _
+  have he : Real.exp 2 ≤ 8 := by
+    have := Real.exp_one_lt_d9
+    rw [show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add]
+    nlinarith [Real.exp_pos 1]
   constructor
-  · have : 0 ≤ Real.exp 1 * Real.sqrt (1 / iδ / (8 * (Q + 1))) * Wm / 2 := by positivity
+  · have : 0 ≤ 2 * Real.exp 2 * Wm := by positivity
     linarith
-  · have h1 : Real.exp 1 * Real.sqrt (1 / iδ / (8 * (Q + 1))) * Wm ≤ 3 * 1 * Wm := by gcongr
+  · have h1 : 2 * Real.exp 2 * Wm ≤ 2 * 8 * (2 ^ 9 * X ^ 11) := by gcongr
     have h4 : 1 ≤ X ^ 11 := one_le_pow₀ hX
     linarith
 

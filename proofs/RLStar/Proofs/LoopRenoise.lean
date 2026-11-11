@@ -697,7 +697,7 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hκ : 0 ≤ fam.κ)
     0 < C.harvestRate → C.harvestRate ≤ C.disagreementRate / 48 → C.disagreementRate < 1 →
     36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget →
     0 ≤ t → 0 ≤ t' → t * fam.κ ≤ 1 - Real.exp (-(t' * fam.κ)) →
-    C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀
+    C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀ * min 1 (Real.exp (t' * (fam.κ * m)) / (1 + t))
       + Real.exp (t' * (fam.κ * m)) / (1 + t) ^ 2 ≤ C.δ / 8 →
     (μ'.prod (Measure.pi fun _ : Fin C.probeBudget => P.D))
         (level3Fail fam C P.D (roundSlope σ P.L C) (roundSlack σ α C p₀) E u)
@@ -715,7 +715,7 @@ theorem level3Fail_le (fam : SuffixFamily μ' α σ) (hκ : 0 ≤ fam.κ)
   -- level 3 ends well within `|Q| + 2` leaves
   have hp₀ : 0 < p₀ := (Random.prefixMax_pos P.D k).trans_le (ciSup_le hpre)
   have hK := level5RoundCorrect_holds fam.M side U fam.κ μ' R P C p₀ 0 t t' hpre hδ hδ1 hy0
-    hyρ hρ1 hP hκ ht ht' htc ((add_le_add (pairs_min_le _ hp₀.le _) le_rfl).trans hfin)
+    hyρ hρ1 hP hκ ht ht' htc hfin
   set tail : ℝ := misledTail T p₀ (2 * (nQ + 1) * fam.κ) u with htail
   have htail0 : 0 ≤ tail := misledTail_nonneg hp₀.le (by positivity)
   -- the probes of each `E q` misled at each letter weigh at most half of it, plus `u`
