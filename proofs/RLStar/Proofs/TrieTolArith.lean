@@ -1,11 +1,12 @@
 import RLStar.Proofs.BigO
+import RLStar.Proofs.LoopDFAArith
 
 /-!
 # The trie tolerance's arithmetic
 
 `trie_loop_tol`'s steps over abstract reals: the tolerance
 
-    T = ℓ⁴ Λ E + ℓ² Λ E₂ + ℓ² E₃
+    T = ℓ⁴ Λ E + ℓ² Λ E₂
 
 against the rates and caps `trie_loop_core` needs, once `2⁴ T⁵ ≤ |Σ|^k`.
 -/
@@ -16,10 +17,27 @@ namespace OrthoDFA
 
 open Real
 
-lemma tol_T_le {ℓ Λ E E₁ E₂ E₃ aε lg T : ℝ} (hℓ : 1 ≤ ℓ) (hΛ : 1 ≤ Λ) (haε : 1 ≤ aε)
-    (hE₁ : 1 ≤ E₁) (hE₂ : 0 ≤ E₂) (hE₃ : 0 ≤ E₃) (hlg : 0 ≤ lg)
+/-- `loopTolInv` without its `ℓ² E₃` term. -/
+def trieTolInv (ℓ Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ :=
+  let t := loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀
+  ℓ ^ 4 * (1 + Real.log ℓ) * t.1 + ℓ ^ 2 * (1 + Real.log ℓ) * t.2.1
+
+lemma one_le_trieTolInv {ℓ Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hℓ : 1 ≤ ℓ) (hQ : 0 ≤ Q)
+    (hA : 0 ≤ A) (hAe : 2 ≤ Ae) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hc : 0 < c) (hc1 : c ≤ 1)
+    (hξ : 0 < ξ) (hpAP : 0 < pAP) (hp1 : pAP ≤ 1) (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2) :
+    1 ≤ trieTolInv ℓ Q A Ae nQ nA δ c ξ pAP η₀ := by
+  obtain ⟨h1, h2, -⟩ := loopMassTerms_ge nQ nA hQ hA hAe hδ hδ1 hc hc1 hξ hpAP hp1 hη0 hη
+  simp only [trieTolInv]
+  have hΛ1 : 1 ≤ 1 + Real.log ℓ := by have := Real.log_nonneg hℓ; linarith
+  have a := one_le_mul_of_one_le_of_one_le
+    (one_le_mul_of_one_le_of_one_le (one_le_pow₀ (n := 4) hℓ) hΛ1) h1
+  have b := mul_nonneg (mul_nonneg (sq_nonneg ℓ) (by linarith : (0 : ℝ) ≤ 1 + Real.log ℓ)) h2
+  linarith
+
+lemma tol_T_le {ℓ Λ E E₁ E₂ aε lg T : ℝ} (hℓ : 1 ≤ ℓ) (hΛ : 1 ≤ Λ) (haε : 1 ≤ aε)
+    (hE₁ : 1 ≤ E₁) (hE₂ : 0 ≤ E₂) (hlg : 0 ≤ lg)
     (hE : E = 1536 * aε * E₁ + 1536 * lg * aε)
-    (hT : T = ℓ ^ 4 * Λ * E + ℓ ^ 2 * Λ * E₂ + ℓ ^ 2 * E₃) :
+    (hT : T = ℓ ^ 4 * Λ * E + ℓ ^ 2 * Λ * E₂) :
     1 ≤ T ∧ ℓ ^ 2 * Λ * E₁ ≤ T ∧ E₁ ≤ T ∧ ℓ ≤ ℓ ^ 2 * Λ ∧ ℓ ≤ T ∧ aε * ℓ ≤ T ∧ aε ≤ T := by
   have hΛ0 : 0 ≤ Λ := by linarith only [hΛ]
   have hℓ0 : 0 ≤ ℓ := by linarith only [hℓ]
@@ -37,8 +55,7 @@ lemma tol_T_le {ℓ Λ E E₁ E₂ E₃ aε lg T : ℝ} (hℓ : 1 ≤ ℓ) (hΛ 
       rw [hE]; linarith only [h0, hae1]
     have h1 := mul_le_mul_of_nonneg_left hEaE hu0
     have h2 : 0 ≤ ℓ ^ 2 * Λ * E₂ := mul_nonneg (mul_nonneg (sq_nonneg ℓ) hΛ0) hE₂
-    have h3 : 0 ≤ ℓ ^ 2 * E₃ := mul_nonneg (sq_nonneg ℓ) hE₃
-    rw [hT]; linarith only [h1, h2, h3]
+    rw [hT]; linarith only [h1, h2]
   have hlℓ : ℓ ≤ ℓ ^ 2 * Λ := by
     have : ℓ ≤ ℓ ^ 2 := by nlinarith only [hℓ]
     exact this.trans (le_mul_of_one_le_right (sq_nonneg ℓ) hΛ)
@@ -56,6 +73,35 @@ lemma tol_T_le {ℓ Λ E E₁ E₂ E₃ aε lg T : ℝ} (hℓ : 1 ≤ ℓ) (hΛ 
     linarith only [h1, h2, hTE]
   exact ⟨(one_le_mul_of_one_le_of_one_le hu1 hae1).trans hTE, hTlE, hTE₁, hlℓ, hTℓ, hTaℓ,
     (le_mul_of_one_le_right ha0 hℓ).trans hTaℓ⟩
+
+/-- The walk-start mass `trie_loop_core` needs: `E₂` alone carries `K₁`, and `T⁵` squares it. -/
+lemma tol_B₃ {ℓ Λ E E₂ K₁ B₃ n R₀ Q δ T Ak : ℝ} (hℓ : 1 ≤ ℓ) (hΛ : 1 ≤ Λ) (hE : 0 ≤ E)
+    (hn : 1 ≤ n) (hR₀ : 0 ≤ R₀) (hQ : 0 ≤ Q) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hK₁ : 0 ≤ K₁)
+    (hB₃0 : 0 ≤ B₃) (hB₃ : B₃ ≤ K₁ * ℓ) (hE₂ : E₂ = 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
+    (hT : T = ℓ ^ 4 * Λ * E + ℓ ^ 2 * Λ * E₂) (hT1 : 1 ≤ T) (hAk : 2 ^ 4 * T ^ 5 ≤ Ak) :
+    16 * B₃ ^ 2 * Ak⁻¹ ≤ 1 := by
+  have hKE : K₁ ≤ E₂ := by
+    rw [hE₂, le_div_iff₀ hδ]
+    have a : K₁ * δ ≤ K₁ := mul_le_of_le_one_right hK₁ hδ1
+    have b : K₁ ≤ 4 * n * K₁ := by nlinarith only [hn, hK₁]
+    have c : 4 * n * K₁ ≤ 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) :=
+      mul_le_mul_of_nonneg_left (by nlinarith only [hQ, hR₀, hn]) (by linarith only [hn])
+    linarith only [a, b, c]
+  have hΛ0 : 0 ≤ Λ := by linarith only [hΛ]
+  have hl : ℓ ≤ ℓ ^ 2 * Λ := by
+    have : ℓ ≤ ℓ ^ 2 := by nlinarith only [hℓ]
+    exact this.trans (le_mul_of_one_le_right (sq_nonneg ℓ) hΛ)
+  have hBT : B₃ ≤ T := by
+    have a := mul_le_mul_of_nonneg_left hl hK₁
+    have b := mul_le_mul_of_nonneg_left hKE (mul_nonneg (sq_nonneg ℓ) hΛ0)
+    have c : 0 ≤ ℓ ^ 4 * Λ * E := mul_nonneg (mul_nonneg (by positivity) hΛ0) hE
+    rw [hT]; nlinarith only [hB₃, a, b, c]
+  have hT0 : 0 ≤ T := by linarith only [hT1]
+  have h2 : B₃ ^ 2 ≤ T ^ 2 := pow_le_pow_left₀ hB₃0 hBT 2
+  have h5 : T ^ 2 ≤ T ^ 5 := pow_le_pow_right₀ hT1 (by norm_num)
+  have hAk0 : 0 < Ak := lt_of_lt_of_le (by positivity) hAk
+  rw [← div_eq_mul_inv, div_le_one hAk0]
+  linarith only [h2, h5, hAk]
 
 lemma tol_E₁_ge {Q R₀ Θι Θa P₀ δ' pAP s l16 l128 E₁ : ℝ} (hR₀ : 0 ≤ R₀) (hΘι : 1 ≤ Θι)
     (hΘa : 1 ≤ Θa) (hP₀ : 1 ≤ P₀) (hδ' : 0 < δ') (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hs : 0 < s)

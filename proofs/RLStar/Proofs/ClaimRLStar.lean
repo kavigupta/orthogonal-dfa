@@ -8,7 +8,7 @@ import RLStar.Proofs.ClaimReadsArith
 
 `trie_loop_tol` bounds, for every draw, the loop's reads by `(|Q| + 1)` rounds of
 `6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, and its probes by
-`(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`, once `D` holds at most `1/(2⁴ loopTolInv⁵ ℓ)` on
+`(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`, once `D` holds at most `1/(2⁴ trieTolInv⁵ ℓ)` on
 any first `k` letters; but for chance `δ` the run succeeds, asking the oracle at most
 `learnerReads` strings with no held-out ones.
 The claim runs it at main's rates at `R = 1` and `β = 1/|Σ|`: `c = ξ/2`, `ξ/4`, edges crossed at
@@ -74,13 +74,13 @@ theorem rlStarClaim_holds : RLStarClaim := by
   have hη₀ : 1 / 2 - s₀ < 1 / 2 := by linarith
   have hc0 : 0 < ξ / (2 * 1) := by positivity
   have hc1 : ξ / (2 * 1) ≤ 1 := by linarith
-  set T := loopTolInv ((L : ℝ) + Fintype.card σ + 4) (Fintype.card σ)
+  set T := trieTolInv ((L : ℝ) + Fintype.card σ + 4) (Fintype.card σ)
       (Fintype.card α) (1 / (1 / (Fintype.card α : ℝ))) (Fintype.card σ) (Fintype.card α) δ
       (ξ / (2 * 1)) (ξ / 4) pAP (1 / 2 - s₀) with hTd
-  have hT1 : 1 ≤ T := (loopTolInv_le _ _
+  have hT1 : 1 ≤ T := one_le_trieTolInv _ _
     (by have : (0 : ℝ) ≤ L := Nat.cast_nonneg _; linarith) (Nat.cast_nonneg _) (Nat.cast_nonneg _)
     (by rw [one_div_one_div]; exact hA') hδ (by linarith) hc0 hc1 (by positivity) hp hp1
-    (by linarith) hη₀).1
+    (by linarith) hη₀
   have hTm : max 1 T = T := max_eq_right hT1
   -- `D`'s first `k` letters weigh at most `1/Ak`
   have hpre' : ∀ u, D.real {w | prefixOf w k = u} ≤ (2 ^ 4 * T ^ 5)⁻¹ := by

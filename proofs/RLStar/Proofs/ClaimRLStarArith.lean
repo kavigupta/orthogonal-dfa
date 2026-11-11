@@ -1,5 +1,5 @@
 import RLStar.Claims.RLStar
-import RLStar.Proofs.LoopDFAArith
+import RLStar.Proofs.TrieTolArith
 import RLStar.Proofs.BigO
 
 /-!
@@ -1970,7 +1970,7 @@ def distC (r : RLStarDistRun) : ℝ := r.ξ / (2 * r.R)
 
 /-- The most `D` may hold on any first `k` letters. -/
 def distP₀Tol (r : RLStarDistRun) : ℝ :=
-  1 / max 1 (loopTolInv (r.L + r.Q + 4) r.Q r.A (1 / r.β) r.Q r.A r.δ (distC r) (r.ξ / 4)
+  1 / max 1 (trieTolInv (r.L + r.Q + 4) r.Q r.A (1 / r.β) r.Q r.A r.δ (distC r) (r.ξ / 4)
     r.pAP (1 / 2 - r.s₀))
 
 def distPref (r : RLStarDistRun) : ℝ :=
@@ -2045,26 +2045,23 @@ lemma distP₀Tol_pos (r : RLStarDistRun) : 0 < distP₀Tol r := by
 
 /-- `RLStarClaim`'s `1/p₀Tol` shape, `P = L + |Q|`, `b = 1/β`, `lL = log (P Y/|Q|)` and
 `lY = log Y`, in the inverted coordinates. -/
-def p₀ShapeInv (P Q A b R iδ iξ ip is lL lY : ℝ) : ℝ :=
+def p₀ShapeInv (P Q b R iδ iξ ip is lL lY : ℝ) : ℝ :=
   P ^ 4 * lL * lY * (b * R * Q ^ 3 * iξ
       * (Q ^ 2 * b ^ 2 * R ^ 3 * iξ ^ 3 * (is ^ 6 + Q ^ 2 * b * is ^ 5 + Q ^ 4 * b * is ^ 4)
         + iδ * ip ^ 2 * is ^ 2))
     + P ^ 2 * lL * lY ^ 2 * (Q ^ 6 * b ^ 2 * R ^ 2 * iξ ^ 4 * iδ * is ^ 4)
-    + P ^ 2 * lY ^ 2 * (Q ^ 5 * A ^ 2 * b ^ 2 * R ^ 2 * iξ ^ 2 * iδ)
 
 lemma le_of_cofactor {t c M : ℝ} (ht : 0 ≤ t) (hc : 1 ≤ c) (h : t * c = M) : t ≤ M := by
   nlinarith [mul_nonneg ht (sub_nonneg.2 hc)]
 
-set_option maxHeartbeats 1000000 in -- five monomials, each against the largest
+set_option maxHeartbeats 1000000 in -- each monomial against the largest
 /-- Every monomial of `p₀ShapeInv` is at most the largest one. -/
-lemma p₀ShapeInv_le {P Q A b R iδ iξ ip is lL lY : ℝ} (hP : 1 ≤ P) (hQ : 1 ≤ Q) (hA : 0 ≤ A)
-    (hAb : A ≤ b) (hR : 1 ≤ R) (hiδ : 1 ≤ iδ) (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 1 ≤ is)
+lemma p₀ShapeInv_le {P Q b R iδ iξ ip is lL lY : ℝ} (hP : 1 ≤ P) (hQ : 1 ≤ Q) (hR : 1 ≤ R) (hiδ : 1 ≤ iδ) (hiξ : 1 ≤ iξ) (hip : 1 ≤ ip) (his : 1 ≤ is)
     (hlY : 1 ≤ lY) (hlL : lY ≤ lL) (hb : 1 ≤ b) :
-    p₀ShapeInv P Q A b R iδ iξ ip is lL lY
+    p₀ShapeInv P Q b R iδ iξ ip is lL lY
       ≤ 8 * (P ^ 4 * lL * lY ^ 2 * (Q ^ 9 * b ^ 4 * R ^ 4 * iδ * iξ ^ 4 * ip ^ 2 * is ^ 6)) := by
   have m := @one_le_mul_of_one_le_of_one_le ℝ _
   have p : ∀ {x : ℝ} (n : ℕ), 1 ≤ x → 1 ≤ x ^ n := fun n h => one_le_pow₀ h
-  have hlL1 : 1 ≤ lL := hlY.trans hlL
   have hP0 : 0 ≤ P := by linarith
   have hQ0 : 0 ≤ Q := by linarith
   have hR0 : 0 ≤ R := by linarith
@@ -2095,23 +2092,14 @@ lemma p₀ShapeInv_le {P Q A b R iδ iξ ip is lL lY : ℝ} (hP : 1 ≤ P) (hQ :
     le_of_cofactor (by positivity) (c := P ^ 2 * Q ^ 3 * b ^ 2 * R ^ 2 * ip ^ 2 * is ^ 2)
       (m (m (m (m (m (p 2 hP) (p 3 hQ)) (p 2 hb)) (p 2 hR)) (p 2 hip)) (p 2 his))
       (by rw [hMd]; ring)
-  have t6 : P ^ 2 * lY ^ 2 * (Q ^ 5 * A ^ 2 * b ^ 2 * R ^ 2 * iξ ^ 2 * iδ) ≤ M := by
-    have hA2 : A ^ 2 ≤ b ^ 2 := pow_le_pow_left₀ hA hAb 2
-    refine le_trans ?_ (le_of_cofactor (t := P ^ 2 * lY ^ 2 * (Q ^ 5 * b ^ 4 * R ^ 2 * iξ ^ 2 * iδ))
-      (by positivity) (c := P ^ 2 * lL * Q ^ 4 * R ^ 2 * iξ ^ 2 * ip ^ 2 * is ^ 6)
-      (m (m (m (m (m (m (p 2 hP) hlL1) (p 4 hQ)) (p 2 hR)) (p 2 hiξ)) (p 2 hip)) (p 6 his))
-      (by rw [hMd]; ring))
-    have : 0 ≤ P ^ 2 * lY ^ 2 * Q ^ 5 * b ^ 2 * R ^ 2 * iξ ^ 2 * iδ := by positivity
-    nlinarith [mul_le_mul_of_nonneg_left hA2 this]
-  have e : p₀ShapeInv P Q A b R iδ iξ ip is lL lY
+  have e : p₀ShapeInv P Q b R iδ iξ ip is lL lY
       = P ^ 4 * lL * lY * (b * R * Q ^ 3 * iξ * (Q ^ 2 * b ^ 2 * R ^ 3 * iξ ^ 3 * is ^ 6))
         + P ^ 4 * lL * lY
           * (b * R * Q ^ 3 * iξ * (Q ^ 2 * b ^ 2 * R ^ 3 * iξ ^ 3 * (Q ^ 2 * b * is ^ 5)))
         + P ^ 4 * lL * lY
           * (b * R * Q ^ 3 * iξ * (Q ^ 2 * b ^ 2 * R ^ 3 * iξ ^ 3 * (Q ^ 4 * b * is ^ 4)))
         + P ^ 4 * lL * lY * (b * R * Q ^ 3 * iξ * (iδ * ip ^ 2 * is ^ 2))
-        + P ^ 2 * lL * lY ^ 2 * (Q ^ 6 * b ^ 2 * R ^ 2 * iξ ^ 4 * iδ * is ^ 4)
-        + P ^ 2 * lY ^ 2 * (Q ^ 5 * A ^ 2 * b ^ 2 * R ^ 2 * iξ ^ 2 * iδ) := by
+        + P ^ 2 * lL * lY ^ 2 * (Q ^ 6 * b ^ 2 * R ^ 2 * iξ ^ 4 * iδ * is ^ 4) := by
     unfold p₀ShapeInv; ring
   rw [e]
   have hM0 : 0 ≤ M := by positivity
@@ -2129,40 +2117,38 @@ def p₀Shape (r : RLStarDistRun) : ℝ :=
     + (r.L + r.Q) ^ 2 * log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))
       * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2 * r.Q ^ 6 * (1 / r.β) ^ 2
       * r.R ^ 2 / (r.ξ ^ 4 * r.δ * r.s₀ ^ 4)
-    + (r.L + r.Q) ^ 2 * log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
-      * r.Q ^ 5 * r.A ^ 2 * (1 / r.β) ^ 2 * r.R ^ 2 / (r.ξ ^ 2 * r.δ)
 
 lemma p₀Shape_eq (r : RLStarDistRun) :
-    p₀Shape r = p₀ShapeInv (r.L + r.Q) r.Q r.A (1 / r.β) r.R (1 / r.δ) (1 / r.ξ)
+    p₀Shape r = p₀ShapeInv (r.L + r.Q) r.Q (1 / r.β) r.R (1 / r.δ) (1 / r.ξ)
       (1 / r.pAP) (1 / r.s₀) (log ((r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀)))
       (log (r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀))) := by
   unfold p₀Shape p₀ShapeInv; ring
 
-set_option maxHeartbeats 1000000 in -- three terms, each matched against its shape
+set_option maxHeartbeats 1000000 in -- two terms, each matched against its shape
 lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 rlStarDistRunRegion] p₀Shape := by
   refine bigO_dist (2 ^ 160) (by norm_num) fun r hr => ?_
   obtain ⟨hL, hQ, hA, hAAe, hiδ, hR, hiξ, hip, his, hc0, hc1⟩ := dist_coords hr
   obtain ⟨⟨-, -, hδ, hδ2, -, hξ, hξ1, hp, hp1, hs, hs1⟩, hβ, -⟩ := hr
-  obtain ⟨h1, h2, h3⟩ := rel_terms_le (nQ := r.Q) (nA := r.A) hQ hA hAAe hiδ hR hiξ hip his le_rfl
+  obtain ⟨h1, h2, -⟩ := rel_terms_le (nQ := r.Q) (nA := r.A) hQ hA hAAe hiδ hR hiξ hip his le_rfl
     le_rfl
-  simp only [one_div_one_div, summed_inv, quarter_inv] at h1 h2 h3
+  simp only [one_div_one_div, summed_inv, quarter_inv] at h1 h2
   have hLQ1 : (1 : ℝ) ≤ r.L + r.Q := by linarith
   set ℓ : ℝ := (r.L : ℝ) + r.Q + 4 with hℓd
   have hℓ1 : 1 ≤ ℓ := by linarith
-  obtain ⟨hT1, -⟩ := loopTolInv_le (ℓ := ℓ) (Q := r.Q) (A := r.A) (Ae := 1 / r.β)
+  have hT1 := one_le_trieTolInv (ℓ := ℓ) (Q := r.Q) (A := r.A) (Ae := 1 / r.β)
     (δ := r.δ) (c := distC r) (ξ := r.ξ / 4) (pAP := r.pAP) (η₀ := 1 / 2 - r.s₀) r.Q r.A hℓ1
     (by linarith) (by linarith) (by linarith) hδ (by linarith) hc0 hc1 (by positivity) hp hp1
     (by linarith) (by linarith)
-  have hinv : 1 / distP₀Tol r = loopTolInv ℓ r.Q r.A (1 / r.β) r.Q r.A r.δ (distC r)
+  have hinv : 1 / distP₀Tol r = trieTolInv ℓ r.Q r.A (1 / r.β) r.Q r.A r.δ (distC r)
       (r.ξ / 4) r.pAP (1 / 2 - r.s₀) := by
     unfold distP₀Tol
     rw [one_div_one_div, max_eq_right hT1]
   rw [hinv]
   refine ⟨by linarith, ?_⟩
-  simp only [loopTolInv]
+  simp only [trieTolInv]
   set t := loopMassTerms r.Q r.A (1 / r.β) r.Q r.A r.δ (distC r) (r.ξ / 4) r.pAP
     (1 / 2 - r.s₀)
-  obtain ⟨ht1, ht2, ht3⟩ := loopMassTerms_ge (Q := r.Q) (A := r.A) (Ae := 1 / r.β)
+  obtain ⟨ht1, ht2, -⟩ := loopMassTerms_ge (Q := r.Q) (A := r.A) (Ae := 1 / r.β)
     (δ := r.δ) (c := distC r) (ξ := r.ξ / 4) (pAP := r.pAP) (η₀ := 1 / 2 - r.s₀) r.Q r.A
     (by linarith) (by linarith) (by linarith) hδ (by linarith) hc0 hc1 (by positivity) hp hp1
     (by linarith) (by linarith)
@@ -2211,11 +2197,8 @@ lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 rlStarDistRunReg
       + 1 / r.δ * (1 / r.pAP) ^ 2 * (1 / r.s₀) ^ 2) with hF₁d
   set F₂ := r.Q ^ 6 * (1 / r.β) ^ 2 * r.R ^ 2 * (1 / r.ξ) ^ 4 * (1 / r.δ) * (1 / r.s₀) ^ 4
     with hF₂d
-  set F₃ := r.Q ^ 5 * r.A ^ 2 * (1 / r.β) ^ 2 * r.R ^ 2 * (1 / r.ξ) ^ 2 * (1 / r.δ)
-    with hF₃d
   have hF₁ : 0 ≤ F₁ := by rw [hF₁d]; positivity
   have hF₂ : 0 ≤ F₂ := by rw [hF₂d]; positivity
-  have hF₃ : 0 ≤ F₃ := by rw [hF₃d]; positivity
   have a1 : ℓ ^ 4 * (1 + log ℓ) * t.1
       ≤ 2 ^ 160 * (((r.L : ℝ) + r.Q) ^ 4 * lL * lY * F₁) := by
     have := mul_le_mul (mul_le_mul hℓ4 hΛ hΛ0 (by positivity)) h1 (zero_le_one.trans ht1)
@@ -2231,19 +2214,14 @@ lemma distP₀Tol_isBigO : (fun r => 1 / distP₀Tol r) =O[𝓟 rlStarDistRunReg
         ≤ 25 * ((r.L : ℝ) + r.Q) ^ 2 * (2 * lL) * (2 ^ 100 * (F₂ * lY ^ 2)) := this
       _ = 50 * 2 ^ 100 * (((r.L : ℝ) + r.Q) ^ 2 * lL * lY ^ 2 * F₂) := by ring
       _ ≤ _ := mul_le_mul_of_nonneg_right (by norm_num) (by positivity)
-  have a3 : ℓ ^ 2 * t.2.2 ≤ 2 ^ 160 * (((r.L : ℝ) + r.Q) ^ 2 * lY ^ 2 * F₃) := by
-    have := mul_le_mul hℓ2 h3 ht3 (by positivity)
-    calc ℓ ^ 2 * t.2.2 ≤ 25 * ((r.L : ℝ) + r.Q) ^ 2 * (2 ^ 46 * (F₃ * lY ^ 2)) := this
-      _ = 25 * 2 ^ 46 * (((r.L : ℝ) + r.Q) ^ 2 * lY ^ 2 * F₃) := by ring
-      _ ≤ _ := mul_le_mul_of_nonneg_right (by norm_num) (by positivity)
   have e1 : ((r.L : ℝ) + r.Q) * Z
       = (r.L + r.Q) * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀) := by
     rw [hZd]; field_simp
   have e2 : Y = r.Q * r.R / (r.β * r.δ * r.ξ * r.pAP * r.s₀) := by
     rw [hYd]; field_simp
-  have hsum := add_le_add (add_le_add a1 a2) a3
+  have hsum := add_le_add a1 a2
   refine hsum.trans (le_of_eq ?_)
-  rw [p₀Shape_eq, ← e1, ← e2, ← hlLd, ← hlYd, hF₁d, hF₂d, hF₃d]
+  rw [p₀Shape_eq, ← e1, ← e2, ← hlLd, ← hlYd, hF₁d, hF₂d]
   unfold p₀ShapeInv
   ring
 
@@ -2282,8 +2260,8 @@ lemma p₀Shape_le {r : RLStarDistRun} (hr : r ∈ rlStarDistRunRegion) :
   have hip0 : 0 ≤ 1 / r.pAP := by linarith
   have hlL0 : 0 ≤ log X := by linarith
   refine ⟨by unfold p₀ShapeInv; positivity, ?_⟩
-  refine (p₀ShapeInv_le hLQ1 hQ (by linarith) (by linarith) hR (by linarith) hiξ hip
-    (by linarith) hlY hlL (by linarith)).trans (le_of_eq ?_)
+  refine (p₀ShapeInv_le hLQ1 hQ hR (by linarith) hiξ hip (by linarith) hlY hlL
+    (by linarith)).trans (le_of_eq ?_)
   ring
 
 lemma distHeldOut_isBigO : (fun x => (distHeldOut x : ℝ)) =O[𝓟 rlStarDistRegion]

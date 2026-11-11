@@ -145,9 +145,7 @@ lemma p₀Shape_one {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
             + 1 / (r.δ * r.pAP ^ 2 * r.s₀ ^ 2))
         + (r.L + r.Q) ^ 2 * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀))
           * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) ^ 2 * r.Q ^ 6 * r.A ^ 2
-          / (r.ξ ^ 4 * r.δ * r.s₀ ^ 4)
-        + (r.L + r.Q) ^ 2 * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
-          * r.Q ^ 5 * r.A ^ 4 / (r.ξ ^ 2 * r.δ) := by
+          / (r.ξ ^ 4 * r.δ * r.s₀ ^ 4) := by
   obtain ⟨-, hA, hδ, -, hξ, -, hp, -, hs, -⟩ := hr
   have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
   simp only [p₀Shape, toDistRun, ratioOneRun, ratioOne, toDist, one_div_one_div]
