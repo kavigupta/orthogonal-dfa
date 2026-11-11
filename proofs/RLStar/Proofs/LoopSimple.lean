@@ -109,24 +109,6 @@ open MeasureTheory
 
 open Random (prefixMax le_prefixMax prefixMax_pos)
 
-/-- The race tail at one fresh-bad round, at `race_tail_choice`'s `t`:
-
-    exp(t'λ)/(1 + t) ≤ e² (λ + 2c). -/
-lemma race_tail_one {lam c : ℝ} (hl : 0 ≤ lam) (hc : 0 ≤ c) (hpos : 0 < lam + 2 * c) :
-    Real.exp (2 * (1 / (lam + 2 * c)) * lam) / (1 + 1 / (lam + 2 * c))
-      ≤ Real.exp 2 * (lam + 2 * c) := by
-  set t := 1 / (lam + 2 * c) with ht
-  have ht0 : 0 < t := by positivity
-  have h1 : 2 * t * lam ≤ 2 := by
-    rw [ht, show 2 * (1 / (lam + 2 * c)) * lam = 2 * (lam / (lam + 2 * c)) by ring]
-    have : lam / (lam + 2 * c) ≤ 1 := by rw [div_le_one hpos]; linarith
-    linarith
-  have h3 : t * (lam + 2 * c) = 1 := by rw [ht, one_div_mul_cancel hpos.ne']
-  rw [div_le_iff₀ (by positivity)]
-  calc Real.exp (2 * t * lam) ≤ Real.exp 2 := Real.exp_le_exp.2 h1
-    _ = Real.exp 2 * (lam + 2 * c) * t := by rw [mul_assoc, mul_comm _ t, h3, mul_one]
-    _ ≤ Real.exp 2 * (lam + 2 * c) * (1 + t) := by gcongr; linarith
-
 /-- Level 5's premises at the band's `κ = ζ`, once the round's undecided reads, weighted `ζ`,
 stay under `δ/(16e²)`, and the pairs of probes under `1`. -/
 theorem roundPremises_of {σ α : Type*} [Fintype σ] [Fintype α] (C : Random.Level3Settings)

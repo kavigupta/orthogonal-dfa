@@ -32,9 +32,9 @@ def CounterexSynthClaim.{u, v, w} : Prop :=
     slackRate =O[𝓟 counterexSynthRegion] (fun x =>
       (x.Q * x.A * log (x.Q + 1) + log (1 / x.δ)) / x.ε) ∧
     (fun x => 1 / p₀Tol x) =O[𝓟 counterexSynthRegion] (fun x =>
-      (x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ^ 2 / x.δ) ∧
+      (x.Q ^ 2 * x.A / x.ε * log (x.Q * x.A / x.δ)) ^ 2) ∧
     (fun x => 1 / κTol x) =O[𝓟 counterexSynthRegion] (fun x =>
-      x.Q ^ 2 * x.A * log (x.Q * x.A / x.δ) / Real.sqrt x.δ) ∧
+      x.Q ^ 2 * x.A * log (x.Q * x.A / x.δ) / x.δ) ∧
     (∀ x, 0 < p₀Tol x ∧ 0 < κTol x) ∧
     (∀ {A : Type u} [Fintype A] [DecidableEq A] {Q : Type v} [Fintype Q]
       (M : DFA A Q)
