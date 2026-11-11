@@ -88,7 +88,7 @@ def RLStarClaim.{u, v, w} : Prop :=
           * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) * r.Q ^ 3 * r.A / r.ξ
           * (r.Q ^ 2 * r.A ^ 2 / r.ξ ^ 3
               * (1 / r.s₀ ^ 6 + r.Q ^ 2 * r.A / r.s₀ ^ 5 + r.Q ^ 4 * r.A / r.s₀ ^ 4)
-            + 1 / (r.pAP ^ 3 * r.s₀ ^ 2))
+            + 1 / (r.pAP ^ 2 * r.s₀ ^ 2))
         + (r.L + r.Q) ^ 2 * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
           * r.Q ^ 5 * r.A ^ 4 / (r.ξ ^ 2 * r.δ)) ^ 9) ∧
     totalPref =O[𝓟 rlStarRunRegion] (fun r =>

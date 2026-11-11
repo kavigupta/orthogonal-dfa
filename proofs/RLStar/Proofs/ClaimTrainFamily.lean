@@ -418,15 +418,14 @@ private def atomTolW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, isl, iu, iw, 
   else 1
 
 open scoped Classical in
-private def collTolW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
+private def sufAtomTolW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
   if 0 < nJ ∧ 0 < iδ ∧ 0 < ip ∧ 0 < ie ∧ 0 < isl ∧ 0 < iu ∧ 0 < is then
-    (1 / ip) ^ 2
-      / (2 ^ 32 * max 1 (nsuffW (nJ, iδ, ip, ie, isl, iu, iw, is, nH)))
+    1 / ip / (2 ^ 16 * max 1 (nsuffW (nJ, iδ, ip, ie, isl, iu, iw, is, nH)))
   else 1
 
-private lemma tol_pos (v : ClusterVec) : 0 < atomTolW v ∧ 0 < collTolW v := by
+private lemma tol_pos (v : ClusterVec) : 0 < atomTolW v ∧ 0 < sufAtomTolW v := by
   obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := v
-  simp only [atomTolW, collTolW]
+  simp only [atomTolW, sufAtomTolW]
   split_ifs with h
   · obtain ⟨hJ, hiδ, hip, hie, hisl, hiu, his⟩ := h
     have : 0 < log (max 2 (64 * nJ
@@ -731,9 +730,9 @@ private lemma atomTolW_isBigO : (fun v => 1 / atomTolW v) =O[𝓟 vecRegion]
       = nJ * G * iu + nJ * G * isl + G * (ie * is ^ 2 + iu * is) := by ring
   linarith
 
-private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 vecRegion]
+private lemma sufAtomTolW_isBigO : (fun v => 1 / sufAtomTolW v) =O[𝓟 vecRegion]
     (fun (_, iδ, ip, ie, _, iu, iw, is, _) =>
-      ip ^ 2 * (log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip)
+      ip * (log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip)
       : ClusterVec → ℝ) := by
   refine isBigO_on (2 ^ 40) fun b hb => ?_
   obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := b
@@ -747,7 +746,7 @@ private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 vecRegion]
   have hcond : 0 < nJ ∧ 0 < iδ ∧ 0 < ip ∧ 0 < ie ∧ 0 < isl ∧ 0 < iu ∧ 0 < is :=
     ⟨by linarith, by linarith, by linarith, by linarith, by linarith, by linarith, by linarith⟩
   dsimp only
-  simp only [collTolW, nsuffW, if_pos hcond]
+  simp only [sufAtomTolW, nsuffW, if_pos hcond]
   set N := nsuffB (1 / is) (rsc ie iu is) ((1 / iw) ^ 4) (1 / ip) (1 / (2 * iδ))
   set G := log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip
   have hG1 : 1 ≤ 240 * G := by
@@ -757,12 +756,12 @@ private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 vecRegion]
     have : 0 ≤ log iδ * ip := by positivity
     linarith
   have hM : max 1 N ≤ 240 * G := max_le hG1 hs
-  have hA0 : 0 < (1 / ip) ^ 2 / (2 ^ 32 * max 1 N) := by positivity
+  have hA0 : 0 < 1 / ip / (2 ^ 16 * max 1 N) := by positivity
   refine ⟨(one_div_pos.2 hA0).le, by positivity, ?_⟩
-  rw [one_div_div, show 2 ^ 32 * max 1 N / (1 / ip) ^ 2 = 2 ^ 32 * (max 1 N * ip ^ 2) by
+  rw [one_div_div, show 2 ^ 16 * max 1 N / (1 / ip) = 2 ^ 16 * (max 1 N * ip) by
     field_simp]
-  have : max 1 N * ip ^ 2 ≤ (240 * G) * ip ^ 2 := by gcongr
-  have : 0 ≤ ip ^ 2 * G := by positivity
+  have : max 1 N * ip ≤ (240 * G) * ip := by gcongr
+  have : 0 ≤ ip * G := by positivity
   linarith
 
 /-- No strings harvested. -/
@@ -787,12 +786,12 @@ private lemma half_eq (a : ℝ) : 1 / (2 * (1 / a)) = a / 2 := by
 
 theorem trainFamilyClaim_holds : TrainFamilyClaim := by
   refine ⟨fun x => kW (toVec x), fun x => nsuffW (toVec x), fun x => nprefW (toVec x),
-    fun x => atomTolW (toVec x), fun x => collTolW (toVec x),
+    fun x => atomTolW (toVec x), fun x => sufAtomTolW (toVec x),
     transfer kW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
     transfer nsuffW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
     transfer nprefW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
     transfer atomTolW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
-    transfer collTolW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
+    transfer sufAtomTolW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
     fun x => tol_pos _, ?_⟩
   intro Ω _ μ _ S _ J _ x O populations uni Pre Suf hx hcard hηle huni hflat
   obtain ⟨nJ, δ, pAP, εcov, ε_s, ε_u, κ, s₀⟩ := x
@@ -841,8 +840,8 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
         / (512 * log (max 2 (64 * populations.card * (3 + 2 * logb 2 (max 1 (nprefW v)))
           / (δ / 2))))) := by
     simp only [v, atomTolW, if_pos hcond, one_div_one_div, half_eq]
-  have ec : collTolW v = pAP ^ 2 / (2 ^ 32 * max 1 (nsuffW v)) := by
-    simp only [v, collTolW, if_pos hcond, one_div_one_div, half_eq]
+  have ec : sufAtomTolW v = pAP / (2 ^ 16 * max 1 (nsuffW v)) := by
+    simp only [v, sufAtomTolW, if_pos hcond, one_div_one_div, half_eq]
   have hks : ∀ B ∈ states, (B.k : ℝ) ≤ kW v ∧ (B.nsuff : ℝ) ≤ nsuffW v := fun B hB => by
     rw [ek, es]; exact hkn B hB
   have hnpW : ∀ B ∈ states, (B.npref : ℝ) ≤ nprefW v := fun B hB => by
@@ -874,7 +873,7 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
   have hM : 0 < max 1 (nprefW v) := lt_max_of_lt_left one_pos
   have hlb0 : 0 ≤ logb 2 (max 1 (nprefW v)) := logb_nonneg one_lt_two (le_max_left _ _)
   refine (le_of_eq (by ring)).trans (hmain D Dsf hD hDsf hpre hsuf hpAP'
-    (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB => ?_))
+    (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB t => ?_))
   · have h : (D j).real {t} ≤ (1 / 2 - η₀) * min (εcov * (1 / 2 - η₀)) ε_u
         / (2 ^ 19 * max 1 (nprefW v)) :=
       (le_min_iff.1 (le_min_iff.1 (hatom j hj t)).1).1
@@ -917,12 +916,12 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
         ≤ 512 * log (max 2 (64 * populations.card * (3 + 2 * logb 2 (max 1 (nprefW v)))
           / (δ / 2))) * (D j).real {t} := by gcongr
       _ ≤ _ := by linarith
-  · have h := hcoll
+  · have h := hcoll t
     have : 0 < max 1 (nsuffW v) := lt_max_of_lt_left one_pos
     rw [le_div_iff₀ (by positivity)] at h
-    have hc0 : 0 ≤ collisionMass Dsf := tsum_nonneg fun t => sq_nonneg _
-    calc 2 ^ 32 * (B.nsuff : ℝ) * collisionMass Dsf
-        ≤ 2 ^ 32 * max 1 (nsuffW v) * collisionMass Dsf := by
+    have hc0 : 0 ≤ Dsf.real {t} := measureReal_nonneg
+    calc 2 ^ 16 * (B.nsuff : ℝ) * Dsf.real {t}
+        ≤ 2 ^ 16 * max 1 (nsuffW v) * Dsf.real {t} := by
           gcongr; exact (hks B hB).2.trans (le_max_right _ _)
       _ ≤ _ := by linarith
 

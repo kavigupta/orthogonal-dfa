@@ -59,7 +59,8 @@ theorem measureReal_stalled_nearest_le (O : Oracle μ S) (populations : Finset J
     (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
     [IsProbabilityMeasure Dsf] (B : State) (hkpos : 0 < B.k) (hscreen : B.scd ≤ B.sc)
-    (hkM : B.k ≤ B.nsuff) (ρsf : ℝ) (rs : ℕ) (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf) :
+    (hkM : B.k ≤ B.nsuff) (ρsf : ℝ) (rs : ℕ) (hρsf : ∀ v, Dsf.real {v} ≤ ρsf)
+    (hρsf0 : 0 ≤ ρsf) :
     (streamMeasure μ Pp Pc Dsf).real
         (stalled nearestClusterer O populations B (B.k - 1) (B.k - 1))
       ≤ poolTail (B.nsuff + rs) rs ρsf := by
@@ -473,7 +474,7 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (hu : 3 / 2 * indecisionLimit + certFrac indecisionLimit εs ≤ u)
     (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hα0 : 0 < α) (hα1 : α ≤ 1)
     (ρ ρsf : ℝ) (hρ : ∀ j ∈ tame, ∀ t, (Dc j).real {t} ≤ 3 * ρ ∧ (Dp j).real {t} ≤ 3 * ρ)
-    (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
+    (hρsf : ∀ v, Dsf.real {v} ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
     (hεs : 0 < εs) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (pAP : ℝ) (hpAP0 : 0 < pAP) (hpAP1 : pAP ≤ 1)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
@@ -737,12 +738,12 @@ lemma rejFrac_ge_lin (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hε1
   exact le_min ((min_le_left _ _).trans (tabFrac_ge_lin η₀ indecisionLimit εcov hε hε1 hind hsig))
     (min_le_min hu le_rfl)
 
-/-- What the pool's collision cap buys: its redraws cost `δ/256`, once for every population.
-With `n = M + r` draws and `r = ⌊pAP M/20⌋`, `8n√(nρ) ≤ (r + 1)/64`, so the tail is at most
+/-- What the pool's atom cap buys: its redraws cost `δ/256`, once for every population.
+With `n = M + r` draws and `r = ⌊pAP M/20⌋`, `8n·na ≤ (r + 1)/64`, so the tail is at most
 `(1/128)^(r + 1)`, and `M` clears `log(128/δ)` at the pool's rate. -/
 lemma poolDraws_le_of_cap (η₀ : ℝ) (populations : Finset J) {εcov δ pAP ρsf : ℝ}
     (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hρsf0 : 0 ≤ ρsf)
-    (hρsf : ρsf ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
+    (hρsf : ρsf ≤ poolAtomCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
     poolTail (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit
         + poolRej pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit))
         (poolRej pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit)) ρsf
@@ -758,20 +759,18 @@ lemma poolDraws_le_of_cap (η₀ : ℝ) (populations : Finset J) {εcov δ pAP �
     push_cast
     have : pAP * M / 20 ≤ M := by nlinarith
     linarith
-  have hcap : 2 ^ 32 * (M : ℝ) * ρsf ≤ pAP ^ 2 := by
+  have hcap : 2 ^ 16 * (M : ℝ) * ρsf ≤ pAP := by
     rcases Nat.eq_zero_or_pos M with hM | hM
-    · rw [hM]; simp; positivity
+    · rw [hM]; simp; linarith
     · have h := hρsf
-      rw [poolCollisionCap, le_div_iff₀ (by positivity)] at h
+      rw [poolAtomCap, le_div_iff₀ (by positivity)] at h
       linarith
-  have ha : Real.sqrt (((M + r : ℕ) : ℝ) * ρsf) ≤ pAP / 2 ^ 15 := by
-    refine Real.sqrt_le_iff.2 ⟨by positivity, ?_⟩
+  have ha : ((M + r : ℕ) : ℝ) * ρsf ≤ pAP / 2 ^ 15 := by
     have := mul_le_mul_of_nonneg_right hn hρsf0
-    rw [div_pow]
-    nlinarith
-  have hpow : rejTail (M + r) (Real.sqrt (((M + r : ℕ) : ℝ) * ρsf)) r ≤ (1 / 64 / 2) ^ (r + 1) := by
-    refine rejTail_le_pow (Real.sqrt_nonneg _) (by norm_num) ?_
-    have h1 : 8 * ((((M + r : ℕ) : ℝ)) * Real.sqrt (((M + r : ℕ) : ℝ) * ρsf))
+    linarith
+  have hpow : rejTail (M + r) (((M + r : ℕ) : ℝ) * ρsf) r ≤ (1 / 64 / 2) ^ (r + 1) := by
+    refine rejTail_le_pow (by positivity) (by norm_num) ?_
+    have h1 : 8 * ((((M + r : ℕ) : ℝ)) * (((M + r : ℕ) : ℝ) * ρsf))
         ≤ 8 * (2 * M * (pAP / 2 ^ 15)) :=
       by gcongr
     nlinarith
@@ -1998,7 +1997,7 @@ theorem measureReal_failUnion_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
     (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0) (j : J)
     (hj : j ∈ populations) (B : State) (l lmis E t ρsf : ℝ) (f : S → ℝ) (r rs kmin kmax : ℕ)
     (hE : 0 ≤ E) (hEl : E ≤ l) (hElm : E ≤ lmis)
-    (ht : 0 ≤ t) (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
+    (ht : 0 ≤ t) (hρsf : ∀ v, Dsf.real {v} ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
     (Ecert : ℝ) (hcertBad : (streamMeasure μ Pp Pc Dsf).real
       {x : Run Ω S J | ¬ certGood populations j B.npref r x} ≤ Ecert)
     (Estall : ℝ) (hstall : (streamMeasure μ Pp Pc Dsf).real (stalled rule O populations B kmin kmax)
@@ -2328,7 +2327,7 @@ lemma roundFail_nonneg (populations : Finset J) (l lmis h E L tap pAP ρ ρsf t 
   unfold roundFail
   repeat' (first
     | exact rejTail_nonneg _ (by positivity) _
-    | exact poolTail_nonneg _ _ _
+    | exact poolTail_nonneg _ _ hρsf0
     | positivity
     | apply add_nonneg
     | apply mul_nonneg)
@@ -2360,7 +2359,7 @@ def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (Dsf : M
     ∧ 0 ≤ c ∧ (r : ℝ) ≤ c * B.npref ∧ (rC : ℝ) ≤ cC * B.npref
     -- the pool's findability
     ∧ pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p}
-    ∧ collisionMass Dsf ≤ ρsf
+    ∧ (∀ v, Dsf.real {v} ≤ ρsf)
     -- each class's heavy prefixes fit the FNR test's share and, charged at the class's rates,
     -- the gate's: the uniform pool's by its own draws, a named population's by the hash's split
     -- of a window of its draws
@@ -2468,7 +2467,7 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     (hind1 : indecisionLimit ≤ 1 / 2)
     (hcard : (0 : ℝ) < (populations.card : ℝ)) (hρ0 : 0 ≤ ρ) (hρsf0 : 0 ≤ ρsf)
     (hρsmall : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
-    (hρsfsmall : ρsf ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
+    (hρsfsmall : ρsf ≤ poolAtomCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
     poolFail (9 * pAP / 20) pAP ρsf
         (poolRej pAP (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit))
         (solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
@@ -2697,7 +2696,7 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     have h0 : 0 ≤ Real.exp (-L) := Real.exp_nonneg _
     nlinarith [tbal]
   set pool : ℝ := poolTail (M + rs) rs ρsf with hpooldef
-  have hpool0 : 0 ≤ pool := poolTail_nonneg _ _ _
+  have hpool0 : 0 ≤ pool := poolTail_nonneg _ _ hρsf0
   have htab0 : 0 ≤ tab := rejTail_nonneg _ (by positivity) _
   have hhits0 : 0 ≤ hits := rejTail_nonneg _ (by positivity) _
   have hcert0 : 0 ≤ cert := rejTail_nonneg _ (by positivity) _
@@ -3148,9 +3147,9 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J)
     (hind1 : indecisionLimit ≤ 1 / 2)
     (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (hρ0 : 0 ≤ ρ) (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
+    (hρ0 : 0 ≤ ρ) (hρsf : ∀ v, Dsf.real {v} ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
     (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
-    (hρsfcap : ρsf ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
+    (hρsfcap : ρsf ≤ poolAtomCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
     ∃ B : State, B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ
       ∧ PassableAt O η₀ populations Dsf indecisionLimit εcov α δ ρ ρsf pAP hsz B := by
   classical
