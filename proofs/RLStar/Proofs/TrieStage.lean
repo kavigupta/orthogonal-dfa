@@ -110,6 +110,7 @@ theorem trie_l3_round_le {NP : ℕ} (hNP : ∀ pops, ∑ B ∈ settings.schedule
       · show (μ.prod _) (if Good t then _ else ∅) ≤ _
         split_ifs with h
         · rw [Measure.prod_prod, measure_univ, one_mul]
+          rw [ENNReal.ofReal_zero]
           refine (pi_not_l3Good_le P.D k t.2.2.2 hpre hk ?_).le
           have h1 : (t.2.2.2.card : ℝ) ≤ ((6 * (K + 1) * NP : ℕ) : ℝ) := by exact_mod_cast h.2
           exact (mul_le_mul_of_nonneg_right h1 hp0).trans hK
@@ -235,8 +236,7 @@ theorem trie_batches_round_le (hk : ∀ᵐ x ∂P.D, settings.level3.walkStart �
               (measurableSet_batchesGood k P.D N M).compl).nullMeasurableSet]
           exact batches_bad_le P.D k N M hk
         refine (measure_mono fun q hq => Set.mem_iUnion.2 hq.2).trans ?_
-        rw [measure_iUnion_null hone]
-        exact zero_le)
+        exact (measure_iUnion_null hone).le.trans zero_le)
   refine ENNReal.toReal_le_of_le_ofReal le_rfl ((measure_mono ?_).trans hmain)
   rintro p ⟨hok, hlen, hbad⟩
   have hst : stageH settings O P.D Dsf r p.1 p.2
