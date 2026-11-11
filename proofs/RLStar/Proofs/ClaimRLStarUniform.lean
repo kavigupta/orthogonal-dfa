@@ -207,8 +207,7 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
       have h2 : log 2 ≤ ℓ := log_two_le_log hA'
       have h3 : log ((r.Q : ℝ) * lδ / D) ≤ V := by
         refine Real.log_le_log hQl ?_
-        have : (0 : ℝ) ≤ lδ / D := by have : 0 < lδ := by linarith
-                                        positivity
+        have : (0 : ℝ) ≤ lδ / D := div_nonneg (by linarith) hD0.le
         rw [mul_div_assoc, mul_div_assoc]
         exact mul_le_mul_of_nonneg_right
           (by have : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _; linarith) this
