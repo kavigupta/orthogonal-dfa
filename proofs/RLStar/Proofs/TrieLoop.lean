@@ -6,11 +6,10 @@ import RLStar.LowLevelClaims.Trie
 # The loop with local walk starts is the loop at `walkStart` where its probes' first letters differ
 
 Two programs are twins at an oracle when they read the same strings and one's value is a fixed
-function of the other's (`Twin`). A harvested population's probes, each at least `walkStart` long
-with first `walkStart` letters of no string the clusterings read and of no probe of an earlier
-batch (`BatchesGood`), walk from `walkStart` and harvest only strings outside what the top-up
-rejects, so the top-up is the loop's. A round whose level-3 probes are long with distinct first
-`walkStart` letters (`L3Good`) runs as the loop's (`level3Trie_agree`). So where every round the
+function of the other's (`Twin`). Where `cap ≤ walkStart`, nothing is expanded past the complete
+trie, so a harvested population's probes, each at least `walkStart` long (`BatchesGood`), walk from
+`walkStart` and the top-up is the loop's. A round whose level-3 probes are at least `walkStart`
+long (`L3Good`) runs as the loop's (`level3Trie_agree`). So where every round the
 loop runs is good (`TrieRoundGood`), the loop with local walk starts returns the loop's rounds,
 each with the complete trie as its expanded prefixes, and reads the same strings
 (`twin_trieLoopRoundsQ`).
@@ -95,31 +94,21 @@ section Harvest
 
 variable (read : FreeMonoid α → ARU) (k : ℕ)
 
-lemma prefixOf_of_mem_siteHarvest {H : HypothesisDFA α} {site : Level3Site} {y z : FreeMonoid α}
-    (hz : z ∈ (siteHarvestQ k H site y).eval read) : prefixOf z k = prefixOf y k := by
-  cases site with
-  | ends =>
-    rw [siteHarvestQ, eval_map] at hz
-    exact (pot_pre (probeOrAgree_ends read H.tree y H.edges k z hz).1).2
-  | middles =>
-    rw [siteHarvestQ, eval_map] at hz
-    exact (pot_pre (probeOrAgree_pt read H.tree y H.edges k z hz).1).2
-
 open scoped Classical in
-/-- Probes at least `k` long, with first `k` letters of no string of `T'`, harvest past the complete
-trie what they harvest from `k`, and expand nothing. -/
-lemma twin_trieHarvestFirst (cap : ℕ) (H : HypothesisDFA α) (site : Level3Site)
-    (T T' : Set (FreeMonoid α)) (hT : T ⊆ T') :
-    ∀ ys : List (FreeMonoid α), (∀ y ∈ ys, k ≤ y.toList.length
-        ∧ ∀ z ∈ T', prefixOf z k ≠ prefixOf y k) →
-      Twin read (trieHarvestFirstQ cap H site T' (completeTrie k) ys) (harvestFirstQ k H site T ys)
+/-- Probes at least `k` long harvest past the complete trie what they harvest from `k`, and expand
+nothing, where `cap ≤ k`. -/
+lemma twin_trieHarvestFirst (cap : ℕ) (hcap : cap ≤ k) (H : HypothesisDFA α) (site : Level3Site)
+    (T : Set (FreeMonoid α)) :
+    ∀ ys : List (FreeMonoid α), (∀ y ∈ ys, k ≤ y.toList.length) →
+      Twin read (trieHarvestFirstQ cap H site T (completeTrie k) ys) (harvestFirstQ k H site T ys)
         fun r => (r, completeTrie k)
   | [], _ => ⟨rfl, rfl⟩
   | y :: ys, hys => by
-    obtain ⟨hyk, hyT⟩ := hys y List.mem_cons_self
-    have ih := twin_trieHarvestFirst cap H site T T' hT ys fun y' hy' =>
+    have hyk := hys y List.mem_cons_self
+    have ih := twin_trieHarvestFirst cap hcap H site T ys fun y' hy' =>
       hys y' (List.mem_cons_of_mem _ hy')
     have hw : walkStartIn (completeTrie k) y = k := walkStartIn_completeTrie hyk
+    have hu : ¬ (prefixOf y k).toList.length < cap := by rw [length_prefixOf']; omega
     set l := (siteHarvestQ k H site y).eval read with hl
     unfold trieHarvestFirstQ harvestFirstQ
     rw [hw]
@@ -129,73 +118,50 @@ lemma twin_trieHarvestFirst (cap : ℕ) (H : HypothesisDFA α) (site : Level3Sit
       rcases hh : l.head? with _ | z
       · simp only [Option.filter_none]
         exact ih.1
-      · have hz : z ∈ l := List.mem_of_mem_head? hh
-        have hzT' : z ∉ T' := fun h => hyT z h (prefixOf_of_mem_siteHarvest read k (hl ▸ hz))
-        have hzT : z ∉ T := fun h => hzT' (hT h)
-        simp only [hzT', if_false, eval_pure, Option.filter_some, decide_eq_true_eq, hzT,
-          if_true]
-        rfl
+      · by_cases hzT : z ∈ T
+        · have hf : Option.filter (fun z => decide (z ∉ T)) (some z) = none := by
+            simp [Option.filter_some, hzT]
+          simp only [hzT, hu, ↓reduceIte, hf]
+          exact ih.1
+        · have hf : Option.filter (fun z => !decide (z ∈ T)) (some z) = some z := by
+            simp [Option.filter_some, hzT]
+          simp [hzT, hf]
     · rw [reads_bind, reads_bind, reads_map, eval_map, ← hl]
       rcases hh : l.head? with _ | z
       · simp only [Option.filter_none]
         rw [ih.2]
         rfl
-      · have hz : z ∈ l := List.mem_of_mem_head? hh
-        have hzT' : z ∉ T' := fun h => hyT z h (prefixOf_of_mem_siteHarvest read k (hl ▸ hz))
-        have hzT : z ∉ T := fun h => hzT' (hT h)
-        have hf : Option.filter (fun z => !decide (z ∈ T)) (some z) = some z := by
-          simp [Option.filter_some, hzT]
-        simp [hzT', hf]
+      · by_cases hzT : z ∈ T
+        · have hf : Option.filter (fun z => decide (z ∉ T)) (some z) = none := by
+            simp [Option.filter_some, hzT]
+          simp only [hzT, hu, ↓reduceIte, hf]
+          rw [ih.2]
+          rfl
+        · have hf : Option.filter (fun z => !decide (z ∈ T)) (some z) = some z := by
+            simp [Option.filter_some, hzT]
+          simp [hzT, hf]
 
 open scoped Classical in
-lemma twin_trieTopUp (cap : ℕ) (s : HarvestSampler α) (T : Finset (FreeMonoid α))
-    (stop : List (FreeMonoid α) → Prop) (xs : ℕ → List (FreeMonoid α)) :
+lemma twin_trieTopUp (cap : ℕ) (hcap : cap ≤ k) (s : HarvestSampler α)
+    (T : Finset (FreeMonoid α)) (stop : List (FreeMonoid α) → Prop) (xs : ℕ → List (FreeMonoid α)) :
     ∀ (M : ℕ) (l : List (FreeMonoid α)),
-      (∀ n, l.length ≤ n → n < l.length + M → ∀ x ∈ xs n, k ≤ x.toList.length
-        ∧ (∀ z ∈ T, prefixOf z k ≠ prefixOf x k)
-        ∧ ∀ m < n, ∀ y ∈ xs m, prefixOf y k ≠ prefixOf x k) →
-      (∀ z ∈ l, ∃ m < l.length, ∃ y ∈ xs m, prefixOf z k = prefixOf y k) →
+      (∀ n, l.length ≤ n → n < l.length + M → ∀ x ∈ xs n, k ≤ x.toList.length) →
       Twin read (trieTopUpQ cap (liftSampler k s) T stop xs M (completeTrie k) l)
         (Query.extendUntil (fun n => harvestFirstQ k s.hyp s.site ↑T (xs n)) stop M l) id
-  | 0, l, _, _ => ⟨rfl, rfl⟩
-  | M + 1, l, hb, hl => by
+  | 0, l, _ => ⟨rfl, rfl⟩
+  | M + 1, l, hb => by
     unfold trieTopUpQ Query.extendUntil
     split_ifs with hs
     · exact ⟨rfl, rfl⟩
-    have hT : (↑T : Set (FreeMonoid α)) ⊆ ↑T ∪ {z | z ∈ l} := Set.subset_union_left
-    have hh := twin_trieHarvestFirst read k cap s.hyp s.site ↑T (↑T ∪ {z | z ∈ l}) hT
-      (xs l.length) fun y hy => by
-        obtain ⟨hyk, hyT, hym⟩ := hb l.length le_rfl (by omega) y hy
-        refine ⟨hyk, fun z hz => ?_⟩
-        rcases hz with hz | hz
-        · exact hyT z hz
-        · obtain ⟨m, hm, y', hy', he⟩ := hl z hz
-          rw [he]
-          exact hym m hm y' hy'
+    have hh := twin_trieHarvestFirst read k cap hcap s.hyp s.site ↑T (xs l.length)
+      fun y hy => hb l.length le_rfl (by omega) y hy
     refine hh.bind ?_
     simp only [liftSampler]
-    rcases hz : (harvestFirstQ k s.hyp s.site ↑T (xs l.length)).eval read with _ | z
+    rcases (harvestFirstQ k s.hyp s.site ↑T (xs l.length)).eval read with _ | z
     · exact ⟨rfl, rfl⟩
-    · refine twin_trieTopUp cap s T stop xs M (l ++ [z]) (fun n h1 h2 => ?_) ?_
-      · rw [List.length_append, List.length_singleton] at h1 h2
-        exact hb n (by omega) (by omega)
-      · intro w hw
-        rcases List.mem_append.1 hw with hw | hw
-        · obtain ⟨m, hm, y, hy, he⟩ := hl w hw
-          exact ⟨m, by simp; omega, y, hy, he⟩
-        · rw [List.mem_singleton] at hw
-          subst hw
-          rw [harvestFirstQ, eval_findSome] at hz
-          obtain ⟨y, hy, hyz⟩ := List.exists_of_findSome?_eq_some hz
-          rw [eval_map] at hyz
-          have hzl : w ∈ (siteHarvestQ k s.hyp s.site y).eval read := by
-            rcases hhd : ((siteHarvestQ k s.hyp s.site y).eval read).head? with _ | z'
-            · rw [hhd] at hyz; simp at hyz
-            · rw [hhd] at hyz
-              have : z' = w := by simpa using (Option.filter_eq_some_iff.1 hyz).1
-              subst this
-              exact List.mem_of_mem_head? hhd
-          exact ⟨l.length, by simp, y, hy, prefixOf_of_mem_siteHarvest read k hzl⟩
+    · refine twin_trieTopUp cap hcap s T stop xs M (l ++ [z]) fun n h1 h2 => ?_
+      rw [List.length_append, List.length_singleton] at h1 h2
+      exact hb n (by omega) (by omega)
 
 end Harvest
 
@@ -205,30 +171,25 @@ section Round
 
 variable {K : ℕ}
 
-lemma twin_level3Trie (C : Level3Settings) (cap : ℕ) (read : FreeMonoid α → ARU) {P : ℕ}
-    (draws : Fin P → FreeMonoid α) (hlen : ∀ i, C.walkStart ≤ (draws i).toList.length)
-    (hinj : Function.Injective fun i => prefixOf (draws i) C.walkStart) :
-    Twin read (level3TrieQ C cap draws) (level3Q C draws)
+lemma twin_level3Trie (C : Level3Settings) (read : FreeMonoid α → ARU) {P : ℕ}
+    (draws : Fin P → FreeMonoid α) (hlen : ∀ i, C.walkStart ≤ (draws i).toList.length) :
+    Twin read (level3TrieQ C draws) (level3Q C draws)
       fun r => ⟨r.hypothesis, completeTrie C.walkStart, r.ending⟩ := by
-  refine ⟨level3Trie_agree C cap read draws hlen hinj, ?_⟩
-  have h := runTrieProbes_agree C cap read C.walkStart rfl (List.ofFn draws)
-    (trieInitialState C) ∅ rfl (by simp [trieInitialState])
+  refine ⟨level3Trie_agree C read draws hlen, ?_⟩
+  have h := runTrieProbes_agree C read (List.ofFn draws) (trieInitialState C) rfl
     (fun x hx => by
       obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
-      exact ⟨hlen i, Finset.notMem_empty _⟩)
-    (by
-      rw [List.map_ofFn]
-      exact List.nodup_ofFn.2 hinj)
+      exact hlen i)
   unfold level3TrieQ level3Q
   rw [reads_map, reads_map]
   exact h.2.2.2
 
 open scoped Classical in
 lemma twin_triePopDrawsQ (rd : FreeMonoid α → ℝ) (cap : ℕ) (D : Measure (FreeMonoid α))
-    (k N M : ℕ) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α))
+    (k N M : ℕ) (hcap : cap ≤ k) (pops : List (HarvestSampler α)) (T : Finset (FreeMonoid α))
     (stop : List (FreeMonoid α) → Prop) (j : Option (Fin K))
     (u : ℕ → unitInterval × (Fin N → unitInterval))
-    (hg : ∀ i, j = some i → BatchesGood k D N M T u) :
+    (hg : ∀ i, j = some i → BatchesGood k D N M u) :
     Twin rd (triePopDrawsQ cap D N M (pops.map (liftSampler k)) T stop j u)
       (popDrawsQ D k N M pops T stop j u) id := by
   rcases j with _ | i
@@ -237,19 +198,16 @@ lemma twin_triePopDrawsQ (rd : FreeMonoid α → ℝ) (cap : ℕ) (D : Measure (
   rcases pops[i.val]? with _ | s
   · exact ⟨rfl, rfl⟩
   simp only [Option.map_some]
-  refine Twin.subst (twin_trieTopUp _ k cap s T stop _ M [] (fun n _ hn x hx => ?_) (by simp))
+  refine Twin.subst (twin_trieTopUp _ k cap hcap s T stop _ M [] fun n _ hn x hx => ?_)
   obtain ⟨t, rfl⟩ := List.mem_ofFn.1 hx
-  obtain ⟨h1, h2, h3⟩ := hg i rfl n (by simpa using hn) t
-  refine ⟨h1, h2, fun m hm y hy => ?_⟩
-  obtain ⟨t', rfl⟩ := List.mem_ofFn.1 hy
-  exact h3 m hm t'
+  exact hg i rfl n (by simpa using hn) t
 
 lemma twin_trieDrawListsQ (rd : FreeMonoid α → ℝ) (cap : ℕ) (D : Measure (FreeMonoid α))
-    (k N M : ℕ) (sched : Finset State) (h : LoopHist α) (c : ClusterRest α K N)
-    (hg : ∀ i : Fin K, BatchesGood k D N M h.prefs (c.2.1 (some i))) :
+    (k N M : ℕ) (hcap : cap ≤ k) (sched : Finset State) (h : LoopHist α) (c : ClusterRest α K N)
+    (hg : ∀ i : Fin K, BatchesGood k D N M (c.2.1 (some i))) :
     Twin rd (trieDrawListsQ cap D N M sched (liftHist k h) c) (drawListsQ D k N M sched h c) id := by
   unfold trieDrawListsQ drawListsQ
-  refine (Twin.pi fun j => twin_triePopDrawsQ rd cap D k N M h.pops h.prefs _ j (c.2.1 j)
+  refine (Twin.pi fun j => twin_triePopDrawsQ rd cap D k N M hcap h.pops h.prefs _ j (c.2.1 j)
     fun i hi => hi ▸ hg i).map ?_
   rfl
 
@@ -257,14 +215,14 @@ open scoped Classical in
 lemma twin_trieRoundQ (rd : FreeMonoid α → ℝ) (settings : LoopSettings K) (cap : ℕ)
     (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
-    (hg : TrieRoundGood settings D Dsf h d rd) :
+    (hcap : cap ≤ settings.level3.walkStart) (hg : TrieRoundGood settings D Dsf h d rd) :
     Twin rd (trieRoundQ settings cap D Dsf (liftHist settings.level3.walkStart h) d)
       (roundQ settings D Dsf h d) (Option.map (liftRound settings.level3.walkStart)) := by
   set k := settings.level3.walkStart
   have hlen : (liftHist k h).pops.length = h.pops.length := by simp [liftHist]
   unfold trieRoundQ
   rw [hlen]
-  have hdl := twin_trieDrawListsQ rd cap D k settings.level3.harvestReadCap settings.scanCap
+  have hdl := twin_trieDrawListsQ rd cap D k settings.level3.harvestReadCap settings.scanCap hcap
     (settings.schedule (loopPopulations K h.pops.length)) h d.1 hg.1
   have hroundQ : roundQ settings D Dsf h d = (drawListsQ D k settings.level3.harvestReadCap
       settings.scanCap (settings.schedule (loopPopulations K h.pops.length)) h d.1).bind
@@ -340,7 +298,7 @@ lemma twin_trieRoundQ (rd : FreeMonoid α → ℝ) (settings : LoopSettings K) (
         · exact absurd hex h2
       · exact absurd hsc h1)
     exact e
-  refine (Twin.subst (twin_level3Trie settings.level3 cap _ draws hL3.1 hL3.2)).map ?_
+  refine (Twin.subst (twin_level3Trie settings.level3 _ draws hL3)).map ?_
   rfl
 
 /-- Where every round the loop runs is good, the loop with local walk starts returns the loop's
@@ -348,6 +306,7 @@ rounds, each with the complete trie, and reads what it reads. -/
 theorem twin_trieLoopRoundsQ (rd : FreeMonoid α → ℝ) (settings : LoopSettings K) (cap : ℕ)
     (D Dsf : Measure (FreeMonoid α))
     (draws : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (hcap : cap ≤ settings.level3.walkStart)
     (hg : ∀ r (hr : r < K) rs, (loopRoundsQ settings D Dsf draws r).eval rd = some rs →
       (∀ o ∈ rs, o.result.ending.harvested ≠ none) →
       TrieRoundGood settings D Dsf (histOf rs) (draws ⟨r, hr⟩) rd) :
@@ -356,7 +315,7 @@ theorem twin_trieLoopRoundsQ (rd : FreeMonoid α → ℝ) (settings : LoopSettin
   | 0 => ⟨rfl, rfl⟩
   | r + 1 => by
     unfold trieLoopRoundsQ loopRoundsQ
-    refine (twin_trieLoopRoundsQ rd settings cap D Dsf draws hg r).bind ?_
+    refine (twin_trieLoopRoundsQ rd settings cap D Dsf draws hcap hg r).bind ?_
     rcases hrs : (loopRoundsQ settings D Dsf draws r).eval rd with _ | rs
     · exact ⟨rfl, rfl⟩
     simp only [Option.map_some]
@@ -365,7 +324,7 @@ theorem twin_trieLoopRoundsQ (rd : FreeMonoid α → ℝ) (settings : LoopSettin
       simp [liftRound]
     by_cases hc : r < K ∧ ∀ o ∈ rs, o.result.ending.harvested ≠ none
     · rw [dif_pos ⟨hc.1, hcond.2 hc.2⟩, dif_pos hc, trieHistOf_map]
-      refine (twin_trieRoundQ rd settings cap D Dsf _ _ (hg r hc.1 rs hrs hc.2)).map ?_
+      refine (twin_trieRoundQ rd settings cap D Dsf _ _ hcap (hg r hc.1 rs hrs hc.2)).map ?_
       rcases (roundQ settings D Dsf (histOf rs) (draws ⟨r, hc.1⟩)).eval rd with _ | o <;> simp
     · rw [dif_neg (fun h => hc ⟨h.1, hcond.1 h.2⟩), dif_neg hc]
       exact ⟨rfl, rfl⟩
@@ -373,12 +332,12 @@ theorem twin_trieLoopRoundsQ (rd : FreeMonoid α → ℝ) (settings : LoopSettin
 end Round
 
 theorem level3TrieAgrees_holds : Level3TrieAgrees := by
-  intro α _ _ C cap read P draws hlen hinj
-  exact level3Trie_agree C cap read draws hlen hinj
+  intro α _ _ C read P draws hlen
+  exact level3Trie_agree C read draws hlen
 
 theorem trieLoopAgrees_holds : TrieLoopAgrees := by
-  intro α _ _ K rd settings cap D Dsf draws hg
-  exact twin_trieLoopRoundsQ rd settings cap D Dsf draws hg K
+  intro α _ _ K rd settings cap D Dsf draws hcap hg
+  exact twin_trieLoopRoundsQ rd settings cap D Dsf draws hcap hg K
 
 end OrthoDFA
 
