@@ -769,7 +769,7 @@ lemma poolDraws_le_of_cap (η₀ : ℝ) (populations : Finset J) {εcov δ pAP �
     have := mul_le_mul_of_nonneg_right hn hρsf0
     linarith
   have hpow : rejTail (M + r) (((M + r : ℕ) : ℝ) * ρsf) r ≤ (1 / 64 / 2) ^ (r + 1) := by
-    refine rejTail_le_pow (by positivity) (by norm_num) ?_
+    refine rejTail_le_pow (mul_nonneg (Nat.cast_nonneg _) hρsf0) (by norm_num) ?_
     have h1 : 8 * ((((M + r : ℕ) : ℝ)) * (((M + r : ℕ) : ℝ) * ρsf))
         ≤ 8 * (2 * M * (pAP / 2 ^ 15)) :=
       by gcongr

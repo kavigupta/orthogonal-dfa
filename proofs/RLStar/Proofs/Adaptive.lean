@@ -3129,7 +3129,7 @@ most `a` repeat an earlier draw `r + 1` times. -/
 noncomputable def poolTail (n r : ℕ) (a : ℝ) : ℝ := rejTail n (n * a) r
 
 lemma poolTail_nonneg (n r : ℕ) {a : ℝ} (ha : 0 ≤ a) : 0 ≤ poolTail n r a :=
-  rejTail_nonneg _ (by positivity) _
+  rejTail_nonneg _ (mul_nonneg (Nat.cast_nonneg _) ha) _
 
 /-- The pool misses `M` strings in its first `M + r` draws only when `r + 1` of them repeat an
 earlier one, each with chance at most `(M + r)ρ` whatever came before. -/
