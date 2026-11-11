@@ -109,6 +109,38 @@ theorem lintegral_le_of_points {Ω X : Type*} [MeasurableSpace Ω] (μ : Measure
           simp
         rw [ENNReal.tsum_mul_right, h1, one_mul]
 
+/-- Over fresh draws `d`, each drawn point bounding the chance of `{ω | d ∈ S ω}` by `c d`, the
+mean mass of `S` is at most `∑_d ν{d} c d`. -/
+theorem lintegral_le_tsum_of_points {Ω X : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    [MeasurableSpace X] [Countable X] [MeasurableSingletonClass X] (ν : Measure X)
+    (S : Ω → Set X) (c : X → ENNReal) (h : ∀ d, ν {d} ≠ 0 → μ {ω | d ∈ S ω} ≤ c d) :
+    ∫⁻ ω, ν (S ω) ∂μ ≤ ∑' d, ν {d} * c d := by
+  set E : X → Set Ω := fun d => toMeasurable μ {ω | d ∈ S ω}
+  have hpt : ∀ ω, ν (S ω) ≤ ∑' d, ν {d} * (E d).indicator 1 ω := fun ω => by
+    rw [measure_eq_tsum ν]
+    refine ENNReal.tsum_le_tsum fun d => ?_
+    gcongr
+    by_cases hd : d ∈ S ω
+    · rw [Set.indicator_of_mem hd,
+        Set.indicator_of_mem (show ω ∈ E d from subset_toMeasurable _ _ hd)]
+      simp
+    · rw [Set.indicator_of_notMem hd]
+      exact bot_le
+  calc _ ≤ ∫⁻ ω, ∑' d, ν {d} * (E d).indicator 1 ω ∂μ := lintegral_mono hpt
+    _ = ∑' d, ν {d} * μ (E d) := by
+        rw [lintegral_tsum fun d => ((measurable_one.indicator
+          (measurableSet_toMeasurable _ _)).const_mul _).aemeasurable]
+        congr 1
+        funext d
+        rw [lintegral_const_mul _ (measurable_one.indicator (measurableSet_toMeasurable _ _)),
+          lintegral_indicator_one (measurableSet_toMeasurable _ _)]
+    _ ≤ ∑' d, ν {d} * c d := ENNReal.tsum_le_tsum fun d => by
+        by_cases hd : ν {d} = 0
+        · rw [hd, zero_mul, zero_mul]
+        · rw [measure_toMeasurable]
+          gcongr
+          exact h d hd
+
 end Eps
 
 end Random

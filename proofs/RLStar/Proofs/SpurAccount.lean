@@ -4,10 +4,10 @@ import RLStar.Proofs.RaceTail
 /-!
 # Spurious leaves cost fresh-bad rounds
 
-Where no two probes share their first `k` letters, every string a round reads belongs to one
-probe, the one whose first `k` letters it starts with (`Belongs`): a probe's own reads to it, an
-edge's re-sifts to the probe that learned the edge. So the rounds of a step read disjoint strings,
-and no round of one probe can taint another's edge.
+Every string a round reads belongs to a probe whose first `k` letters it starts with
+(`Belongs`): a probe's own reads to it, an edge's re-sifts to the probe that learned the edge.
+Where no string read wrong starts like two probes (`Unshared`), a wrong read belongs to one probe
+only, so no round of one probe can taint another's edge with it.
 
 An edge is bad when its witness is off its true leaf or its successor off its true target, or a
 string read so far is wrong and extends its successor (it may yet be re-read). Then
@@ -45,7 +45,27 @@ def Distinct : Prop :=
 def Belongs (i : ℕ) (z : FreeMonoid α) : Prop :=
   ∃ x : FreeMonoid α, xs[i]? = some x ∧ k ≤ z.toList.length ∧ z.toList.take k = x.toList.take k
 
+/-- No two probes start with `z`'s first `k` letters. -/
+def Unshared (z : FreeMonoid α) : Prop :=
+  ∀ i j, Belongs xs k i z → Belongs xs k j z → i = j
+
 variable {xs k}
+
+omit [Fintype α] [DecidableEq α] in
+theorem belongs_len {i : ℕ} {z : FreeMonoid α} (h : Belongs xs k i z) : k ≤ z.toList.length := by
+  obtain ⟨-, -, h, -⟩ := h
+  exact h
+
+omit [Fintype α] [DecidableEq α] in
+theorem belongs_of_take {i : ℕ} {z w : FreeMonoid α} (hz : Belongs xs k i z)
+    (hw : k ≤ w.toList.length) (h : z.toList.take k = w.toList.take k) : Belongs xs k i w := by
+  obtain ⟨x, hx, -, hzx⟩ := hz
+  exact ⟨x, hx, hw, h.symm.trans hzx⟩
+
+omit [Fintype α] [DecidableEq α] in
+theorem unshared_of_take {z w : FreeMonoid α} (hu : Unshared xs k z) (hz : k ≤ z.toList.length)
+    (h : z.toList.take k = w.toList.take k) : Unshared xs k w := fun i j hi hj =>
+  hu i j (belongs_of_take hi hz h.symm) (belongs_of_take hj hz h.symm)
 
 omit [Fintype α] [DecidableEq α] in
 theorem belongs_unique (hd : Distinct xs k) {i j : ℕ} {z : FreeMonoid α} (hi : Belongs xs k i z)
@@ -63,6 +83,10 @@ theorem belongs_unique (hd : Distinct xs k) {i j : ℕ} {z : FreeMonoid α} (hi 
     omega
   exact hd i j x y hne hx hy hlx hly (hzx.symm.trans hzy)
 
+omit [Fintype α] [DecidableEq α] in
+theorem unshared_of_distinct (hd : Distinct xs k) (z : FreeMonoid α) : Unshared xs k z :=
+  fun _ _ hi hj => belongs_unique hd hi hj
+
 omit [DecidableEq α] in
 theorem belongs_mul {i : ℕ} {w : FreeMonoid α} (m : FreeMonoid α) (hw : Belongs xs k i w) :
     Belongs xs k i (w * m) := by
@@ -77,6 +101,10 @@ theorem belongs_of_mul {i : ℕ} {w m : FreeMonoid α} (hl : k ≤ w.toList.leng
   refine ⟨x, hx, hl, ?_⟩
   rw [FreeMonoid.toList_mul, List.take_append_of_le_length hl] at ht
   exact ht
+
+omit [DecidableEq α] in
+theorem unshared_of_mul {w : FreeMonoid α} (m : FreeMonoid α) (hu : Unshared xs k (w * m)) :
+    Unshared xs k w := fun i j hi hj => hu i j (belongs_mul m hi) (belongs_mul m hj)
 
 omit [Fintype α] [DecidableEq α] in
 theorem belongs_prefixOf {i p : ℕ} {x : FreeMonoid α} (hx : xs[i]? = some x) (hkp : k ≤ p)
@@ -227,12 +255,13 @@ section Step
 
 variable (r : FreeMonoid α → ARU) (C : Level3Settings) (xs : List (FreeMonoid α))
 
-/-- Before the `j`-th probe: every edge's witness belongs to an earlier probe, no two edges to
-the same one, and so do the strings read so far. -/
+/-- Before the `j`-th probe: every edge's witness belongs to an earlier probe, no two edges with
+witnesses starting alike unless two probes start that way, and the strings read so far belong to
+earlier probes. -/
 structure Owned (j : ℕ) (s : Level3State α) (Qd : Finset (FreeMonoid α)) : Prop where
   wit : ∀ e t w, s.edges e = some (t, w) → ∃ i < j, Belongs xs C.walkStart i w
   inj : ∀ e e' t w t' w', s.edges e = some (t, w) → s.edges e' = some (t', w') →
-    w.toList.take C.walkStart = w'.toList.take C.walkStart → e = e'
+    w.toList.take C.walkStart = w'.toList.take C.walkStart → Unshared xs C.walkStart w → e = e'
   read : ∀ z ∈ Qd, ∃ i < j, Belongs xs C.walkStart i z
 
 variable {r C xs}
@@ -273,25 +302,28 @@ theorem take_eq_of_belongs {i : ℕ} {w w' : FreeMonoid α} {k : ℕ} (h : Belon
 
 omit [DecidableEq α] in
 /-- A string this step reads that extends an edge's successor is that edge's re-sift. -/
-theorem taint_new (hd : Distinct xs C.walkStart) {j : ℕ} {s : Level3State α}
+theorem taint_new {j : ℕ} {s : Level3State α}
     {x : FreeMonoid α} (hx : xs[j]? = some x) {Qd : Finset (FreeMonoid α)}
     (hown : Owned C xs j s Qd) {e : List Bool × α} {t : List Bool} {w m z : FreeMonoid α}
     (he : s.edges e = some (t, w)) (hz : z = w * FreeMonoid.of e.2 * m)
+    (hu : Unshared xs C.walkStart z)
     (hmem : z ∈ probeReads r s.tree s.edges C.walkStart x
       ∨ ∃ e', z ∈ resiftOf r C s x e') : z ∈ resiftOf r C s x e := by
   obtain ⟨i, hi, hbw⟩ := hown.wit e t w he
   have hbz : Belongs xs C.walkStart i z := by
     rw [hz, mul_assoc]; exact belongs_mul _ hbw
+  have huw : Unshared xs C.walkStart w := by
+    rw [hz, mul_assoc] at hu; exact unshared_of_mul _ hu
   rcases hmem with hmem | ⟨e', hmem⟩
-  · exact absurd (belongs_unique hd hbz (belongs_probeReads hx hmem)) (by omega)
+  · exact absurd (hu _ _ hbz (belongs_probeReads hx hmem)) (by omega)
   · obtain ⟨p, T', t', w', hso, hE', hpre, htp, hzs⟩ := mem_resiftOf hmem
     obtain ⟨m', -, hzm⟩ := siftReads_mids T' _ z hzs
     obtain ⟨i', -, hbw'⟩ := hown.wit e' t' w' hE'
     have hbz' : Belongs xs C.walkStart i' z := by
       rw [hzm, mul_assoc]; exact belongs_mul _ hbw'
-    have hii := belongs_unique hd hbz hbz'
+    have hii := hu _ _ hbz hbz'
     subst hii
-    have := hown.inj e e' t w t' w' he hE' (take_eq_of_belongs hbw hbw')
+    have := hown.inj e e' t w t' w' he hE' (take_eq_of_belongs hbw hbw') huw
     subst this
     exact hmem
 
@@ -310,9 +342,12 @@ theorem mem_K {s : Level3State α} {e : List Bool × α} (he : e.1 ∈ s.tree.le
 open scoped Classical in
 /-- A step adds to the leaves and bad edges at most what it adds to the true leaves, plus one for
 a wrong probe round and one for each re-sift wrong somewhere new. -/
-theorem step_account (hd : Distinct xs C.walkStart) {j : ℕ} {s s' : Level3State α}
+theorem step_account {j : ℕ} {s s' : Level3State α}
     {x : FreeMonoid α} (hx : xs[j]? = some x) (hs : Inv r s) (hk : Keys s)
     {Qd : Finset (FreeMonoid α)} (hown : Owned C xs j s Qd)
+    (hc : ∀ z ∈ Qd ∪ probeReads r s.tree s.edges C.walkStart x
+        ∪ (s.tree.leaves.toFinset ×ˢ (Finset.univ : Finset α)).biUnion (resiftOf r C s x),
+      Wrong M side r z → Unshared xs C.walkStart z)
     (h : applyProbe r C s x = .inl s') :
     s'.tree.leaves.length
         + bad M side r s' (Qd ∪ probeReads r s.tree s.edges C.walkStart x
@@ -326,14 +361,15 @@ theorem step_account (hd : Distinct xs C.walkStart) {j : ℕ} {s s' : Level3Stat
   set PR := probeReads r s.tree s.edges C.walkStart x
   set Qd' := Qd ∪ PR ∪ K.biUnion (resiftOf r C s x)
   have hnew : ∀ e t w m z, s.edges e = some (t, w) → z = w * FreeMonoid.of e.2 * m →
-      z ∈ Qd' → z ∈ Qd ∨ z ∈ resiftOf r C s x e := by
-    intro e t w m z he hz hzQ
+      z ∈ Qd' → Wrong M side r z → z ∈ Qd ∨ z ∈ resiftOf r C s x e := by
+    intro e t w m z he hz hzQ hzw
+    have hu := hc z hzQ hzw
     rcases Finset.mem_union.1 hzQ with hzQ | hzQ
     · rcases Finset.mem_union.1 hzQ with hzQ | hzQ
       · exact Or.inl hzQ
-      · exact Or.inr (taint_new hd hx hown he hz (Or.inl hzQ))
+      · exact Or.inr (taint_new hx hown he hz hu (Or.inl hzQ))
     · obtain ⟨e', -, hz'⟩ := Finset.mem_biUnion.1 hzQ
-      exact Or.inr (taint_new hd hx hown he hz (Or.inr ⟨e', hz'⟩))
+      exact Or.inr (taint_new hx hown he hz hu (Or.inr ⟨e', hz'⟩))
   -- the strings of an edge the probe learns or splits at are its reads
   have hclean : ∀ {p c u t}, (probeOrAgree r s.tree s.edges C.walkStart x = .wrongEdge p c u t
       ∨ probeOrAgree r s.tree s.edges C.walkStart x = .unlearnedEdge p c u t) →
@@ -377,7 +413,8 @@ theorem step_account (hd : Distinct xs C.walkStart) {j : ℕ} {s s' : Level3Stat
             · obtain ⟨i, hi, hbz⟩ := hown.read z hzQ
               have : Belongs xs C.walkStart j z := by
                 rw [hz, mul_assoc]; exact belongs_mul _ hbu
-              exact absurd (belongs_unique hd hbz this) (by omega)
+              have hu := hc z (Finset.mem_union_left _ (Finset.mem_union_left _ hzQ)) hzw
+              exact absurd (hu _ _ hbz this) (by omega)
             · exact hd' ⟨z, hzQ, hzw⟩
           · obtain ⟨e', -, hz'⟩ := Finset.mem_biUnion.1 hzQ
             simp [hRR] at hz'
@@ -386,7 +423,7 @@ theorem step_account (hd : Distinct xs C.walkStart) {j : ℕ} {s s' : Level3Stat
         · rw [Function.update_of_ne hpc] at he'
           rcases hbad with hbad | ⟨z, hzQ, hzw, m, hz⟩
           · exact Or.inl hbad
-          · rcases hnew e t' w' m z he' hz hzQ with hzQ | hzQ
+          · rcases hnew e t' w' m z he' hz hzQ hzw with hzQ | hzQ
             · exact Or.inr ⟨z, hzQ, hzw, m, hz⟩
             · simp [hRR] at hzQ
     have hcard := (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
@@ -441,7 +478,7 @@ theorem step_account (hd : Distinct xs C.walkStart) {j : ℕ} {s s' : Level3Stat
         rcases hbad with hbad | ⟨z, hzQ, hzw, m, hz⟩
         · refine hbad ⟨hwit, ?_⟩
           rw [leafOf_splitAt M side d s.tree p hp, hS.2, if_neg htp, ht']
-        · rcases hnew e t₁ w' m z he₁ hz hzQ with hzQ | hzQ
+        · rcases hnew e t₁ w' m z he₁ hz hzQ hzw with hzQ | hzQ
           · exact hT ⟨z, hzQ, hzw, m, hz⟩
           · obtain ⟨p₂, T₂, t₂, w₂, hso₂, he₂, hpre₂, ht₂, hz₂⟩ := mem_resiftOf hzQ
             rw [he₁] at he₂
@@ -459,7 +496,7 @@ theorem step_account (hd : Distinct xs C.walkStart) {j : ℕ} {s s' : Level3Stat
           · exact hfb ⟨z, hro ▸ hz, hzw, hzQ⟩
         rcases hbad with hbad | ⟨z, hzQ, hzw, m, hz⟩
         · exact hbad ⟨hwit, (sift_true_reads M side r T' _ t' hsift fun z hz => hcl z hz).symm⟩
-        · rcases hnew e t₁ w' m z he₁ hz hzQ with hzQ' | hzQ'
+        · rcases hnew e t₁ w' m z he₁ hz hzQ hzw with hzQ' | hzQ'
           · exact hT ⟨z, hzQ', hzw, m, hz⟩
           · exact hcl z (hro ▸ hzQ') hzw
     have hcard := (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
@@ -503,7 +540,7 @@ theorem step_account (hd : Distinct xs C.walkStart) {j : ℕ} {s s' : Level3Stat
       refine Finset.mem_filter.2 ⟨heK, t', w', he', ?_⟩
       rcases hbad with hbad | ⟨z, hzQ, hzw, m, hz⟩
       · exact Or.inl hbad
-      · rcases hnew e t' w' m z he' hz hzQ with hzQ | hzQ
+      · rcases hnew e t' w' m z he' hz hzQ hzw with hzQ | hzQ
         · exact Or.inr ⟨z, hzQ, hzw, m, hz⟩
         · simp [hRR] at hzQ
     have hb' : bad M side r (countProbe r C s x) Qd' ≤ bad M side r s Qd := Finset.card_le_card hsub
@@ -523,7 +560,7 @@ theorem bad_mono {r : FreeMonoid α → ARU} {s : Level3State α} {Qd Qd' : Fins
   · exact Or.inr ⟨z, h hz, hzw, m, hzm⟩
 
 /-- A step keeps every edge's witness, and every string read, with an earlier probe. -/
-theorem owned_step (hd : Distinct xs C.walkStart) {j : ℕ} {s s' : Level3State α}
+theorem owned_step {j : ℕ} {s s' : Level3State α}
     {x : FreeMonoid α} (hx : xs[j]? = some x) (hs : Inv r s)
     {Qd : Finset (FreeMonoid α)} (hown : Owned C xs j s Qd)
     (h : applyProbe r C s x = .inl s') {Qd'' : Finset (FreeMonoid α)}
@@ -551,30 +588,31 @@ theorem owned_step (hd : Distinct xs C.walkStart) {j : ℕ} {s s' : Level3State 
         simp only [Function.update_self, Option.some.injEq, Prod.mk.injEq] at he
         exact Or.inl ⟨rfl, he.2.symm⟩
       · rw [Function.update_of_ne hpc] at he; exact Or.inr he
-    refine ⟨fun e t' w he => ?_, fun e e' t₁ w₁ t₂ w₂ h₁ h₂ htk => ?_, hread⟩
+    refine ⟨fun e t' w he => ?_, fun e e' t₁ w₁ t₂ w₂ h₁ h₂ htk hu => ?_, hread⟩
     · rcases hwit e t' w he with ⟨-, rfl⟩ | he
       · exact ⟨j, by omega, hbu⟩
       · obtain ⟨i, hi, hb⟩ := hown.wit e t' w he; exact ⟨i, by omega, hb⟩
     · have hnew : ∀ e₁ t₃ w₃, s.edges e₁ = some (t₃, w₃) →
-          w₃.toList.take C.walkStart ≠ (prefixOf x i₀).toList.take C.walkStart := by
-        intro e₁ t₃ w₃ he₁ htk'
+          w₃.toList.take C.walkStart = (prefixOf x i₀).toList.take C.walkStart →
+          Unshared xs C.walkStart w₃ ∨ Unshared xs C.walkStart (prefixOf x i₀) → False := by
+        intro e₁ t₃ w₃ he₁ htk' hu'
         obtain ⟨i, hi, hb⟩ := hown.wit e₁ t₃ w₃ he₁
-        have : Belongs xs C.walkStart j w₃ := by
-          obtain ⟨y, hy, -, hy''⟩ := hbu
-          obtain ⟨-, -, hl₃, -⟩ := hb
-          exact ⟨y, hy, hl₃, htk'.trans hy''⟩
-        exact absurd (belongs_unique hd hb this) (by omega)
+        have hj₃ : Belongs xs C.walkStart j w₃ := belongs_of_take hbu (belongs_len hb) htk'.symm
+        have hi₀ : Belongs xs C.walkStart i (prefixOf x i₀) := belongs_of_take hb (belongs_len hbu) htk'
+        rcases hu' with hu' | hu'
+        · exact absurd (hu' _ _ hb hj₃) (by omega)
+        · exact absurd (hu' _ _ hi₀ hbu) (by omega)
       rcases hwit e t₁ w₁ h₁ with ⟨rfl, rfl⟩ | h₁ <;> rcases hwit e' t₂ w₂ h₂ with ⟨rfl, rfl⟩ | h₂
       · rfl
-      · exact absurd htk.symm (hnew e' t₂ w₂ h₂)
-      · exact absurd htk (hnew e t₁ w₁ h₁)
-      · exact hown.inj e e' t₁ w₁ t₂ w₂ h₁ h₂ htk
-  · refine ⟨fun e t' w he => ?_, fun e e' t₁ w₁ t₂ w₂ h₁ h₂ htk => ?_, hread⟩
+      · exact (hnew e' t₂ w₂ h₂ htk.symm (Or.inr hu)).elim
+      · exact (hnew e t₁ w₁ h₁ htk (Or.inl hu)).elim
+      · exact hown.inj e e' t₁ w₁ t₂ w₂ h₁ h₂ htk hu
+  · refine ⟨fun e t' w he => ?_, fun e e' t₁ w₁ t₂ w₂ h₁ h₂ htk hu => ?_, hread⟩
     · obtain ⟨-, t₁, he₁, -⟩ := retarget_some ((splitLeaf_edges_eq_some ..).1 he).2
       obtain ⟨i, hi, hb⟩ := hown.wit e t₁ w he₁; exact ⟨i, by omega, hb⟩
     · obtain ⟨-, t₃, he₁, -⟩ := retarget_some ((splitLeaf_edges_eq_some ..).1 h₁).2
       obtain ⟨-, t₄, he₂, -⟩ := retarget_some ((splitLeaf_edges_eq_some ..).1 h₂).2
-      exact hown.inj e e' t₃ w₁ t₄ w₂ he₁ he₂ htk
+      exact hown.inj e e' t₃ w₁ t₄ w₂ he₁ he₂ htk hu
   · exact ⟨fun e t' w he => by
       obtain ⟨i, hi, hb⟩ := hown.wit e t' w he; exact ⟨i, by omega, hb⟩, hown.inj, hread⟩
 
@@ -600,7 +638,8 @@ variable {M side r C xs n R}
 open scoped Classical in
 /-- Along the run, while its states are small, the leaves and bad edges are at most the true
 leaves, one, and the fresh-bad rounds so far. -/
-theorem account (hd : Distinct xs C.walkStart) (hR : (n + 2) * Fintype.card α ≤ R) :
+theorem account (hc : ∀ z ∈ before (rounds6 C xs n R) (xs.length * (R + 1)) r,
+      Wrong M side r z → Unshared xs C.walkStart z) (hR : (n + 2) * Fintype.card α ≤ R) :
     ∀ j s, stateAt C r initialState xs j = some s →
       (∀ i < j, ∀ s', stateAt C r initialState xs i = some s' →
         s'.tree.leaves.length ≤ n + 2) →
@@ -639,7 +678,7 @@ theorem account (hd : Distinct xs C.walkStart) (hR : (n + 2) * Fintype.card α �
     rcases ha : applyProbe r C s x with s'' | e <;> rw [ha] at h <;>
       simp only [Sum.elim_inl, Sum.elim_inr, Option.some.injEq, reduceCtorEq] at h
     subst h
-    obtain ⟨hinv, hk, hown, hacc⟩ := account hd hR j s hs₁ fun i hi => hsm i (by omega)
+    obtain ⟨hinv, hk, hown, hacc⟩ := account hc hR j s hs₁ fun i hi => hsm i (by omega)
     have hS : Small r C xs n j := fun i hi s₂ hs₂ => hsm i (by omega) s₂ hs₂
     have hsmall := hsm j (by omega) s hs₁
     have hdiv : ∀ i < R + 1, (j * (R + 1) + i) / (R + 1) = j := fun i hi => by
@@ -679,14 +718,41 @@ theorem account (hd : Distinct xs C.walkStart) (hR : (n + 2) * Fintype.card α �
       · exact Finset.mem_union_left _ (Finset.mem_union_right _ hz)
       · obtain ⟨p, T', t, w, -, hE, -, -, -⟩ := mem_resiftOf hz
         exact Finset.mem_union_right _ (Finset.mem_biUnion.2 ⟨e, mem_K (hk e t w hE), hz⟩)
+    -- the step's reads are the run's
+    have hjl : j < xs.length := by
+      by_contra hl
+      rw [List.getElem?_eq_none (by omega)] at hx
+      exact absurd hx (by simp)
+    have hrun : Qd ∪ PR ∪ K.biUnion (resiftOf r C s x)
+        ⊆ before (rounds6 C xs n R) (xs.length * (R + 1)) r := by
+      intro z hz
+      refine (mem_before _).2 ?_
+      rcases Finset.mem_union.1 hz with hz | hz
+      · rcases Finset.mem_union.1 hz with hz | hz
+        · obtain ⟨i, hi, hzi⟩ := (mem_before _).1 hz
+          exact ⟨i, lt_of_lt_of_le hi (Nat.mul_le_mul_right _ hjl.le), hzi⟩
+        · refine ⟨j * (R + 1) + 0, ?_, ?_⟩
+          · nlinarith
+          · rw [hround 0 (by omega)]; simpa [stepRound] using hz
+      · obtain ⟨e, heK, hze⟩ := Finset.mem_biUnion.1 hz
+        obtain ⟨i, hi, hie⟩ := List.getElem_of_mem
+          (mem_edgeList (List.mem_toFinset.1 (Finset.mem_product.1 heK).1))
+        refine ⟨j * (R + 1) + (i + 1), ?_, ?_⟩
+        · nlinarith
+        · rw [hround (i + 1) (by omega)]
+          unfold stepRound
+          rw [if_neg (by omega), Nat.add_sub_cancel, List.getElem?_eq_getElem hi, hie]
+          exact hze
+    have hcS : ∀ z ∈ Qd ∪ PR ∪ K.biUnion (resiftOf r C s x), Wrong M side r z →
+        Unshared xs C.walkStart z := fun z hz => hc z (hrun hz)
     have hstep : s''.tree.leaves.length
           + bad M side r s'' (Qd ∪ PR ∪ K.biUnion (resiftOf r C s x)) + (img M side s.tree).card
         ≤ (img M side s''.tree).card + s.tree.leaves.length + bad M side r s Qd
           + (if ∃ z ∈ PR, Wrong M side r z then 1 else 0)
           + (K.filter fun e => ∃ z ∈ resiftOf r C s x e, Wrong M side r z ∧ z ∉ Qd).card :=
-      step_account M side hd hx hinv hk hown ha
+      step_account M side hx hinv hk hown hcS ha
     have hbad := bad_mono M side (r := r) (s := s'') hsub
-    have hown' := owned_step hd hx hinv hown ha hQd
+    have hown' := owned_step hx hinv hown ha hQd
     obtain ⟨hinv', hk'⟩ := inv_keys_step r C hinv hk ha
     -- each wrong round is fresh-bad, and has its own index
     have hnewR : ∀ i < j * (R + 1), ∀ z, z ∈ rounds6 C xs n R i r → z ∈ Qd :=
@@ -733,18 +799,20 @@ theorem account (hd : Distinct xs C.walkStart) (hR : (n + 2) * Fintype.card α �
         by_cases hij : i < j * (R + 1)
         · exact hzQ (hnewR i hij z hzi)
         obtain ⟨i₀, hi₀, hbz, t₀, w₀, hE₀, hbw₀⟩ := hbelR e z hz
+        have hu := hcS z (Finset.mem_union_right _ (Finset.mem_biUnion.2 ⟨e, heK, hz⟩)) hzw
         set i' := i - j * (R + 1)
         have hii : i = j * (R + 1) + i' := by omega
         rw [hii, hround i' (by omega)] at hzi
         unfold stepRound at hzi
         split_ifs at hzi with hi0
-        · exact absurd (belongs_unique hd hbz (belongs_probeReads hx hzi)) (by omega)
+        · exact absurd (hu _ _ hbz (belongs_probeReads hx hzi)) (by omega)
         have hlt' : i' - 1 < (edgeList s).length := by omega
         rw [List.getElem?_eq_getElem hlt'] at hzi
         obtain ⟨i₁, -, hbz₁, t₁, w₁, hE₁, hbw₁⟩ := hbelR _ z hzi
-        have hi01 := belongs_unique hd hbz hbz₁
+        have hi01 := hu _ _ hbz hbz₁
         subst hi01
         have hsame := hown.inj _ _ t₁ w₁ t₀ w₀ hE₁ hE₀ (take_eq_of_belongs hbw₁ hbw₀)
+          (unshared_of_take hu (belongs_len hbz) (take_eq_of_belongs hbz hbw₁))
         have := (edgeList_nodup s).getElem_inj_iff.1 (hsame.trans hget.symm)
         omega
       have hginj : Set.InjOn g A := by
@@ -763,7 +831,8 @@ theorem account (hd : Distinct xs C.walkStart) (hR : (n + 2) * Fintype.card α �
             rw [hround 0 (by omega)]; simpa [stepRound] using hz
           refine freshBad_of _ _ r hzr hzw fun i hi hzi => ?_
           obtain ⟨i₀, hi₀, hb⟩ := hown.read z (hnewR i (by omega) z hzi)
-          exact absurd (belongs_unique hd hb (belongs_probeReads hx hz)) (by omega)
+          have hu := hcS z (Finset.mem_union_left _ (Finset.mem_union_right _ hz)) hzw
+          exact absurd (hu _ _ hb (belongs_probeReads hx hz)) (by omega)
         have h0A : 0 ∉ A.image g := by
           intro h0
           obtain ⟨e, heA, he0⟩ := Finset.mem_image.1 h0

@@ -470,7 +470,8 @@ theorem counterexSynthClaim_holds : CounterexSynthClaim := by
     linarith [collision_le hδ hp₀0 hP hp₀]
   refine le_trans (lintegral_mono fun ω => measure_mono fun draws hd => ?_)
     (level5RoundCorrect_holds M side U κ μ R P C p₀ 0 t t' hpre hδ hδ1 hy hyε.le hε
-      (budget_le (Fintype.card σ) (Fintype.card α) hP) hκ0 ht ht' htc hfin)
+      (budget_le (Fintype.card σ) (Fintype.card α) hP) hκ0 ht ht' htc
+      ((add_le_add (pairs_min_le _ hp₀0 _) le_rfl).trans hfin))
   exact hd.imp (fun h hw => h (endsWell_mono (slope_le _ _ hyε)
     (slack_le _ _ hp₀0 hy hyε hδ (by norm_num) le_rfl) hw)) id
 
