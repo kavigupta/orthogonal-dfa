@@ -37,9 +37,9 @@ variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasu
   {S : Type*} [Stringlike S]
   {J : Type*} [Fintype J]
 
-/-- `ClusteringGuarantee`'s conclusion at `states`, its conditions on each state's atoms replaced
-by `atomTol` and `collTol`. -/
-def TrainFamilyOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
+/-- `ClusteringGuarantee`'s conclusion at `states`, every population tame, its conditions on each
+state's atoms replaced by `atomTol` and `collTol`. -/
+def TrainFamilyOutcome (O : Oracle μ S) (populations : Finset J) (uni : J)
     (Pre Suf : Set S) (x : TrainFamilyInputs) (atomTol collTol : ℝ)
     (states : Finset State) : Prop :=
   (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
@@ -52,7 +52,7 @@ def TrainFamilyOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
     (∀ j ∈ populations, D j Preᶜ = 0) →
     Dsf Sufᶜ = 0 →
     x.pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-    (∀ j ∈ tame, ∀ t : S, (D j).real {t} ≤ atomTol) →
+    (∀ j ∈ populations, ∀ t : S, (D j).real {t} ≤ atomTol) →
     collisionMass Dsf ≤ collTol →
     1 - x.δ ≤ (runMeasure μ D Dsf).real
       {r | let R := streams (fun _ : J => (∅ : Finset S)) uni r
@@ -63,7 +63,7 @@ def TrainFamilyOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
           1 - x.εcov - x.ε_s
             ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyAt O.mq populations R B.val) p (oracleNoise r.1)}
-          ∧ ∀ j ∈ tame, 1 / 2 - x.ε_s
+          ∧ ∀ j ∈ populations, 1 / 2 - x.ε_s
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyAt O.mq populations R B.val) p (oracleNoise r.1)}
             ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
@@ -74,17 +74,16 @@ def TrainFamilyWithin.{u, v, w} (k nsuff npref atomTol collTol : TrainFamilyInpu
   (∀ x, 0 < atomTol x ∧ 0 < collTol x) ∧
     ∀ {Ω : Type u} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
       {S : Type v} [Stringlike S] {J : Type w} [Fintype J]
-      (x : TrainFamilyInputs) (O : Oracle μ S) (populations tame : Finset J) (uni : J)
+      (x : TrainFamilyInputs) (O : Oracle μ S) (populations : Finset J) (uni : J)
       (Pre Suf : Set S),
     x ∈ trainFamilyRegion →
     populations.card = x.nJ →
     O.η ≤ 1 / 2 - x.s₀ →
-    uni ∈ tame →
-    tame ⊆ populations →
+    uni ∈ populations →
     Flat Pre Suf →
     ∃ states : Finset State,
       (∀ B ∈ states, (B.npref : ℝ) ≤ npref x ∧ (B.k : ℝ) ≤ k x ∧ (B.nsuff : ℝ) ≤ nsuff x) ∧
-      TrainFamilyOutcome O populations tame uni Pre Suf x (atomTol x) (collTol x) states
+      TrainFamilyOutcome O populations uni Pre Suf x (atomTol x) (collTol x) states
 
 open Real in
 def TrainFamilyClaim.{u, v, w} : Prop :=
