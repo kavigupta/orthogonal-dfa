@@ -1701,7 +1701,7 @@ lemma loopL0_le {Q A R iδ iξ ip is C₀ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (
   have hZ1 : 1 ≤ Z := hU1.trans hUZ
   set Y := Q * R * A * iδ * iξ * ip * is with hYd
   have hYU : Y = A * U * iδ := by rw [hYd, hUd]; ring
-  have hY8 : 8 ≤ Y := by
+  have hY4 : 4 ≤ Y := by
     rw [hYU]
     have : 2 ≤ A * U := by nlinarith only [hA, hU1]
     nlinarith only [this, hiδ]
@@ -1726,14 +1726,15 @@ lemma loopL0_le {Q A R iδ iξ ip is C₀ : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (
           (one_le_pow₀ hR)) this) (one_le_pow₀ hiξ)) (one_le_pow₀ hip)) (one_le_pow₀ hs1)
   refine ⟨hG1, ?_⟩
   -- `G ≤ 2⁷ A⁷ Z³³`
-  have hle : ∀ {w : ℝ}, 1 ≤ w → ∀ {v : ℝ}, 1 ≤ v → v ≤ v * w := fun hw hv =>
+  have hle : ∀ {w : ℝ}, 1 ≤ w → ∀ {v : ℝ}, 1 ≤ v → v ≤ v * w := fun {_} hw {_} hv =>
     le_mul_of_one_le_right (by linarith) hw
   have hQZ : Q ≤ Z := by
     have : Q ≤ U := by
       rw [hUd]
       calc Q ≤ Q * R := hle hR hQ
         _ ≤ Q * R * iξ := hle hiξ (one_le_mul_of_one_le_of_one_le hQ hR)
-        _ ≤ Q * R * iξ * ip := hle hip (by nlinarith only [hQ, hR, hiξ])
+        _ ≤ Q * R * iξ * ip :=
+          hle hip (one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le hQ hR) hiξ)
         _ ≤ Q * R * iξ * ip * is := hle hs1 (by
             have := one_le_mul_of_one_le_of_one_le hQ hR
             have := one_le_mul_of_one_le_of_one_le this hiξ
