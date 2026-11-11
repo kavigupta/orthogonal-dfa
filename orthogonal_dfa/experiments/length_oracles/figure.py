@@ -312,9 +312,11 @@ def values(described, data, parts):
 
 def phis(data, parts, product_phis, y):
     """Macros for the product's parts' and the frame rules' phis, e.g. \\phiProduct, and
-    \\phiMin, the lowest product phi over the residual seeds."""
+    \\phiMin and \\phiMax, the lowest and highest product phi over the residual seeds.
+    """
     found = {phi_name: parts[name]["phi"] for name, phi_name in PHI_NAMES.items()}
     found["Min"] = min(product_phis)
+    found["Max"] = max(product_phis)
     for name, rule in FRAME_RULES.items():
         v = rule(data.closed)[data.read].astype(float)
         found[name] = phi(v, y["flat"][data.read])
