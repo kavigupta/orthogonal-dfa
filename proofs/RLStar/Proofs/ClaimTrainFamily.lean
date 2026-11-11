@@ -794,7 +794,7 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
     transfer atomTolW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
     transfer collTolW_isBigO fun x => by simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf,
     fun x => tol_pos _, ?_⟩
-  intro Ω _ μ _ S _ J _ x O populations tame uni Pre Suf hx hcard hηle huni htame hflat
+  intro Ω _ μ _ S _ J _ x O populations uni Pre Suf hx hcard hηle huni hflat
   obtain ⟨nJ, δ, pAP, εcov, ε_s, ε_u, κ, s₀⟩ := x
   simp only [trainFamilyRegion, Set.mem_ofPred_eq] at hx hcard hηle
   obtain ⟨hJ, hδ, hδ1, hpAP, hpAP1, he, he1, hsl, hsl1, hu, hu1, hw, hw1, hs, hs1⟩ := hx
@@ -809,14 +809,15 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
     Finset.card_eq_zero.2 (Finset.eq_empty_of_forall_notMem fun s hs => by
       simp [allHarvest] at hs)
   obtain ⟨states, hnp, -, hkn, hband, hκ, hmain⟩ := clustering_guarantee_of_correct O
-    populations tame uni (fun _ => ∅) Pre Suf η₀ ε_u εcov ε_s (δ / 2) (δ / 2) pAP (κ ^ 4) hηle
-    hη₀ huni htame hflat (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hu hu1
+    populations populations uni (fun _ => ∅) Pre Suf η₀ ε_u εcov ε_s (δ / 2) (δ / 2) pAP (κ ^ 4)
+    hηle hη₀ huni (Finset.Subset.refl _) hflat (fun _ p hp => absurd hp (Finset.notMem_empty p))
+    hpAP hu hu1
     (by positivity) (by linarith) he he1 hsl (by positivity) (by linarith) (by positivity)
     (pow_le_one₀ hw.le hw1)
   simp only [hH0, CharP.cast_eq_zero] at hnp
   have hs0 : 0 < 1 / 2 - η₀ := by linarith
   have hcard : (0 : ℝ) < populations.card := by
-    exact_mod_cast Finset.card_pos.2 ⟨uni, htame huni⟩
+    exact_mod_cast Finset.card_pos.2 ⟨uni, huni⟩
   have hr : 0 < rateScale η₀ ε_u εcov := by
     have := rs_pos (ie := 1 / εcov) (iu := 1 / ε_u) (is := 1 / (1 / 2 - η₀)) (by positivity)
       (by positivity) (by positivity)
