@@ -440,11 +440,11 @@ lemma rb_le {Q ι τ Θι Θ ℓ PB P₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hι0 :
     _ = _ := by ring
 
 /-- The band's ceiling `W` at the length `ℓ`, within `ℓ²` of its length-free bound. -/
-lemma w_le {ℓ δ' Wm : ℝ} (hℓ1 : 1 ≤ ℓ) (hWm : 0 ≤ Wm) :
-    max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
-      ≤ (Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1) * ℓ ^ 2 := by
+lemma w_le {ℓ Wm : ℝ} (hℓ1 : 1 ≤ ℓ) (hWm : 0 ≤ Wm) :
+    max (2 * Real.exp 2 * Wm) 1
+      ≤ (2 * Real.exp 2 * Wm + 1) * ℓ ^ 2 := by
   have hℓ21 : 1 ≤ ℓ ^ 2 := one_le_pow₀ hℓ1
-  have h0b : 0 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 := by positivity
+  have h0b : 0 ≤ 2 * Real.exp 2 * Wm := by positivity
   refine (max_le (by linarith) (by linarith)).trans
     (le_mul_of_one_le_right (by positivity) hℓ21)
 
@@ -904,8 +904,8 @@ def loopΘa (Q A c ξ η₀ : ℝ) : ℝ :=
 def loopW₀ (Q A δ : ℝ) : ℝ :=
   let δ' := δ / (8 * (Q + 1))
   let S := Q * ((Q + 2) * A + 1) + 2 * A + 1
-  Real.exp 1 * Real.sqrt δ'
-    * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) / 2 + 1
+  2 * Real.exp 2
+    * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) + 1
 
 /-- Bounds `LearnerLoopDFASimple`'s suffix pool `PB` at `ℓ = L₁ + 1`, edges crossed at rate `Ae`. -/
 def loopPool (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
@@ -1025,14 +1025,14 @@ lemma loopMassTerms_ge {Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hQ : 0 �
     have : 0 ≤ Q * ((Q + 2) * A + 1) := by positivity
     linarith
   have hW₀ : 1 ≤ W₀ := by
-    show 1 ≤ Real.exp 1 * Real.sqrt δ'
-      * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) / 2 + 1
+    show 1 ≤ 2 * Real.exp 2
+      * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) + 1
     have hl : 0 ≤ Real.log (8 * S * (S + 1) / δ') :=
       Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
     have : 0 ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1) := by
       positivity
-    have : 0 ≤ Real.exp 1 * Real.sqrt δ'
-        * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) / 2 := by
+    have : 0 ≤ 2 * Real.exp 2
+        * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) := by
       positivity
     linarith
   have hP₀1 : 1 ≤ P₀ := pool_ge_one hs0 hs1 hpAP hp1 hΘ1 hW₀ hδ'0 hδ'1

@@ -169,7 +169,7 @@ def LearnerLoopDFASimple : Prop :=
   -- The strings a round reads undecided; the clustering's band must keep their wrong reads within
   -- level 5's race tail.
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-  let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
+  let W : ℝ := max (2 * Real.exp 2 * Wm) 1
   -- The clustering's suffix pool.
   let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
@@ -265,7 +265,7 @@ def LearnerLoopDFA : Prop :=
   let Θa : ℝ := 2 * Ce / s + Θι
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-  let W₀ : ℝ := Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
+  let W₀ : ℝ := 2 * Real.exp 2 * Wm + 1
   let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
   let R₀ : ℝ := 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
@@ -364,7 +364,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   -- The strings a round reads undecided; the clustering's band must keep their wrong reads within
   -- level 5's race tail.
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-  let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
+  let W : ℝ := max (2 * Real.exp 2 * Wm) 1
   -- The clustering's suffix pool.
   let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
@@ -467,7 +467,7 @@ def LearnerLoopDFARelative : Prop :=
   let Θa : ℝ := 2 * Ce / s + Θι
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-  let W₀ : ℝ := Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
+  let W₀ : ℝ := 2 * Real.exp 2 * Wm + 1
   let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
   let R₀ : ℝ := 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
@@ -568,7 +568,7 @@ def LearnerLoopDFADist : Prop :=
   -- The strings a round reads undecided; the clustering's band must keep their wrong reads within
   -- level 5's race tail.
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-  let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
+  let W : ℝ := max (2 * Real.exp 2 * Wm) 1
   -- The clustering's suffix pool.
   let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
