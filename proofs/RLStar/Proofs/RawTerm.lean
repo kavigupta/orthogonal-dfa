@@ -391,7 +391,7 @@ theorem measureReal_poolEvents_le (O : Oracle μ S) (populations : Finset J) (un
   set ν := runMeasure μ D Dsf with hν
   set Y := streams (Ω := Ω) H uni with hY
   have bs : ν.real (Y ⁻¹' stalled nearestClusterer O populations B (B.k - 1) (B.k - 1))
-      ≤ ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1)) :=
+      ≤ poolTail (B.nsuff + rs) rs ρsf :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_stalled O populations B _ _) (fun g =>
       measureReal_stalled_nearest_le O populations _ _ Dsf B (by omega) hscreen hpool.le ρsf rs
         hρsf hρsf0)
@@ -400,9 +400,9 @@ theorem measureReal_poolEvents_le (O : Oracle μ S) (populations : Finset J) (un
     runMeasure_streams_le H uni D Dsf _ (measurableSet_apShort O B.nsuff pAP tap)
       (fun g => measureReal_apShort_le _ _ Dsf O B.nsuff pAP tap hpAP0 htap hpAPBound)
   have bp : ν.real (Y ⁻¹' {y | ¬ poolGood B.nsuff rs y})
-      ≤ ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1)) :=
+      ≤ poolTail (B.nsuff + rs) rs ρsf :=
     runMeasure_streams_le H uni D Dsf _ (measurableSet_notPoolGood B.nsuff rs) (fun g =>
-      measureReal_poolBad_le _ _ Dsf B.nsuff rs ρsf hρsf hρsf0)
+      measureReal_poolBad_le _ _ Dsf B.nsuff rs ρsf hρsf)
   have u1 := measureReal_union_le (μ := ν)
     (Y ⁻¹' stalled nearestClusterer O populations B (B.k - 1) (B.k - 1))
     (Y ⁻¹' apShort O B.nsuff pAP tap)
@@ -707,7 +707,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
         wMass O (D uni) (clsW O b) v ≤ ((clusterBy nearestClusterer O.mq populations x B).card : ℝ)
           * (Δ + c * clsShift O b + g)} \ N)
         ≤ rejTail (B.npref + r) (((B.npref + r : ℕ) : ℝ) * ρ) r
-          + ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * (collisionMass Dsf) / (2 * ((rs : ℝ) + 1))
+          + poolTail (B.nsuff + rs) rs (collisionMass Dsf)
           + Real.exp (-((B.nsuff : ℝ) * (tap ^ 2 / (2 * pAP))))
           + (B.nsuff : ℝ) * Real.exp (-L) := by
       intro b
@@ -724,7 +724,7 @@ theorem raw_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S
         (by nlinarith [mul_le_mul_of_nonneg_left hw1 hc0]) hρu hρsf' hρsf0
     have hDB : (streamMeasure μ Pp Pc Dsf).real ((Dt \ N) ∪ (Df \ N))
         ≤ 2 * (rejTail (B.npref + r) (((B.npref + r : ℕ) : ℝ) * ρ) r
-          + ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * (collisionMass Dsf) / (2 * ((rs : ℝ) + 1))
+          + poolTail (B.nsuff + rs) rs (collisionMass Dsf)
           + Real.exp (-((B.nsuff : ℝ) * (tap ^ 2 / (2 * pAP))))
           + (B.nsuff : ℝ) * Real.exp (-L)) := by
       refine le_trans (measureReal_union_le _ _) ?_

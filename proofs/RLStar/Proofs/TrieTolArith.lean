@@ -1,12 +1,11 @@
 import RLStar.Proofs.BigO
-import RLStar.Proofs.LoopDFAArith
 
 /-!
 # The trie tolerance's arithmetic
 
 `trie_loop_tol`'s steps over abstract reals: the tolerance
 
-    T = ℓ⁴ Λ E + ℓ² Λ E₂
+    T = ℓ⁴ Λ E
 
 against the rates and caps `trie_loop_core` needs, once `2⁴ T⁵ ≤ |Σ|^k`.
 -/
@@ -17,27 +16,9 @@ namespace OrthoDFA
 
 open Real
 
-/-- `loopTolInv` without its `ℓ² E₃` term. -/
-def trieTolInv (ℓ Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ :=
-  let t := loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀
-  ℓ ^ 4 * (1 + Real.log ℓ) * t.1 + ℓ ^ 2 * (1 + Real.log ℓ) * t.2.1
-
-lemma one_le_trieTolInv {ℓ Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hℓ : 1 ≤ ℓ) (hQ : 0 ≤ Q)
-    (hA : 0 ≤ A) (hAe : 2 ≤ Ae) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hc : 0 < c) (hc1 : c ≤ 1)
-    (hξ : 0 < ξ) (hpAP : 0 < pAP) (hp1 : pAP ≤ 1) (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2) :
-    1 ≤ trieTolInv ℓ Q A Ae nQ nA δ c ξ pAP η₀ := by
-  obtain ⟨h1, h2, -⟩ := loopMassTerms_ge nQ nA hQ hA hAe hδ hδ1 hc hc1 hξ hpAP hp1 hη0 hη
-  simp only [trieTolInv]
-  have hΛ1 : 1 ≤ 1 + Real.log ℓ := by have := Real.log_nonneg hℓ; linarith
-  have a := one_le_mul_of_one_le_of_one_le
-    (one_le_mul_of_one_le_of_one_le (one_le_pow₀ (n := 4) hℓ) hΛ1) h1
-  have b := mul_nonneg (mul_nonneg (sq_nonneg ℓ) (by linarith : (0 : ℝ) ≤ 1 + Real.log ℓ)) h2
-  linarith
-
-lemma tol_T_le {ℓ Λ E E₁ E₂ aε lg T : ℝ} (hℓ : 1 ≤ ℓ) (hΛ : 1 ≤ Λ) (haε : 1 ≤ aε)
-    (hE₁ : 1 ≤ E₁) (hE₂ : 0 ≤ E₂) (hlg : 0 ≤ lg)
-    (hE : E = 1536 * aε * E₁ + 1536 * lg * aε)
-    (hT : T = ℓ ^ 4 * Λ * E + ℓ ^ 2 * Λ * E₂) :
+lemma tol_T_le {ℓ Λ E E₁ aε lg T : ℝ} (hℓ : 1 ≤ ℓ) (hΛ : 1 ≤ Λ) (haε : 1 ≤ aε)
+    (hE₁ : 1 ≤ E₁) (hlg : 0 ≤ lg) (hE : E = 1536 * aε * E₁ + 1536 * lg * aε)
+    (hT : T = ℓ ^ 4 * Λ * E) :
     1 ≤ T ∧ ℓ ^ 2 * Λ * E₁ ≤ T ∧ E₁ ≤ T ∧ ℓ ≤ ℓ ^ 2 * Λ ∧ ℓ ≤ T ∧ aε * ℓ ≤ T ∧ aε ≤ T := by
   have hΛ0 : 0 ≤ Λ := by linarith only [hΛ]
   have hℓ0 : 0 ≤ ℓ := by linarith only [hℓ]
@@ -53,9 +34,7 @@ lemma tol_T_le {ℓ Λ E E₁ E₂ aε lg T : ℝ} (hℓ : 1 ≤ ℓ) (hΛ : 1 �
     have hEaE : aε * E₁ ≤ E := by
       have h0 : 0 ≤ lg * aε := mul_nonneg hlg ha0
       rw [hE]; linarith only [h0, hae1]
-    have h1 := mul_le_mul_of_nonneg_left hEaE hu0
-    have h2 : 0 ≤ ℓ ^ 2 * Λ * E₂ := mul_nonneg (mul_nonneg (sq_nonneg ℓ) hΛ0) hE₂
-    rw [hT]; linarith only [h1, h2]
+    rw [hT]; exact mul_le_mul_of_nonneg_left hEaE hu0
   have hlℓ : ℓ ≤ ℓ ^ 2 * Λ := by
     have : ℓ ≤ ℓ ^ 2 := by nlinarith only [hℓ]
     exact this.trans (le_mul_of_one_le_right (sq_nonneg ℓ) hΛ)
@@ -74,86 +53,106 @@ lemma tol_T_le {ℓ Λ E E₁ E₂ aε lg T : ℝ} (hℓ : 1 ≤ ℓ) (hΛ : 1 �
   exact ⟨(one_le_mul_of_one_le_of_one_le hu1 hae1).trans hTE, hTlE, hTE₁, hlℓ, hTℓ, hTaℓ,
     (le_mul_of_one_le_right ha0 hℓ).trans hTaℓ⟩
 
-/-- The walk-start mass `trie_loop_core` needs: `E₂` alone carries `K₁`, and `T⁵` squares it. -/
-lemma tol_B₃ {ℓ Λ E E₂ K₁ B₃ n R₀ Q δ T Ak : ℝ} (hℓ : 1 ≤ ℓ) (hΛ : 1 ≤ Λ) (hE : 0 ≤ E)
-    (hn : 1 ≤ n) (hR₀ : 0 ≤ R₀) (hQ : 0 ≤ Q) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hK₁ : 0 ≤ K₁)
-    (hB₃0 : 0 ≤ B₃) (hB₃ : B₃ ≤ K₁ * ℓ) (hE₂ : E₂ = 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
-    (hT : T = ℓ ^ 4 * Λ * E + ℓ ^ 2 * Λ * E₂) (hT1 : 1 ≤ T) (hAk : 2 ^ 4 * T ^ 5 ≤ Ak) :
+/-- `K₁ ≤ aε R₀`: `R₀` carries `Θι² ≥ S²` and the log of `1/δ'`. -/
+lemma tol_K₁ {Q S aε Θι δ' P₀ s R₀ K₁ : ℝ} (hQ : 0 ≤ Q) (hS : 1 ≤ S) (haε : 1 ≤ aε)
+    (hSΘ : S ≤ Θι) (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hP₀ : 1 ≤ P₀) (hs0 : 0 < s)
+    (hs1 : s ≤ 1 / 2) (hK₁ : K₁ = 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1)
+    (hR₀ : 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4 ≤ R₀) :
+    K₁ ≤ aε * R₀ := by
+  set Lg := Real.log (256 * P₀ / δ') with hLgd
+  have hS0 : 0 < S := by linarith only [hS]
+  have hP0 : 0 < P₀ := by linarith only [hP₀]
+  have hLg0 : 0 ≤ Lg := Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; linarith only [hP₀, hδ'1])
+  have hlog : Real.log (16 * S * (S + 1) / δ') ≤ 5 * S + Lg := by
+    have e1 : Real.log (16 * S * (S + 1) / δ')
+        = Real.log 16 + Real.log S + Real.log (S + 1) - Real.log δ' := by
+      rw [Real.log_div (by positivity) hδ'0.ne', Real.log_mul (by positivity) (by positivity),
+        Real.log_mul (by norm_num) hS0.ne']
+    have e2 : Lg = Real.log 256 + Real.log P₀ - Real.log δ' := by
+      rw [hLgd, Real.log_div (by positivity) hδ'0.ne', Real.log_mul (by norm_num) hP0.ne']
+    have l16 : Real.log 16 < 3 := by
+      have := Real.log_two_lt_d9
+      have e : Real.log 16 = 4 * Real.log 2 := by
+        rw [show (16 : ℝ) = 2 ^ 4 by norm_num, Real.log_pow]; norm_num
+      linarith only [this, e]
+    have l256 : 0 ≤ Real.log 256 := Real.log_nonneg (by norm_num)
+    have lP : 0 ≤ Real.log P₀ := Real.log_nonneg hP₀
+    have lS : Real.log S ≤ S - 1 := Real.log_le_sub_one_of_pos hS0
+    have lS1 : Real.log (S + 1) ≤ S := by
+      have := Real.log_le_sub_one_of_pos (by linarith only [hS] : (0 : ℝ) < S + 1)
+      linarith only [this]
+    linarith only [e1, e2, l16, l256, lP, lS, lS1, hS]
+  have hX0 : 0 ≤ Θι ^ 2 * (Lg + 1) := by positivity
+  have h1 : K₁ ≤ aε * (218 * (Θι ^ 2 * (Lg + 1))) := by
+    have a : K₁ ≤ aε * (180 * S ^ 2 + 36 * S * Lg) + S + 1 := by
+      rw [hK₁]
+      have := mul_le_mul_of_nonneg_left hlog (by positivity : (0 : ℝ) ≤ 36 * S * aε)
+      nlinarith only [this]
+    have b : 180 * S ^ 2 + 36 * S * Lg + S + 1 ≤ 218 * (S ^ 2 * (Lg + 1)) := by
+      nlinarith only [hS, hLg0, mul_nonneg (by linarith only [hS] : (0 : ℝ) ≤ S - 1) hLg0,
+        mul_nonneg (mul_nonneg hS0.le (by linarith only [hS] : (0 : ℝ) ≤ S - 1)) hLg0]
+    have c : S ^ 2 * (Lg + 1) ≤ Θι ^ 2 * (Lg + 1) :=
+      mul_le_mul_of_nonneg_right (pow_le_pow_left₀ hS0.le hSΘ 2) (by linarith only [hLg0])
+    have d : S + 1 ≤ aε * (S + 1) := le_mul_of_one_le_left (by linarith only [hS]) haε
+    have bc : 180 * S ^ 2 + 36 * S * Lg + S + 1 ≤ 218 * (Θι ^ 2 * (Lg + 1)) := by
+      linarith only [b, c]
+    have := mul_le_mul_of_nonneg_left bc (by linarith only [haε] : (0 : ℝ) ≤ aε)
+    linarith only [a, d, this]
+  have h2 : 218 * (Θι ^ 2 * (Lg + 1)) ≤ R₀ := by
+    refine le_trans ?_ hR₀
+    have hs4 : s ^ 4 ≤ 1 := pow_le_one₀ hs0.le (by linarith only [hs1])
+    rw [le_div_iff₀ (by positivity)]
+    have := mul_le_mul_of_nonneg_left hs4 hX0
+    nlinarith only [this, hX0, hQ, mul_nonneg hQ hX0]
+  exact h1.trans (mul_le_mul_of_nonneg_left h2 (by linarith only [haε]))
+
+/-- The walk starts' `B₃ ≤ K₁ ℓ ≤ T`, so `T⁵` pays their mass. -/
+lemma tol_B₃ {ℓ Λ E E₁ aε lg K₁ B₃ R₀ T Ak : ℝ} (hℓ : 1 ≤ ℓ) (hΛ : 1 ≤ Λ) (haε : 1 ≤ aε)
+    (hlg : 0 ≤ lg) (hE : E = 1536 * aε * E₁ + 1536 * lg * aε) (hR₀ : 0 ≤ R₀) (hRE : R₀ ≤ E₁)
+    (hK : K₁ ≤ aε * R₀) (hK₁ : 0 ≤ K₁) (hB₃0 : 0 ≤ B₃) (hB₃ : B₃ ≤ K₁ * ℓ)
+    (hT : T = ℓ ^ 4 * Λ * E) (hT1 : 1 ≤ T) (hAk : 2 ^ 4 * T ^ 5 ≤ Ak) :
     16 * B₃ ^ 2 * Ak⁻¹ ≤ 1 := by
-  have hKE : K₁ ≤ E₂ := by
-    rw [hE₂, le_div_iff₀ hδ]
-    have a : K₁ * δ ≤ K₁ := mul_le_of_le_one_right hK₁ hδ1
-    have b : K₁ ≤ 4 * n * K₁ := by nlinarith only [hn, hK₁]
-    have c : 4 * n * K₁ ≤ 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) :=
-      mul_le_mul_of_nonneg_left (by nlinarith only [hQ, hR₀, hn]) (by linarith only [hn])
-    linarith only [a, b, c]
+  have ha0 : 0 ≤ aε := by linarith only [haε]
+  have hE₁0 : 0 ≤ E₁ := hR₀.trans hRE
+  have hKE : K₁ ≤ E := by
+    have a := mul_le_mul_of_nonneg_left hRE ha0
+    have b : 0 ≤ 1535 * aε * E₁ + 1536 * lg * aε := by positivity
+    rw [hE]; linarith only [hK, a, b]
+  have hE0 : 0 ≤ E := hK₁.trans hKE
   have hΛ0 : 0 ≤ Λ := by linarith only [hΛ]
-  have hl : ℓ ≤ ℓ ^ 2 * Λ := by
-    have : ℓ ≤ ℓ ^ 2 := by nlinarith only [hℓ]
-    exact this.trans (le_mul_of_one_le_right (sq_nonneg ℓ) hΛ)
+  have hl : ℓ ≤ ℓ ^ 4 * Λ := by
+    have : ℓ ≤ ℓ ^ 4 := le_self_pow₀ hℓ (by norm_num)
+    exact this.trans (le_mul_of_one_le_right (by positivity) hΛ)
   have hBT : B₃ ≤ T := by
-    have a := mul_le_mul_of_nonneg_left hl hK₁
-    have b := mul_le_mul_of_nonneg_left hKE (mul_nonneg (sq_nonneg ℓ) hΛ0)
-    have c : 0 ≤ ℓ ^ 4 * Λ * E := mul_nonneg (mul_nonneg (by positivity) hΛ0) hE
-    rw [hT]; nlinarith only [hB₃, a, b, c]
-  have hT0 : 0 ≤ T := by linarith only [hT1]
+    have a := mul_le_mul hKE hl (by linarith only [hℓ]) hE0
+    rw [hT]; linarith only [hB₃, a]
   have h2 : B₃ ^ 2 ≤ T ^ 2 := pow_le_pow_left₀ hB₃0 hBT 2
   have h5 : T ^ 2 ≤ T ^ 5 := pow_le_pow_right₀ hT1 (by norm_num)
   have hAk0 : 0 < Ak := lt_of_lt_of_le (by positivity) hAk
   rw [← div_eq_mul_inv, div_le_one hAk0]
   linarith only [h2, h5, hAk]
 
-lemma tol_E₁_ge {Q R₀ Θι Θa P₀ δ' pAP s l16 l128 E₁ : ℝ} (hR₀ : 0 ≤ R₀) (hΘι : 1 ≤ Θι)
-    (hΘa : 1 ≤ Θa) (hP₀ : 1 ≤ P₀) (hδ' : 0 < δ') (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hs : 0 < s)
+lemma tol_E₁_ge {Q R₀ Θι Θa P₀ pAP s l16 l128 E₁ : ℝ} (hR₀ : 0 ≤ R₀) (hΘι : 1 ≤ Θι)
+    (hΘa : 1 ≤ Θa) (hP₀ : 1 ≤ P₀) (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hs : 0 < s)
     (hl16 : 0 ≤ l16) (hl : l16 ≤ l128)
     (hE₁ : E₁ = 2 ^ 20 * Θa * (R₀ + 1) / s + (Q + 3) ^ 2 * (2 ^ 24 * Θι * (R₀ + 1)
-      + 2 ^ 28 * Θι ^ 2 * l128 + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))) :
-    (Q + 3) ^ 2 * (2 ^ 24 * (R₀ + 1) + 2 ^ 28 * l16 + (P₀ + 2) / δ') ≤ E₁ := by
+      + 2 ^ 28 * Θι ^ 2 * l128 + 2 ^ 35 * (P₀ + 2) / pAP ^ 2)) :
+    (Q + 3) ^ 2 * (2 ^ 24 * (R₀ + 1) + 2 ^ 28 * l16 + (P₀ + 2)) ≤ E₁ := by
   have hP2 : 0 ≤ P₀ + 2 := by linarith only [hP₀]
   have hR1 : 0 ≤ R₀ + 1 := by linarith only [hR₀]
   have a1 := mul_le_mul_of_nonneg_right hΘι hR1
   have a2 := mul_le_mul (one_le_pow₀ hΘι : (1 : ℝ) ≤ Θι ^ 2) hl hl16 (sq_nonneg Θι)
-  have a3 : (P₀ + 2) / δ' ≤ 2 ^ 16 * (P₀ + 2) / (pAP * δ') := by
-    rw [div_le_div_iff₀ hδ' (mul_pos hp hδ')]
-    have h5 : pAP * δ' ≤ 2 ^ 16 * δ' := by
-      nlinarith only [mul_nonneg (sub_nonneg.2 hp1) hδ'.le, hδ']
-    linarith only [mul_le_mul_of_nonneg_left h5 hP2]
+  have a3 : P₀ + 2 ≤ 2 ^ 35 * (P₀ + 2) / pAP ^ 2 := by
+    rw [le_div_iff₀ (by positivity)]
+    have h5 : pAP ^ 2 ≤ 2 ^ 35 := by nlinarith only [hp, hp1]
+    nlinarith only [mul_le_mul_of_nonneg_left h5 hP2]
   have a0 : 0 ≤ 2 ^ 20 * Θa * (R₀ + 1) / s :=
     div_nonneg (mul_nonneg (mul_nonneg (by norm_num) (by linarith only [hΘa])) hR1) hs.le
-  have hsum : 2 ^ 24 * (R₀ + 1) + 2 ^ 28 * l16 + (P₀ + 2) / δ'
-      ≤ 2 ^ 24 * Θι * (R₀ + 1) + 2 ^ 28 * Θι ^ 2 * l128 + 2 ^ 16 * (P₀ + 2) / (pAP * δ') := by
+  have hsum : 2 ^ 24 * (R₀ + 1) + 2 ^ 28 * l16 + (P₀ + 2)
+      ≤ 2 ^ 24 * Θι * (R₀ + 1) + 2 ^ 28 * Θι ^ 2 * l128 + 2 ^ 35 * (P₀ + 2) / pAP ^ 2 := by
     linarith only [a1, a2, a3]
   have := mul_le_mul_of_nonneg_left hsum (sq_nonneg (Q + 3))
   rw [hE₁]; linarith only [this, a0]
-
-lemma tol_Qδ {Q P₀ δ δ' T Y E₁ : ℝ} (hQ : 0 ≤ Q) (hP₀ : 1 ≤ P₀) (hδ : 0 < δ)
-    (hδ' : δ' = δ / (8 * (Q + 1))) (hδ'1 : δ' ≤ 1) (hY : 0 ≤ Y)
-    (hE : (Q + 3) ^ 2 * (Y + (P₀ + 2) / δ') ≤ E₁) (hET : E₁ ≤ T) :
-    (Q + 1) ^ 2 ≤ T * δ ∧ 1 / δ ≤ T ∧ P₀ ≤ E₁ := by
-  have hd : 0 < δ' := by rw [hδ']; positivity
-  have hP2 : 0 ≤ P₀ + 2 := by linarith only [hP₀]
-  have hZ : 0 ≤ (P₀ + 2) / δ' := div_nonneg hP2 hd.le
-  have hk : 0 ≤ (Q + 3) ^ 2 * Y := mul_nonneg (sq_nonneg _) hY
-  have hX : (Q + 3) ^ 2 * ((P₀ + 2) / δ') ≤ E₁ := by
-    have e : (Q + 3) ^ 2 * (Y + (P₀ + 2) / δ') = (Q + 3) ^ 2 * Y + (Q + 3) ^ 2 * ((P₀ + 2) / δ') :=
-      by ring
-    linarith only [hE, hk, e]
-  have hP₀E : P₀ ≤ E₁ := by
-    have e2 : P₀ + 2 ≤ (P₀ + 2) / δ' := le_div_self hP2 hd hδ'1
-    have e3 := le_mul_of_one_le_left hZ (one_le_pow₀ (by linarith only [hQ]) : (1 : ℝ) ≤ (Q + 3) ^ 2)
-    linarith only [e2, e3, hX]
-  have e : (P₀ + 2) / δ' * δ = (P₀ + 2) * (8 * (Q + 1)) := by
-    rw [hδ', div_div_eq_mul_div, div_mul_cancel₀ _ hδ.ne']
-  have h1 := mul_le_mul_of_nonneg_right (hX.trans hET) hδ.le
-  rw [mul_assoc, e] at h1
-  have k1 : (Q + 1) ^ 2 ≤ (Q + 3) ^ 2 := by nlinarith only [hQ]
-  have k2 : 1 ≤ (P₀ + 2) * (8 * (Q + 1)) := by nlinarith only [hP₀, hQ]
-  have k3 := mul_le_mul_of_nonneg_left k2 (sq_nonneg (Q + 3))
-  have hQδ : (Q + 1) ^ 2 ≤ T * δ := by linarith only [k1, k3, h1]
-  refine ⟨hQδ, ?_, hP₀E⟩
-  rw [div_le_iff₀ hδ]
-  have : 1 ≤ (Q + 1) ^ 2 := one_le_pow₀ (by linarith only [hQ])
-  linarith only [this, hQδ]
 
 lemma tol_FV {X pAP lp PB P₀ ℓ Lm E₁ T : ℝ} (hX : 0 ≤ X) (hp : 0 < pAP) (hp1 : pAP ≤ 1)
     (hlp : 0 ≤ lp) (hPBd : PB = X / pAP + lp) (hPB : PB ≤ P₀ * ℓ) (hP₀E : P₀ ≤ E₁) (hℓ : 0 ≤ ℓ)
@@ -167,7 +166,7 @@ lemma tol_FV {X pAP lp PB P₀ ℓ Lm E₁ T : ℝ} (hX : 0 ≤ X) (hp : 0 < pAP
 /-- The family's misread tail, `F ≤ T` letters past a length-`L` cut. -/
 lemma tol_k6 {A T c δ X : ℝ} {F Ls : ℕ} (hA : 2 ≤ A) (hT1 : 1 ≤ T) (hδ : 0 < δ)
     (hFT : (F : ℝ) ≤ T) (hAT : A ≤ T) (hLsT : (Ls : ℝ) + 1 ≤ 2 * T) (hcT : 1 ≤ c * T)
-    (hδT : 1 / δ ≤ T) (hAL : 2 ^ 4 * T ^ 5 ≤ X) :
+    (hδT : Real.log (16 / δ) ≤ 16 * T) (hAL : 2 ^ 4 * T ^ 5 ≤ X) :
     2 * ((F : ℝ) + 1) ^ 3 * (A ^ Ls + 1) ^ F * Real.exp (-2 * X * c ^ 2) ≤ δ / 8 := by
   have hT0 : 0 ≤ T := by linarith only [hT1]
   have hA0 : 0 < A := by linarith only [hA]
@@ -192,10 +191,7 @@ lemma tol_k6 {A T c δ X : ℝ} {F Ls : ℕ} (hA : 2 ≤ A) (hT1 : 1 ≤ T) (hδ
           pow_le_pow_left₀ (by positivity) (b1.trans b2) F
       _ = Real.exp (A * ((Ls : ℝ) + 1) * F) := by rw [← Real.exp_nat_mul]; ring_nf
   have hexp : 3 * (F : ℝ) + A * ((Ls : ℝ) + 1) * F + Real.log (16 / δ) ≤ 2 * X * c ^ 2 := by
-    have l1 : Real.log (16 / δ) ≤ 16 * T := by
-      have h := Real.log_le_sub_one_of_pos (show (0 : ℝ) < 16 / δ by positivity)
-      have e : 16 / δ = 16 * (1 / δ) := by ring
-      linarith only [h, e, hδT]
+    have l1 : Real.log (16 / δ) ≤ 16 * T := hδT
     have l2 : A * ((Ls : ℝ) + 1) * F ≤ T * (2 * T) * T :=
       mul_le_mul (mul_le_mul hAT hLsT (by positivity) hT0) hFT hF0
         (mul_nonneg hT0 (by linarith only [hT1]))

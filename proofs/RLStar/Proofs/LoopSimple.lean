@@ -354,7 +354,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
         (ι / 2 / (8 * J * (RB + 1))))
-      (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
+      (min (min (pAP ^ 2 / (2 ^ 35 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
     let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ * (Q + 3) ^ ((Fintype.card σ + 2)
       * Fintype.card α)
@@ -577,7 +577,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     show 0 < min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
         (ι / 2 / (8 * J * (RB + 1))))
-      (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
+      (min (min (pAP ^ 2 / (2 ^ 35 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
     refine lt_min (lt_min (lt_min (by positivity) (div_pos (by positivity) (by positivity)))
       (by positivity)) (by positivity)
@@ -643,9 +643,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     rw [hK1, show ι - ι / 2 = ι / 2 by ring]
     exact hmul (b := 8 * J * (RB + 1)) (by positivity) (by gcongr; linarith)
       ((min_le_left _ _).trans (min_le_right _ _))
-  have hq3 : 2 ^ 15 * ((⌊PB⌋₊ : ℕ) : ℝ) * cap ≤ δ' * (pAP - pAP / 2) := by
-    have h := hmul (x := 2 ^ 16 * ((⌊PB⌋₊ : ℕ) : ℝ)) (a := δ' * pAP)
-      (b := 2 ^ 16 * (PB + 1)) (by positivity) (by gcongr; linarith)
+  have hq3 : 2 ^ 33 * ((⌊PB⌋₊ : ℕ) : ℝ) * cap ≤ (pAP - pAP / 2) ^ 2 := by
+    have h := hmul (x := 2 ^ 35 * ((⌊PB⌋₊ : ℕ) : ℝ)) (a := pAP ^ 2)
+      (b := 2 ^ 35 * (PB + 1)) (by positivity) (by gcongr; linarith)
       (((min_le_right _ _).trans (min_le_left _ _)).trans (min_le_left _ _))
     linarith only [h]
   have hqm : 6 * (((Fintype.card σ + 1 : ℕ) : ℝ)) * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 1)

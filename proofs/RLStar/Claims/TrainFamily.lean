@@ -105,7 +105,7 @@ def TrainFamilyClaim.{u, v, w} : Prop :=
           * (x.nJ * (1 / x.ε_u + 1 / x.ε_s) + 1 / (x.εcov * x.s₀ ^ 2) + 1 / (x.ε_u * x.s₀))
         + x.nJ * log (x.nJ / (x.δ * x.pAP * x.εcov * x.ε_s * x.ε_u * x.κ * x.s₀)) / x.ε_s ^ 2) ∧
     (fun x => 1 / collTol x) =O[𝓟 trainFamilyRegion] (fun x =>
-      1 / (x.δ * x.pAP) * (x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP)) ∧
+      1 / x.pAP ^ 2 * (x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP)) ∧
     TrainFamilyWithin.{u, v, w} k nsuff npref atomTol collTol
 
 end OrthoDFA

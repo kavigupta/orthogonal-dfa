@@ -360,7 +360,7 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
       have := (hthird j hj).2
       rw [measureReal_def, h] at this; norm_num at this
     have hcoll := poolDraws_le_of_cap (indecisionLimit := indecisionLimit)
-        (crossLimit := crossLimit) η₀ populations hpAP0 hpAP1 hδ
+        (crossLimit := crossLimit) η₀ populations hpAP0 hpAP1 hδ hδ1
         (tsum_nonneg (fun a => sq_nonneg _)) hρsf
     have h := validity_of_returned (rule := rule) (crossLimit := crossLimit) (hsz := hz) hflat O
       populations tame uni huni htame (sideLawT H uni D g) (sideLawC H uni D g) Dsf

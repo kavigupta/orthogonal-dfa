@@ -1177,7 +1177,7 @@ theorem measureReal_famShift_le (O : Oracle μ S)
         wMass O Dj V v ≤ ((clusterBy nearestClusterer O.mq populations x B).card : ℝ)
           * (Δ + c + g)} \ nearShift O populations B Δ a)
       ≤ rejTail (B.npref + r) (((B.npref + r : ℕ) : ℝ) * ρ) r
-        + ((B.nsuff + rs : ℕ) : ℝ) ^ 2 * ρsf / (2 * ((rs : ℝ) + 1))
+        + poolTail (B.nsuff + rs) rs ρsf
         + Real.exp (-((B.nsuff : ℝ) * (tap ^ 2 / (2 * pAP))))
         + (B.nsuff : ℝ) * Real.exp (-L) := by
   classical
@@ -1320,7 +1320,7 @@ theorem measureReal_famShift_le (O : Oracle μ S)
     rw [hSmeq]
     exact mul_le_mul_of_nonneg_left hfin hκR.le
   have b1 := measureReal_tabBad_le (μ := μ) Pp Pc Dsf j Dj hPp m r ρ hρ
-  have b2 := measureReal_poolBad_le (μ := μ) Pp Pc Dsf M rs ρsf hρsf hρsf0
+  have b2 := measureReal_poolBad_le (μ := μ) Pp Pc Dsf M rs ρsf hρsf
   have b3 := measureReal_apShort_le (μ := μ) Pp Pc Dsf O M pAP tap hpAP0 htap hpAPBound
   have b5 := pool_massUnder_le (μ := μ) Pp Pc Dsf O j Dj hPp m M L hL V hV0 hV1
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_

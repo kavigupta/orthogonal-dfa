@@ -423,11 +423,12 @@ noncomputable def collisionCap (η : ℝ) (populations : Finset J)
         * (3 + 2 * (Nat.log 2 (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit
           hsz) : ℝ)) / δ)))
 
-/-- How much collision mass the suffix measure may carry: the pool redraws `M·ρ/pAP` of its `M`
-draws, a twentieth of the findable share. -/
+/-- How much collision mass the suffix measure may carry: each of the pool's `n ≤ 2M` draws
+repeats an earlier one with chance at most `√(nρ) ≤ pAP/2^15`, so its redraws stay a binomial tail
+below the `pAP M/20` it may spend. -/
 noncomputable def poolCollisionCap (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℝ :=
-  δ * pAP / (2 ^ 13 * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
+  pAP ^ 2 / (2 ^ 32 * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
 
 open scoped Classical in
 /-- The E-L\* clustering algorithm is PAC-correct: with probability `≥ 1 − δ − α` the loop
