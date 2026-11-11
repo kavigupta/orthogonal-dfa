@@ -36,17 +36,17 @@ lemma toDist_mem {x : RatioInputs} (hx : x ∈ ratioRegion) : toDist x ∈ rlSta
 def loopG (x : RatioInputs) : ℝ :=
   x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
     * log (x.Q * x.R * x.A * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)) ^ 3
-    * (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 3 * (1 / x.s₀) ^ 6
+    * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 3 * (1 / x.s₀) ^ 6
 
 lemma shape_toDist_le {x : RatioInputs} (hx : x ∈ ratioRegion) (L : ℕ) :
     0 ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β) ^ 4 * x.R ^ 4
         * log (((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
-        / (x.δ * x.ξ ^ 4 * x.pAP ^ 3 * x.s₀ ^ 6)
+        / (x.ξ ^ 4 * x.pAP ^ 3 * x.s₀ ^ 6)
       ∧ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β) ^ 4 * x.R ^ 4
         * log (((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
-        / (x.δ * x.ξ ^ 4 * x.pAP ^ 3 * x.s₀ ^ 6)
+        / (x.ξ ^ 4 * x.pAP ^ 3 * x.s₀ ^ 6)
       ≤ 2 * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
   obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
   have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ
@@ -89,8 +89,8 @@ lemma shape_toDist_le {x : RatioInputs} (hx : x ∈ ratioRegion) (L : ℕ) :
   have e4 : 1 / (toDist x).β = x.A := by
     show 1 / (1 / (x.A : ℝ)) = _
     rw [one_div_one_div]
-  set K : ℝ := (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 3 * (1 / x.s₀) ^ 6 with hKd
-  have e3 : ∀ z : ℝ, z / (x.δ * x.ξ ^ 4 * x.pAP ^ 3 * x.s₀ ^ 6) = z * K := by
+  set K : ℝ := (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 3 * (1 / x.s₀) ^ 6 with hKd
+  have e3 : ∀ z : ℝ, z / (x.ξ ^ 4 * x.pAP ^ 3 * x.s₀ ^ 6) = z * K := by
     intro z
     rw [hKd]; field_simp
   have hG : loopG x = x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K := by
@@ -159,7 +159,7 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
   have hC₀ : 1 ≤ C₀ := by rw [hC₀d]; linarith [le_max_left 1 C]
   refine ⟨fun r => 5 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * loopG (ratioOne r.toRLStarInputs)))
       / log r.A, tp, ts, tpr, tr, ?_, hpref, hsuff, hprobes, hreads, ?_⟩
-  · refine isBigO_on (30 + 5 * (263 + 6 * log C₀)) fun r hr => ?_
+  · refine isBigO_on (30 + 10 * (275 + 6 * log C₀)) fun r hr => ?_
     obtain ⟨hQ, hA, hδ, hδ2, hξ, hξ1, hp, hp1, hs, hs1⟩ := hr
     have hQ' : (1 : ℝ) ≤ r.Q := by exact_mod_cast hQ
     have hA' : (2 : ℝ) ≤ r.A := by exact_mod_cast hA
@@ -170,35 +170,58 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     set G := loopG (ratioOne r.toRLStarInputs) with hGd
     change 1 ≤ G at hG
     set ℓ := log (r.A : ℝ) with hℓd
-    set c₁ := 263 + 6 * log C₀ with hc₁d
+    set c₁ := 275 + 6 * log C₀ with hc₁d
     set X := log (C₀ * G) with hXd
-    set D := r.δ * r.ξ * r.pAP * r.s₀ with hDd
-    set V := log (((r.L : ℝ) + r.Q) / D) with hVd
+    set D := r.ξ * r.pAP * r.s₀ with hDd
+    set lδ := log (1 / r.δ) with hlδd
+    set V := log (((r.L : ℝ) + r.Q) * lδ / D) with hVd
     change 1 + 4 * (X + 6 * log ((r.Q : ℝ) + 4) + 24) / ℓ
-        ≤ c₁ * (1 + log ((r.Q : ℝ) * 1 * (1 / r.δ) * (1 / r.ξ) * (1 / r.pAP) * (1 / r.s₀)) / ℓ)
+        ≤ c₁ * (1 + log ((r.Q : ℝ) * 1 * (2 * lδ) * (1 / r.ξ) * (1 / r.pAP) * (1 / r.s₀)) / ℓ)
       at hle
     have hlA : 0 < ℓ := Real.log_pos (by linarith)
     have hLQ : (1 : ℝ) ≤ r.L + r.Q := by have : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _; linarith
     have hD0 : 0 < D := by positivity
-    have hD1 : D ≤ 1 := by
-      have : r.δ * r.ξ ≤ 1 := by nlinarith
-      have : r.δ * r.ξ * r.pAP ≤ 1 := by nlinarith
-      nlinarith
-    have e : (r.Q : ℝ) * 1 * (1 / r.δ) * (1 / r.ξ) * (1 / r.pAP) * (1 / r.s₀) = r.Q / D := by
+    have hlδ : 1 / 2 ≤ lδ := by
+      have := Real.log_two_gt_d9
+      have := Real.log_le_log (by norm_num) ((le_div_iff₀ hδ).2 (by linarith) : (2 : ℝ) ≤ 1 / r.δ)
+      linarith
+    have hD2 : lδ / D ≥ 1 := by
+      rw [ge_iff_le, le_div_iff₀ hD0]
+      have : D ≤ 1 / 2 := by
+        have : r.ξ * r.pAP ≤ 1 := by nlinarith
+        rw [hDd]; nlinarith
+      linarith
+    have e : (r.Q : ℝ) * 1 * (2 * lδ) * (1 / r.ξ) * (1 / r.pAP) * (1 / r.s₀)
+        = 2 * (r.Q * lδ / D) := by
       rw [hDd]; field_simp
     rw [e] at hle
-    have hLV : log ((r.L : ℝ) + r.Q) ≤ V :=
-      Real.log_le_log (by linarith) (le_div_self (by linarith) hD0 hD1)
-    have hWV : log ((r.Q : ℝ) / D) ≤ V :=
-      Real.log_le_log (div_pos (by linarith) hD0)
-        (div_le_div_of_nonneg_right (by have : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _; linarith)
-          hD0.le)
+    have hLV : log ((r.L : ℝ) + r.Q) ≤ V := by
+      refine Real.log_le_log (by linarith) ?_
+      rw [mul_div_assoc]
+      exact le_mul_of_one_le_right (by linarith) hD2
+    have hQl : 0 < (r.Q : ℝ) * lδ / D := by
+      have : 0 < lδ := by linarith
+      positivity
+    have hWV : log (2 * ((r.Q : ℝ) * lδ / D)) ≤ ℓ + V := by
+      rw [Real.log_mul (by norm_num) hQl.ne']
+      have h2 : log 2 ≤ ℓ := log_two_le_log hA'
+      have h3 : log ((r.Q : ℝ) * lδ / D) ≤ V := by
+        refine Real.log_le_log hQl ?_
+        have : (0 : ℝ) ≤ lδ / D := by have : 0 < lδ := by linarith
+                                        positivity
+        rw [mul_div_assoc, mul_div_assoc]
+        exact mul_le_mul_of_nonneg_right
+          (by have : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _; linarith) this
+      linarith
     have hL0 : 0 ≤ log ((r.L : ℝ) + r.Q) := Real.log_nonneg hLQ
     have hX0 : 0 ≤ X := Real.log_nonneg (one_le_mul_of_one_le_of_one_le hC₀ hG)
     have hY0 : 0 ≤ log ((r.Q : ℝ) + 4) := Real.log_nonneg (by linarith)
     have hc₁ : 0 ≤ c₁ := by have := Real.log_nonneg hC₀; rw [hc₁d]; linarith
     have h1 := div_le_div_of_nonneg_right hLV hlA.le
-    have h2 := mul_le_mul_of_nonneg_left (div_le_div_of_nonneg_right hWV hlA.le) hc₁
+    have hWV' : log (2 * ((r.Q : ℝ) * lδ / D)) / ℓ ≤ 1 + V / ℓ := by
+      rw [div_le_iff₀ hlA, add_mul, one_mul, div_mul_cancel₀ _ hlA.ne']; exact hWV
+    have h2 : c₁ * (log (2 * ((r.Q : ℝ) * lδ / D)) / ℓ) ≤ c₁ + c₁ * (V / ℓ) :=
+      (mul_le_mul_of_nonneg_left hWV' hc₁).trans_eq (by ring)
     have hV : 0 ≤ V / ℓ := div_nonneg (hL0.trans hLV) hlA.le
     have hcV : 0 ≤ c₁ * (V / ℓ) := mul_nonneg hc₁ hV
     have hXl : 0 ≤ X / ℓ := div_nonneg hX0 hlA.le
@@ -206,7 +229,8 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     have hl : 0 ≤ 1 / ℓ := div_nonneg zero_le_one hlA.le
     have e1 : 4 * (X + 6 * log ((r.Q : ℝ) + 4) + 24) / ℓ
         = 4 * (X / ℓ) + 24 * (log ((r.Q : ℝ) + 4) / ℓ) + 96 * (1 / ℓ) := by ring
-    have e2 : c₁ * (1 + log ((r.Q : ℝ) / D) / ℓ) = c₁ + c₁ * (log ((r.Q : ℝ) / D) / ℓ) := by
+    have e2 : c₁ * (1 + log (2 * ((r.Q : ℝ) * lδ / D)) / ℓ)
+        = c₁ + c₁ * (log (2 * ((r.Q : ℝ) * lδ / D)) / ℓ) := by
       ring
     rw [e1, e2] at hle
     have ef : 5 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * G)) / ℓ
@@ -214,10 +238,11 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
       rw [Real.log_mul (by positivity) (by linarith [one_le_mul_of_one_le_of_one_le hC₀ hG]),
         Real.log_pow]
       push_cast; ring
-    have eg : (30 + 5 * c₁) * (1 + V / ℓ) = 30 + 5 * c₁ + 30 * (V / ℓ) + 5 * (c₁ * (V / ℓ)) := by
+    have eg : (30 + 10 * c₁) * (1 + V / ℓ)
+        = 30 + 10 * c₁ + 30 * (V / ℓ) + 10 * (c₁ * (V / ℓ)) := by
       ring
     change 0 ≤ 5 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * G)) / ℓ ∧ 0 ≤ 1 + V / ℓ
-      ∧ 5 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * G)) / ℓ ≤ (30 + 5 * c₁) * (1 + V / ℓ)
+      ∧ 5 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * G)) / ℓ ≤ (30 + 10 * c₁) * (1 + V / ℓ)
     rw [ef, eg]
     refine ⟨by positivity, by linarith, by linarith⟩
   -- the run, at `D` uniform
