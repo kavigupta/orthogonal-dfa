@@ -8,9 +8,9 @@ import RLStar.Proofs.LoopDFA
 # The loop with local walk starts over `D`'s first `L` letters
 
 `loop_simple_checks` at `P.D` the law of `D`'s first `L` letters leaves a last round passing its
-checks, once `D` holds at most `p₀` on any first `k` letters. Where besides each round's probes and harvested batches have distinct first
-`walkStart` letters (`TrieStage`), the loop with local walk starts runs that loop's rounds and reads
-(`trieLoopAgrees_holds`), and its DFA misjudges at most the last round's disagreeing probes plus
+checks, once `D` holds at most `p₀` on any first `k` letters. Its probes and harvested batches are
+at least `walkStart` long (`TrieStage`), so the loop with local walk starts below `walkStart` letters
+runs that loop's rounds and reads (`trieLoopAgrees_holds`), and its DFA misjudges at most the last round's disagreeing probes plus
 the strings its family misreads (`trieSinglePieceCorrect`). Those are at most the family's mean
 plus `t` but for the union bound of `TrieMisread`.
 -/
@@ -184,17 +184,15 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     let FV : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / 4
     let SH : ℝ := 24 * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
     let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
-    let Tb : ℝ := (Q + 1) * (6 * (Q + 2) * RB)
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
-    2 ≤ Fintype.card α → A ≤ Ae → 1 ≤ k → k ≤ L → 0 ≤ t →
+    2 ≤ Fintype.card α → A ≤ Ae → 1 ≤ k → k ≤ L → cap ≤ k → 0 ≤ t →
     (∀ᵐ w ∂D, Ls ≤ w.toList.length) → 0 < p₀ → (∀ u, D.real {w | prefixOf w k = u} ≤ p₀) →
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
     p₀ ≤ capP * ε / 1536 →
     1536 * Real.log (16 * (Q + 1) * Kc / δ') * p₀ ≤ ε →
     6 * J * RB * p₀ ≤ 1 / 2 →
-    16 * B₃ ^ 2 * p₀ ≤ δ' →
-    (Q + 1) ^ 2 * (SC * HN * Tb + (SC * HN) ^ 2) * p₀ ≤ δ / 8 →
+    16 * B₃ ^ 2 * p₀ ≤ 1 →
     2 * ((⌊FV⌋₊ : ℝ) + 1) ^ 3 * (A ^ Ls + 1) ^ ⌊FV⌋₊ * Real.exp (-2 * t ^ 2 / p₀) ≤ δ / 8 →
     ε + ε / 96 + (1025 / 1024 + 3 / 8) * εcov + t ≤ ξT →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
@@ -214,8 +212,8 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
           (learnerReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV B₃ Q (⌈HB⌉₊ : ℝ)
             ((3 + Nat.clog 2 L₁ : ℕ) : ℝ) A 0) p}
         ≤ δ := by
-  intro Q A kN L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB capP Kc SC HN FV SH HB Tb
-    hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL ht hlong hp₀0 hpreD hpAPu hk1 hk2 hk3 hk4 hk5
+  intro Q A kN L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB capP Kc SC HN FV SH HB
+    hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL hcap ht hlong hp₀0 hpreD hpAPu hk1 hk2 hk3 hk4
     hk6 hξT
   classical
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
@@ -275,7 +273,7 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     (by show 1 ≤ L + Fintype.card σ + 3; omega)
     hk0 hιL (hpm.trans hk1)
     ((mul_le_mul_of_nonneg_left hpm (mul_nonneg (by norm_num) hlogK)).trans hk2)
-    (((mul_le_mul_of_nonneg_left hpm (by positivity)).trans hk4).trans hδ'1'.le)
+    ((mul_le_mul_of_nonneg_left hpm (by positivity)).trans hk4)
   have hs0 : 0 < s := by show 0 < 1 / 2 - η₀; linarith
   have hs1 : s ≤ 1 / 2 := by show 1 / 2 - η₀ ≤ 1 / 2; linarith
   have hτ0 : 0 < τ := lt_min (mul_pos (div_pos hεc0 (by norm_num))
@@ -312,8 +310,6 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
   set T := settings.level3.probeBudget
   set NH := settings.level3.harvestReadCap
   set μL := loopMeasure μ α (Fintype.card σ + 1) NH T
-  set rB : ℕ := ⌊RB⌋₊
-  set Tbn : ℕ := (Fintype.card σ + 1) * (6 * (Fintype.card σ + 1 + 1) * rB)
   set Nh : ℕ := 2 * max (4 * (3 * ⌊RB⌋₊)) ⌈8 * Real.log (16 * J / δ')⌉₊
   have hpreW : ∀ u, P.D.real {x | prefixOf x settings.level3.walkStart = u} ≤ p₀ := by
     rw [hwalk]; exact hpre
@@ -348,10 +344,8 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       → RoundDraws α (Fintype.card σ + 1) NH T)) := fun r =>
     {p | HistOK settings O P.D Dsf p.1 p.2 r
         ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
-        ∧ (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).prefs.card ≤ Tbn
         ∧ ∃ i : Fin (Fintype.card σ + 1), ¬ BatchesGood settings.level3.walkStart P.D NH
-          settings.scanCap (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).prefs
-          ((p.2 r).1.2.1 (some i))} with hBTd
+          settings.scanCap ((p.2 r).1.2.1 (some i))} with hBTd
   set Bmis : Set Ω := {ω | ∃ (F : Finset (FreeMonoid α)) (kl kh : ℕ),
       (∀ v ∈ F, v.toList.length = Ls) ∧ F.card ≤ ⌊FV⌋₊
         ∧ misMean O F kl kh (prefixLaw D L) + t < misFrac O F kl kh (prefixLaw D L) ω} with hBmisd
@@ -398,15 +392,9 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     rw [show persistDraws (p.1, p.2) = draws from rfl, hloop, Option.map_some] at e1
     have hread : ∀ o ∈ idealRounds settings O P.D Dsf draws (Fintype.card σ + 1),
         o.ReadsAt O p.1 := e2 _ hloop
-    have hpr : ∀ r, r < Fintype.card σ + 1 →
-        AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
-        (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).prefs.card ≤ Tbn :=
-      fun r hr _ => (foldr_prefs_card _ (idealRounds_prefs_card O P Dsf settings
-        (fun pops x => (hab pops x).1) draws r)).trans
-        (Nat.mul_le_mul_right _ ((length_idealRounds_le settings O P.D Dsf draws r).trans hr.le))
-    have hprem := trieRoundGood_of O P Dsf settings p hrg hpr
+    have hprem := trieRoundGood_of O P Dsf settings p hrg
       (fun r hr h => hn3 ⟨r, hr⟩ h) (fun r hr h => hnT ⟨r, hr⟩ h)
-    obtain ⟨t1, t2⟩ := trieLoopAgrees_holds rd settings cap P.D Dsf p.2 hprem
+    obtain ⟨t1, t2⟩ := trieLoopAgrees_holds rd settings cap P.D Dsf p.2 (hcap.trans_eq hwalk.symm) hprem
     rw [e1, Option.map_some] at t1
     have hcons : o.result.ending = .consistent := hch.1.1
     have hoK : o ∈ idealRounds settings O P.D Dsf draws (Fintype.card σ + 1) :=
@@ -527,56 +515,12 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     rw [e]
     gcongr
     exact Nat.floor_le hRB0
-  have h3 : μL.real (⋃ r, B3 r) ≤ δ / 128 := by
-    refine (measureReal_iUnion_fintype_le _).trans ?_
-    have hr : ∀ r : Fin (Fintype.card σ + 1), μL.real (B3 r) ≤ (T : ℝ) ^ 2 * p₀ := fun r =>
-      trie_l3_round_le O P Dsf settings hnp hpreW hkW hK3 r.1 r.2
-    refine (Finset.sum_le_sum fun r _ => hr r).trans ?_
-    rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, hKQ]
-    have hT2 : (T : ℝ) ^ 2 ≤ B₃ ^ 2 := pow_le_pow_left₀ (Nat.cast_nonneg _) hbud 2
-    have h1 : (T : ℝ) ^ 2 * p₀ ≤ δ' / 16 := by
-      have := mul_le_mul_of_nonneg_right hT2 hp₀0.le
-      linarith
-    have h2 : (Q + 1) * (δ' / 16) = δ / 128 := by
-      show (Q + 1) * (δ / (8 * (Q + 1)) / 16) = δ / 128
-      field_simp
-      ring
-    rw [← h2]
-    exact mul_le_mul_of_nonneg_left h1 (by linarith)
-  have hTop : μL.real (⋃ r, BT r) ≤ δ / 8 := by
-    refine (measureReal_iUnion_fintype_le _).trans ?_
-    have hr : ∀ r : Fin (Fintype.card σ + 1), μL.real (BT r)
-        ≤ ((Fintype.card σ + 1 : ℕ) : ℝ) * (settings.scanCap * NH * (Tbn * p₀)
-          + (settings.scanCap * NH) ^ 2 * p₀) := fun r =>
-      trie_batches_round_le O P Dsf settings hpreW hkW r.1 r.2
-    refine (Finset.sum_le_sum fun r _ => hr r).trans ?_
-    rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, hKQ]
-    refine hk5.trans' ?_
-    have hSC0 : (0 : ℝ) ≤ SC := (Nat.cast_nonneg _).trans hSC
-    have hHN0 : (0 : ℝ) ≤ HN := (Nat.cast_nonneg _).trans hHN
-    have hMN : (settings.scanCap : ℝ) * NH ≤ SC * HN :=
-      mul_le_mul hSC hHN (Nat.cast_nonneg _) hSC0
-    have hTb : (Tbn : ℝ) ≤ Tb := by
-      have e : (Tbn : ℝ) = (Q + 1) * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ)) := by
-        show (((Fintype.card σ + 1) * (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊) : ℕ) : ℝ) = _
-        push_cast; ring
-      rw [e]
-      show _ ≤ (Q + 1) * (6 * (Q + 2) * RB)
-      gcongr
-      exact Nat.floor_le hRB0
-    have hMN0 : (0 : ℝ) ≤ (settings.scanCap : ℝ) * NH := by positivity
-    have h1 : (settings.scanCap : ℝ) * NH * Tbn + ((settings.scanCap : ℝ) * NH) ^ 2
-        ≤ SC * HN * Tb + (SC * HN) ^ 2 :=
-      add_le_add (mul_le_mul hMN hTb (Nat.cast_nonneg _) (mul_nonneg hSC0 hHN0))
-        (pow_le_pow_left₀ hMN0 hMN 2)
-    have h2 := mul_le_mul_of_nonneg_right h1 hp₀0.le
-    have h3 := mul_le_mul_of_nonneg_left h2 (sq_nonneg (Q + 1))
-    calc (Q + 1) * ((Q + 1) * (settings.scanCap * NH * (Tbn * p₀)
-          + (settings.scanCap * NH) ^ 2 * p₀))
-        = (Q + 1) ^ 2 * (((settings.scanCap : ℝ) * NH * Tbn + ((settings.scanCap : ℝ) * NH) ^ 2)
-          * p₀) := by ring
-      _ ≤ (Q + 1) ^ 2 * ((SC * HN * Tb + (SC * HN) ^ 2) * p₀) := h3
-      _ = (Q + 1) ^ 2 * (SC * HN * Tb + (SC * HN) ^ 2) * p₀ := by ring
+  have h3 : μL.real (⋃ r, B3 r) ≤ 0 :=
+    (measureReal_iUnion_fintype_le _).trans (Finset.sum_nonpos fun r _ =>
+      trie_l3_round_le O P Dsf settings hnp hpreW hkW hK3 r.1 r.2)
+  have hTop : μL.real (⋃ r, BT r) ≤ 0 :=
+    (measureReal_iUnion_fintype_le _).trans (Finset.sum_nonpos fun r _ =>
+      trie_batches_round_le O P Dsf settings hkW r.1 r.2)
   have hmis : μL.real (Prod.fst ⁻¹' Bmis) ≤ δ / 8 := by
     have e : μL.real (Prod.fst ⁻¹' Bmis) = μ.real Bmis := by
       change (μ.prod (Measure.pi fun _ : Fin (Fintype.card σ + 1) =>

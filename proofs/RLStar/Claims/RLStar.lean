@@ -88,9 +88,7 @@ def RLStarClaim.{u, v, w} : Prop :=
           * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) * r.Q ^ 3 * r.A / r.ξ
           * (r.Q ^ 2 * r.A ^ 2 / r.ξ ^ 3
               * (1 / r.s₀ ^ 6 + r.Q ^ 2 * r.A / r.s₀ ^ 5 + r.Q ^ 4 * r.A / r.s₀ ^ 4)
-            + 1 / (r.pAP ^ 3 * r.s₀ ^ 2))
-        + (r.L + r.Q) ^ 2 * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
-          * r.Q ^ 5 * r.A ^ 4 / (r.ξ ^ 2 * r.δ)) ^ 9) ∧
+            + 1 / (r.pAP ^ 3 * r.s₀ ^ 2))) ^ 5) ∧
     totalPref =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
           * log (r.Q * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
@@ -156,7 +154,7 @@ open Real in
 def RLStarClaimUniform.{u, v, w} : Prop :=
   ∃ (k₀ totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ),
     k₀ =O[𝓟 rlStarRunRegion] (fun r =>
-      1 + log ((r.L + r.Q) / (r.δ * r.ξ * r.pAP * r.s₀)) / log r.A) ∧
+      1 + log ((r.L + r.Q) * log (1 / r.δ) / (r.ξ * r.pAP * r.s₀)) / log r.A) ∧
     totalPref =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 / (r.ξ ^ 2 * r.s₀ ^ 4)
           * log (r.Q * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.s₀)) / (r.δ * r.pAP * r.s₀))
@@ -190,7 +188,7 @@ open Real in
 def RLStarClaimUniformSimple.{u, v, w} : Prop :=
   ∃ (k₀ totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ),
     k₀ =O[𝓟 rlStarRunRegion] (fun r =>
-      1 + log ((r.L + r.Q) / (r.δ * r.ξ * r.pAP * r.s₀)) / log r.A) ∧
+      1 + log ((r.L + r.Q) * log (1 / r.δ) / (r.ξ * r.pAP * r.s₀)) / log r.A) ∧
     totalPref =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2
         * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀))

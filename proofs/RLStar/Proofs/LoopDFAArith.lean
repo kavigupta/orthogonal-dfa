@@ -984,10 +984,10 @@ def loopTolInv (ℓ Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ 
   let t := loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀
   ℓ ^ 4 * (1 + Real.log ℓ) * t.1 + ℓ ^ 2 * (1 + Real.log ℓ) * t.2.1 + ℓ ^ 2 * t.2.2
 
-/-- `loopTolInv` without the held-out pick's `E₂`: the trie's loop picks no hypothesis. -/
+/-- `loopTolInv`'s `E` term alone: the trie's loop picks no hypothesis (`E₂`), and `E` covers its
+walk starts' budget (`E₃`). -/
 def trieTolInv (ℓ Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ :=
-  let t := loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀
-  ℓ ^ 4 * (1 + Real.log ℓ) * t.1 + ℓ ^ 2 * t.2.2
+  ℓ ^ 4 * (1 + Real.log ℓ) * (loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀).1
 
 lemma loopMassTerms_ge {Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hQ : 0 ≤ Q) (hA : 0 ≤ A)
     (hAe : 2 ≤ Ae) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hc : 0 < c) (hc1 : c ≤ 1) (hξ : 0 < ξ)
@@ -1106,14 +1106,9 @@ lemma one_le_trieTolInv {ℓ Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hℓ
     (hA : 0 ≤ A) (hAe : 2 ≤ Ae) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hc : 0 < c) (hc1 : c ≤ 1)
     (hξ : 0 < ξ) (hpAP : 0 < pAP) (hp1 : pAP ≤ 1) (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2) :
     1 ≤ trieTolInv ℓ Q A Ae nQ nA δ c ξ pAP η₀ := by
-  obtain ⟨h1, -, h3⟩ := loopMassTerms_ge nQ nA hQ hA hAe hδ hδ1 hc hc1 hξ hpAP hp1 hη0 hη
-  unfold trieTolInv
-  set t := loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀
+  obtain ⟨h1, -, -⟩ := loopMassTerms_ge nQ nA hQ hA hAe hδ hδ1 hc hc1 hξ hpAP hp1 hη0 hη
   have hΛ1 : 1 ≤ 1 + Real.log ℓ := by have := Real.log_nonneg hℓ; linarith
-  have : 1 ≤ ℓ ^ 4 * (1 + Real.log ℓ) * t.1 :=
-    one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (one_le_pow₀ hℓ) hΛ1) h1
-  have : 0 ≤ ℓ ^ 2 * t.2.2 := mul_nonneg (by positivity) h3
-  linarith
+  exact one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (one_le_pow₀ hℓ) hΛ1) h1
 
 end OrthoDFA
 

@@ -8,7 +8,7 @@ import RLStar.Proofs.ClaimReadsArith
 
 `trie_loop_tol` bounds, for every draw, the loop's reads by `(|Q| + 1)` rounds of
 `6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, and its probes by
-`(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`, once `D` holds at most `1/(2³⁰ trieTolInv⁹ ℓ)` on
+`(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`, once `D` holds at most `1/(2⁴ trieTolInv⁵ ℓ)` on
 any first `k` letters; but for chance `δ` the run succeeds, asking the oracle at most
 `learnerReads` strings with no held-out ones.
 The claim runs it at main's rates at `R = 1` and `β = 1/|Σ|`: `c = ξ/2`, `ξ/4`, edges crossed at
@@ -25,12 +25,12 @@ open MeasureTheory Asymptotics Filter Real
 theorem rlStarClaim_holds : RLStarClaim := by
   have hmapsR : Set.MapsTo (fun r => toDistRun (ratioOneRun r)) rlStarRunRegion
       rlStarDistRunRegion := fun r hr => toDist_mem (ratioOne_mem hr)
-  refine ⟨fun r => distP₀Tol (toDistRun (ratioOneRun r)) ^ 9 / 2 ^ 30,
+  refine ⟨fun r => distP₀Tol (toDistRun (ratioOneRun r)) ^ 5 / 2 ^ 4,
     fun r => distPref (toDistRun (ratioOneRun r)), fun r => distSuff (toDistRun (ratioOneRun r)),
     fun r => distProbes (toDistRun (ratioOneRun r)),
     fun r => distLoopReads (toDistRun (ratioOneRun r)), ?_, ?_, ?_, ?_, ?_,
-    fun r => div_pos (pow_pos (distP₀Tol_pos _) 9) (by norm_num), ?_⟩
-  · refine ((((isBigO_comp_on distP₀Tol_isBigO hmapsR).pow 9).const_mul_left (2 ^ 30)).congr'
+    fun r => div_pos (pow_pos (distP₀Tol_pos _) 5) (by norm_num), ?_⟩
+  · refine ((((isBigO_comp_on distP₀Tol_isBigO hmapsR).pow 5).const_mul_left (2 ^ 4)).congr'
       (eventually_principal.2 fun r _ => ?_) (eventually_principal.2 fun r hr => ?_))
     · simp only [Function.comp_apply]
       rw [one_div_pow, mul_one_div, one_div_div]
@@ -83,15 +83,15 @@ theorem rlStarClaim_holds : RLStarClaim := by
     (by linarith) hη₀
   have hTm : max 1 T = T := max_eq_right hT1
   -- `D`'s first `k` letters weigh at most `1/Ak`
-  have hpre' : ∀ u, D.real {w | prefixOf w k = u} ≤ (2 ^ 30 * T ^ 9)⁻¹ := by
+  have hpre' : ∀ u, D.real {w | prefixOf w k = u} ≤ (2 ^ 4 * T ^ 5)⁻¹ := by
     intro u
     refine (hpre u).trans (le_of_eq ?_)
-    change (1 / max 1 T) ^ 9 / 2 ^ 30 = _
+    change (1 / max 1 T) ^ 5 / 2 ^ 4 = _
     rw [hTm, one_div_pow, div_div, one_div, mul_comm]
   obtain ⟨settings, hwk, hprobe, hprob⟩ := trie_loop_tol (Ω := Ω) (μ := μ) M O L k k
     (1 / 2 - s₀) (ξ / (2 * 1)) δ pAP (ξ / 4) ξ (1 / (1 / (Fintype.card α : ℝ)))
-    (2 ^ 30 * T ^ 9) D hLang hη hη₀ hc0 hc1 hδ (by linarith) hp (by positivity) hA2
-    (le_of_eq (one_div_one_div _).symm) hkL hlong hpre' hpAPu le_rfl
+    (2 ^ 4 * T ^ 5) D hLang hη hη₀ hc0 hc1 hδ (by linarith) hp (by positivity) hA2
+    (le_of_eq (one_div_one_div _).symm) hkL le_rfl hlong hpre' hpAPu le_rfl
     (by linarith)
   exact ⟨settings, hwk, hprobe, hprob⟩
 
