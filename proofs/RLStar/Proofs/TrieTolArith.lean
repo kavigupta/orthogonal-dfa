@@ -5,7 +5,7 @@ import RLStar.Proofs.BigO
 
 `trie_loop_tol`'s steps over abstract reals: the tolerance
 
-    T = ℓ⁴ Λ E + ℓ² Λ E₂ + ℓ² E₃
+    T = ℓ⁴ Λ E + ℓ² E₃
 
 against the rates and caps `trie_loop_core` needs, once `2³⁰ T⁹ ≤ |Σ|^k`.
 -/
@@ -57,54 +57,39 @@ lemma tol_T_le {ℓ Λ E E₁ E₂ E₃ aε lg T : ℝ} (hℓ : 1 ≤ ℓ) (hΛ 
   exact ⟨(one_le_mul_of_one_le_of_one_le hu1 hae1).trans hTE, hTlE, hTE₁, hlℓ, hTℓ, hTaℓ,
     (le_mul_of_one_le_right ha0 hℓ).trans hTaℓ⟩
 
-lemma tol_E₁_ge {Q R₀ Θι Θa P₀ δ' pAP s l16 l128 E₁ : ℝ} (hR₀ : 0 ≤ R₀) (hΘι : 1 ≤ Θι)
-    (hΘa : 1 ≤ Θa) (hP₀ : 1 ≤ P₀) (hδ' : 0 < δ') (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hs : 0 < s)
+lemma tol_E₁_ge {Q R₀ Θι Θa P₀ pAP s l16 l128 E₁ : ℝ} (hR₀ : 0 ≤ R₀) (hΘι : 1 ≤ Θι)
+    (hΘa : 1 ≤ Θa) (hP₀ : 1 ≤ P₀) (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hs : 0 < s)
     (hl16 : 0 ≤ l16) (hl : l16 ≤ l128)
     (hE₁ : E₁ = 2 ^ 20 * Θa * (R₀ + 1) / s + (Q + 3) ^ 2 * (2 ^ 24 * Θι * (R₀ + 1)
-      + 2 ^ 28 * Θι ^ 2 * l128 + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))) :
-    (Q + 3) ^ 2 * (2 ^ 24 * (R₀ + 1) + 2 ^ 28 * l16 + (P₀ + 2) / δ') ≤ E₁ := by
+      + 2 ^ 28 * Θι ^ 2 * l128 + 2 ^ 35 * (P₀ + 2) / pAP ^ 2)) :
+    (Q + 3) ^ 2 * (2 ^ 24 * (R₀ + 1) + 2 ^ 28 * l16 + (P₀ + 2)) ≤ E₁ := by
   have hP2 : 0 ≤ P₀ + 2 := by linarith only [hP₀]
   have hR1 : 0 ≤ R₀ + 1 := by linarith only [hR₀]
   have a1 := mul_le_mul_of_nonneg_right hΘι hR1
   have a2 := mul_le_mul (one_le_pow₀ hΘι : (1 : ℝ) ≤ Θι ^ 2) hl hl16 (sq_nonneg Θι)
-  have a3 : (P₀ + 2) / δ' ≤ 2 ^ 16 * (P₀ + 2) / (pAP * δ') := by
-    rw [div_le_div_iff₀ hδ' (mul_pos hp hδ')]
-    have h5 : pAP * δ' ≤ 2 ^ 16 * δ' := by
-      nlinarith only [mul_nonneg (sub_nonneg.2 hp1) hδ'.le, hδ']
-    linarith only [mul_le_mul_of_nonneg_left h5 hP2]
+  have a3 : P₀ + 2 ≤ 2 ^ 35 * (P₀ + 2) / pAP ^ 2 := by
+    rw [le_div_iff₀ (by positivity)]
+    have h5 : pAP ^ 2 ≤ 2 ^ 35 := by nlinarith only [hp, hp1]
+    nlinarith only [mul_le_mul_of_nonneg_left h5 hP2]
   have a0 : 0 ≤ 2 ^ 20 * Θa * (R₀ + 1) / s :=
     div_nonneg (mul_nonneg (mul_nonneg (by norm_num) (by linarith only [hΘa])) hR1) hs.le
-  have hsum : 2 ^ 24 * (R₀ + 1) + 2 ^ 28 * l16 + (P₀ + 2) / δ'
-      ≤ 2 ^ 24 * Θι * (R₀ + 1) + 2 ^ 28 * Θι ^ 2 * l128 + 2 ^ 16 * (P₀ + 2) / (pAP * δ') := by
+  have hsum : 2 ^ 24 * (R₀ + 1) + 2 ^ 28 * l16 + (P₀ + 2)
+      ≤ 2 ^ 24 * Θι * (R₀ + 1) + 2 ^ 28 * Θι ^ 2 * l128 + 2 ^ 35 * (P₀ + 2) / pAP ^ 2 := by
     linarith only [a1, a2, a3]
   have := mul_le_mul_of_nonneg_left hsum (sq_nonneg (Q + 3))
   rw [hE₁]; linarith only [this, a0]
 
-lemma tol_Qδ {Q P₀ δ δ' T Y E₁ : ℝ} (hQ : 0 ≤ Q) (hP₀ : 1 ≤ P₀) (hδ : 0 < δ)
-    (hδ' : δ' = δ / (8 * (Q + 1))) (hδ'1 : δ' ≤ 1) (hY : 0 ≤ Y)
-    (hE : (Q + 3) ^ 2 * (Y + (P₀ + 2) / δ') ≤ E₁) (hET : E₁ ≤ T) :
-    (Q + 1) ^ 2 ≤ T * δ ∧ 1 / δ ≤ T ∧ P₀ ≤ E₁ := by
-  have hd : 0 < δ' := by rw [hδ']; positivity
-  have hP2 : 0 ≤ P₀ + 2 := by linarith only [hP₀]
-  have hZ : 0 ≤ (P₀ + 2) / δ' := div_nonneg hP2 hd.le
-  have hk : 0 ≤ (Q + 3) ^ 2 * Y := mul_nonneg (sq_nonneg _) hY
-  have hX : (Q + 3) ^ 2 * ((P₀ + 2) / δ') ≤ E₁ := by
-    have e : (Q + 3) ^ 2 * (Y + (P₀ + 2) / δ') = (Q + 3) ^ 2 * Y + (Q + 3) ^ 2 * ((P₀ + 2) / δ') :=
-      by ring
-    linarith only [hE, hk, e]
-  have hP₀E : P₀ ≤ E₁ := by
-    have e2 : P₀ + 2 ≤ (P₀ + 2) / δ' := le_div_self hP2 hd hδ'1
-    have e3 := le_mul_of_one_le_left hZ (one_le_pow₀ (by linarith only [hQ]) : (1 : ℝ) ≤ (Q + 3) ^ 2)
-    linarith only [e2, e3, hX]
-  have e : (P₀ + 2) / δ' * δ = (P₀ + 2) * (8 * (Q + 1)) := by
-    rw [hδ', div_div_eq_mul_div, div_mul_cancel₀ _ hδ.ne']
-  have h1 := mul_le_mul_of_nonneg_right (hX.trans hET) hδ.le
-  rw [mul_assoc, e] at h1
-  have k1 : (Q + 1) ^ 2 ≤ (Q + 3) ^ 2 := by nlinarith only [hQ]
-  have k2 : 1 ≤ (P₀ + 2) * (8 * (Q + 1)) := by nlinarith only [hP₀, hQ]
-  have k3 := mul_le_mul_of_nonneg_left k2 (sq_nonneg (Q + 3))
-  have hQδ : (Q + 1) ^ 2 ≤ T * δ := by linarith only [k1, k3, h1]
-  refine ⟨hQδ, ?_, hP₀E⟩
+/-- `E₃ = 16 K₁²/δ'` with `K₁ ≥ |Q| + 1` holds `(|Q| + 1)²/δ` and `1/δ`. -/
+lemma tol_Qδ {Q K₁ δ δ' T E₃ : ℝ} (hQ : 0 ≤ Q) (hK : Q + 1 ≤ K₁) (hδ : 0 < δ)
+    (hδ' : δ' = δ / (8 * (Q + 1))) (hE₃ : E₃ = 16 * K₁ ^ 2 / δ') (hET : E₃ ≤ T) :
+    (Q + 1) ^ 2 ≤ T * δ ∧ 1 / δ ≤ T := by
+  have e : E₃ * δ = 128 * K₁ ^ 2 * (Q + 1) := by
+    rw [hE₃, hδ']; field_simp; ring
+  have h1 := mul_le_mul_of_nonneg_right hET hδ.le
+  have k1 : (Q + 1) ^ 2 ≤ K₁ ^ 2 := pow_le_pow_left₀ (by linarith only [hQ]) hK 2
+  have k2 : K₁ ^ 2 ≤ 128 * K₁ ^ 2 * (Q + 1) := by nlinarith only [hQ, sq_nonneg K₁]
+  have hQδ : (Q + 1) ^ 2 ≤ T * δ := by linarith only [k1, k2, h1, e]
+  refine ⟨hQδ, ?_⟩
   rw [div_le_iff₀ hδ]
   have : 1 ≤ (Q + 1) ^ 2 := one_le_pow₀ (by linarith only [hQ])
   linarith only [this, hQδ]
@@ -211,7 +196,7 @@ lemma tol_FV {X pAP lp PB P₀ ℓ Lm E₁ T : ℝ} (hX : 0 ≤ X) (hp : 0 < pAP
 /-- The family's misread tail, `F ≤ T` letters past a length-`L` cut. -/
 lemma tol_k6 {A T c δ X : ℝ} {F Ls : ℕ} (hA : 2 ≤ A) (hT1 : 1 ≤ T) (hδ : 0 < δ)
     (hFT : (F : ℝ) ≤ T) (hAT : A ≤ T) (hLsT : (Ls : ℝ) + 1 ≤ 2 * T) (hcT : 1 ≤ c * T)
-    (hδT : 1 / δ ≤ T) (hAL : 2 ^ 30 * T ^ 9 ≤ X) :
+    (hδT : Real.log (16 / δ) ≤ 16 * T) (hAL : 2 ^ 30 * T ^ 9 ≤ X) :
     2 * ((F : ℝ) + 1) ^ 3 * (A ^ Ls + 1) ^ F * Real.exp (-2 * X * c ^ 2) ≤ δ / 8 := by
   have hT0 : 0 ≤ T := by linarith only [hT1]
   have hA0 : 0 < A := by linarith only [hA]
@@ -236,10 +221,7 @@ lemma tol_k6 {A T c δ X : ℝ} {F Ls : ℕ} (hA : 2 ≤ A) (hT1 : 1 ≤ T) (hδ
           pow_le_pow_left₀ (by positivity) (b1.trans b2) F
       _ = Real.exp (A * ((Ls : ℝ) + 1) * F) := by rw [← Real.exp_nat_mul]; ring_nf
   have hexp : 3 * (F : ℝ) + A * ((Ls : ℝ) + 1) * F + Real.log (16 / δ) ≤ 2 * X * c ^ 2 := by
-    have l1 : Real.log (16 / δ) ≤ 16 * T := by
-      have h := Real.log_le_sub_one_of_pos (show (0 : ℝ) < 16 / δ by positivity)
-      have e : 16 / δ = 16 * (1 / δ) := by ring
-      linarith only [h, e, hδT]
+    have l1 : Real.log (16 / δ) ≤ 16 * T := hδT
     have l2 : A * ((Ls : ℝ) + 1) * F ≤ T * (2 * T) * T :=
       mul_le_mul (mul_le_mul hAT hLsT (by positivity) hT0) hFT hF0
         (mul_nonneg hT0 (by linarith only [hT1]))

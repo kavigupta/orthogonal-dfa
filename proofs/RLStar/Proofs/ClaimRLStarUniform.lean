@@ -36,17 +36,17 @@ lemma toDist_mem {x : RatioInputs} (hx : x ∈ ratioRegion) : toDist x ∈ rlSta
 def loopG (x : RatioInputs) : ℝ :=
   x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4
     * log (x.Q * x.R * x.A * (1 / x.δ) * (1 / x.ξ) * (1 / x.pAP) * (1 / x.s₀)) ^ 3
-    * (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 2 * (1 / x.s₀) ^ 6
+    * (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 3 * (1 / x.s₀) ^ 6
 
 lemma shape_toDist_le {x : RatioInputs} (hx : x ∈ ratioRegion) (L : ℕ) :
     0 ≤ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β) ^ 4 * x.R ^ 4
         * log (((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
-        / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 6)
+        / (x.δ * x.ξ ^ 4 * x.pAP ^ 3 * x.s₀ ^ 6)
       ∧ ((L : ℝ) + x.Q) ^ 4 * x.Q ^ 9 * (1 / (toDist x).β) ^ 4 * x.R ^ 4
         * log (((L : ℝ) + x.Q) * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀))
         * log (x.Q * x.R / ((toDist x).β * x.δ * x.ξ * x.pAP * x.s₀)) ^ 2
-        / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 6)
+        / (x.δ * x.ξ ^ 4 * x.pAP ^ 3 * x.s₀ ^ 6)
       ≤ 2 * (((L : ℝ) + x.Q) ^ 6 * loopG x) := by
   obtain ⟨hQ, hA, hδ, hδ2, hR, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
   have hQ' : (1 : ℝ) ≤ x.Q := by exact_mod_cast hQ
@@ -89,8 +89,8 @@ lemma shape_toDist_le {x : RatioInputs} (hx : x ∈ ratioRegion) (L : ℕ) :
   have e4 : 1 / (toDist x).β = x.A := by
     show 1 / (1 / (x.A : ℝ)) = _
     rw [one_div_one_div]
-  set K : ℝ := (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 2 * (1 / x.s₀) ^ 6 with hKd
-  have e3 : ∀ z : ℝ, z / (x.δ * x.ξ ^ 4 * x.pAP ^ 2 * x.s₀ ^ 6) = z * K := by
+  set K : ℝ := (1 / x.δ) * (1 / x.ξ) ^ 4 * (1 / x.pAP) ^ 3 * (1 / x.s₀) ^ 6 with hKd
+  have e3 : ∀ z : ℝ, z / (x.δ * x.ξ ^ 4 * x.pAP ^ 3 * x.s₀ ^ 6) = z * K := by
     intro z
     rw [hKd]; field_simp
   have hG : loopG x = x.Q ^ 9 * (x.A + x.Q) ^ 4 * x.R ^ 4 * log Y ^ 3 * K := by
@@ -142,10 +142,7 @@ lemma p₀Shape_one {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
           * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) * r.Q ^ 3 * r.A / r.ξ
           * (r.Q ^ 2 * r.A ^ 2 / r.ξ ^ 3
               * (1 / r.s₀ ^ 6 + r.Q ^ 2 * r.A / r.s₀ ^ 5 + r.Q ^ 4 * r.A / r.s₀ ^ 4)
-            + 1 / (r.δ * r.pAP ^ 2 * r.s₀ ^ 2))
-        + (r.L + r.Q) ^ 2 * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀))
-          * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) ^ 2 * r.Q ^ 6 * r.A ^ 2
-          / (r.ξ ^ 4 * r.δ * r.s₀ ^ 4)
+            + 1 / (r.pAP ^ 3 * r.s₀ ^ 2))
         + (r.L + r.Q) ^ 2 * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) ^ 2
           * r.Q ^ 5 * r.A ^ 4 / (r.ξ ^ 2 * r.δ) := by
   obtain ⟨-, hA, hδ, -, hξ, -, hp, -, hs, -⟩ := hr
