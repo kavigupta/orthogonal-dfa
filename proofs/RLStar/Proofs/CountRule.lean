@@ -1171,7 +1171,7 @@ theorem measureReal_famShift_le (O : Oracle μ S)
     (hpAP0 : 0 ≤ pAP) (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hmass : 2 * L * (Δ + c + g) ≤ B.npref * g ^ 2)
     (hρ : ∀ t, Dj.real {t} ≤ ρ)
-    (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf) :
+    (hρsf : ∀ v, Dsf.real {v} ≤ ρsf) (hρsf0 : 0 ≤ ρsf) :
     (streamMeasure μ Pp Pc Dsf).real ({x : Run Ω S J |
         ¬ ∑ v ∈ clusterBy nearestClusterer O.mq populations x B,
         wMass O Dj V v ≤ ((clusterBy nearestClusterer O.mq populations x B).card : ℝ)

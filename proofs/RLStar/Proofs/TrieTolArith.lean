@@ -136,20 +136,20 @@ lemma tol_E₁_ge {Q R₀ Θι Θa P₀ pAP s l16 l128 E₁ : ℝ} (hR₀ : 0 �
     (hΘa : 1 ≤ Θa) (hP₀ : 1 ≤ P₀) (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hs : 0 < s)
     (hl16 : 0 ≤ l16) (hl : l16 ≤ l128)
     (hE₁ : E₁ = 2 ^ 20 * Θa * (R₀ + 1) / s + (Q + 3) ^ 2 * (2 ^ 24 * Θι * (R₀ + 1)
-      + 2 ^ 28 * Θι ^ 2 * l128 + 2 ^ 35 * (P₀ + 2) / pAP ^ 2)) :
+      + 2 ^ 28 * Θι ^ 2 * l128 + 2 ^ 18 * (P₀ + 2) / pAP)) :
     (Q + 3) ^ 2 * (2 ^ 24 * (R₀ + 1) + 2 ^ 28 * l16 + (P₀ + 2)) ≤ E₁ := by
   have hP2 : 0 ≤ P₀ + 2 := by linarith only [hP₀]
   have hR1 : 0 ≤ R₀ + 1 := by linarith only [hR₀]
   have a1 := mul_le_mul_of_nonneg_right hΘι hR1
   have a2 := mul_le_mul (one_le_pow₀ hΘι : (1 : ℝ) ≤ Θι ^ 2) hl hl16 (sq_nonneg Θι)
-  have a3 : P₀ + 2 ≤ 2 ^ 35 * (P₀ + 2) / pAP ^ 2 := by
+  have a3 : P₀ + 2 ≤ 2 ^ 18 * (P₀ + 2) / pAP := by
     rw [le_div_iff₀ (by positivity)]
-    have h5 : pAP ^ 2 ≤ 2 ^ 35 := by nlinarith only [hp, hp1]
+    have h5 : pAP ≤ 2 ^ 18 := by linarith only [hp1]
     nlinarith only [mul_le_mul_of_nonneg_left h5 hP2]
   have a0 : 0 ≤ 2 ^ 20 * Θa * (R₀ + 1) / s :=
     div_nonneg (mul_nonneg (mul_nonneg (by norm_num) (by linarith only [hΘa])) hR1) hs.le
   have hsum : 2 ^ 24 * (R₀ + 1) + 2 ^ 28 * l16 + (P₀ + 2)
-      ≤ 2 ^ 24 * Θι * (R₀ + 1) + 2 ^ 28 * Θι ^ 2 * l128 + 2 ^ 35 * (P₀ + 2) / pAP ^ 2 := by
+      ≤ 2 ^ 24 * Θι * (R₀ + 1) + 2 ^ 28 * Θι ^ 2 * l128 + 2 ^ 18 * (P₀ + 2) / pAP := by
     linarith only [a1, a2, a3]
   have := mul_le_mul_of_nonneg_left hsum (sq_nonneg (Q + 3))
   rw [hE₁]; linarith only [this, a0]

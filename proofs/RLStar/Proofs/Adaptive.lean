@@ -1895,6 +1895,9 @@ lemma cert_hits_upper (Pc : J → Measure (ℕ → S)) [∀ j, IsProbabilityMeas
 
 /-! ### Collisions between draws -/
 
+/-- The chance two independent draws coincide, `∑ₐ D({a})²`. -/
+noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {a}) ^ 2
+
 open scoped Classical in
 /-- Two fixed coordinates of an i.i.d. block coincide with exactly the collision mass. -/
 lemma pi_coord_eq (Dj : Measure S) [IsProbabilityMeasure Dj] {m : ℕ} {i i' : Fin m}
@@ -3121,35 +3124,19 @@ theorem measureReal_tabBad_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure
   have h := union_le_of_atoms Dj hρ ∅ (m + r) F hF
   simpa using h
 
-/-- `P[Bin(n, min (√(nρ)) 1) ≥ r + 1]`: the chance that `n` draws from a law of collision mass `ρ`
-repeat an earlier draw `r + 1` times. -/
-noncomputable def poolTail (n r : ℕ) (ρ : ℝ) : ℝ := rejTail n (Real.sqrt (n * ρ)) r
+/-- `P[Bin(n, min (n·a) 1) ≥ r + 1]`: the chance that `n` draws from a law whose atoms weigh at
+most `a` repeat an earlier draw `r + 1` times. -/
+noncomputable def poolTail (n r : ℕ) (a : ℝ) : ℝ := rejTail n (n * a) r
 
-lemma poolTail_nonneg (n r : ℕ) (ρ : ℝ) : 0 ≤ poolTail n r ρ :=
-  rejTail_nonneg _ (Real.sqrt_nonneg _) _
-
-/-- Fewer than `n` strings weigh at most `√(nρ)` under a law of collision mass `ρ`:
-
-    D(F)² ≤ |F| Σ_{t ∈ F} D{t}². -/
-lemma measureReal_finset_le_sqrt (D : Measure S) [IsProbabilityMeasure D] (n : ℕ) {ρ : ℝ}
-    (hρ : collisionMass D ≤ ρ) (F : Finset S) (hF : F.card < n) :
-    D.real ↑F ≤ Real.sqrt (n * ρ) := by
-  rw [← sum_measureReal_singleton]
-  refine Real.le_sqrt_of_sq_le ?_
-  have h1 := sq_sum_le_card_mul_sum_sq (s := F) (f := fun t => D.real {t})
-  have h2 : ∑ t ∈ F, D.real {t} ^ 2 ≤ collisionMass D :=
-    (summable_singleton_sq D).sum_le_tsum F (fun t _ => sq_nonneg _)
-  have h3 : (F.card : ℝ) ≤ n := by exact_mod_cast hF.le
-  have h4 : 0 ≤ ∑ t ∈ F, D.real {t} ^ 2 := Finset.sum_nonneg fun t _ => sq_nonneg _
-  calc (∑ t ∈ F, D.real {t}) ^ 2 ≤ (F.card : ℝ) * ∑ t ∈ F, D.real {t} ^ 2 := h1
-    _ ≤ n * ρ := mul_le_mul h3 (h2.trans hρ) h4 (Nat.cast_nonneg _)
+lemma poolTail_nonneg (n r : ℕ) {a : ℝ} (ha : 0 ≤ a) : 0 ≤ poolTail n r a :=
+  rejTail_nonneg _ (mul_nonneg (Nat.cast_nonneg _) ha) _
 
 /-- The pool misses `M` strings in its first `M + r` draws only when `r + 1` of them repeat an
-earlier one, each with chance at most `√((M + r)ρ)` whatever came before. -/
+earlier one, each with chance at most `(M + r)ρ` whatever came before. -/
 theorem measureReal_poolBad_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
     [IsProbabilityMeasure Dsf] (M r : ℕ)
-    (ρ : ℝ) (hρ : collisionMass Dsf ≤ ρ) :
+    (ρ : ℝ) (hρ : ∀ t, Dsf.real {t} ≤ ρ) :
     (streamMeasure μ Pp Pc Dsf).real {x : Run Ω S J | ¬ poolGood M r x}
       ≤ poolTail (M + r) r ρ := by
   classical
@@ -3166,10 +3153,10 @@ theorem measureReal_poolBad_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measur
   rw [hpre, measureReal_def, ← Measure.map_apply hY (Set.to_countable _).measurableSet,
     map_suffixBlock Pp Pc Dsf (M + r), ← measureReal_def]
   have hT' : ∀ F : Finset S, F.card < M + r →
-      Dsf.real ↑(∅ ∪ F) ≤ min (Real.sqrt (((M + r : ℕ) : ℝ) * ρ)) 1 :=
-    fun F hF => le_min (by simpa using measureReal_finset_le_sqrt Dsf (M + r) hρ F hF)
+      Dsf.real ↑(∅ ∪ F) ≤ min (((M + r : ℕ) : ℝ) * ρ) 1 :=
+    fun F hF => le_min (by simpa using union_le_of_atoms Dsf hρ ∅ (M + r) F hF)
       measureReal_le_one
-  exact (successiveDrawsTails_holds Dsf (M + r) ∅ (min (Real.sqrt (((M + r : ℕ) : ℝ) * ρ)) 1) ∅
+  exact (successiveDrawsTails_holds Dsf (M + r) ∅ (min (((M + r : ℕ) : ℝ) * ρ) 1) ∅
     (min_le_right _ _) hT').1 (r + 1)
 
 lemma measurableSet_of_fam {fam : Ω → Finset S} {T : Finset (Finset S)}
