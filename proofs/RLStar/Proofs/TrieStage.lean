@@ -301,36 +301,6 @@ lemma histOK_of_good
     obtain ⟨-, hh⟩ := histAlike_of_harvested O P Dsf settings p (by omega) hall'
     exact ret_of_alike O P Dsf settings hh _ (hrg r hK hall').2.2
 
-lemma foldr_prefs_card (l : List (SpecRound α)) {a : ℕ} (h : ∀ o ∈ l, o.prefs.card ≤ a) :
-    (l.foldr (fun (o : SpecRound α) T => o.prefs ∪ T) ∅).card ≤ l.length * a := by
-  induction l with
-  | nil => simp
-  | cons o l ih =>
-    simp only [List.foldr_cons, List.length_cons]
-    refine (Finset.card_union_le _ _).trans ?_
-    have := ih fun o' ho' => h o' (by simp [ho'])
-    have := h o (by simp)
-    nlinarith
-
-omit [IsProbabilityMeasure μ] in
-lemma idealRounds_prefs_card {a : ℕ}
-    (hab : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
-      (roundPrefs (settings.schedule pops) pops x).card ≤ a)
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
-      settings.level3.probeBudget) :
-    ∀ r, ∀ o ∈ idealRounds settings O P.D Dsf draws r, o.prefs.card ≤ a
-  | 0 => by simp [idealRounds]
-  | r + 1 => by
-    intro o ho
-    rw [idealRounds_succ] at ho
-    split_ifs at ho
-    · rcases List.mem_append.1 ho with h | h
-      · exact idealRounds_prefs_card hab draws r o h
-      · rw [List.mem_singleton] at h
-        subst h
-        exact hab _ _
-    · exact idealRounds_prefs_card hab draws r o ho
-
 omit [IsProbabilityMeasure μ] in
 /-- Where every round the filled draws run is good, and no round's probes or batches draw a string
 shorter than `walkStart`, the loop with local walk starts meets `TrieLoopAgrees`'s premise. -/

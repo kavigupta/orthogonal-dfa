@@ -119,7 +119,7 @@ lemma twin_trieHarvestFirst (cap : ℕ) (hcap : cap ≤ k) (H : HypothesisDFA α
       · simp only [Option.filter_none]
         exact ih.1
       · by_cases hzT : z ∈ T
-        · have hf : Option.filter (fun z => !decide (z ∈ T)) (some z) = none := by
+        · have hf : Option.filter (fun z => decide (z ∉ T)) (some z) = none := by
             simp [Option.filter_some, hzT]
           simp only [hzT, hu, ↓reduceIte, hf]
           exact ih.1
@@ -132,7 +132,7 @@ lemma twin_trieHarvestFirst (cap : ℕ) (hcap : cap ≤ k) (H : HypothesisDFA α
         rw [ih.2]
         rfl
       · by_cases hzT : z ∈ T
-        · have hf : Option.filter (fun z => !decide (z ∈ T)) (some z) = none := by
+        · have hf : Option.filter (fun z => decide (z ∉ T)) (some z) = none := by
             simp [Option.filter_some, hzT]
           simp only [hzT, hu, ↓reduceIte, hf]
           rw [ih.2]
