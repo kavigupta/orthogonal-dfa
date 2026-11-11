@@ -19,6 +19,9 @@ and half of it for success. Under the `j`-th hypothesis each test runs at level
   `ε` of the probes end the round consistent.
 
 Here `y = harvestRate = ε/48` and `ε = disagreementRate`.
+
+A probe whose harvest string (`harvestString`) a counted probe read since the hypothesis last
+changed is skipped: it is not counted, and the probe that first read the string is uncounted.
 -/
 
 namespace OrthoDFA
@@ -84,7 +87,9 @@ noncomputable def Level3Settings.middleAlternative (C : Level3Settings) : ℝ :=
 noncomputable def Level3Settings.disagreementAlternative (C : Level3Settings) : ℝ :=
   C.disagreementRate / 2
 
-/-- The counts are since the hypothesis last changed; `hypotheses` counts the changes before. -/
+/-- The counts are since the hypothesis last changed; `hypotheses` counts the changes before.
+`reads` holds each harvest string a counted probe read since then, with that probe's outcome, and
+`repeated` those read again. -/
 structure Level3State (α : Type*) where
   tree : DTree α
   edges : Edges α
@@ -93,9 +98,11 @@ structure Level3State (α : Type*) where
   searchCount : ℕ
   endsUndecided : List (FreeMonoid α)
   middleUndecided : List (FreeMonoid α)
+  reads : List (FreeMonoid α × Outcome α)
+  repeated : List (FreeMonoid α)
 
 def newHypothesis (T : DTree α) (E : Edges α) (j : ℕ) : Level3State α :=
-  ⟨T, E, j, 0, 0, [], []⟩
+  ⟨T, E, j, 0, 0, [], [], [], []⟩
 
 /-- The root reads at `ε`; no edge is learned. -/
 def initialState : Level3State α := newHypothesis (.node 1 .leaf .leaf) (fun _ => none) 0
@@ -104,6 +111,8 @@ section
 
 variable (read : FreeMonoid α → ARU) (C : Level3Settings)
 
+def harvestString (o : Outcome α) : List (FreeMonoid α) := endsString o ++ middleString o
+
 /-- The probe with outcome `o` counted into the stretch. -/
 def countOutcome (s : Level3State α) (o : Outcome α) : Level3State α :=
   { s with
@@ -111,6 +120,37 @@ def countOutcome (s : Level3State α) (o : Outcome α) : Level3State α :=
     searchCount := s.searchCount + if searches o then 1 else 0
     endsUndecided := s.endsUndecided ++ endsString o
     middleUndecided := s.middleUndecided ++ middleString o }
+
+open scoped Classical in
+/-- The probe with outcome `o` taken out of the counts. -/
+noncomputable def uncountOutcome (s : Level3State α) (o : Outcome α) : Level3State α :=
+  { s with
+    probeCount := s.probeCount - 1
+    searchCount := s.searchCount - if searches o then 1 else 0
+    endsUndecided := s.endsUndecided.diff (endsString o)
+    middleUndecided := s.middleUndecided.diff (middleString o) }
+
+/-- `z` marked repeated, its first reader uncounted unless it already was. -/
+def Level3State.drop (s : Level3State α) (z : FreeMonoid α) : Level3State α :=
+  if z ∈ s.repeated then s else
+  match s.reads.find? (fun r => r.1 = z) with
+  | some r => { uncountOutcome s r.2 with repeated := z :: s.repeated }
+  | none => { s with repeated := z :: s.repeated }
+
+def Level3State.Repeats (s : Level3State α) (o : Outcome α) : Prop :=
+  ∃ z ∈ harvestString o, z ∈ s.reads.map Prod.fst
+
+open scoped Classical in
+/-- The probe with outcome `o` skipped: the strings it repeats dropped. -/
+noncomputable def Level3State.skipRepeat (s : Level3State α) (o : Outcome α) : Level3State α :=
+  ((harvestString o).filter fun z => z ∈ s.reads.map Prod.fst).foldl Level3State.drop s
+
+/-- The probe with outcome `o`, after the step took the counts to `b`: its harvest strings recorded
+if the hypothesis stands. -/
+def Level3State.record (s : Level3State α) (o : Outcome α) (b : Level3State α) : Level3State α :=
+  if b.hypotheses = s.hypotheses then
+    { b with reads := s.reads ++ (harvestString o).map fun z => (z, o) }
+  else b
 
 open scoped Classical in
 /-- The tests, in turn: the probes stopping undecided at their start or end sift, the undecided
@@ -152,18 +192,25 @@ noncomputable def splitLeafQ (s : Level3State α) (p : List Bool) (c : α) (t t�
     (FreeMonoid.of c * s.tree.midfixAt (commonPrefix t t₀)) p).map
     fun H => newHypothesis H.tree H.edges (s.hypotheses + 1)
 
+/-- The step on a probe with outcome `o`, counted. -/
+noncomputable def level3StepQ (s : Level3State α) (o : Outcome α) :
+    Query (FreeMonoid α) ARU (Level3State α ⊕ RoundEnd Level3Site) :=
+  match o with
+  | .unlearnedEdge p c u t =>
+    .pure (.inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
+      (s.hypotheses + 1)))
+  | .wrongEdge p c _ t =>
+    match s.edges (p, c) with
+    | some (t₀, _) => (splitLeafQ s p c t t₀).map .inl
+    | none => .pure (applyTests C (countOutcome s o))
+  | _ => .pure (applyTests C (countOutcome s o))
+
+open scoped Classical in
 noncomputable def applyProbeQ (s : Level3State α) (x : FreeMonoid α) :
     Query (FreeMonoid α) ARU (Level3State α ⊕ RoundEnd Level3Site) :=
   (probeOrAgreeQ s.tree s.edges C.walkStart x).bind fun o =>
-    match o with
-    | .unlearnedEdge p c u t =>
-      .pure (.inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
-        (s.hypotheses + 1)))
-    | .wrongEdge p c _ t =>
-      match s.edges (p, c) with
-      | some (t₀, _) => (splitLeafQ s p c t t₀).map .inl
-      | none => .pure (applyTests C (countOutcome s o))
-    | _ => .pure (applyTests C (countOutcome s o))
+    if s.Repeats o then .pure (.inl (s.skipRepeat o))
+    else (level3StepQ C s o).map (Sum.map (s.record o) id)
 
 /-- The state the probes end in, and how; `failed` where they ran out. -/
 noncomputable def runProbesQ :

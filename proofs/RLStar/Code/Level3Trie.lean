@@ -33,8 +33,6 @@ noncomputable def completeTrie [Fintype α] (K : ℕ) : Finset (FreeMonoid α) :
   (Finset.range K).biUnion fun j =>
     (Finset.univ : Finset (Fin j → α)).image fun v => FreeMonoid.ofList (List.ofFn v)
 
-def harvestString (o : Outcome α) : List (FreeMonoid α) := endsString o ++ middleString o
-
 /-- `reads` holds each harvest string a counted probe read since the hypothesis last changed, with
 that probe's walk start and outcome, and `repeated` those read again. -/
 structure TrieState (α : Type*) where
@@ -46,14 +44,6 @@ structure TrieState (α : Type*) where
 section
 
 open scoped Classical
-
-/-- The probe with outcome `o` taken out of the counts. -/
-noncomputable def uncountOutcome (s : Level3State α) (o : Outcome α) : Level3State α :=
-  { s with
-    probeCount := s.probeCount - 1
-    searchCount := s.searchCount - if searches o then 1 else 0
-    endsUndecided := s.endsUndecided.diff (endsString o)
-    middleUndecided := s.middleUndecided.diff (middleString o) }
 
 /-- `z` marked repeated, its first reader uncounted unless it already was. -/
 noncomputable def TrieState.drop (s : TrieState α) (z : FreeMonoid α) : TrieState α :=
@@ -92,19 +82,6 @@ structure TrieResult (α : Type*) where
 section Query
 
 variable [DecidableEq α] [Fintype α] (C : Level3Settings) (cap : ℕ)
-
-/-- Level 3's step on a probe with outcome `o`: `applyProbeQ` after the probe. -/
-noncomputable def level3StepQ (s : Level3State α) (o : Outcome α) :
-    Query (FreeMonoid α) ARU (Level3State α ⊕ RoundEnd Level3Site) :=
-  match o with
-  | .unlearnedEdge p c u t =>
-    .pure (.inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
-      (s.hypotheses + 1)))
-  | .wrongEdge p c _ t =>
-    match s.edges (p, c) with
-    | some (t₀, _) => (splitLeafQ s p c t t₀).map .inl
-    | none => .pure (applyTests C (countOutcome s o))
-  | _ => .pure (applyTests C (countOutcome s o))
 
 open scoped Classical in
 noncomputable def applyTrieProbeQ (s : TrieState α) (x : FreeMonoid α) :

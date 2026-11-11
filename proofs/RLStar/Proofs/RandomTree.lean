@@ -194,8 +194,48 @@ theorem countProbe_edges (s : Level3State α) (x : FreeMonoid α) :
 theorem countProbe_probeCount (s : Level3State α) (x : FreeMonoid α) :
     (countProbe read C s x).probeCount = s.probeCount + 1 := rfl
 
+omit [Fintype α] in
+theorem record_of_ne {s b : Level3State α} (o : Outcome α) (h : b.hypotheses ≠ s.hypotheses) :
+    s.record o b = b := by
+  unfold Level3State.record; rw [if_neg h]
+
+omit [Fintype α] in
+theorem record_tree (s b : Level3State α) (o : Outcome α) : (s.record o b).tree = b.tree := by
+  unfold Level3State.record; split_ifs <;> rfl
+
+omit [Fintype α] in
+theorem record_edges (s b : Level3State α) (o : Outcome α) : (s.record o b).edges = b.edges := by
+  unfold Level3State.record; split_ifs <;> rfl
+
+omit [Fintype α] in
+theorem drop_same (s : Level3State α) (z : FreeMonoid α) :
+    (s.drop z).tree = s.tree ∧ (s.drop z).edges = s.edges
+      ∧ (s.drop z).hypotheses = s.hypotheses ∧ (s.drop z).reads = s.reads := by
+  unfold Level3State.drop
+  split_ifs
+  · exact ⟨rfl, rfl, rfl, rfl⟩
+  · split <;> exact ⟨rfl, rfl, rfl, rfl⟩
+
+omit [Fintype α] in
+theorem foldl_drop_same : ∀ (l : List (FreeMonoid α)) (s : Level3State α),
+    (l.foldl Level3State.drop s).tree = s.tree ∧ (l.foldl Level3State.drop s).edges = s.edges
+      ∧ (l.foldl Level3State.drop s).hypotheses = s.hypotheses
+      ∧ (l.foldl Level3State.drop s).reads = s.reads
+  | [], _ => ⟨rfl, rfl, rfl, rfl⟩
+  | z :: l, s => by
+    obtain ⟨h1, h2, h3, h4⟩ := foldl_drop_same l (s.drop z)
+    obtain ⟨g1, g2, g3, g4⟩ := drop_same s z
+    rw [List.foldl_cons]
+    exact ⟨h1.trans g1, h2.trans g2, h3.trans g3, h4.trans g4⟩
+
+omit [Fintype α] in
+theorem skipRepeat_same (s : Level3State α) (o : Outcome α) :
+    (s.skipRepeat o).tree = s.tree ∧ (s.skipRepeat o).edges = s.edges
+      ∧ (s.skipRepeat o).hypotheses = s.hypotheses ∧ (s.skipRepeat o).reads = s.reads :=
+  foldl_drop_same _ s
+
 /-- The steps that keep the hypothesis: a look after counting a probe that does not disagree at
-decided reads. -/
+decided reads, or a probe skipped as a repeat. -/
 theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read s)
     (h : applyProbe read C s x = .inl s') :
     (∃ p c u t, probeOrAgree read s.tree s.edges C.walkStart x = .unlearnedEdge p c u t
@@ -207,45 +247,75 @@ theorem step_cases {s s' : Level3State α} {x : FreeMonoid α} (hs : Inv read s)
         s.edges (p, c) = some (t₀, w₀) ∧ t₀ ≠ t ∧ p ∈ s.tree.leaves ∧
         s.tree.sift read u = .inl p ∧ s.tree.sift read (u * FreeMonoid.of c) = .inl t ∧
         s' = splitLeaf read s p c t t₀)
-    ∨ (s' = countProbe read C s x ∧ runTests C s' = none
-        ∧ changes (probeOrAgree read s.tree s.edges C.walkStart x) = false) := by
+    ∨ (s' = s.record (probeOrAgree read s.tree s.edges C.walkStart x) (countProbe read C s x)
+        ∧ runTests C (countProbe read C s x) = none
+        ∧ changes (probeOrAgree read s.tree s.edges C.walkStart x) = false
+        ∧ ¬ s.Repeats (probeOrAgree read s.tree s.edges C.walkStart x))
+    ∨ (s' = s.skipRepeat (probeOrAgree read s.tree s.edges C.walkStart x)
+        ∧ s.Repeats (probeOrAgree read s.tree s.edges C.walkStart x)) := by
+  classical
   have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
-  simp only [applyProbe_eq] at h
-  generalize hg : probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK
+  rw [applyProbe_eq] at h
+  split_ifs at h with hr
+  · exact Or.inr (Or.inr (Or.inr ⟨(Sum.inl.inj h).symm, hr⟩))
+  rw [level3Step_eq] at h
+  have hc : countProbe read C s x = countOutcome s (probeOrAgree read s.tree s.edges C.walkStart x) :=
+    rfl
+  rw [← hc] at h
+  generalize hg : probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK hr hc
   cases o with
   | unlearnedEdge p c u t =>
     obtain ⟨hp, hu, huc, hE⟩ := hOK
-    exact Or.inl ⟨p, c, u, t, rfl, hE, hu, huc, hp, by simpa using h.symm⟩
+    simp only [Sum.map_inl, Sum.inl.injEq] at h
+    rw [record_of_ne _ (by simp [newHypothesis])] at h
+    exact Or.inl ⟨p, c, u, t, rfl, hE, hu, huc, hp, h.symm⟩
   | wrongEdge p c u t =>
     obtain ⟨hp, hu, huc, t₀, w₀, hE, hne⟩ := hOK
-    simp only [hE, Sum.inl.injEq] at h
+    simp only [hE, Sum.map_inl, Sum.inl.injEq] at h
+    rw [record_of_ne _ (by simp [splitLeaf_eq, newHypothesis])] at h
     exact Or.inr (Or.inl ⟨p, c, u, t, t₀, w₀, rfl, hE, hne, hp, hu, huc, h.symm⟩)
   | agree | undecidedStart _ | undecided _ _ =>
-    obtain ⟨h1, h2⟩ := finish_inl C h
-    exact Or.inr (Or.inr ⟨h1, h1 ▸ h2, rfl⟩)
+    rcases ht : applyTests C (countProbe read C s x) with t' | e
+    · rw [ht, Sum.map_inl, Sum.inl.injEq] at h
+      obtain ⟨h1, h2⟩ := finish_inl C ht
+      exact Or.inr (Or.inr (Or.inl ⟨by rw [← h, h1], h2, rfl, hr⟩))
+    · rw [ht] at h; cases h
 
 /-- A step that ends the round counts a probe that does not change the hypothesis. -/
 theorem changes_of_inr {s : Level3State α} (hs : Inv read s) {x : FreeMonoid α}
     {e : RoundEnd Level3Site} (h : applyProbe read C s x = .inr e) :
-    changes (probeOrAgree read s.tree s.edges C.walkStart x) = false := by
+    changes (probeOrAgree read s.tree s.edges C.walkStart x) = false
+      ∧ ¬ s.Repeats (probeOrAgree read s.tree s.edges C.walkStart x)
+      ∧ applyTests C (countProbe read C s x) = .inr e := by
+  classical
   have hOK := probeOrAgree_ok read s.tree s.edges C.walkStart hs.edges x
-  simp only [applyProbe_eq] at h
-  generalize hg : probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK
+  rw [applyProbe_eq] at h
+  split_ifs at h with hr
+  rw [level3Step_eq] at h
+  have hc : countProbe read C s x = countOutcome s (probeOrAgree read s.tree s.edges C.walkStart x) :=
+    rfl
+  rw [← hc] at h
+  generalize hg : probeOrAgree read s.tree s.edges C.walkStart x = o at h hOK hr hc
   cases o with
   | unlearnedEdge p c u t => simp at h
   | wrongEdge p c u t =>
     obtain ⟨-, -, -, t₀, w₀, hE, -⟩ := hOK
     simp [hE] at h
-  | agree | undecidedStart _ | undecided _ _ => rfl
+  | agree | undecidedStart _ | undecided _ _ =>
+    refine ⟨rfl, hr, ?_⟩
+    rcases ht : applyTests C (countProbe read C s x) with t' | e'
+    · rw [ht] at h; cases h
+    · rw [ht] at h; simp only [Sum.map_inr, id, Sum.inr.injEq] at h; rw [h]
 
-/-- A step that keeps the hypothesis counts one more probe. -/
+/-- A step that keeps the hypothesis keeps the invariant and `Ψr`. -/
 theorem step_same {s s' : Level3State α} (hs : Inv read s) {x : FreeMonoid α}
     (h : applyProbe read C s x = .inl s') (ht : s'.tree = s.tree) (he : s'.edges = s.edges) :
-    Inv read s' ∧ (∀ nσ, Ψr nσ s' = Ψr nσ s) ∧ s'.probeCount = s.probeCount + 1
-      ∧ s'.hypotheses = s.hypotheses := by
+    Inv read s' ∧ (∀ nσ, Ψr nσ s' = Ψr nσ s) ∧ s'.hypotheses = s.hypotheses := by
+  have hI : Inv read s' := ⟨ht ▸ he ▸ hs.edges, ht ▸ hs.cls, ht ▸ hs.two⟩
+  have hΨ : ∀ nσ, Ψr nσ s' = Ψr nσ s := fun _ => by unfold Ψr; rw [ht, he]
   rcases step_cases read C hs h with
     ⟨p, c, u, t, -, hE, -, -, -, rfl⟩ | ⟨p, c, u, t, t₀, w₀, -, hE, hne, hp, -, -, rfl⟩ |
-    ⟨rfl, -, -⟩
+    ⟨rfl, -, -, -⟩ | ⟨rfl, -⟩
   · exfalso
     have := congrFun he (p, c)
     simp only [newHypothesis, Function.update_self, hE] at this
@@ -255,7 +325,11 @@ theorem step_same {s s' : Level3State α} (hs : Inv read s) {x : FreeMonoid α}
     simp only [splitLeaf_eq, newHypothesis] at this
     rw [DTree.length_leaves_splitAt _ _ _ hp] at this
     omega
-  · exact ⟨⟨hs.edges, hs.cls, hs.two⟩, fun _ => rfl, rfl, rfl⟩
+  · refine ⟨hI, hΨ, ?_⟩
+    unfold Level3State.record; split_ifs with hh
+    · exact hh
+    · rfl
+  · exact ⟨hI, hΨ, (skipRepeat_same s _).2.2.1⟩
 
 omit [DecidableEq α] in
 /-- A split on a letter and the midfix where its targets part keeps every leaf past the first
@@ -303,29 +377,42 @@ theorem step_change (hW : NoWrong M side read) {s s' : Level3State α} (hs : RIn
       ∧ s'.hypotheses = s.hypotheses + 1 ∧ Ψr (Fintype.card σ) s' < Ψr (Fintype.card σ) s := by
   rcases step_cases read C hs.1 h with
     ⟨p, c, u, t, -, hE, hu, huc, hp, rfl⟩ |
-    ⟨p, c, u, t, t₀, w₀, -, hE, htt, hp, hu, huc, rfl⟩ | ⟨rfl, -, -⟩
+    ⟨p, c, u, t, t₀, w₀, -, hE, htt, hp, hu, huc, rfl⟩ | ⟨rfl, -, -, -⟩ | ⟨rfl, -⟩
   · exact ⟨⟨⟨edgesOK_upd read hs.1.edges hu huc, hs.1.cls, hs.1.two⟩, hs.2⟩, rfl, rfl,
       Level2.Ψ_lt_learn _ (s := Level2.newHypothesis s.tree s.edges 0) hp hE _ 0⟩
   · obtain ⟨hw₀, hw₀c⟩ := hs.1.edges p hp c t₀ w₀ hE
     obtain ⟨hinv, hΨ⟩ := split_ok read hW hs.1 hs.2 hp hu huc hw₀ hw₀c htt
     exact ⟨hinv, by simp only [splitLeaf_eq, newHypothesis],
       by simp only [splitLeaf_eq, newHypothesis], hΨ⟩
-  · exact absurd ⟨rfl, rfl⟩ hne
+  · exact absurd ⟨record_tree _ _ _, record_edges _ _ _⟩ hne
+  · exact absurd ⟨(skipRepeat_same s _).1, (skipRepeat_same s _).2.1⟩ hne
 
 omit [Fintype σ] in
 theorem applyProbe_ne_failed (s : Level3State α) (x : FreeMonoid α) :
     applyProbe read C s x ≠ .inr .failed := by
+  classical
   have hlook : ∀ t : Level3State α, applyTests C t ≠ .inr .failed := by
     intro t ht
     unfold applyTests runTests at ht
     split_ifs at ht <;> simp_all
-  simp only [applyProbe_eq]
+  have hmap : ∀ (s' : Level3State α) (o : Outcome α) (t : Level3State α),
+      Sum.map (s'.record o) id (applyTests C t) ≠ .inr .failed := by
+    intro s' o t h
+    rcases ht : applyTests C t with t' | e
+    · rw [ht] at h; cases h
+    · rw [ht] at h
+      simp only [Sum.map_inr, id, Sum.inr.injEq] at h
+      exact hlook _ (h ▸ ht)
+  rw [applyProbe_eq]
+  split_ifs
+  · simp
+  rw [level3Step_eq]
   split
   · simp
   · split
     · simp
-    · exact hlook _
-  · exact hlook _
+    · exact hmap _ _ _
+  · exact hmap _ _ _
 
 theorem cls_mem (hW : NoWrong M side read) {s : Level3State α} (hs : RInv read s) :
     s.tree ∈ classSet (Fintype.card σ) :=

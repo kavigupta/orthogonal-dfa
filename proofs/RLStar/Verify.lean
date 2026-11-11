@@ -24,6 +24,7 @@ import RLStar.Proofs.EpsRound
 import RLStar.Proofs.RaceTail
 import RLStar.Proofs.RateTest
 import RLStar.Proofs.SeqTest
+import RLStar.Proofs.SeqTestRobust
 import RLStar.Proofs.SpurAccount
 import RLStar.Proofs.SpurCount
 import RLStar.Proofs.SuccessiveDraws
@@ -55,8 +56,8 @@ both. The loop runs level 5.
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
 `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
 `CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `Level3TrieRootOne`,
-`Level3TrieAgrees`, `TrieLoopAgrees`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
-`SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
+`Level3TrieAgrees`, `TrieLoopAgrees`, `RateTestSound`, `SeqRateSound`, `SeqRateRobustSound`,
+`TripartiteSearchCorrect`, `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
 `RunsKeepEdgesAtLeaves`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`:
@@ -168,6 +169,10 @@ theorem successive_draws_tails : SuccessiveDrawsTails := successiveDrawsTails_ho
 theorem seq_rate_sound : SeqRateSound := seqRateSound
 
 #print axioms seq_rate_sound
+
+theorem seq_rate_robust_sound : SeqRateRobustSound := seqRateRobustSound
+
+#print axioms seq_rate_robust_sound
 
 theorem level2_round_correct : Level2RoundCorrect := Level2.level2RoundCorrect_holds
 
