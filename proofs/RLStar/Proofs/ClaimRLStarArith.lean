@@ -1,5 +1,5 @@
 import RLStar.Claims.RLStar
-import RLStar.Proofs.TrieTolArith
+import RLStar.Proofs.LoopDFAArith
 import RLStar.Proofs.BigO
 
 /-!
