@@ -271,45 +271,27 @@ theorem splitLeaf_edges_eq_some (s : Level3State α) (p : List Bool) (c : α) (t
   simp only [newHypothesis]
   split_ifs with he <;> simp [he]
 
-/-- The step on a probe with outcome `o`, counted. -/
-noncomputable def level3Step (s : Level3State α) (o : Outcome α) :
-    Level3State α ⊕ RoundEnd Level3Site :=
-  (level3StepQ C s o).eval read
-
-theorem level3Step_eq (s : Level3State α) (o : Outcome α) :
-    level3Step read C s o =
-      match o with
+theorem applyProbe_eq (s : Level3State α) (x : FreeMonoid α) :
+    applyProbe read C s x =
+      match probeOrAgree read s.tree s.edges C.walkStart x with
       | .unlearnedEdge p c u t =>
         .inl (newHypothesis s.tree (Function.update s.edges (p, c) (some (t, u)))
           (s.hypotheses + 1))
       | .wrongEdge p c _ t =>
         match s.edges (p, c) with
         | some (t₀, _) => .inl (splitLeaf read s p c t t₀)
-        | none => applyTests C (countOutcome s o)
-      | _ => applyTests C (countOutcome s o) := by
-  unfold level3Step level3StepQ
-  rcases o with _ | ⟨p, c, u, t⟩ | _ | _ | _ <;> try rfl
+        | none => applyTests C (countProbe read C s x)
+      | _ => applyTests C (countProbe read C s x) := by
+  change (applyProbeQ C s x).eval read = _
+  simp only [applyProbeQ, eval_bind, countProbe, probeOrAgree]
+  rcases (probeOrAgreeQ s.tree s.edges C.walkStart x).eval read with _ | ⟨p, c, u, t⟩ | _ | _ | _
+    <;> try rfl
   simp only
   rcases s.edges (p, c) with _ | ⟨t₀, w⟩
   · rfl
   · simp only [eval_map]
     rfl
 
-open scoped Classical in
-theorem applyProbe_eq (s : Level3State α) (x : FreeMonoid α) :
-    applyProbe read C s x =
-      if s.Repeats (probeOrAgree read s.tree s.edges C.walkStart x) then
-        .inl (s.skipRepeat (probeOrAgree read s.tree s.edges C.walkStart x))
-      else Sum.map (s.record (probeOrAgree read s.tree s.edges C.walkStart x)) id
-        (level3Step read C s (probeOrAgree read s.tree s.edges C.walkStart x)) := by
-  change (applyProbeQ C s x).eval read = _
-  simp only [applyProbeQ, eval_bind]
-  change (if s.Repeats (probeOrAgree read s.tree s.edges C.walkStart x) then _ else _).eval read
-    = _
-  split_ifs
-  · rfl
-  · rw [eval_map]
-    rfl
 
 theorem runProbes_nil (s : Level3State α) : runProbes read C s [] = (s, .failed) := rfl
 

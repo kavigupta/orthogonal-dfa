@@ -68,7 +68,7 @@ theorem trieSinglePieceCorrect : TrieSinglePieceCorrect := by
 
 section RootOne
 
-variable (C : Level3Settings) (cap : ℕ) (read : FreeMonoid α → ARU)
+variable (C : Level3Settings) (read : FreeMonoid α → ARU)
 
 omit [Fintype α] in
 theorem applyTests_inl {s s' : Level3State α} (h : applyTests C s = .inl s') : s' = s := by
@@ -76,19 +76,6 @@ theorem applyTests_inl {s s' : Level3State α} (h : applyTests C s = .inl s') : 
   split at h
   · cases h
   · cases h; rfl
-
-omit [Fintype α] [DecidableEq α] in
-theorem drop_tree (s : TrieState α) (z : FreeMonoid α) : (s.drop z).base.tree = s.base.tree := by
-  unfold TrieState.drop
-  split_ifs
-  · rfl
-  · split <;> rfl
-
-omit [Fintype α] [DecidableEq α] in
-theorem foldl_drop_tree : ∀ (l : List (FreeMonoid α)) (s : TrieState α),
-    (l.foldl TrieState.drop s).base.tree = s.base.tree
-  | [], _ => rfl
-  | z :: l, s => by rw [List.foldl_cons, foldl_drop_tree l, drop_tree]
 
 theorem rootOne_level3Step {s : Level3State α} {s' : Level3State α} (o : Outcome α)
     (hs : RootOne s.tree) (h : (level3StepQ C s o).eval read = .inl s') : RootOne s'.tree := by
@@ -107,43 +94,32 @@ theorem rootOne_level3Step {s : Level3State α} {s' : Level3State α} (o : Outco
   | _ => rw [eval_pure] at h; rw [applyTests_inl C h]; exact hs
 
 theorem rootOne_applyTrieProbe {s s' : TrieState α} (x : FreeMonoid α) (hs : RootOne s.base.tree)
-    (h : (applyTrieProbeQ C cap s x).eval read = .inl s') : RootOne s'.base.tree := by
-  classical
+    (h : (applyTrieProbeQ C s x).eval read = .inl s') : RootOne s'.base.tree := by
   unfold applyTrieProbeQ at h
-  rw [eval_bind] at h
+  rw [eval_bind, eval_map] at h
   generalize (probeOrAgreeQ s.base.tree s.base.edges (walkStartIn s.expanded x) x).eval read = o
     at h
-  split_ifs at h with hr
-  · rw [eval_pure, Sum.inl.injEq] at h
+  rcases hb : (level3StepQ C s.base o).eval read with b | e
+  · rw [hb, Sum.map_inl, Sum.inl.injEq] at h
     subst h
-    simp only [TrieState.skipRepeat]
-    rw [foldl_drop_tree]
-    exact hs
-  · rw [eval_map] at h
-    rcases hb : (level3StepQ C s.base o).eval read with b | e
-    · rw [hb, Sum.map_inl, Sum.inl.injEq] at h
-      subst h
-      have hrec : (s.record o (prefixOf x (walkStartIn s.expanded x)) b).base = b := by
-        unfold TrieState.record; split_ifs <;> rfl
-      rw [hrec]
-      exact rootOne_level3Step C read o hs hb
-    · rw [hb] at h; cases h
+    exact rootOne_level3Step C read o hs hb
+  · rw [hb] at h; cases h
 
 theorem rootOne_runTrieProbes : ∀ (s : TrieState α) (xs : List (FreeMonoid α)),
-    RootOne s.base.tree → RootOne ((runTrieProbesQ C cap s xs).eval read).1.base.tree
+    RootOne s.base.tree → RootOne ((runTrieProbesQ C s xs).eval read).1.base.tree
   | s, [], hs => hs
   | s, x :: xs, hs => by
     unfold runTrieProbesQ
     rw [eval_bind]
-    rcases ho : (applyTrieProbeQ C cap s x).eval read with s' | e
-    · exact rootOne_runTrieProbes s' xs (rootOne_applyTrieProbe C cap read x hs ho)
+    rcases ho : (applyTrieProbeQ C s x).eval read with s' | e
+    · exact rootOne_runTrieProbes s' xs (rootOne_applyTrieProbe C read x hs ho)
     · exact hs
 
 end RootOne
 
 theorem level3TrieRootOne : Level3TrieRootOne := by
-  intro α _ _ C cap read P draws
-  have h := rootOne_runTrieProbes C cap read (trieInitialState C) (List.ofFn draws)
+  intro α _ _ C read P draws
+  have h := rootOne_runTrieProbes C read (trieInitialState C) (List.ofFn draws)
     ⟨_, _, rfl⟩
   unfold indecisiveLStarLevel3Trie level3TrieQ
   rw [eval_map]

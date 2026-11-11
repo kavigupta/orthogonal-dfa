@@ -3,12 +3,10 @@ import RLStar.Proofs.RandomNoise
 import RLStar.Code.LearnerLoopTrie
 
 /-!
-# A round with local walk starts is level 3's where its probes' first letters differ
+# A round with local walk starts is level 3's
 
 Every string shorter than `walkStart` is expanded, so a probe at least that long walks from
-`walkStart`, as level 3's does. Its harvest strings begin with its own first `walkStart` letters
-(`pot_pre`), so where the probes' first `walkStart` letters are distinct no probe repeats a string,
-nothing more is expanded, and every step is level 3's (`runTrieProbes_agree`).
+`walkStart`, as level 3's does, and every step is level 3's (`runTrieProbes_agree`).
 -/
 
 noncomputable section
@@ -88,141 +86,79 @@ theorem card_completeTrie_le [Nonempty α] (K : ℕ) :
           exact Nat.pow_le_pow_right Fintype.card_pos (Finset.mem_range.1 hj).le
     _ = K * Fintype.card α ^ K := by rw [Finset.sum_const, Finset.card_range, smul_eq_mul]
 
-/-- A harvest string of a probe walked from `k` begins with the probe's first `k` letters. -/
-theorem harvestString_pre (read : FreeMonoid α → ARU) (T : DTree α) (E : Edges α) {k : ℕ}
-    {x z : FreeMonoid α} (hz : z ∈ harvestString (probeOrAgree read T E k x)) :
-    prefixOf z k = prefixOf x k := by
-  rcases List.mem_append.1 hz with h | h
-  · exact (pot_pre (probeOrAgree_ends read T x E k z h).1).2
-  · exact (pot_pre (probeOrAgree_pt read T x E k z h).1).2
-
 variable [DecidableEq α]
 
-variable (C : Level3Settings) (cap : ℕ) (read : FreeMonoid α → ARU)
+variable (C : Level3Settings) (read : FreeMonoid α → ARU)
 
 theorem applyProbeQ_eq (s : Level3State α) (x : FreeMonoid α) :
     applyProbeQ C s x = (probeOrAgreeQ s.tree s.edges C.walkStart x).bind (level3StepQ C s) := rfl
 
-/-- Probes at least `walkStart` long, each with first `walkStart` letters of its own and of none
-of the strings read so far, run as level 3's. -/
-theorem runTrieProbes_agree (K : ℕ) (hK : C.walkStart = K) :
-    ∀ (xs : List (FreeMonoid α)) (t : TrieState α) (used : Finset (FreeMonoid α)),
-      t.expanded = completeTrie K → (∀ r ∈ t.reads, prefixOf r.1 K ∈ used) →
-      (∀ x ∈ xs, K ≤ x.toList.length ∧ prefixOf x K ∉ used) →
-      (xs.map fun x => prefixOf x K).Nodup →
-      ((runTrieProbesQ C cap t xs).eval read).1.base = ((runProbesQ C t.base xs).eval read).1
-        ∧ ((runTrieProbesQ C cap t xs).eval read).1.expanded = completeTrie K
-        ∧ ((runTrieProbesQ C cap t xs).eval read).2 = ((runProbesQ C t.base xs).eval read).2
-        ∧ (runTrieProbesQ C cap t xs).reads read = (runProbesQ C t.base xs).reads read
-  | [], t, _, hX, _, _, _ => ⟨rfl, hX, rfl, rfl⟩
-  | x :: xs, t, used, hX, hr, hxs, hnd => by
-    classical
-    obtain ⟨hxK, hxu⟩ := hxs x List.mem_cons_self
-    have hw : walkStartIn t.expanded x = C.walkStart := by
-      rw [hX, hK]; exact walkStartIn_completeTrie hxK
-    set o := probeOrAgree read t.base.tree t.base.edges C.walkStart x with ho
-    have hnr : ¬ t.Repeats o := by
-      rintro ⟨z, hz, hzr⟩
-      obtain ⟨r, hr', rfl⟩ := List.mem_map.1 hzr
-      have h1 := hr r hr'
-      have h2 := harvestString_pre read _ _ hz
-      rw [hK] at h2
-      rw [h2] at h1
-      exact hxu h1
-    have hT : (applyTrieProbeQ C cap t x).eval read
-        = Sum.map (t.record o (prefixOf x C.walkStart)) id
-          ((level3StepQ C t.base o).eval read) := by
-      have ho' : (probeOrAgreeQ t.base.tree t.base.edges C.walkStart x).eval read = o := rfl
-      simp only [applyTrieProbeQ, eval_bind, hw, ho']
-      rw [if_neg hnr, eval_map]
-    have hM : (applyProbeQ C t.base x).eval read = (level3StepQ C t.base o).eval read := by
-      rw [applyProbeQ_eq, eval_bind]
-      rfl
-    have hTr : (applyTrieProbeQ C cap t x).reads read
-        = (probeOrAgreeQ t.base.tree t.base.edges C.walkStart x).reads read
-          ∪ (level3StepQ C t.base o).reads read := by
-      have ho' : (probeOrAgreeQ t.base.tree t.base.edges C.walkStart x).eval read = o := rfl
-      simp only [applyTrieProbeQ, reads_bind, hw, ho']
-      rw [if_neg hnr, reads_map]
-    have hMr : (applyProbeQ C t.base x).reads read
-        = (probeOrAgreeQ t.base.tree t.base.edges C.walkStart x).reads read
-          ∪ (level3StepQ C t.base o).reads read := by
-      rw [applyProbeQ_eq, reads_bind]
-      rfl
-    have e1r : (runTrieProbesQ C cap t (x :: xs)).reads read
-        = (applyTrieProbeQ C cap t x).reads read ∪ match (applyTrieProbeQ C cap t x).eval read with
-          | .inl s' => (runTrieProbesQ C cap s' xs).reads read
+/-- A probe at least `walkStart` long, past the complete trie, steps as level 3's. -/
+theorem applyTrieProbe_agree (t : TrieState α) (x : FreeMonoid α)
+    (hX : t.expanded = completeTrie C.walkStart) (hxK : C.walkStart ≤ x.toList.length) :
+    (applyTrieProbeQ C t x).eval read
+        = Sum.map (fun b => ⟨b, t.expanded⟩) id ((applyProbeQ C t.base x).eval read)
+      ∧ (applyTrieProbeQ C t x).reads read = (applyProbeQ C t.base x).reads read := by
+  have hw : walkStartIn t.expanded x = C.walkStart := by
+    rw [hX]; exact walkStartIn_completeTrie hxK
+  refine ⟨?_, ?_⟩
+  · simp only [applyTrieProbeQ, applyProbeQ_eq, eval_bind, eval_map, hw]
+  · simp only [applyTrieProbeQ, applyProbeQ_eq, reads_bind, reads_map, hw]
+
+/-- Probes at least `walkStart` long, past the complete trie, run as level 3's. -/
+theorem runTrieProbes_agree :
+    ∀ (xs : List (FreeMonoid α)) (t : TrieState α),
+      t.expanded = completeTrie C.walkStart → (∀ x ∈ xs, C.walkStart ≤ x.toList.length) →
+      ((runTrieProbesQ C t xs).eval read).1.base = ((runProbesQ C t.base xs).eval read).1
+        ∧ ((runTrieProbesQ C t xs).eval read).1.expanded = completeTrie C.walkStart
+        ∧ ((runTrieProbesQ C t xs).eval read).2 = ((runProbesQ C t.base xs).eval read).2
+        ∧ (runTrieProbesQ C t xs).reads read = (runProbesQ C t.base xs).reads read
+  | [], t, hX, _ => ⟨rfl, hX, rfl, rfl⟩
+  | x :: xs, t, hX, hxs => by
+    obtain ⟨hA, hR⟩ := applyTrieProbe_agree C read t x hX (hxs x List.mem_cons_self)
+    have e1r : (runTrieProbesQ C t (x :: xs)).reads read
+        = (applyTrieProbeQ C t x).reads read ∪ match (applyTrieProbeQ C t x).eval read with
+          | .inl s' => (runTrieProbesQ C s' xs).reads read
           | .inr _ => ∅ := by
       simp only [runTrieProbesQ, reads_bind]
-      rcases (applyTrieProbeQ C cap t x).eval read <;> rfl
+      rcases (applyTrieProbeQ C t x).eval read <;> rfl
     have e2r : (runProbesQ C t.base (x :: xs)).reads read
         = (applyProbeQ C t.base x).reads read ∪ match (applyProbeQ C t.base x).eval read with
           | .inl s' => (runProbesQ C s' xs).reads read
           | .inr _ => ∅ := by
       simp only [runProbesQ, reads_bind]
       rcases (applyProbeQ C t.base x).eval read <;> rfl
-    rw [e1r, e2r, hTr, hMr, hT, hM]
-    have e1 : (runTrieProbesQ C cap t (x :: xs)).eval read
-        = match (applyTrieProbeQ C cap t x).eval read with
-          | .inl s' => (runTrieProbesQ C cap s' xs).eval read
+    have e1 : (runTrieProbesQ C t (x :: xs)).eval read
+        = match (applyTrieProbeQ C t x).eval read with
+          | .inl s' => (runTrieProbesQ C s' xs).eval read
           | .inr e => (t, e) := by
       simp only [runTrieProbesQ, eval_bind]
-      rcases (applyTrieProbeQ C cap t x).eval read <;> rfl
+      rcases (applyTrieProbeQ C t x).eval read <;> rfl
     have e2 : (runProbesQ C t.base (x :: xs)).eval read
         = match (applyProbeQ C t.base x).eval read with
           | .inl s' => (runProbesQ C s' xs).eval read
           | .inr e => (t.base, e) := by
       simp only [runProbesQ, eval_bind]
       rcases (applyProbeQ C t.base x).eval read <;> rfl
-    rw [e1, e2, hT, hM]
-    rcases hstep : (level3StepQ C t.base o).eval read with b | e
-    · simp only [Sum.map_inl]
-      have hxs' : ∀ y ∈ xs, K ≤ y.toList.length ∧ prefixOf y K ∉ insert (prefixOf x K) used := by
-        intro y hy
-        refine ⟨(hxs y (List.mem_cons_of_mem _ hy)).1, ?_⟩
-        rw [Finset.mem_insert, not_or]
-        refine ⟨fun he => ?_, (hxs y (List.mem_cons_of_mem _ hy)).2⟩
-        rw [List.map_cons, List.nodup_cons] at hnd
-        exact hnd.1 (List.mem_map.2 ⟨y, hy, he⟩)
-      have hnd' : (xs.map fun x => prefixOf x K).Nodup := (List.nodup_cons.1 hnd).2
-      have hrec := runTrieProbes_agree K hK xs (t.record o (prefixOf x C.walkStart) b)
-        (insert (prefixOf x K) used) (by unfold TrieState.record; split_ifs <;> exact hX)
-        (by
-          intro r hr'
-          unfold TrieState.record at hr'
-          split_ifs at hr' with hh
-          · rcases List.mem_append.1 hr' with h | h
-            · exact Finset.mem_insert_of_mem (hr r h)
-            · obtain ⟨z, hz, rfl⟩ := List.mem_map.1 h
-              rw [Finset.mem_insert]
-              left
-              have h2 := harvestString_pre read _ _ hz
-              rw [hK] at h2
-              exact h2
-          · simp at hr')
-        hxs' hnd'
-      have hb : (t.record o (prefixOf x C.walkStart) b).base = b := by
-        unfold TrieState.record; split_ifs <;> rfl
-      rw [hb] at hrec
-      exact ⟨hrec.1, hrec.2.1, hrec.2.2.1, by rw [hrec.2.2.2]⟩
+    rw [e1r, e2r, e1, e2, hR, hA]
+    rcases (applyProbeQ C t.base x).eval read with b | e
+    · have ih := runTrieProbes_agree xs ⟨b, t.expanded⟩ hX
+        fun y hy => hxs y (List.mem_cons_of_mem _ hy)
+      simp only [Sum.map_inl]
+      exact ⟨ih.1, ih.2.1, ih.2.2.1, by rw [ih.2.2.2]⟩
     · exact ⟨rfl, hX, rfl, rfl⟩
 
-/-- Probes at least `walkStart` long with distinct first `walkStart` letters run as level 3's, with
-nothing expanded past the complete trie. -/
+/-- Probes at least `walkStart` long run as level 3's, with nothing expanded past the complete
+trie. -/
 theorem level3Trie_agree {P : ℕ} (draws : Fin P → FreeMonoid α)
-    (hlen : ∀ i, C.walkStart ≤ (draws i).toList.length)
-    (hinj : Function.Injective fun i => prefixOf (draws i) C.walkStart) :
-    indecisiveLStarLevel3Trie C cap read draws
+    (hlen : ∀ i, C.walkStart ≤ (draws i).toList.length) :
+    indecisiveLStarLevel3Trie C read draws
       = ⟨(indecisiveLStarLevel3 C read draws).hypothesis, completeTrie C.walkStart,
         (indecisiveLStarLevel3 C read draws).ending⟩ := by
-  have h := runTrieProbes_agree C cap read C.walkStart rfl (List.ofFn draws)
-    (trieInitialState C) ∅ rfl (by simp [trieInitialState])
+  have h := runTrieProbes_agree C read (List.ofFn draws) (trieInitialState C) rfl
     (fun x hx => by
       obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
-      exact ⟨hlen i, Finset.notMem_empty _⟩)
-    (by
-      rw [List.map_ofFn]
-      exact List.nodup_ofFn.2 hinj)
+      exact hlen i)
   unfold indecisiveLStarLevel3Trie level3TrieQ indecisiveLStarLevel3 level3Q
   simp only [eval_map]
   obtain ⟨h1, h2, h3, -⟩ := h

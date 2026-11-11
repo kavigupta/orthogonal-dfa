@@ -6,8 +6,8 @@ import RLStar.Proofs.DFABridge
 
 `RLStarClaimUniform` is `RLStarClaim` at `D` uniform over the strings of length `L + 2|Q| + 6`:
 uniform strings hold `|Σ|^-k` on any first `k` letters, and `1/p₀Tol` is at most
-`((L + |Q|)⁶ C₀ G)⁹` for a constant `C₀`, `G` free of `L`, so
-`k ≥ k₀ = 9 log ((L + |Q|)⁶ C₀ G)/log |Σ|` gives `((L + |Q|)⁶ C₀ G)⁹ ≤ |Σ|^k`.
+`((L + |Q|)⁶ C₀ G)⁵` for a constant `C₀`, `G` free of `L`, so
+`k ≥ k₀ = 5 log ((L + |Q|)⁶ C₀ G)/log |Σ|` gives `((L + |Q|)⁶ C₀ G)⁵ ≤ |Σ|^k`.
 `RLStarClaimUniformSimple` follows from
 `RLStarClaimUniform`, the prefix and suffix totals' shapes bounded by their products, and the
 search's reads by the harvest's.
@@ -162,9 +162,9 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
   obtain ⟨C, hC⟩ := isBigO_principal.1 hp₀
   set C₀ := 16 * max 1 C with hC₀d
   have hC₀ : 1 ≤ C₀ := by rw [hC₀d]; linarith [le_max_left 1 C]
-  refine ⟨fun r => 9 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * loopG (ratioOne r.toRLStarInputs)))
+  refine ⟨fun r => 5 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * loopG (ratioOne r.toRLStarInputs)))
       / log r.A, tp, ts, tpr, tr, ?_, hpref, hsuff, hprobes, hreads, ?_⟩
-  · refine isBigO_on (54 + 9 * (263 + 6 * log C₀)) fun r hr => ?_
+  · refine isBigO_on (30 + 5 * (263 + 6 * log C₀)) fun r hr => ?_
     obtain ⟨hQ, hA, hδ, hδ2, hξ, hξ1, hp, hp1, hs, hs1⟩ := hr
     have hQ' : (1 : ℝ) ≤ r.Q := by exact_mod_cast hQ
     have hA' : (2 : ℝ) ≤ r.A := by exact_mod_cast hA
@@ -214,15 +214,15 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     have e2 : c₁ * (1 + log ((r.Q : ℝ) / D) / ℓ) = c₁ + c₁ * (log ((r.Q : ℝ) / D) / ℓ) := by
       ring
     rw [e1, e2] at hle
-    have ef : 9 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * G)) / ℓ
-        = 54 * (log ((r.L : ℝ) + r.Q) / ℓ) + 9 * (X / ℓ) := by
+    have ef : 5 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * G)) / ℓ
+        = 30 * (log ((r.L : ℝ) + r.Q) / ℓ) + 5 * (X / ℓ) := by
       rw [Real.log_mul (by positivity) (by linarith [one_le_mul_of_one_le_of_one_le hC₀ hG]),
         Real.log_pow]
       push_cast; ring
-    have eg : (54 + 9 * c₁) * (1 + V / ℓ) = 54 + 9 * c₁ + 54 * (V / ℓ) + 9 * (c₁ * (V / ℓ)) := by
+    have eg : (30 + 5 * c₁) * (1 + V / ℓ) = 30 + 5 * c₁ + 30 * (V / ℓ) + 5 * (c₁ * (V / ℓ)) := by
       ring
-    change 0 ≤ 9 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * G)) / ℓ ∧ 0 ≤ 1 + V / ℓ
-      ∧ 9 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * G)) / ℓ ≤ (54 + 9 * c₁) * (1 + V / ℓ)
+    change 0 ≤ 5 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * G)) / ℓ ∧ 0 ≤ 1 + V / ℓ
+      ∧ 5 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * G)) / ℓ ≤ (30 + 5 * c₁) * (1 + V / ℓ)
     rw [ef, eg]
     refine ⟨by positivity, by linarith, by linarith⟩
   -- the run, at `D` uniform
@@ -237,13 +237,13 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
   have hp₀k : ((x.A : ℝ) ^ k)⁻¹ ≤ p₀Tol { x with L } := by
     have hpos' := hpos { x with L }
     have hc : ‖1 / p₀Tol { x with L }‖
-        ≤ C * ‖p₀Shape (toDistRun (ratioOneRun { x with L })) ^ 9‖ := by
+        ≤ C * ‖p₀Shape (toDistRun (ratioOneRun { x with L })) ^ 5‖ := by
       rw [p₀Shape_one hr]; exact hC _ hr
     have hG1 : 1 ≤ loopG (ratioOne x) := loopG_ge_one hxr
     obtain ⟨hs0, hsle⟩ := p₀Shape_le hrd
     obtain ⟨-, hsh⟩ := shape_toDist_le hxr L
     rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_pos (one_div_pos.2 hpos'),
-      abs_of_nonneg (pow_nonneg hs0 9)] at hc
+      abs_of_nonneg (pow_nonneg hs0 5)] at hc
     change _ ≤ 2 * (((L : ℝ) + x.Q) ^ 6 * loopG (ratioOne x)) at hsh
     have h8 : p₀Shape (toDistRun (ratioOneRun { x with L }))
         ≤ 16 * (((L : ℝ) + x.Q) ^ 6 * loopG (ratioOne x)) :=
@@ -252,23 +252,23 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     rw [← hyd] at h8
     have hy : 0 ≤ y := hyd ▸ mul_nonneg (by positivity) (by linarith)
     have hm1 : 1 ≤ max 1 C := le_max_left 1 C
-    have hc' : 1 / p₀Tol { x with L } ≤ (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne x))) ^ 9 :=
+    have hc' : 1 / p₀Tol { x with L } ≤ (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne x))) ^ 5 :=
       calc 1 / p₀Tol { x with L }
-          ≤ max 1 C * (16 * y) ^ 9 :=
-            hc.trans (mul_le_mul (le_max_right 1 C) (pow_le_pow_left₀ hs0 h8 9)
-              (pow_nonneg hs0 9) (by linarith))
-        _ ≤ max 1 C ^ 9 * (16 * y) ^ 9 :=
+          ≤ max 1 C * (16 * y) ^ 5 :=
+            hc.trans (mul_le_mul (le_max_right 1 C) (pow_le_pow_left₀ hs0 h8 5)
+              (pow_nonneg hs0 5) (by linarith))
+        _ ≤ max 1 C ^ 5 * (16 * y) ^ 5 :=
             mul_le_mul_of_nonneg_right (le_self_pow₀ hm1 (by norm_num)) (by positivity)
         _ = _ := by rw [hC₀d, hyd]; ring
-    have hpow : (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne x))) ^ 9 ≤ (x.A : ℝ) ^ k := by
+    have hpow : (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne x))) ^ 5 ≤ (x.A : ℝ) ^ k := by
       have hlA : 0 < log (x.A : ℝ) := Real.log_pos (by linarith)
       have hZ : 0 < ((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne x)) :=
         mul_pos (pow_pos (by have : (0 : ℝ) ≤ L := Nat.cast_nonneg _; linarith) 6)
           (by linarith [one_le_mul_of_one_le_of_one_le hC₀ hG1])
-      change 9 * log (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne x))) / log (x.A : ℝ) ≤ k
+      change 5 * log (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne x))) / log (x.A : ℝ) ≤ k
         at hk₀
       have h9 := (div_le_iff₀ hlA).1 hk₀
-      rw [← Real.log_le_log_iff (pow_pos hZ 9) (pow_pos (by linarith) k), Real.log_pow,
+      rw [← Real.log_le_log_iff (pow_pos hZ 5) (pow_pos (by linarith) k), Real.log_pow,
         Real.log_pow]
       push_cast
       linarith

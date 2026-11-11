@@ -5,10 +5,10 @@ import RLStar.Proofs.TrieLoop
 # Each round's probes and batches, after the rounds before it
 
 Round `r`'s level-3 uniforms are fresh given what reaches its level 3 (`stage4`), and its
-harvested populations' batches fresh given the earlier rounds (`stageH`), so each fails its
-distinctness with the chance of `TrieBirthday` (`trie_l3_round_le`, `trie_batches_round_le`).
-Where every round the filled draws run is good and none fails, the loop with local walk starts
-meets `TrieLoopAgrees`'s premise (`trieRoundGood_of`).
+harvested populations' batches fresh given the earlier rounds (`stageH`), so each draws a string
+shorter than `walkStart` with chance `0` (`trie_l3_round_le`, `trie_batches_round_le`). Where every
+round the filled draws run is good and none draws one, the loop with local walk starts meets
+`TrieLoopAgrees`'s premise (`trieRoundGood_of`).
 -/
 
 noncomputable section
@@ -30,7 +30,7 @@ variable (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α) (Dsf : Meas
   [IsProbabilityMeasure Dsf] (settings : LoopSettings K)
 
 /-- Round `r`'s level-3 probes, where every earlier clustering and this one returned, are not at
-least `walkStart` long with distinct first `walkStart` letters with chance at most `T² p₀`. -/
+least `walkStart` long with chance `0`. -/
 theorem trie_l3_round_le {NP : ℕ} (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
     {p₀ : ℝ} (hpre : ∀ u, P.D.real {x | prefixOf x settings.level3.walkStart = u} ≤ p₀)
     (hk : ∀ᵐ x ∂P.D, settings.level3.walkStart ≤ x.toList.length)
@@ -43,7 +43,7 @@ theorem trie_l3_round_le {NP : ℕ} (hNP : ∀ pops, ∑ B ∈ settings.schedule
         ∧ ¬ L3Good settings.level3.walkStart P.D
           (roundKeys settings P.D Dsf (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r))
             (p.1, (p.2 ⟨r, hr⟩).1)) (p.2 ⟨r, hr⟩).2}
-      ≤ settings.level3.probeBudget ^ 2 * p₀ := by
+      ≤ 0 := by
   classical
   set T := settings.level3.probeBudget
   set k := settings.level3.walkStart
@@ -103,18 +103,18 @@ theorem trie_l3_round_le {NP : ℕ} (hNP : ∀ pops, ∑ B ∈ settings.schedule
         · exact hq)
     (fun _ => Set.univ) (fun _ => MeasurableSet.univ)
     (fun y x _ _ => Finset.disjoint_empty_right _)
-    (ENNReal.ofReal (T ^ 2 * p₀)) (fun y => by
+    (ENNReal.ofReal 0) (fun y => by
       rcases y with _ | t
       · show (μ.prod _) ∅ ≤ _
         simp
       · show (μ.prod _) (if Good t then _ else ∅) ≤ _
         split_ifs with h
         · rw [Measure.prod_prod, measure_univ, one_mul]
-          refine pi_not_l3Good_le P.D k t.2.2.2 hpre hk ?_
+          refine (pi_not_l3Good_le P.D k t.2.2.2 hpre hk ?_).le
           have h1 : (t.2.2.2.card : ℝ) ≤ ((6 * (K + 1) * NP : ℕ) : ℝ) := by exact_mod_cast h.2
           exact (mul_le_mul_of_nonneg_right h1 hp0).trans hK
         · simp)
-  refine ENNReal.toReal_le_of_le_ofReal (by positivity) ((measure_mono ?_).trans hmain)
+  refine ENNReal.toReal_le_of_le_ofReal le_rfl ((measure_mono ?_).trans hmain)
   rintro p ⟨hok, hlen, hret, hnot⟩
   set c := histCodes settings O P.D Dsf p.1 p.2 r
   set H := dec c
@@ -159,29 +159,22 @@ lemma restLaw_map_pop (N : ℕ) (i : Fin K) :
     measure_univ, one_smul, Measure.map_fst_prod, measure_univ, one_smul]
   exact (measurePreserving_eval _ (some i)).map_eq
 
-/-- Round `r`'s harvested populations' batches, after earlier rounds whose clusterings returned
-and read at most `Tb` prefixes, fail `BatchesGood` with chance at most `K MN (Tb + MN) p₀`. -/
-theorem trie_batches_round_le {Tb : ℕ} {p₀ : ℝ}
-    (hpre : ∀ u, P.D.real {x | prefixOf x settings.level3.walkStart = u} ≤ p₀)
-    (hk : ∀ᵐ x ∂P.D, settings.level3.walkStart ≤ x.toList.length) (r : ℕ) (hr : r < K) :
+/-- Round `r`'s harvested populations' batches, after earlier rounds whose clusterings returned,
+fail `BatchesGood` with chance `0`. -/
+theorem trie_batches_round_le (hk : ∀ᵐ x ∂P.D, settings.level3.walkStart ≤ x.toList.length)
+    (r : ℕ) (hr : r < K) :
     (loopMeasure μ α K settings.level3.harvestReadCap settings.level3.probeBudget).real
       {p | HistOK settings O P.D Dsf p.1 p.2 r
         ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
-        ∧ (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).prefs.card ≤ Tb
         ∧ ∃ i : Fin K, ¬ BatchesGood settings.level3.walkStart P.D settings.level3.harvestReadCap
-          settings.scanCap (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).prefs
-          ((p.2 ⟨r, hr⟩).1.2.1 (some i))}
-      ≤ K * (settings.scanCap * settings.level3.harvestReadCap * (Tb * p₀)
-        + (settings.scanCap * settings.level3.harvestReadCap) ^ 2 * p₀) := by
+          settings.scanCap ((p.2 ⟨r, hr⟩).1.2.1 (some i))}
+      ≤ 0 := by
   classical
   set k := settings.level3.walkStart
   set N := settings.level3.harvestReadCap
   set M := settings.scanCap
   set PB := settings.level3.probeBudget
   set dec := decodeHist (α := α) with hdec
-  have hp0 : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
-  set b : ℝ := K * (M * N * (Tb * p₀) + (M * N) ^ 2 * p₀)
-  have hb0 : 0 ≤ b := by positivity
   obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ
   set ν := roundLaw α K N PB
   have hσ : MeasurePreserving (fun d : RoundDraws α K N PB => ((() : Unit), d)) ν
@@ -192,18 +185,17 @@ theorem trie_batches_round_le {Tb : ℕ} {p₀ : ℝ}
     | some c => histReads settings P.D Dsf c x r ω₀
     | none => ∅
   set G : Y → Prop := fun y => ∃ c, y = some c ∧ c.length = r
-  set Good : List (HarvestCode α) → Prop := fun c => c.length = r ∧ (dec c).prefs.card ≤ Tb
+  set Good : List (HarvestCode α) → Prop := fun c => c.length = r
   set Bad : Y → Set (Ω × RoundDraws α K N PB) := fun y => match y with
-    | some c => {q | Good c ∧ ∃ i : Fin K, ¬ BatchesGood k P.D N M (dec c).prefs
-        (q.2.1.2.1 (some i))}
+    | some c => {q | Good c ∧ ∃ i : Fin K, ¬ BatchesGood k P.D N M (q.2.1.2.1 (some i))}
     | none => ∅
   have hpop : ∀ i : Fin K, Measurable fun q : Ω × RoundDraws α K N PB => q.2.1.2.1 (some i) :=
     fun i => (measurable_pi_apply _).comp
       (measurable_fst.comp (measurable_snd.comp (measurable_fst.comp measurable_snd)))
-  have hmBad : ∀ T : Finset (FreeMonoid α), MeasurableSet {q : Ω × RoundDraws α K N PB |
-      ∃ i : Fin K, ¬ BatchesGood k P.D N M T (q.2.1.2.1 (some i))} := fun T => by
+  have hmBad : MeasurableSet {q : Ω × RoundDraws α K N PB |
+      ∃ i : Fin K, ¬ BatchesGood k P.D N M (q.2.1.2.1 (some i))} := by
     rw [Set.setOf_exists]
-    exact MeasurableSet.iUnion fun i => hpop i (measurableSet_batchesGood k P.D N M T).compl
+    exact MeasurableSet.iUnion fun i => hpop i (measurableSet_batchesGood k P.D N M).compl
   have hmain := persist_stage_le O ν (Measure.dirac ()) ν (fun d => ((() : Unit), d)) hσ Prod.snd
     measurable_snd (fun w => Prod.ext rfl rfl) ⟨r, hr⟩ (stageH settings O P.D Dsf r)
     (fun ω x x' hxx' _ => stageH_congr_draws settings O P.D Dsf r ω x x' fun i hi => hxx' i hi)
@@ -214,57 +206,39 @@ theorem trie_batches_round_le {Tb : ℕ} {p₀ : ℝ}
     Bad (fun y hy => by
       rcases y with _ | c
       · rfl
-      · exact Set.eq_empty_of_forall_notMem fun q hq => hy ⟨c, rfl, hq.1.1⟩)
+      · exact Set.eq_empty_of_forall_notMem fun q hq => hy ⟨c, rfl, hq.1⟩)
     (fun y => by
       rcases y with _ | c
       · exact MeasurableSet.empty
-      · exact (MeasurableSet.const _).inter (hmBad _))
+      · exact (MeasurableSet.const _).inter hmBad)
     (fun _ _ => ∅) (fun y d ω ω' _ hq => by
       rcases y with _ | c
       · exact hq
       · exact hq)
     (fun _ => Set.univ) (fun _ => MeasurableSet.univ)
     (fun y x _ _ => Finset.disjoint_empty_right _)
-    (ENNReal.ofReal b) (fun y => by
+    (ENNReal.ofReal 0) (fun y => by
       rcases y with _ | c
       · show (μ.prod ν) ∅ ≤ _
         simp
-      · by_cases hH : Good c
-        swap
-        · have : Bad (some c) = ∅ := Set.eq_empty_of_forall_notMem fun q hq => hH hq.1
-          rw [this, measure_empty]; exact zero_le
-        have hone : ∀ i : Fin K, (μ.prod ν) {q : Ω × RoundDraws α K N PB |
-            ¬ BatchesGood k P.D N M (dec c).prefs (q.2.1.2.1 (some i))}
-            ≤ ENNReal.ofReal (M * N * (Tb * p₀) + (M * N) ^ 2 * p₀) := by
+      · have hone : ∀ i : Fin K, (μ.prod ν) {q : Ω × RoundDraws α K N PB |
+            ¬ BatchesGood k P.D N M (q.2.1.2.1 (some i))} = 0 := by
           intro i
           have hp : MeasurePreserving (fun q : Ω × RoundDraws α K N PB => q.2.1.2.1 (some i))
               (μ.prod ν) (Measure.infinitePi fun _ : ℕ => drawLaw N) :=
             (restLaw_map_pop N i).comp (measurePreserving_fst.comp measurePreserving_snd)
           rw [show {q : Ω × RoundDraws α K N PB |
-              ¬ BatchesGood k P.D N M (dec c).prefs (q.2.1.2.1 (some i))}
+              ¬ BatchesGood k P.D N M (q.2.1.2.1 (some i))}
               = (fun q : Ω × RoundDraws α K N PB => q.2.1.2.1 (some i)) ⁻¹'
-                {u | ¬ BatchesGood k P.D N M (dec c).prefs u} from rfl,
-            hp.measure_preimage (show MeasurableSet {u | ¬ BatchesGood k P.D N M (dec c).prefs u} from
-              (measurableSet_batchesGood k P.D N M _).compl).nullMeasurableSet]
-          refine (batches_bad_le P.D k N M _ hpre hk).trans (ENNReal.ofReal_le_ofReal ?_)
-          have h1 : ((dec c).prefs.card : ℝ) ≤ Tb := by exact_mod_cast hH.2
-          have := mul_le_mul_of_nonneg_right h1 hp0
-          have : (0 : ℝ) ≤ M * N := by positivity
-          nlinarith
-        calc (μ.prod ν) (Bad (some c))
-            ≤ (μ.prod ν) (⋃ i : Fin K, {q : Ω × RoundDraws α K N PB |
-                ¬ BatchesGood k P.D N M (dec c).prefs (q.2.1.2.1 (some i))}) :=
-              measure_mono fun q hq => Set.mem_iUnion.2 hq.2
-          _ ≤ ∑ i : Fin K, (μ.prod ν) {q : Ω × RoundDraws α K N PB |
-                ¬ BatchesGood k P.D N M (dec c).prefs (q.2.1.2.1 (some i))} :=
-              measure_iUnion_fintype_le _ _
-          _ ≤ ∑ _i : Fin K, ENNReal.ofReal (M * N * (Tb * p₀) + (M * N) ^ 2 * p₀) :=
-              Finset.sum_le_sum fun i _ => hone i
-          _ = ENNReal.ofReal b := by
-              rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
-                ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (Nat.cast_nonneg _)])
-  refine ENNReal.toReal_le_of_le_ofReal hb0 ((measure_mono ?_).trans hmain)
-  rintro p ⟨hok, hlen, hcard, hbad⟩
+                {u | ¬ BatchesGood k P.D N M u} from rfl,
+            hp.measure_preimage (show MeasurableSet {u | ¬ BatchesGood k P.D N M u} from
+              (measurableSet_batchesGood k P.D N M).compl).nullMeasurableSet]
+          exact batches_bad_le P.D k N M hk
+        refine (measure_mono fun q hq => Set.mem_iUnion.2 hq.2).trans ?_
+        rw [measure_iUnion_null hone]
+        exact zero_le)
+  refine ENNReal.toReal_le_of_le_ofReal le_rfl ((measure_mono ?_).trans hmain)
+  rintro p ⟨hok, hlen, hbad⟩
   have hst : stageH settings O P.D Dsf r p.1 p.2
       = some (histCodes settings O P.D Dsf p.1 p.2 r) := by
     simp only [stageH, if_pos hok]
@@ -272,7 +246,7 @@ theorem trie_batches_round_le {Tb : ℕ} {p₀ : ℝ}
     ∧ p.2 ∈ (fun _ : Y => (Set.univ : Set (Fin K → RoundDraws α K N PB)))
       (stageH settings O P.D Dsf r p.1 p.2)
   rw [hst]
-  exact ⟨⟨⟨hlen, hcard⟩, hbad⟩, Set.mem_univ _⟩
+  exact ⟨⟨hlen, hbad⟩, Set.mem_univ _⟩
 
 end Round
 
@@ -358,14 +332,12 @@ lemma idealRounds_prefs_card {a : ℕ}
     · exact idealRounds_prefs_card hab draws r o ho
 
 omit [IsProbabilityMeasure μ] in
-/-- Where every round the filled draws run is good, and no round's probes or batches fail their
-distinctness, the loop with local walk starts meets `TrieLoopAgrees`'s premise. -/
-theorem trieRoundGood_of {Tb : ℕ}
+/-- Where every round the filled draws run is good, and no round's probes or batches draw a string
+shorter than `walkStart`, the loop with local walk starts meets `TrieLoopAgrees`'s premise. -/
+theorem trieRoundGood_of
     (hrg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
       RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r))
         (persistDraws p ⟨r, hr⟩))
-    (hpr : ∀ r, r < K → AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
-      (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) r)).prefs.card ≤ Tb)
     (hL3 : ∀ r (hr : r < K), ¬ (HistOK settings O P.D Dsf p.1 p.2 r
         ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
         ∧ Returns settings O P.D Dsf (decodeHist
@@ -375,10 +347,8 @@ theorem trieRoundGood_of {Tb : ℕ}
             (p.1, (p.2 ⟨r, hr⟩).1)) (p.2 ⟨r, hr⟩).2))
     (hTop : ∀ r (hr : r < K), ¬ (HistOK settings O P.D Dsf p.1 p.2 r
         ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
-        ∧ (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).prefs.card ≤ Tb
         ∧ ∃ i : Fin K, ¬ BatchesGood settings.level3.walkStart P.D settings.level3.harvestReadCap
-          settings.scanCap (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).prefs
-          ((p.2 ⟨r, hr⟩).1.2.1 (some i)))) :
+          settings.scanCap ((p.2 ⟨r, hr⟩).1.2.1 (some i)))) :
     ∀ r (hr : r < K) rs,
       (loopRoundsQ settings P.D Dsf p.2 r).eval (fun w => O.mq w p.1) = some rs →
       (∀ o ∈ rs, o.result.ending.harvested ≠ none) →
@@ -401,15 +371,9 @@ theorem trieRoundGood_of {Tb : ℕ}
   have hgood := hrg r hr hall
   have hret : Returns settings O P.D Dsf (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r))
       (p.1, (p.2 ⟨r, hr⟩).1) := ret_of_alike O P Dsf settings hh _ hgood.2.2
-  have hprefs : (histOf ((idealRounds settings O P.D Dsf draws r).map SpecRound.data)).prefs
-      = (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).prefs := by
-    rw [hh.2.1]
-    simp only [histOf, specHistOf, List.foldr_map, SpecRound.data]
-    rfl
   refine ⟨fun i => ?_, fun o ho => ?_⟩
-  · rw [hprefs]
-    by_contra hbad
-    exact hTop r hr ⟨hok, hlen, by rw [hh.2.1]; exact hpr r hr hall, i, hbad⟩
+  · by_contra hbad
+    exact hTop r hr ⟨hok, hlen, i, hbad⟩
   · obtain ⟨f1, -⟩ := eval_roundQ O p.1 settings P.D Dsf
       (histOf ((idealRounds settings O P.D Dsf draws r).map SpecRound.data)) (p.2 ⟨r, hr⟩)
     rw [← specHistOf_eq O p.1 hread] at f1

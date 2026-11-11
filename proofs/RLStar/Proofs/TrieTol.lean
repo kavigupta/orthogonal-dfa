@@ -5,9 +5,9 @@ import RLStar.Proofs.TrieTolArith
 # The loop with local walk starts at a tolerance
 
 `trie_loop_core`'s conditions, from a walk start of `k` letters on whose every first `k` letters `D`
-holds at most `1/Ak`, with `2^30 T^9 ≤ Ak`, `T` main's `loopTolInv`: `T` bounds by itself the prefix mass main's loop needs (`dfa_mass`), and `T` is at
-least `1/δ`, `(|Q| + 1)²/δ`, the scan cap, the prefix count, the family size, `|Σ|` and the
-inverse rates, so the batches' collisions and the family's misreads fit too.
+holds at most `1/Ak`, with `2^4 T^5 ≤ Ak`, `T` main's `loopTolInv`: `T` bounds by itself the prefix
+mass main's loop needs (`dfa_mass`), and `T` is at least `1/δ`, the family size, `|Σ|` and the
+inverse rates, so the family's misreads fit too.
 -/
 
 noncomputable section
@@ -31,7 +31,7 @@ lemma trieSucceeds_mono {K : ℕ} {settings : LoopSettings K} {cap : ℕ}
   exact ⟨h1, S, hS.trans hR, hdep⟩
 
 /-- The loop with local walk starts of `kw` letters, once `D` holds at most `1/Ak` on any first `kw`
-letters and `2^30 T^9 ≤ Ak`. -/
+letters and `2^4 T^5 ≤ Ak`. -/
 theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L kw tcap : ℕ)
     (η₀ c δ pAP ξ ξT Ae Ak : ℝ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] :
     let Q : ℝ := Fintype.card σ
@@ -54,10 +54,10 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
     let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
-    2 ≤ Fintype.card α → A ≤ Ae → kw ≤ L →
+    2 ≤ Fintype.card α → A ≤ Ae → kw ≤ L → tcap ≤ kw →
     (∀ᵐ w ∂D, Ls ≤ w.toList.length) → (∀ u, D.real {w | prefixOf w kw = u} ≤ Ak⁻¹) →
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-    2 ^ 30 * loopTolInv (L + Q + 4) Q A Ae (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀ ^ 9
+    2 ^ 4 * loopTolInv (L + Q + 4) Q A Ae (Fintype.card σ) (Fintype.card α) δ c ξ pAP η₀ ^ 5
       ≤ Ak →
     c / 12 * (97 / 96) + (1025 / 1024 + 3 / 8) * (ξ / 8) + c ≤ ξT →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
@@ -83,7 +83,7 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
             ((3 + Nat.clog 2 L₁ : ℕ) : ℝ) A 0) p}
         ≤ δ := by
   intro Q A k L₁ Ls N ε εcov δ' S B₃ n SC HN SH HB hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hkw
-    hlong hpre hpAPu hZ hξT
+    hcapw hlong hpre hpAPu hZ hξT
   classical
   have : Nonempty σ := ⟨M.start⟩
   have hQ1 : (1 : ℝ) ≤ Q := by
@@ -227,17 +227,13 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
     tol_T_le hℓ1 hΛ1 haε1 hE₁1 hE₂0 hE₃0 hlg hEd hTd
   have hT0 : 0 ≤ T := by linarith only [hT1]
   have hℓ0 : 0 ≤ ℓ := by linarith only [hℓ1]
-  have hl2 : 1 ≤ ℓ ^ 2 * (1 + Real.log ℓ) :=
-    one_le_mul_of_one_le_of_one_le (one_le_pow₀ hℓ1) hΛ1
   have hA0 : (0 : ℝ) < A := by linarith only [hA]
   have hA1 : (1 : ℝ) ≤ A := by linarith only [hA]
   have hAk : 0 < Ak := lt_of_lt_of_le (by positivity) hZ
   have hp₀0 : 0 < Ak⁻¹ := inv_pos.2 hAk
-  have hT9 : T ≤ 2 ^ 30 * T ^ 9 := by
-    have : T ≤ T ^ 9 := le_self_pow₀ hT1 (by norm_num)
+  have hT9 : T ≤ 2 ^ 4 * T ^ 5 := by
+    have : T ≤ T ^ 5 := le_self_pow₀ hT1 (by norm_num)
     linarith only [this, hT1]
-  have hT9p : 2 ^ 30 * T ^ 9 * (Ak)⁻¹ ≤ 1 := by
-    rw [← div_eq_mul_inv, div_le_one hAk]; exact hZ
   have hpow3 : ℓ ^ 4 * (1 + Real.log ℓ) * E + ℓ ^ 2 * (1 + Real.log ℓ) * E₂ + ℓ ^ 2 * E₃
       ≤ Ak := by
     rw [← hTd]; linarith only [hT9, hZ]
@@ -253,7 +249,7 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
     have e : {w : FreeMonoid α | prefixOf w 0 = 1} = Set.univ := by
       ext w; simp [prefixOf]
     rw [e, probReal_univ] at h1
-    have h9 : (1 : ℝ) ≤ T ^ 9 := one_le_pow₀ hT1
+    have h9 : (1 : ℝ) ≤ T ^ 5 := one_le_pow₀ hT1
     have hAk1 : 1 < Ak := by linarith only [h9, hZ]
     have := inv_lt_one_of_one_lt₀ hAk1
     linarith only [h1, this]
@@ -277,12 +273,9 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
     refine Real.log_le_log (by positivity) (div_le_div_of_nonneg_right ?_ hδ'0.le)
     nlinarith only [hlR₀, hQ0, mul_nonneg (by linarith only [hQ0] : (0 : ℝ) ≤ Q + 2) hlR₀]
   have hE₁ge := tol_E₁_ge (Q := Q) hR₀ hΘι1 hΘa1 hP₀1 hδ'0 hpAP hp1 hs0 hlgd hl hE₁d
-  have hPd0 : 0 ≤ (P₀ + 2) / δ' := div_nonneg (by linarith only [hP₀1]) hδ'0.le
-  obtain ⟨hQδ, hδT, hP₀E⟩ := tol_Qδ hQ0 hP₀1 hδ rfl hδ'1
+  obtain ⟨-, hδT, hP₀E⟩ := tol_Qδ hQ0 hP₀1 hδ rfl hδ'1
     (add_nonneg (mul_nonneg (by norm_num) (by linarith only [hR₀]))
       (mul_nonneg (by norm_num) hlgd)) hE₁ge hTE₁
-  have hk5' := tol_k5 hQ0 hRB0 hRB hR₀ hl2 hlgd hPd0 hE₁ge hTlE hT1 hQδ hδ rfl hδ'1 hε0
-    (hinvε.trans hTaℓ) hp₀0 hT9p rfl rfl rfl
   -- the family's misreads
   have hm0 : 0 ≤ max (Real.log (20 / τ)) (Real.log (8 * W / δ')) :=
     le_max_of_le_left (Real.log_nonneg (by rw [le_div_iff₀ hτ0]; linarith only [hτ1]))
@@ -326,8 +319,8 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
     linarith only [he, hec, hξT]
   obtain ⟨settings, hwalk, hbud, -, -, hlenT, hprob⟩ :=
     trie_loop_core M O L kw tcap η₀ c δ pAP ξ ξT c Ae Ak⁻¹ D
-      hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hkw1 hkw hc.le hlong hp₀0 hpre hpAPu h1 h2 hk3' h4
-      hk5' hk6' hξT'
+      hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hkw1 hkw hcapw hc.le hlong hp₀0 hpre hpAPu h1 h2 hk3'
+      h4 hk6' hξT'
   -- the caps' bounds, the prefix count at `ℓ² (1 + log ℓ) R₀`
   have hlg16 : 0 ≤ Real.log (16 * (Q + 2) / δ') :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hQ0])

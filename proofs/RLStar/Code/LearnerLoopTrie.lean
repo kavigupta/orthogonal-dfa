@@ -7,9 +7,9 @@ import RLStar.Code.TrieDFA
 `indecisiveLStarLoop` with level 3 run with local walk starts (`indecisiveLStarLevel3Trie`): each
 round clusters a suffix family over the populations so far, as there, and runs the round's probes
 from `D` off the clustering's keys at `walkStart` letters, each walked past the prefixes its round
-has expanded: every string shorter than `walkStart`, and walk starts shorter than `cap`. A harvest's sampler walks its fresh probes past its
-round's expanded prefixes; a probe that harvests a string the clusterings read or the population
-drew before has its walk start expanded for the population's later draws. The loop stops at the
+has expanded, every string shorter than `walkStart`. A harvest's sampler walks its fresh probes
+past its round's expanded prefixes; a probe that harvests a string the clusterings read has its walk
+start, if shorter than `cap`, expanded for the population's later draws. The loop stops at the
 first round that does not end in a harvest, and its DFA is that round's hypothesis with its
 expanded prefixes spelled out (`HypothesisDFA.TrieClassifies`).
 
@@ -18,6 +18,9 @@ does not make.
 
 Known modelling gap. The walk starts a population's draws expand are kept here for that round's
 draws only, where the Python keeps them in the harvested round for every later draw.
+
+Known modelling gap. The Python's harvest sampler also passes over strings the population drew
+before, expanding their walk starts; here, as in `indecisiveLStarLoop`, it may draw them again.
 -/
 
 noncomputable section
@@ -67,15 +70,15 @@ def trieHistOf (rounds : List (TrieLoopRound α)) : TrieLoopHist α :=
 
 open scoped Classical in
 /-- A harvested population's draws `l`, extended from the `l.length`-th batch `xs l.length` until
-`stop` holds of them or `M` more are drawn, each the first string harvested off `T` and `l`, past
-the expanded prefixes `X`; `none` if a batch finds none. -/
+`stop` holds of them or `M` more are drawn, each the first string harvested off `T`, past the
+expanded prefixes `X`; `none` if a batch finds none. -/
 noncomputable def trieTopUpQ (cap : ℕ) (s : TrieHarvestSampler α) (T : Finset (FreeMonoid α))
     (stop : List (FreeMonoid α) → Prop) (xs : ℕ → List (FreeMonoid α)) :
     ℕ → Finset (FreeMonoid α) → List (FreeMonoid α) →
       Query (FreeMonoid α) ARU (Option (List (FreeMonoid α)))
   | 0, _, l => .pure (some l)
   | M + 1, X, l => if stop l then .pure (some l) else
-    (Random.trieHarvestFirstQ cap s.hyp s.site (↑T ∪ {z | z ∈ l}) X (xs l.length)).bind fun
+    (Random.trieHarvestFirstQ cap s.hyp s.site ↑T X (xs l.length)).bind fun
     | (some z, X') => trieTopUpQ cap s T stop xs M X' (l ++ [z])
     | (none, _) => .pure none
 
@@ -125,7 +128,7 @@ def trieRoundQ {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
             ∧ x ∈ ret mq ps none settings.η₀ settings.indecisionLimit settings.εcov
               settings.gateLevel B
           let F := clusterAt mq ps x B
-          ((Random.level3TrieQ settings.level3 cap fun i =>
+          ((Random.level3TrieQ settings.level3 fun i =>
               drawFrom (avoidLaw D settings.level3.walkStart
                 (clusterKeys sched ps settings.level3.walkStart x)) (d.2 i)).subst
             (familyReadQ F B.lo (B.hi + 1))).map fun res =>
