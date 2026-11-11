@@ -192,7 +192,7 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     p₀ ≤ capP * ε / 1536 →
     1536 * Real.log (16 * (Q + 1) * Kc / δ') * p₀ ≤ ε →
     6 * J * RB * p₀ ≤ 1 / 2 →
-    16 * B₃ ^ 2 * p₀ ≤ δ' →
+    16 * B₃ ^ 2 * p₀ ≤ 1 →
     2 * ((⌊FV⌋₊ : ℝ) + 1) ^ 3 * (A ^ Ls + 1) ^ ⌊FV⌋₊ * Real.exp (-2 * t ^ 2 / p₀) ≤ δ / 8 →
     ε + ε / 96 + (1025 / 1024 + 3 / 8) * εcov + t ≤ ξT →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
@@ -273,7 +273,7 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     (by show 1 ≤ L + Fintype.card σ + 3; omega)
     hk0 hιL (hpm.trans hk1)
     ((mul_le_mul_of_nonneg_left hpm (mul_nonneg (by norm_num) hlogK)).trans hk2)
-    (((mul_le_mul_of_nonneg_left hpm (by positivity)).trans hk4).trans hδ'1'.le)
+    ((mul_le_mul_of_nonneg_left hpm (by positivity)).trans hk4)
   have hs0 : 0 < s := by show 0 < 1 / 2 - η₀; linarith
   have hs1 : s ≤ 1 / 2 := by show 1 / 2 - η₀ ≤ 1 / 2; linarith
   have hτ0 : 0 < τ := lt_min (mul_pos (div_pos hεc0 (by norm_num))
