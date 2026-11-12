@@ -10,12 +10,13 @@ from hashlib import blake2b
 from .mask_table import UNIFORM
 from .prefix_sources import UniformSource
 from .prefix_suffix_tracker import _distinct_prefixes
+from .rejection_source import SourceDry
 
 
 class PoolState:
     """The pool state carried across rounds: the initial uniform sample (kept in
     the representative set every round so global calibration stays anchored to the
-    sampling distribution even if the per-state sample is skewed), and the
+    sampling distribution even if the other populations are skewed), and the
     populations the rounds have made, with a ``seen`` set to dedup the boundary
     strings across them."""
 
@@ -115,18 +116,29 @@ def grow_population(pst, state, label) -> bool:
         return True
     source = state.sources.get(label)
     if not can_grow(state, label):
-        # Forgotten rather than held aside, so a later round that strands one
-        # of these again can pool it behind a source that does draw.
-        state.seen.difference_update(state.held.pop(label, ()))
-        state.seen.difference_update(state.reserves.pop(label, ()))
-        state.sources.pop(label, None)
-        pst.table.drop_population(label)
+        _retire(pst, state, label)
         return False
-    # As many as the uniform draw this stands in for adds.
-    drawn = state.split_draws(label, source, pst.config.num_addtl_prefixes)
+    try:
+        # As many as the uniform draw this stands in for adds.
+        drawn = state.split_draws(label, source, pst.config.num_addtl_prefixes)
+    except SourceDry:
+        if not source.retirable:
+            raise
+        print(f"  {label}'s source ran dry; retired")
+        _retire(pst, state, label)
+        return False
     state.held.setdefault(label, []).extend(drawn)
     pst.table.add_prefixes(sorted(set(drawn)), population=label)
     return True
+
+
+def _retire(pst, state, label) -> None:
+    # Forgotten rather than held aside, so a later round that strands one of
+    # these again can pool it behind a source that does draw.
+    state.seen.difference_update(state.held.pop(label, ()))
+    state.seen.difference_update(state.reserves.pop(label, ()))
+    state.sources.pop(label, None)
+    pst.table.drop_population(label)
 
 
 def population_labels(state) -> list:
@@ -138,7 +150,8 @@ def population_labels(state) -> list:
 def prefixes_for_split(pst, state, label, wanted: int) -> list:
     """Prefixes for one population, to read the split on and not to keep.
 
-    Empty where nothing draws for it, so the split goes ahead without it.
+    Fewer, or none, where its source is unproven or runs dry, so the split goes
+    ahead on what there is.
     """
     source = UniformSource(pst) if label == UNIFORM else state.sources.get(label)
     # Not proved here: proving costs a round's worth of probes, which the
@@ -159,8 +172,11 @@ def prefixes_for_split(pst, state, label, wanted: int) -> list:
     # Table-side draws are discarded: they are in no table.
     fresh = []
     tabled = state.tabled()
-    while len(taken) + len(fresh) < wanted:
-        string = source.draw()
-        if state.in_reserve(string) and string not in tabled:
-            fresh.append(string)
+    try:
+        while len(taken) + len(fresh) < wanted:
+            string = source.draw()
+            if state.in_reserve(string) and string not in tabled:
+                fresh.append(string)
+    except SourceDry:
+        pass
     return taken + sorted(fresh)

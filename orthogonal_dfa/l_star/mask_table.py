@@ -25,7 +25,6 @@ from .memoized_oracle import MemoizedOracle
 #: drops them share these rather than agreeing by spelling.
 UNIFORM = "uniform"
 BOUNDARY = "boundary"
-STATE = "state"
 
 # Sentinel for a not-yet-queried cell.  Private to this module: callers read
 # through ``observed_masks`` / ``column`` and never see it.
@@ -141,6 +140,10 @@ class MaskTable:
         self._masks.append(np.full(self.num_prefixes, UNOBSERVED, dtype=np.int8))
         self._suffix_index[v] = row
         return row
+
+    @property
+    def num_suffixes(self) -> int:
+        return len(self._suffixes)
 
     def contains_suffix(self, v: bytes) -> bool:
         return v in self._suffix_index

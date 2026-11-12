@@ -20,7 +20,7 @@ def warmed_draws(
     config, hypothesis = search.config, search.hypothesis
     block, done = 1, 0
     while done < config.max_probes:
-        version = hypothesis.version
+        version = (hypothesis.version, search.trie.version)
         until_success = next(
             (
                 more
@@ -34,7 +34,7 @@ def warmed_draws(
         with_ends = [
             (x, positions)
             for x in xs
-            for positions in [ends(hypothesis, config.k, x)]
+            for positions in [ends(hypothesis, search.walk_start(x), x)]
             if positions
         ]
         _warm(hypothesis, warm, [x[: positions[0]] for x, positions in with_ends])
@@ -54,7 +54,8 @@ def warmed_draws(
         )
         yield from xs
         done += size
-        block = min(2 * block, MAX_BLOCK) if hypothesis.version == version else 1
+        unchanged = (hypothesis.version, search.trie.version) == version
+        block = min(2 * block, MAX_BLOCK) if unchanged else 1
 
 
 def _warm(

@@ -7,7 +7,11 @@ import numpy as np
 from automata.fa.dfa import DFA
 from parameterized import parameterized
 
-from orthogonal_dfa.l_star.certificate import certifies, error_bound
+from orthogonal_dfa.l_star.certificate import (
+    certifies,
+    error_bound,
+    worst_contributions,
+)
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.learn import build_pst
 from orthogonal_dfa.l_star.sampler import UniformSampler
@@ -120,6 +124,16 @@ class TestErrorBound(unittest.TestCase):
         self.assertAlmostEqual(
             error_bound((masses, masses), (rates, rates), accepting, 0.4), 0.06 * 0.2
         )
+
+    def test_a_rare_state_read_at_an_extreme_does_not_stretch_the_band(self):
+        masses = np.array([0.5, 0.4999, 0.0001])
+        accepting = np.array([True, False, False])
+        read = np.array([0.7, 0.3, 0.0])
+        intervals = (np.array([0.69, 0.29, 0.0]), np.array([0.71, 0.31, 0.95]))
+        at_rates = worst_contributions(
+            (masses, masses), (read, read), intervals, accepting, 0.4
+        )
+        self.assertLess(at_rates.sum(), 0.01)
 
 
 def _pst(signal, length):

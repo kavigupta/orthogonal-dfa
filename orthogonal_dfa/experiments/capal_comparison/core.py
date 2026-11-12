@@ -36,10 +36,26 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
-from orthogonal_dfa.l_star.learn import learn_dfa
+from orthogonal_dfa.l_star.counterexample_synthesis import (
+    do_counterexample_driven_synthesis,
+)
+from orthogonal_dfa.l_star.learn import (
+    DEFAULT_ACC_THRESHOLD,
+    DEFAULT_SAMPLE_LENGTH,
+    build_pst,
+    learn_dfa,
+)
+from orthogonal_dfa.l_star.sampler import UniformSampler
+from orthogonal_dfa.l_star.tracker import SynthesisTracker
 
 #: Bump when the emitted record shape changes incompatibly.
 SCHEMA_VERSION = 5
+
+#: Accuracy at which a hypothesis counts as a success.
+SUCCESS_THRESHOLD = 0.95
+
+#: E-L*'s certificate targets the bar it is scored at.
+CERTIFIED_ERROR = 1 - SUCCESS_THRESHOLD
 
 #: Wall-clock a single cell may take. Neither learner has an internal bound on
 #: how long it searches, so without this one target stalls the whole sweep.
@@ -63,7 +79,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 
 #: Shared evaluation settings, for the word list both learners are scored on.
 EVAL_COUNT = 5000
-EVAL_MAX_LEN = 40
 EVAL_SEED = 0x1234
 
 
@@ -109,18 +124,13 @@ def eta_to_signal_strength(eta: float) -> float:
 # -- shared evaluation --------------------------------------------------------
 
 
-def eval_words(
-    symbols: int,
-    *,
-    count: int = EVAL_COUNT,
-    max_len: int = EVAL_MAX_LEN,
-    seed: int = EVAL_SEED,
-) -> List[List[int]]:
-    """The fixed word list every hypothesis is scored on, as symbol indices."""
-    rng = random.Random(seed)
+def eval_words(symbols: int) -> List[List[int]]:
+    """The fixed word list every hypothesis is scored on, as symbol indices: uniform
+    strings of E-L*'s probe length, the length its guarantee is stated at."""
+    rng = random.Random(EVAL_SEED)
     return [
-        [rng.randrange(symbols) for _ in range(rng.randint(1, max_len))]
-        for _ in range(count)
+        [rng.randrange(symbols) for _ in range(DEFAULT_SAMPLE_LENGTH)]
+        for _ in range(EVAL_COUNT)
     ]
 
 
@@ -317,9 +327,11 @@ def run_elstar_cell(
     symbols: int,
     words: Sequence[List[int]],
     truth: Callable[[List[int]], bool],
+    sample_length: int,
     target_states: Optional[int] = None,
     min_suffix_frequency: float = DEFAULT_MIN_SUFFIX_FREQUENCY,
     timeout: int = CELL_TIMEOUT_SECONDS,
+    tracker: SynthesisTracker = SynthesisTracker(),
 ) -> Cell:
     """Run this repo's E-L* on `oracle_creator` and score it identically."""
     from orthogonal_dfa.l_star.structures import Oracle
@@ -336,6 +348,8 @@ def run_elstar_cell(
         learner_config={
             "min_signal_strength": signal_strength,
             "min_suffix_frequency": min_suffix_frequency,
+            "sample_length": sample_length,
+            "certified_error": CERTIFIED_ERROR,
         },
         equivalence_queries=0,
     )
@@ -366,11 +380,16 @@ def run_elstar_cell(
         with time_limit(timeout), contextlib.redirect_stdout(
             io.StringIO()
         ), contextlib.redirect_stderr(io.StringIO()):
-            dfa = learn_dfa(
+            pst = build_pst(
                 counting_creator,
                 min_signal_strength=signal_strength,
                 seed=seed,
                 min_suffix_frequency=min_suffix_frequency,
+                sampler=UniformSampler(sample_length),
+            )
+            pst.config.certified_error = CERTIFIED_ERROR
+            dfa = do_counterexample_driven_synthesis(
+                pst, acc_threshold=DEFAULT_ACC_THRESHOLD, tracker=tracker
             )
     except CellTimeout:
         cell.error_type = "Timeout"

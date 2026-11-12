@@ -1,7 +1,7 @@
-"""One string probed against a hypothesis, as in ``OrthoDFA/Level5.lean``."""
+"""One string probed against a hypothesis, as in RLStar/Code/Level3.lean."""
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from .hypothesis_dfa import Edge, HypothesisDFA, Path
 from .tripartite_search import (
@@ -73,6 +73,8 @@ class Charges:
     ends: List[bytes]
     #: The ``ends`` that are stuck.
     stuck: List[bytes]
+    #: The ``ends`` read at the walk's start.
+    starts: List[bytes]
     middle: List[bytes]
     search_queries: int
 
@@ -102,8 +104,12 @@ def ends(hypothesis: HypothesisDFA, k: int, x: bytes) -> List[int]:
     return [k + unlearned_step + 1, k + unlearned_step]
 
 
-def locate(hypothesis: HypothesisDFA, k: int, x: bytes) -> Located:
-    """``probe`` of ``OrthoDFA/Probe.lean``, proved by ``ProbeCorrect``, with the positions it
+def plain_bisect(agrees, lo, hi):
+    return tripartite_search(agrees, lo, hi, recover=False)
+
+
+def locate(hypothesis: HypothesisDFA, k: int, x: bytes, *, bisect: Callable) -> Located:
+    """``probe`` of RLStar/Code/Probe.lean, proved by ``ProbeCorrect``, with the positions it
     sifted."""
     routes = {}
 
@@ -128,7 +134,7 @@ def locate(hypothesis: HypothesisDFA, k: int, x: bytes) -> Located:
         here = sift(i)[0]
         return None if here is None else here == walk[max(i - k, 0)]
 
-    found = tripartite_search(agrees, k, hi, recover=False)
+    found = bisect(agrees, k, hi)
     kind, j = found.kind, found.position
     if kind == UNDECIDED_LO:
         outcome = Start(sift(k)[1])
@@ -165,6 +171,7 @@ def charges(located: Located, k: int, x: bytes) -> Charges:
         undecided_by_edge=undecided_by_edge,
         ends=[outcome.undecided] if isinstance(outcome, (Start, End)) else [],
         stuck=[outcome.undecided] if isinstance(outcome, End) and outcome.stuck else [],
+        starts=[outcome.undecided] if isinstance(outcome, Start) else [],
         middle=[outcome.undecided] if isinstance(outcome, Middle) else [],
         search_queries=(
             located.search_queries if isinstance(outcome, (EdgeFound, Middle)) else 0

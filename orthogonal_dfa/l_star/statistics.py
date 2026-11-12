@@ -32,6 +32,7 @@ def binom_sf(k, n, p):
     return scipy.special.bdtrc(k, n, p)
 
 
+@functools.cache
 def population_size_and_evidence_margin(
     signal_strength, cross_limit, acceptable_fnr, *, center
 ) -> Tuple[int, float]:
@@ -71,10 +72,12 @@ def population_size_and_evidence_margin(
     return res
 
 
+@functools.cache
 def cross_limit_for_coverage_error(
-    signal_strength, acceptable_fnr, max_coverage_error, *, center
+    signal_strength, acceptable_fnr, max_coverage_error, *, center, at_most
 ):
-    """The loosest cross limit whose band holds ``max_coverage_error``.
+    """The loosest cross limit up to ``at_most`` whose band holds
+    ``max_coverage_error``.
 
     A side of the cut keeps its class while the share of it belonging to the other
     stays under ``(1 - eps/signal)/2``, since a prefix on the wrong side reads
@@ -85,15 +88,19 @@ def cross_limit_for_coverage_error(
     interval from zero and the largest is the one worth finding.
     """
     wanted = signal_strength * (1 - 2 * max_coverage_error)
-    if wanted <= 0:
-        return 1.0
+
+    def holds(limit):
+        _, eps = population_size_and_evidence_margin(
+            signal_strength, limit, acceptable_fnr, center=center
+        )
+        return eps >= wanted
+
+    if wanted <= 0 or holds(at_most):
+        return at_most
     low, high = -30.0, 0.0
     for _ in range(24):
         mid = (low + high) / 2
-        _, eps = population_size_and_evidence_margin(
-            signal_strength, 10**mid, acceptable_fnr, center=center
-        )
-        low, high = (mid, high) if eps >= wanted else (low, mid)
+        low, high = (mid, high) if holds(10**mid) else (low, mid)
     # A band this wide leaves the class it is meant to admit inside it, so no
     # limit buys one: the undecided rate has to give first.
     assert low > -30, (
@@ -179,18 +186,36 @@ def evidence_margin_for_population_size(
     return None
 
 
+@functools.lru_cache(maxsize=4)
+def _rate_tables(accept_rate, reject_rate, size):
+    """P(Y = k), P(Z <= k) and P(Z >= k) as three arrays, each indexed `[n, k]` for
+    `n, k < size`, where Y ~ Bin(n, accept_rate) and Z ~ Bin(n, reject_rate)."""
+    n, count = np.tril_indices(size)
+    y_pmf = np.zeros((size, size))
+    y_pmf[n, count] = scipy.stats.binom.pmf(count, n, accept_rate)
+    z_pmf = np.zeros((size, size))
+    z_pmf[n, count] = scipy.stats.binom.pmf(count, n, reject_rate)
+    z_le = np.cumsum(z_pmf, axis=1)
+    z_ge = np.cumsum(z_pmf[:, ::-1], axis=1)[:, ::-1]
+    return y_pmf, z_le, z_ge
+
+
 @functools.lru_cache(maxsize=8)
 def _vote_parts(N, accept_rate, reject_rate):
     """P(Y = k), P(Z <= k) and P(Z >= k) as three arrays, each indexed `[a, k]` for a
     state from which `a` of the `N` suffixes lead into the language, where Y and Z
     count the accept votes among those `a` suffixes and among the other `N - a`."""
-    a = np.arange(N + 1)[:, None]
-    count = np.arange(N + 1)[None, :]
-    y_pmf = scipy.stats.binom.pmf(count, a, accept_rate)
-    z_pmf = scipy.stats.binom.pmf(count, N - a, reject_rate)
-    z_le = np.cumsum(z_pmf, axis=1)
-    z_ge = np.cumsum(z_pmf[:, ::-1], axis=1)[:, ::-1]
-    return y_pmf, z_le, z_ge
+    # Sizes round up to a power of two so the searches over N share tables.
+    y_pmf, z_le, z_ge = _rate_tables(accept_rate, reject_rate, 1 << N.bit_length())
+    # Gathers from strided views are several times slower than from copies.
+    return tuple(
+        np.ascontiguousarray(part)
+        for part in (
+            y_pmf[: N + 1, : N + 1],
+            z_le[N::-1, : N + 1],
+            z_ge[N::-1, : N + 1],
+        )
+    )
 
 
 def reads_minority_bounded(
@@ -202,7 +227,7 @@ def reads_minority_bounded(
     or undecided at least a third with accept or reject at most `minority_limit`; and
     is on its rarer decided side at most `limit`, or at most `ratio` times as often as
     it is undecided.
-    `BandPasses` in proofs/OrthoDFA/FamilyRead.lean.
+    `BandPasses` in proofs/RLStar/LowLevelClaims/FamilyRead.lean.
 
     `evidence_margin_for_population_size`'s other two criteria imply neither half:
     a mean just inside the band at a small count can sit at or below `k_low` more
@@ -293,7 +318,7 @@ def denoise_sample_size(
 
 
 def seq_rate(p0, p1, level, trials, hits) -> bool:
-    """``seqRate`` of ``OrthoDFA/SeqTest.lean``, proved sound by ``SeqRateSound``: whether the
+    """``seqRate`` of RLStar/Code/SeqTest.lean, proved sound by ``SeqRateSound``: whether the
     likelihood ratio of rate ``p1`` against ``p0`` reaches ``1 / level``,
 
         (p1 / p0)^hits ((1 - p1) / (1 - p0))^(trials - hits) >= 1 / level.
@@ -312,7 +337,7 @@ def seq_rate(p0, p1, level, trials, hits) -> bool:
 
 
 def rate_side(theta, level, min_samples, trials, hits) -> Optional[bool]:
-    """``rateSide θ a n₀ n h`` of ``OrthoDFA/RateTest.lean``, proved sound by
+    """``rateSide θ a n₀ n h`` of RLStar/Code/RateTest.lean, proved sound by
     ``RateTestSound``: ``True`` where ``P(Bin(trials, θ) ≥ hits) < level``, ``False``
     where ``P(Bin(trials, θ) ≤ hits) < level``, and ``None`` otherwise or before
     ``min_samples`` trials."""

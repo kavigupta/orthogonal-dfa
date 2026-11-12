@@ -84,6 +84,9 @@ def build_counted_pattern() -> DFA:
 
 
 class TestCountedPattern(unittest.TestCase):
+    """Its harvests repeat a few short strings, so its rounds spell out walk starts
+    and their boundary sources can run dry (``HarvestSource.retirable``)."""
+
     def test_admitted(self):
         report = P.satisfies_preconditions(
             build_counted_pattern(), length=DEFAULT_SAMPLER.length, short_circuit=False

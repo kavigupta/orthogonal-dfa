@@ -7,16 +7,20 @@ cell; only the final flush marks the file `complete`.
 
 from __future__ import annotations
 
+import functools
 import itertools
 import json
+import multiprocessing
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Sequence
 
+from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH
 from orthogonal_dfa.l_star.preconditions import PreconditionReport
 
 from .benchmark import Benchmark
 from .core import (
+    CERTIFIED_ERROR,
     LEARNER_CAPAL,
     LEARNER_ELSTAR,
     REPO_ROOT,
@@ -85,6 +89,7 @@ def run_cell(
             symbols=b.symbols,
             words=words,
             truth=truth,
+            sample_length=DEFAULT_SAMPLE_LENGTH,
             target_states=b.target_states,
         )
     # Outside E-L*'s designed regime: this repo's own benchmark generator would
@@ -116,16 +121,20 @@ def describe(cell: Cell) -> str:
     )
 
 
-def reusable_cells(out_path: Path) -> Dict[tuple, dict]:
+def cell_key(cell: dict) -> tuple:
+    return (cell["benchmark"], cell["learner"], cell["eta"], cell["seed"])
+
+
+def reusable_cells(out_path: Path, key: Callable[[dict], tuple]) -> Dict[tuple, dict]:
     """Cells from an earlier run of this experiment, keyed by identity.
 
     A cell is written only once it has finished, so a crashed run's cells are
     reusable too -- `complete` says whether the sweep as a whole got there, not
     whether an individual cell is sound.
 
-    Reuse is keyed on identity alone, so it cannot notice that the *learner*
-    changed underneath it. Delete the JSON after touching anything that moves
-    the numbers.
+    Reuse is keyed on identity, and on CERTIFIED_ERROR for E-L* cells that ran, so
+    it cannot notice that the *learner* changed underneath it. Delete the JSON
+    after touching anything else that moves the numbers.
     """
     if not out_path.exists():
         return {}
@@ -138,14 +147,40 @@ def reusable_cells(out_path: Path) -> Dict[tuple, dict]:
         )
         return {}
     return {
-        (c["benchmark"], c["learner"], c["eta"], c["seed"]): c
+        key(c): c
         for c in payload.get("cells", [])
+        if c["learner"] != LEARNER_ELSTAR
+        or c["error_type"] == "ExcludedOutOfRegime"
+        or c["learner_config"].get("certified_error") == CERTIFIED_ERROR
     }
 
 
+@functools.cache
+def _benchmarks(
+    build_benchmarks: Callable[[], Sequence[Benchmark]],
+) -> Dict[str, Benchmark]:
+    return {b.name: b for b in build_benchmarks()}
+
+
+def _run_cell(args: tuple) -> Cell:
+    build_benchmarks, name, learner, eta, seed, regime = args
+    b = _benchmarks(build_benchmarks)[name]
+    return run_cell(
+        b,
+        learner=learner,
+        eta=eta,
+        seed=seed,
+        words=eval_words(b.symbols),
+        truth=b.truth(),
+        regime=regime,
+    )
+
+
 def run_sweep(
-    benchmarks: Sequence[Benchmark],
+    names: Sequence[str],
+    build_benchmarks: Callable[[], Sequence[Benchmark]],
     *,
+    processes: int,
     experiment: str,
     description: str,
     generated_by: str,
@@ -154,49 +189,35 @@ def run_sweep(
     `data/capal/<experiment>.json`.
 
     Cells already present in that file are reused rather than re-run, so an
-    interrupted sweep resumes and an unchanged one is nearly free.
+    interrupted sweep resumes. `build_benchmarks`, which needs the CAPAL checkout,
+    is not called if no cell is missing.
     """
     out_path = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
+    previous = reusable_cells(out_path, cell_key)
+    grid = [
+        (n, learner, eta, seed)
+        for n in names
+        for eta, seed, learner in itertools.product(ETAS, SEEDS, LEARNERS)
+    ]
+    missing = [k for k in grid if k not in previous]
+    if not missing:
+        print(f"{out_path} has every cell; nothing to run.", flush=True)
+        return out_path
+
+    benchmarks = _benchmarks(build_benchmarks)
+    assert list(benchmarks) == list(names)
+    regime = {n: b.regime_report() for n, b in benchmarks.items()}
     config = {
         "etas": list(ETAS),
         "seeds": list(SEEDS),
         "learners": list(LEARNERS),
-        "benchmarks": [b.name for b in benchmarks],
+        "benchmarks": list(names),
+        "elstar_regime": {n: asdict(r) for n, r in regime.items()},
+        "elstar_regime_source": (
+            "orthogonal_dfa/l_star/preconditions.py "
+            "(satisfies_preconditions, default thresholds)"
+        ),
     }
-
-    previous = reusable_cells(out_path)
-    if previous:
-        print(f"Reusing up to {len(previous)} cells from {out_path}.", flush=True)
-
-    total = len(benchmarks) * len(ETAS) * len(SEEDS) * len(LEARNERS)
-    cells: List[Cell] = []
-    done = 0
-
-    def flush(complete: bool = False) -> None:
-        # Until the sweep finishes, carry the cells it has not reached yet:
-        # this file is their only copy. The final write is the grid alone.
-        done_keys = {(c.benchmark, c.learner, c.eta, c.seed) for c in cells}
-        carried = (
-            []
-            if complete
-            else [Cell(**c) for k, c in previous.items() if k not in done_keys]
-        )
-        write_experiment(
-            out_path,
-            experiment=experiment,
-            generated_by=generated_by,
-            description=description,
-            config=config,
-            cells=[*cells, *carried],
-            complete=complete,
-        )
-
-    regime = {b.name: b.regime_report() for b in benchmarks}
-    config["elstar_regime"] = {n: asdict(r) for n, r in regime.items()}
-    config["elstar_regime_source"] = (
-        "orthogonal_dfa/l_star/preconditions.py "
-        "(satisfies_preconditions, default thresholds)"
-    )
     excluded = [n for n, r in regime.items() if not r.satisfied]
     if excluded:
         print(
@@ -204,36 +225,34 @@ def run_sweep(
             f"(outside its designed regime): {', '.join(excluded)}",
             flush=True,
         )
+    print(f"Reusing {len(grid) - len(missing)} of {len(grid)} cells.", flush=True)
 
-    for b in benchmarks:
-        words = eval_words(b.symbols)
-        truth = b.truth()
-        for eta, seed, learner in itertools.product(ETAS, SEEDS, LEARNERS):
-            done += 1
+    # Until the final write, which is the grid alone, carry saved cells outside the
+    # grid: this file is their only copy.
+    cells = {k: Cell(**c) for k, c in previous.items()}
+
+    def write(keys: Sequence[tuple], complete: bool) -> None:
+        write_experiment(
+            out_path,
+            experiment=experiment,
+            generated_by=generated_by,
+            description=description,
+            config=config,
+            cells=[cells[k] for k in keys],
+            complete=complete,
+        )
+
+    tasks = [(build_benchmarks, *k, regime[k[0]]) for k in missing]
+    with multiprocessing.Pool(processes) as pool:
+        for i, cell in enumerate(pool.imap_unordered(_run_cell, tasks), start=1):
+            cells[(cell.benchmark, cell.learner, cell.eta, cell.seed)] = cell
             print(
-                f"[{done}/{total}] {b.name} eta={eta:.2f} seed={seed} {learner}",
+                f"[{i}/{len(tasks)}] {cell.benchmark} eta={cell.eta:.2f} "
+                f"seed={cell.seed} {cell.learner}\n" + describe(cell),
                 flush=True,
             )
-            cached = previous.get((b.name, learner, eta, seed))
-            # An exclusion is free to redo, and reusing one would outlive the
-            # preconditions that produced it.
-            if cached is not None and cached.get("error_type") != "ExcludedOutOfRegime":
-                cell = Cell(**cached)
-                print(describe(cell) + "  [reused]", flush=True)
-            else:
-                cell = run_cell(
-                    b,
-                    learner=learner,
-                    eta=eta,
-                    seed=seed,
-                    words=words,
-                    truth=truth,
-                    regime=regime[b.name],
-                )
-                print(describe(cell), flush=True)
-            cells.append(cell)
-            flush()
+            write(list(cells), complete=False)
 
-    flush(complete=True)
-    print(f"\nWrote {out_path} ({len(cells)} cells)")
+    write(grid, complete=True)
+    print(f"\nWrote {out_path} ({len(grid)} cells)")
     return out_path

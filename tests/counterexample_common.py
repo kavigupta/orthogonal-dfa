@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.counterexample_search import CounterexampleSearch
+from orthogonal_dfa.l_star.fallbacks.members import MemberFallback
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 
 EVEN, ODD = (False,), (True,)
@@ -41,7 +42,6 @@ def _constant(value):
 def quiet_config(**changes):
     """What the round reads of a config, set so no test fires."""
     quiet = {
-        "k": 0,
         "ends_rate": 1.0,
         "ends_alternative": 1.0,
         "stuck_rate": 1.0,
@@ -65,7 +65,14 @@ def quiet_config(**changes):
     return SimpleNamespace(**config)
 
 
-def quiet_search(cut, edges, **changes):
-    search = CounterexampleSearch(quiet_config(**changes), cut, MidfixTree([]))
+def quiet_search(cut, edges, *, max_k=0, members=None, score_patience=None, **changes):
+    search = CounterexampleSearch(
+        quiet_config(**changes),
+        cut,
+        MidfixTree([]),
+        max_k=max_k,
+        member_fallback=None if members is None else MemberFallback(members),
+        score_patience=score_patience,
+    )
     search.hypothesis.edges = dict(edges)
     return search

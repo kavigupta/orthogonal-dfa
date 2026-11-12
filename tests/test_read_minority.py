@@ -1,15 +1,19 @@
 import unittest
 
+import numpy as np
+import scipy.stats
+
 from orthogonal_dfa.l_star.statistics import (
     MINORITY_READ_LIMIT,
     MINORITY_UNDECIDED_RATIO,
+    _vote_parts,
     evidence_margin_for_population_size,
     population_size_and_evidence_margin,
     reads_minority_bounded,
 )
 
 #: `selection_not_trichotomy` and `selection_not_minority_bounded` in
-#: proofs/OrthoDFA/OrthoDFA/Proofs/FamilyRead.lean: at each center and signal the cross
+#: proofs/RLStar/Proofs/FamilyRead.lean: at each center and signal the cross
 #: and FNR criteria alone pick a band that fails one half of the check.
 TRICHOTOMY_CASE = dict(
     center=17 / 30, signal=17 / 30 - 67 / 500, cross_limit=(2 / 15) ** 15 * (1 + 1e-7)
@@ -58,6 +62,25 @@ class TestReadMinority(unittest.TestCase):
                 ],
                 size,
             )
+
+    def test_vote_parts_match_direct_tables(self):
+        # The second pair shares its table with N = 37; the third has a zero
+        # off-language rate.
+        for N, accept_rate, reject_rate in (
+            (37, 0.8, 0.3),
+            (40, 0.8, 0.3),
+            (5, 0.6, 0),
+        ):
+            a = np.arange(N + 1)[:, None]
+            count = np.arange(N + 1)[None, :]
+            z_pmf = scipy.stats.binom.pmf(count, N - a, reject_rate)
+            direct = (
+                scipy.stats.binom.pmf(count, a, accept_rate),
+                np.cumsum(z_pmf, axis=1),
+                np.cumsum(z_pmf[:, ::-1], axis=1)[:, ::-1],
+            )
+            for got, want in zip(_vote_parts(N, accept_rate, reject_rate), direct):
+                np.testing.assert_array_equal(got, want)
 
     @staticmethod
     def _passes(k_low, k_high, N, *, center, signal, cross_limit):

@@ -1,9 +1,86 @@
+import math
+from collections import Counter
+
+import numpy as np
+
+
 def states_intermediate(s0, y, dfa):
     states = [s0]
     for symbol in y:
         s_next = dfa.transitions[states[-1]][symbol]
         states.append(s_next)
     return states
+
+
+def dfa_table(dfa):
+    states = sorted(dfa.states, key=str)
+    index = {q: i for i, q in enumerate(states)}
+    symbols = sorted(dfa.input_symbols)
+    return dict(
+        transitions=[[index[dfa.transitions[q][c]] for c in symbols] for q in states],
+        start=index[dfa.initial_state],
+        accepting=[int(q in dfa.final_states) for q in states],
+    )
+
+
+def table_end_states(transitions, start, strings):
+    """End state of each row of ``strings``, an array of equal-length symbol strings."""
+    q = np.full(len(strings), start)
+    for t in range(strings.shape[1]):
+        q = transitions[q, strings[:, t]]
+    return q
+
+
+def labelled_sample(oracle, sampler, alphabet_size, n, rng):
+    """``n`` sampled strings and the oracle's 0/1 label for each."""
+    strings = [sampler.sample(rng, alphabet_size) for _ in range(n)]
+    return strings, np.asarray(oracle.membership_queries(strings), dtype=float)
+
+
+def phi_maximizing_states(counts, accepts):
+    """The states whose acceptance maximizes phi with the labels, where ``counts[s]``
+    strings end in state ``s`` and ``accepts[s]`` of them are accepted; none when no set
+    scores above 0."""
+    n, k = sum(counts.values()), sum(accepts.values())
+    if k in (0, n):
+        return set()
+    rate = k / n
+    # The best set is always the states above some accept rate.
+    order = sorted(counts, key=lambda s: accepts[s] / counts[s], reverse=True)
+    best, best_phi, mass, cov = set(), 0.0, 0.0, 0.0
+    for i, state in enumerate(order[:-1]):
+        mass += counts[state] / n
+        cov += (accepts[state] - rate * counts[state]) / n
+        phi = cov / math.sqrt(mass * (1 - mass) * rate * (1 - rate))
+        if phi > best_phi:
+            best, best_phi = set(order[: i + 1]), phi
+    return best
+
+
+def above_rate_states(counts, accepts):
+    """The states whose strings are accepted more often than the strings overall."""
+    rate = sum(accepts.values()) / sum(counts.values())
+    return {s for s in counts if accepts[s] > rate * counts[s]}
+
+
+def held_out_phi(dfa, fit, read) -> float:
+    """corr between ``read``'s labels and the DFA's verdicts on its strings, where the
+    accepting states are ``phi_maximizing_states`` on ``fit``; the DFA's own accepting
+    states are ignored."""
+
+    def ends(strings):
+        return [states_intermediate(dfa.initial_state, w, dfa)[-1] for w in strings]
+
+    (fit_strings, fit_labels), (read_strings, read_labels) = fit, read
+    total, count = Counter(), Counter()
+    for state, label in zip(ends(fit_strings), fit_labels):
+        total[state] += label
+        count[state] += 1
+    accepting = phi_maximizing_states(count, total)
+    verdicts = np.array([s in accepting for s in ends(read_strings)], dtype=float)
+    if verdicts.std() == 0 or np.std(read_labels) == 0:
+        return 0.0
+    return float(np.corrcoef(verdicts, read_labels)[0, 1])
 
 
 def uniform_weights(dfa):

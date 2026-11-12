@@ -1,7 +1,7 @@
 """Benchmark family 1: this repo's own oracles, ported for CAPAL.
 
-The oracle is the source of truth; `build_modulo_dfa` / `build_regex_dfa` port
-it to an upstream `capal.DFA` denoting the same language.
+The oracle is the source of truth; `build_modulo_dfa` / `build_regex_dfa` /
+`from_automata_dfa` port it to an upstream `capal.DFA` denoting the same language.
 
 These are this repo's own test set, so E-L* is in regime on all of them. That is
 selection, not a result: a comparison drawn only from this family is drawn on
@@ -12,10 +12,25 @@ from __future__ import annotations
 
 from typing import List
 
-from orthogonal_dfa.capal_official import build_modulo_dfa, build_regex_dfa
+from orthogonal_dfa.capal_official import (
+    build_modulo_dfa,
+    build_regex_dfa,
+    from_automata_dfa,
+)
 from orthogonal_dfa.l_star.structures import NoisyOracle
 
 from .benchmark import FAMILY_OURS, Benchmark
+
+OUR_BENCHMARK_NAMES = [
+    "parity_mod9_allowed_3_6",
+    "regex_subseq_1010101",
+    "regex_two_1111",
+    "regex_alt_1111_or_0000_11_3sym",
+    "regex_alt_111_or_000_3sym",
+    "regex_prefix_1111",
+    "binary_divisible_by_5",
+    "prefix_majority_5",
+]
 
 
 def our_benchmarks() -> List[Benchmark]:
@@ -23,6 +38,8 @@ def our_benchmarks() -> List[Benchmark]:
     from orthogonal_dfa.l_star.examples.bernoulli_parity import (
         BernoulliParityOracle,
         BernoulliRegex,
+        BinaryDivisibleOracle,
+        PrefixMajorityOracle,
     )
 
     def regex_case(name: str, regex: str, symbols: int = 2) -> Benchmark:
@@ -41,6 +58,18 @@ def our_benchmarks() -> List[Benchmark]:
             target_states=target.num_states,
         )
 
+    def oracle_case(name: str, oracle) -> Benchmark:
+        target = from_automata_dfa(oracle.target_dfa())
+        return Benchmark(
+            name=name,
+            family=FAMILY_OURS,
+            target=target,
+            oracle_creator=lambda nm, s, _o=oracle: NoisyOracle(_o, nm, s),
+            alphabet=list(target.alphabet),
+            symbols=oracle.alphabet_size,
+            target_states=target.num_states,
+        )
+
     modulo_target = build_modulo_dfa(9, (3, 6))
     return [
         Benchmark(
@@ -56,6 +85,9 @@ def our_benchmarks() -> List[Benchmark]:
         ),
         regex_case("regex_subseq_1010101", r".*1010101.*"),
         regex_case("regex_two_1111", r".*1111.*1111.*"),
-        regex_case("regex_alt_1111_or_0000_11", r".*(1111|0000)11.*"),
+        regex_case("regex_alt_1111_or_0000_11_3sym", r".*(1111|0000)11.*", symbols=3),
         regex_case("regex_alt_111_or_000_3sym", r".*(111|000).*", symbols=3),
+        regex_case("regex_prefix_1111", r"1111.*"),
+        oracle_case("binary_divisible_by_5", BinaryDivisibleOracle(modulo=5)),
+        oracle_case("prefix_majority_5", PrefixMajorityOracle(prefix_length=5)),
     ]

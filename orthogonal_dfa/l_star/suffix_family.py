@@ -7,6 +7,8 @@ mean lands decisively past a threshold.
 
 from typing import Dict, List, Optional
 
+from .sequential_decide import sequential_decisions
+
 
 class SuffixFamily:
     """The round's suffixes ``vs`` (rows into ``pst.table``)."""
@@ -17,28 +19,25 @@ class SuffixFamily:
         # A later round moves pst's boundary; this round's tree was cut at these.
         self.accept_thresh = pst.accept_thresh
         self.reject_thresh = pst.reject_thresh
-        self._means: Dict[bytes, float] = {}
+        self._sides: Dict[bytes, Optional[bool]] = {}
 
     def read_many(self, bases) -> None:
-        """Every base's mean, in one call to the memo."""
-        new = [base for base in dict.fromkeys(bases) if base not in self._means]
+        """Every base's side, each read only as far as it takes to settle."""
+        new = [base for base in dict.fromkeys(bases) if base not in self._sides]
         if not new:
             return
         table = self.pst.table
-        bits = table.memo.membership_queries(
-            [base + table.suffix(v) for base in new for v in self.vs]
+        sides = sequential_decisions(
+            new,
+            [table.suffix(v) for v in self.vs],
+            table.memo.membership_queries,
+            accept=self.accept_thresh,
+            reject=self.reject_thresh,
         )
-        size = len(self.vs)
-        for i, base in enumerate(new):
-            self._means[base] = sum(bits[i * size : (i + 1) * size]) / size
+        self._sides.update(zip(new, sides))
 
     def is_accept(self, seq, midfix) -> Optional[bool]:
         """``None`` in the band between the thresholds."""
         base = seq + midfix
         self.read_many([base])
-        mean = self._means[base]
-        if mean >= self.accept_thresh:
-            return True
-        if mean < self.reject_thresh:
-            return False
-        return None
+        return self._sides[base]

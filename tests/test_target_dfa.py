@@ -6,15 +6,15 @@ import numpy as np
 from automata.fa.dfa import DFA
 from parameterized import parameterized
 
-from orthogonal_dfa.l_star.examples.benchmark_generator import (
-    DFAOracle,
-    sample_random_dfa,
-)
+from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     AllFramesClosedOracle,
     BernoulliParityOracle,
     BernoulliRegex,
+    BinaryDivisibleOracle,
+    PrefixMajorityOracle,
 )
+from orthogonal_dfa.l_star.examples.random_dfa import sample_random_dfa
 from orthogonal_dfa.l_star.examples.spliceai_oracle import SpliceModelOracle
 from orthogonal_dfa.l_star.structures import NoisyOracle, SymmetricBernoulli
 
@@ -37,6 +37,10 @@ def _oracles():
     yield "regex_dead_end", NoisyOracle(BernoulliRegex(regex=r"1*"), NOISELESS, 0)
     yield "regex_three_symbols", NoisyOracle(
         BernoulliRegex(regex=r".*(111|000).*", alphabet_size=3), NOISELESS, 0
+    )
+    yield "binary_divisible", NoisyOracle(BinaryDivisibleOracle(modulo=5), NOISELESS, 0)
+    yield "prefix_majority", NoisyOracle(
+        PrefixMajorityOracle(prefix_length=5), NOISELESS, 0
     )
     yield "all_frames_closed", NoisyOracle(AllFramesClosedOracle(), NOISELESS, 0)
     yield "dfa_backed", NoisyOracle(

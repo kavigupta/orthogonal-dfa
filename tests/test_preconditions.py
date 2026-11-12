@@ -1,7 +1,9 @@
 # pylint: disable=duplicate-code
 import unittest
+from dataclasses import dataclass
 
 from automata.fa.dfa import DFA
+from parameterized import parameterized
 
 from orthogonal_dfa.l_star import preconditions as P
 from orthogonal_dfa.l_star.sampler import Sampler, UniformSampler
@@ -15,44 +17,6 @@ MOD3 = DFA(
     final_states={1},
     allow_partial=False,
 )
-
-# {w : |w| >= 3 and w[2] == 0}: states 0,1,2 are transient (issue #128), 3/4 are
-# absorbing sinks. No fixed-length string ends in 0/1/2.
-DIFFICULT09 = DFA(
-    states={0, 1, 2, 3, 4},
-    input_symbols={0, 1},
-    transitions={
-        0: {0: 1, 1: 1},
-        1: {0: 2, 1: 2},
-        2: {0: 3, 1: 4},
-        3: {0: 3, 1: 3},
-        4: {0: 4, 1: 4},
-    },
-    initial_state=0,
-    final_states={3},
-    allow_partial=False,
-)
-
-# The [336] false positive: every state is on a cycle (structurally recurrent),
-# yet length-40 strings only ever end in {1,3,4} -- states 0 and 2 get zero
-# prefix mass, so they are uncovered. The old infinite-reachability check
-# admitted this (ceiling 1.0) but E-L* only reaches ~0.75; the covered-accuracy
-# ceiling catches it. Guards against reintroducing the structural check.
-RECURRENT_BUT_UNCOVERED = DFA(
-    states={0, 1, 2, 3, 4},
-    input_symbols={0, 1},
-    transitions={
-        0: {0: 3, 1: 2},
-        1: {0: 3, 1: 4},
-        2: {0: 0, 1: 0},
-        3: {0: 1, 1: 4},
-        4: {0: 4, 1: 1},
-    },
-    initial_state=0,
-    final_states={4},
-    allow_partial=False,
-)
-
 
 # Counts 1s mod 9 and accepts one residue: strongly connected and learnable,
 # but only ~13% of length-40 strings are accepted, so a balance requirement on
@@ -127,35 +91,12 @@ class TestMeasures(unittest.TestCase):
         self.assertTrue(0.0 <= frac <= 1.0)
 
 
-class TestCoverability(unittest.TestCase):
-    def test_covered_states_strongly_connected(self):
-        # MOD3 is strongly connected and balanced: every state is a length-40
-        # endpoint often enough to be built.
-        self.assertEqual(
-            P.covered_states(MOD3, length=40, num_samples=500), set(MOD3.states)
-        )
-
-    def test_covered_states_excludes_transient(self):
-        # DIFFICULT09: length-40 strings only ever reach the two absorbing sinks.
-        self.assertEqual(
-            P.covered_states(DIFFICULT09, length=40, num_samples=500), {3, 4}
-        )
-
-    def test_covered_states_excludes_recurrent_but_uncovered(self):
-        # Structurally every state is on a cycle, but 0 and 2 get no length-40
-        # prefix mass -- the distinction structural reachability would miss.
-        self.assertEqual(
-            P.covered_states(RECURRENT_BUT_UNCOVERED, length=40, num_samples=1000),
-            {1, 3, 4},
-        )
-
-
 class TestSatisfiesPreconditions(unittest.TestCase):
     def test_balanced_target_passes(self):
         self.assertTrue(P.satisfies_preconditions(MOD3, length=40))
 
     def test_degenerate_acceptance_rate_fails(self):
-        # The other two checks pass a constant language trivially, so the
+        # The class-preserving check passes a constant language trivially, so the
         # acceptance rate is the only one that can reject it.
         for finals in ({0}, set()):
             report = P.satisfies_preconditions(_constant_dfa(finals), length=40)
@@ -178,26 +119,6 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         report = P.satisfies_preconditions(TOO_FEW_CLASS_PRESERVING, length=40)
         self.assertFalse(report)
         self.assertIn("class-preserving", report.reasons[0])
-
-    def test_ceiling_catches_transient_states(self):
-        # Difficult09 is non-degenerate and class-preserving, so only the
-        # covered-accuracy ceiling catches it: the decision lives in transient
-        # states.
-        self.assertNotIn(P.acceptance_rate(DIFFICULT09, length=40), (0.0, 1.0))
-        self.assertGreaterEqual(
-            P.class_preserving_fraction(DIFFICULT09, length=40), 0.05
-        )
-        self.assertLess(P.covered_accuracy_ceiling(DIFFICULT09, length=40), 0.99)
-        self.assertFalse(P.satisfies_preconditions(DIFFICULT09, length=40))
-
-    def test_ceiling_catches_recurrent_but_uncovered_states(self):
-        # The [336] regression: structural reachability admitted it (all states
-        # on cycles) but the decision lives in an uncovered state, so E-L* is
-        # capped well below 1.0 and the ceiling must reject it.
-        self.assertLess(
-            P.covered_accuracy_ceiling(RECURRENT_BUT_UNCOVERED, length=40), 0.99
-        )
-        self.assertFalse(P.satisfies_preconditions(RECURRENT_BUT_UNCOVERED, length=40))
 
 
 class _ZeroRunSampler(Sampler):
@@ -232,6 +153,34 @@ class TestSampler(unittest.TestCase):
     def test_length_mismatch_asserts(self):
         with self.assertRaises(AssertionError):
             P.satisfies_preconditions(MOD3, length=40, sampler=UniformSampler(15))
+
+
+@dataclass(frozen=True)
+class _SampledUniform(UniformSampler):
+    """Uniform, but not by type, so the conditions are sampled rather than exact."""
+
+
+class TestExactMatchesSampled(unittest.TestCase):
+    @parameterized.expand(
+        [
+            ("mod3", MOD3),
+            ("mod9_skewed", MOD9_SKEWED),
+            ("marginal_cp", MARGINAL_CLASS_PRESERVING),
+            ("too_few_cp", TOO_FEW_CLASS_PRESERVING),
+        ]
+    )
+    def test_exact_matches_sampled(self, _name, dfa):
+        exact = P.satisfies_preconditions(dfa, length=40, short_circuit=False)
+        sampled = P.satisfies_preconditions(
+            dfa, length=40, short_circuit=False, sampler=_SampledUniform(40)
+        )
+        self.assertEqual(bool(exact), bool(sampled))
+        self.assertEqual(exact.unvisited_states, sampled.unvisited_states)
+        for field in ("acceptance_rate", "class_preserving_fraction"):
+            # 4 standard deviations of a proportion over 2000 samples
+            self.assertAlmostEqual(
+                getattr(exact, field), getattr(sampled, field), delta=0.045
+            )
 
 
 if __name__ == "__main__":
