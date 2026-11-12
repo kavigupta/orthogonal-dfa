@@ -168,12 +168,13 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
     let W : ℝ := max (2 * Real.exp 2 * Wm) 1
-    let PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
+    let PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28)
+        / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     let RB : ℝ := 2 ^ 22 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
       + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
     let capP : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
-          (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
+          (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
         (ι / 2 / (8 * J * (RB + 1))))
       (min (min (pAP / (2 ^ 18 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
@@ -181,11 +182,14 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
     let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
     let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
-    let FV : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / 4
+    let FV : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28)
+        / 4
     let SH : ℝ := 24 * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
     let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-    O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
+    4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
+    2 * εcov ≤ (prefixLaw D L).real {p | p ∈ O.L} → 2 * εcov ≤ (prefixLaw D L).real {p | p ∉ O.L} →
+    0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
     2 ≤ Fintype.card α → A ≤ Ae → 1 ≤ k → k ≤ L → cap ≤ k → 0 ≤ t →
     (∀ᵐ w ∂D, Ls ≤ w.toList.length) → 0 < p₀ → (∀ u, D.real {w | prefixOf w k = u} ≤ p₀) →
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -213,10 +217,10 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
             ((3 + Nat.clog 2 L₁ : ℕ) : ℝ) A 0) p}
         ≤ δ := by
   intro Q A kN L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB capP Kc SC HN FV SH HB
-    hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL hcap ht hlong hp₀0 hpreD hpAPu hk1 hk2 hk3 hk4
-    hk6 hξT
+    hL hgap hη₀ hbalL hbalN hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL hcap ht hlong hp₀0 hpreD hpAPu
+    hk1 hk2 hk3 hk4 hk6 hξT
   classical
-  have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  have hη0 : 0 ≤ η₀ := by have := gap_le_one O; linarith
   have hA2' : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
   have hA0 : (0 : ℝ) < A := by linarith
   have hAe2 : (2 : ℝ) ≤ Ae := hA2'.trans hAe
@@ -269,7 +273,7 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       nlinarith only [hδ'1', hQ0, hKc1, mul_nonneg hQ0 (sub_nonneg.2 hKc1)])
   obtain ⟨settings, hwalk, -, hbud, hHN, hSC, hnp, hab, hks, hmain⟩ :=
     loop_simple_checks M O P (fun _ => ∅) η₀ εcov ε δ' pAP k
-    hL hη hη₀ hεc0 hεcov1 hε0 hε12 hδ'0 hδ'1' hpAP hp1
+    hL hgap hη₀ hεc0 hεcov1 hbalL hbalN hε0 hε12 hδ'0 hδ'1' hpAP hp1
     (by show 1 ≤ L + Fintype.card σ + 3; omega)
     hk0 hιL (hpm.trans hk1)
     ((mul_le_mul_of_nonneg_left hpm (mul_nonneg (by norm_num) hlogK)).trans hk2)
@@ -288,7 +292,8 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
   have hPB0 : 0 ≤ PB := by
     have hl : 0 ≤ Real.log (3 / (δ' / 2)) :=
       Real.log_nonneg (by rw [le_div_iff₀ (by positivity)]; linarith)
-    show 0 ≤ (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
+    show 0 ≤ (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) /
+        pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     positivity
   have hFV0 : 0 ≤ FV := by
@@ -394,7 +399,8 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
         o.ReadsAt O p.1 := e2 _ hloop
     have hprem := trieRoundGood_of O P Dsf settings p hrg
       (fun r hr h => hn3 ⟨r, hr⟩ h) (fun r hr h => hnT ⟨r, hr⟩ h)
-    obtain ⟨t1, t2⟩ := trieLoopAgrees_holds rd settings cap P.D Dsf p.2 (hcap.trans_eq hwalk.symm) hprem
+    obtain ⟨t1, t2⟩ := trieLoopAgrees_holds rd settings cap P.D Dsf p.2 (hcap.trans_eq hwalk.symm)
+        hprem
     rw [e1, Option.map_some] at t1
     have hcons : o.result.ending = .consistent := hch.1.1
     have hoK : o ∈ idealRounds settings O P.D Dsf draws (Fintype.card σ + 1) :=

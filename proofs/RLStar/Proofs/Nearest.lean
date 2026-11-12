@@ -39,7 +39,8 @@ lemma familyAt_eq {J : Type*} (mq : S → Ω → ℝ) (populations : Finset J)
 lemma ret_eq {J : Type*} (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (η₀ indecisionLimit εcov α : ℝ) (B : State) :
     ret (Ω := Ω) mq populations uni η₀ indecisionLimit εcov α B
-      = retBy (nearestClusterer B.centre) mq populations uni η₀ indecisionLimit εcov α B := by
+      = retBy (nearestClusterer B.centre) mq populations uni (readη η₀) indecisionLimit εcov α
+        B := by
   have h : clusterAt (Ω := Ω) mq populations
       = fun x B => clusterBy (nearestClusterer B.centre) mq populations x B := by
     funext x B
@@ -56,5 +57,7 @@ lemma ret_eq {J : Type*} (mq : S → Ω → ℝ) (populations : Finset J) (uni :
   unfold ret
   rw [h, h', h'']
   rfl
+
+lemma readη_decl (η : ℝ) : readη (2 * η - 1 / 2) = η := by unfold readη; ring
 
 end OrthoDFA

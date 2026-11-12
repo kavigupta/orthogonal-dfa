@@ -150,7 +150,8 @@ lemma eval_roundQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) 
         settings.gateLevel B) := by
     intro B hB
     rw [mem_ret_flat O.mq _ _ _ _ _ _ B xs, hxs1, hx]
-    refine (ret_eqOn _ _ sched ps none _ _ _ _ hB _ fun w hw => ?_).symm
+    refine (ret_eqOn _ _ sched ps none (Finset.mem_insert_self _ _) _ _ _ _ hB _
+      fun w hw => ?_).symm
     rw [ht w (by rwa [hx])]
   have hexc : (∃ B ∈ sched, xc ∈ ret (fun w _ => t w) ps none settings.η₀
       settings.indecisionLimit settings.εcov settings.gateLevel B)
