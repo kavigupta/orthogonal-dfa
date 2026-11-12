@@ -53,7 +53,9 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
         * loopR₀ Q A Ae δ c ξ pAP η₀) + 16 * Real.log (16 * (Q + 2) / δ') + 2
     let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-    O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
+    4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
+    ξ / 4 ≤ (prefixLaw D L).real {p | p ∈ O.L} → ξ / 4 ≤ (prefixLaw D L).real {p | p ∉ O.L} →
+    0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
     2 ≤ Fintype.card α → A ≤ Ae → kw ≤ L → tcap ≤ kw →
     (∀ᵐ w ∂D, Ls ≤ w.toList.length) → (∀ u, D.real {w | prefixOf w kw = u} ≤ Ak⁻¹) →
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -82,8 +84,8 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
             ((⌈loopHB (L + Q + 4) Q A Ae δ c ξ pAP η₀⌉₊ : ℕ) : ℝ)
             ((3 + Nat.clog 2 L₁ : ℕ) : ℝ) A 0) p}
         ≤ δ := by
-  intro Q A k L₁ Ls N ε εcov δ' S B₃ SC HN SH HB hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hkw
-    hcapw hlong hpre hpAPu hZ hξT
+  intro Q A k L₁ Ls N ε εcov δ' S B₃ SC HN SH HB hL hgap hη₀ hbL hbN hc hc1 hδ hδ1 hpAP hξ hA2 hAe
+    hkw hcapw hlong hpre hpAPu hZ hξT
   classical
   have : Nonempty σ := ⟨M.start⟩
   have hQ1 : (1 : ℝ) ≤ Q := by
@@ -91,7 +93,7 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
   have hQ0 : (0 : ℝ) ≤ Q := by linarith only [hQ1]
   have hA : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
   have hAe2 : (2 : ℝ) ≤ Ae := hA.trans hAe
-  have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  have hη0 : 0 ≤ η₀ := by have := gap_le_one O; linarith only [this, hgap]
   have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
   have hkL₁ : k ≤ L₁ := by show (L + 1) / 2 ≤ L + Fintype.card σ + 3; omega
   have hkr : (k : ℝ) ≤ L₁ := by exact_mod_cast hkL₁
@@ -377,10 +379,14 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
     have hec : εcov ≤ ξ / 8 := (min_le_right _ _).trans
       (div_le_div_of_nonneg_left hξ.le (by norm_num) (by linarith only [hN1]))
     linarith only [he, hec, hξT]
+  have hec : εcov ≤ ξ / 8 := (min_le_right _ _).trans
+    (div_le_div_of_nonneg_left hξ.le (by norm_num) (by linarith only [hN1]))
+  have hbalL : 2 * εcov ≤ (prefixLaw D L).real {p | p ∈ O.L} := by linarith only [hec, hbL]
+  have hbalN : 2 * εcov ≤ (prefixLaw D L).real {p | p ∉ O.L} := by linarith only [hec, hbN]
   obtain ⟨settings, hwalk, hbud, -, -, hlenT, hprob⟩ :=
     trie_loop_core M O L kw tcap η₀ c δ pAP ξ ξT c Ae Ak⁻¹ D
-      hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hkw1 hkw hcapw hc.le hlong hp₀0 hpre hpAPu h1 h2 hk3'
-      h4 hk6' hξT'
+      hL hgap hη₀ hbalL hbalN hc hc1 hδ hδ1 hpAP hξ hA2 hAe hkw1 hkw hcapw hc.le hlong hp₀0 hpre
+      hpAPu h1 h2 hk3' h4 hk6' hξT'
   -- the caps' bounds, the prefix count at `ℓ² (1 + log ℓ) R₀`
   have hlg16 : 0 ≤ Real.log (16 * (Q + 2) / δ') :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hQ0])

@@ -126,24 +126,31 @@ lemma uniform_rewrite {X R A δ ξ pAP s₀ : ℝ} (hA : 0 < A) (hδ : 0 < δ) (
       ∧ X * R / (1 / A * δ * ξ * s₀) = X * A * R / (δ * ξ * s₀) :=
   ⟨by field_simp, by field_simp⟩
 
-/-- A claims' instance as one of the rates', at `R = 1`. -/
-def ratioOne (x : RLStarInputs) : RatioInputs := ⟨x.Q, x.A, x.δ, 1, x.ξ, x.pAP, x.s₀⟩
+lemma ξc_mem {x : RLStarInputs} (hx : x ∈ rlStarRegion) :
+    0 < x.ξc ∧ x.ξc ≤ 1 ∧ x.ξc ≤ x.ξ ∧ x.ξc ≤ x.β := by
+  obtain ⟨-, -, -, -, hξ, hξ1, -, -, -, -, hβ⟩ := hx
+  exact ⟨lt_min hξ hβ, (min_le_left _ _).trans hξ1, min_le_left _ _, min_le_right _ _⟩
+
+/-- A claims' instance as one of the rates', at `R = 1` and accuracy `ξc`. -/
+def ratioOne (x : RLStarInputs) : RatioInputs := ⟨x.Q, x.A, x.δ, 1, x.ξc, x.pAP, x.s₀⟩
 
 def ratioOneRun (r : RLStarRun) : RatioRun :=
   { toRatioInputs := ratioOne r.toRLStarInputs, L := r.L }
 
 lemma ratioOne_mem {x : RLStarInputs} (hx : x ∈ rlStarRegion) : ratioOne x ∈ ratioRegion := by
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hx
-  exact ⟨h1, h2, h3, h4, le_rfl, h5, h6, h7, h8, h9, h10⟩
+  obtain ⟨hξc, hξc1, -, -⟩ := ξc_mem hx
+  obtain ⟨h1, h2, h3, h4, -, -, h7, h8, h9, h10, -⟩ := hx
+  exact ⟨h1, h2, h3, h4, le_rfl, hξc, hξc1, h7, h8, h9, h10⟩
 
 lemma p₀Shape_one {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
     p₀Shape (toDistRun (ratioOneRun r)) =
-      (r.L + r.Q) ^ 4 * log ((r.L + r.Q) * r.A / (r.δ * r.ξ * r.pAP * r.s₀))
-          * log (r.Q * r.A / (r.δ * r.ξ * r.pAP * r.s₀)) * r.Q ^ 3 * r.A / r.ξ
-          * (r.Q ^ 2 * r.A ^ 2 / r.ξ ^ 3
+      (r.L + r.Q) ^ 4 * log ((r.L + r.Q) * r.A / (r.δ * r.ξc * r.pAP * r.s₀))
+          * log (r.Q * r.A / (r.δ * r.ξc * r.pAP * r.s₀)) * r.Q ^ 3 * r.A / r.ξc
+          * (r.Q ^ 2 * r.A ^ 2 / r.ξc ^ 3
               * (1 / r.s₀ ^ 6 + r.Q ^ 2 * r.A / r.s₀ ^ 5 + r.Q ^ 4 * r.A / r.s₀ ^ 4)
             + 1 / (r.pAP ^ 2 * r.s₀ ^ 2)) := by
-  obtain ⟨-, hA, hδ, -, hξ, -, hp, -, hs, -⟩ := hr
+  have hξ := (ξc_mem (x := r.toRLStarInputs) hr).1
+  obtain ⟨-, hA, hδ, -, -, -, hp, -, hs, -, -⟩ := hr
   have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
   simp only [p₀Shape, toDistRun, ratioOneRun, ratioOne, toDist, one_div_one_div]
   rw [(uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := 1) hA' hδ hξ hp hs).1,
@@ -160,10 +167,11 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
   refine ⟨fun r => 5 * log (((r.L : ℝ) + r.Q) ^ 6 * (C₀ * loopG (ratioOne r.toRLStarInputs)))
       / log r.A, tp, ts, tpr, tr, ?_, hpref, hsuff, hprobes, hreads, ?_⟩
   · refine isBigO_on (30 + 10 * (275 + 6 * log C₀)) fun r hr => ?_
-    obtain ⟨hQ, hA, hδ, hδ2, hξ, hξ1, hp, hp1, hs, hs1⟩ := hr
+    obtain ⟨hξ, hξ1, -, -⟩ := ξc_mem (x := r.toRLStarInputs) hr
+    obtain ⟨hQ, hA, hδ, hδ2, -, -, hp, hp1, hs, hs1, -⟩ := hr
     have hQ' : (1 : ℝ) ≤ r.Q := by exact_mod_cast hQ
     have hA' : (2 : ℝ) ≤ r.A := by exact_mod_cast hA
-    obtain ⟨hG, hle⟩ := loopL0_le (R := 1) (iδ := 1 / r.δ) (iξ := 1 / r.ξ) (ip := 1 / r.pAP)
+    obtain ⟨hG, hle⟩ := loopL0_le (R := 1) (iδ := 1 / r.δ) (iξ := 1 / r.ξc) (ip := 1 / r.pAP)
       (is := 1 / r.s₀) hQ' hA' le_rfl ((le_div_iff₀ hδ).2 (by linarith))
       ((le_div_iff₀ hξ).2 (by linarith)) ((le_div_iff₀ hp).2 (by linarith))
       ((le_div_iff₀ hs).2 (by linarith)) hC₀
@@ -172,11 +180,11 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     set ℓ := log (r.A : ℝ) with hℓd
     set c₁ := 275 + 6 * log C₀ with hc₁d
     set X := log (C₀ * G) with hXd
-    set D := r.ξ * r.pAP * r.s₀ with hDd
+    set D := r.ξc * r.pAP * r.s₀ with hDd
     set lδ := log (1 / r.δ) with hlδd
     set V := log (((r.L : ℝ) + r.Q) * lδ / D) with hVd
     change 1 + 4 * (X + 6 * log ((r.Q : ℝ) + 4) + 24) / ℓ
-        ≤ c₁ * (1 + log ((r.Q : ℝ) * 1 * (2 * lδ) * (1 / r.ξ) * (1 / r.pAP) * (1 / r.s₀)) / ℓ)
+        ≤ c₁ * (1 + log ((r.Q : ℝ) * 1 * (2 * lδ) * (1 / r.ξc) * (1 / r.pAP) * (1 / r.s₀)) / ℓ)
       at hle
     have hlA : 0 < ℓ := Real.log_pos (by linarith)
     have hLQ : (1 : ℝ) ≤ r.L + r.Q := by have : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _; linarith
@@ -188,10 +196,10 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     have hD2 : lδ / D ≥ 1 := by
       rw [ge_iff_le, le_div_iff₀ hD0]
       have : D ≤ 1 / 2 := by
-        have : r.ξ * r.pAP ≤ 1 := by nlinarith
+        have : r.ξc * r.pAP ≤ 1 := by nlinarith
         rw [hDd]; nlinarith
       linarith
-    have e : (r.Q : ℝ) * 1 * (2 * lδ) * (1 / r.ξ) * (1 / r.pAP) * (1 / r.s₀)
+    have e : (r.Q : ℝ) * 1 * (2 * lδ) * (1 / r.ξc) * (1 / r.pAP) * (1 / r.s₀)
         = 2 * (r.Q * lδ / D) := by
       rw [hDd]; field_simp
     rw [e] at hle
@@ -245,7 +253,7 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     rw [ef, eg]
     refine ⟨by positivity, by linarith, by linarith⟩
   -- the run, at `D` uniform
-  intro A _ _ _ Q _ Ω _ μ _ x M O L k L₁ hx hQ hA hL hη hpAPu hk₀ hkL
+  intro A _ _ _ Q _ Ω _ μ _ x M O L k L₁ hx hQ hA hL hgap hbL hbN hpAPu hk₀ hkL
   have hr : ({ x with L } : RLStarRun) ∈ rlStarRunRegion := hx
   have hxr := ratioOne_mem hx
   have hrd : toDistRun (ratioOneRun { x with L }) ∈ rlStarDistRunRegion := toDist_mem hxr
@@ -299,8 +307,8 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     prefixLaw_uniformStrings (by omega)
   have hpS : prefixLaw (uniformStrings (α := A) m) m = uniformStrings m :=
     prefixLaw_uniformStrings le_rfl
-  obtain ⟨settings, hwk, hcnt, hprob⟩ := hw x M O L k (uniformStrings m) hx hQ hA hL hη
-    (uniformStrings_long m) hkL
+  obtain ⟨settings, hwk, hcnt, hprob⟩ := hw x M O L k (uniformStrings m) hx hQ hA hL hgap
+    (by rw [hpL]; exact hbL) (by rw [hpL]; exact hbN) (uniformStrings_long m) hkL
     (fun u => (uniformStrings_prefix_le (by omega) u).trans (by rw [hAc]; exact hp₀k))
     (by rw [hpS]; exact hpAPu)
   rw [hpL, hpS] at hcnt

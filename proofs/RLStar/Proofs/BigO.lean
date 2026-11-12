@@ -58,4 +58,17 @@ lemma prod_le_prod_of_sublist {l₁ l₂ : List ℝ} (hs : l₁.Sublist l₂) (h
     simp only [List.prod_cons]
     exact mul_le_mul_of_nonneg_left (ih h.2) (by linarith [h.1])
 
+lemma log_four_mul_le {Y : ℝ} (hY : 4 ≤ Y) : log (4 * Y) ≤ 2 * log Y := by
+  have h : 4 * Y ≤ Y ^ 2 := by nlinarith
+  calc log (4 * Y) ≤ log (Y ^ 2) := Real.log_le_log (by linarith) h
+    _ = 2 * log Y := by rw [Real.log_pow]; norm_num
+
+lemma log_eight_mul_le {Y : ℝ} (hY : 2 ≤ Y) : log (8 * Y) ≤ 4 * log Y := by
+  have h3 : (2 : ℝ) ^ 3 ≤ Y ^ 3 := pow_le_pow_left₀ (by norm_num) hY 3
+  have h : 8 * Y ≤ Y ^ 4 := by
+    have := mul_le_mul_of_nonneg_left h3 (by linarith : (0 : ℝ) ≤ Y)
+    nlinarith
+  calc log (8 * Y) ≤ log (Y ^ 4) := Real.log_le_log (by linarith) h
+    _ = 4 * log Y := by rw [Real.log_pow]; norm_num
+
 end OrthoDFA

@@ -841,19 +841,6 @@ private lemma quad_maps : Set.MapsTo quad vecRegion vecRegion := by
   simp only [quad, vecRegion, Set.mem_Ici, Prod.mk_le_mk]
   exact ⟨hJ, hiδ, hip, hie, hisl, hiu, hiw, by linarith, hnH⟩
 
-private lemma log_four_mul_le {Y : ℝ} (hY : 4 ≤ Y) : log (4 * Y) ≤ 2 * log Y := by
-  have h : 4 * Y ≤ Y ^ 2 := by nlinarith
-  calc log (4 * Y) ≤ log (Y ^ 2) := Real.log_le_log (by linarith) h
-    _ = 2 * log Y := by rw [Real.log_pow]; norm_num
-
-private lemma log_eight_mul_le {Y : ℝ} (hY : 2 ≤ Y) : log (8 * Y) ≤ 4 * log Y := by
-  have h3 : (2 : ℝ) ^ 3 ≤ Y ^ 3 := pow_le_pow_left₀ (by norm_num) hY 3
-  have h : 8 * Y ≤ Y ^ 4 := by
-    have := mul_le_mul_of_nonneg_left h3 (by linarith : (0 : ℝ) ≤ Y)
-    nlinarith
-  calc log (8 * Y) ≤ log (Y ^ 4) := Real.log_le_log (by linarith) h
-    _ = 4 * log Y := by rw [Real.log_pow]; norm_num
-
 private lemma logM_quad {ie iu iw is : ℝ} (hie : 2 ≤ ie) (his : 2 ≤ is) (hiu : 0 ≤ iu)
     (hiw : 0 ≤ iw) :
     1 ≤ log (max (ie * is) (max iu iw))

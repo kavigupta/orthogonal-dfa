@@ -185,7 +185,9 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     let SH : ℝ := 24 * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
     let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-    O.η ≤ η₀ → η₀ < 1 / 2 → 0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
+    4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
+    2 * εcov ≤ (prefixLaw D L).real {p | p ∈ O.L} → 2 * εcov ≤ (prefixLaw D L).real {p | p ∉ O.L} →
+    0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
     2 ≤ Fintype.card α → A ≤ Ae → 1 ≤ k → k ≤ L → cap ≤ k → 0 ≤ t →
     (∀ᵐ w ∂D, Ls ≤ w.toList.length) → 0 < p₀ → (∀ u, D.real {w | prefixOf w k = u} ≤ p₀) →
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
@@ -213,10 +215,10 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
             ((3 + Nat.clog 2 L₁ : ℕ) : ℝ) A 0) p}
         ≤ δ := by
   intro Q A kN L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB capP Kc SC HN FV SH HB
-    hL hη hη₀ hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL hcap ht hlong hp₀0 hpreD hpAPu hk1 hk2 hk3 hk4
-    hk6 hξT
+    hL hgap hη₀ hbalL hbalN hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL hcap ht hlong hp₀0 hpreD hpAPu
+    hk1 hk2 hk3 hk4 hk6 hξT
   classical
-  have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hη
+  have hη0 : 0 ≤ η₀ := by have := gap_le_one O; linarith
   have hA2' : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
   have hA0 : (0 : ℝ) < A := by linarith
   have hAe2 : (2 : ℝ) ≤ Ae := hA2'.trans hAe
@@ -269,7 +271,7 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       nlinarith only [hδ'1', hQ0, hKc1, mul_nonneg hQ0 (sub_nonneg.2 hKc1)])
   obtain ⟨settings, hwalk, -, hbud, hHN, hSC, hnp, hab, hks, hmain⟩ :=
     loop_simple_checks M O P (fun _ => ∅) η₀ εcov ε δ' pAP k
-    hL hη hη₀ hεc0 hεcov1 hε0 hε12 hδ'0 hδ'1' hpAP hp1
+    hL hgap hη₀ hεc0 hεcov1 hbalL hbalN hε0 hε12 hδ'0 hδ'1' hpAP hp1
     (by show 1 ≤ L + Fintype.card σ + 3; omega)
     hk0 hιL (hpm.trans hk1)
     ((mul_le_mul_of_nonneg_left hpm (mul_nonneg (by norm_num) hlogK)).trans hk2)
