@@ -185,10 +185,13 @@ lemma measurableSet_retBy (populations : Finset J) (uni : J) (η₀ indecisionLi
       (fun _ A A₀ => measurableSet_indecisionCount O B.lo (B.hi + 1) (insert 1 A₀) A _)
   have hgate : ∀ j e, MeasurableSet {x : Run Ω S J |
       gateAt rule O.mq populations uni η₀ εcov α B j e x} :=
-    fun j e => measurableSet_family_cert O populations j B (B.npref + e)
+    fun j e => (measurableSet_family_cert O populations j B (B.npref + e)
       (fun C A A₀ ω => certifiesAt O.mq B.centre (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀)
         (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi A₀ (C \ insert 1 A₀) A ω)
-      (fun C A A₀ => measurableSet_certifiesAt O _ _ _ _ _ _ _ _ _ _)
+      (fun C A A₀ => measurableSet_certifiesAt O _ _ _ _ _ _ _ _ _ _)).inter
+      (measurableSet_family_cert O populations uni B B.npref
+        (fun _ A A₀ ω => centreFits O.mq η₀ (gateLevel α populations B) B A₀ A ω)
+        (fun _ A A₀ => measurableSet_centreFits O η₀ _ B A₀ A))
   have hrw : retBy rule O.mq populations uni η₀ indecisionLimit εcov α B
       = {x : Run Ω S J | B.k ≤ (clusterBy rule O.mq populations x B).card + 1}
         ∩ (⋂ j ∈ populations, ({x | keptAt populations j B.npref x}ᶜ
