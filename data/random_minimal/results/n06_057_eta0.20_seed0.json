@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 4,
   "benchmark": "n06_057",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -9,47 +9,47 @@
   "alphabet_size": 2,
   "learner_config": {
     "min_signal_strength": 0.3,
-    "min_suffix_frequency": 0.02
+    "min_suffix_frequency": 0.02,
+    "sample_length": 40,
+    "certified_error": 0.050000000000000044
   },
-  "learned_states": 6,
-  "accuracy": 1.0,
-  "converged": true,
-  "queries_total": 371664,
+  "learned_states": 13,
+  "accuracy": 0.9984,
+  "converged": false,
+  "queries_total": 270412,
   "equivalence_queries": 0,
-  "seconds": 15.987,
+  "seconds": 10.216,
   "error_type": null,
   "error": null,
   "target": {
     "states": 6,
     "alphabet_size": 2,
     "accepting_states": 3,
-    "acceptance_rate": 0.3953833090108674,
-    "class_preserving_fraction": 0.022651689785561757,
-    "non_start_zone_accuracy_ceiling": 0.9999999999999999,
-    "unvisited_states": 0,
-    "starts": 6,
-    "endpoint_mass_min": 0.046506228008183825,
-    "endpoint_mass_max": 0.2790709299088121,
+    "acceptance_rate": 0.5555555555620231,
+    "class_preserving_fraction": 0.02222222222826531,
+    "unvisited_states": 2,
+    "endpoint_mass_min": 0.0,
+    "endpoint_mass_max": 0.33333333333303017,
     "depth_max": 3,
     "separating_length_max": 2,
     "separating_length_mean": 0.4666666666666667,
-    "synchronizing_probability": 0.38392393918820744
+    "synchronizing_probability": 0
   },
   "rounds": [
     {
       "prefixes": 400,
       "representative_prefixes": 400,
-      "suffixes": 2171,
+      "suffixes": 249,
       "family_size": 62,
-      "probes": 539,
+      "probes": 489,
       "ending": "success",
       "hypothesis_states": 6,
-      "hypothesis_edges": 12,
-      "sampling_seconds": 9.000294834375381,
-      "probing_seconds": 3.095662973821163,
-      "queries_at_search_end": 257548,
+      "hypothesis_edges": 11,
+      "sampling_seconds": 2.762485884130001,
+      "probing_seconds": 3.2365023121237755,
+      "queries_at_search_end": 130916,
       "certified": true,
-      "consistency": 1.0
+      "consistency": 0.9985835694050992
     }
   ],
   "chosen_round": 0

@@ -90,7 +90,7 @@ def RoundPremises (σ α : Type*) [Fintype σ] [Fintype α] (C : Random.Level3Se
     ∧ C.harvestRate ≤ C.disagreementRate / 48 ∧ C.disagreementRate < 1
     ∧ 36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget
     ∧ 0 ≤ κ ∧ ∃ t t' : ℝ, 0 ≤ t ∧ 0 ≤ t' ∧ t * κ ≤ 1 - Real.exp (-(t' * κ))
-      ∧ C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀
+      ∧ C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀ * min 1 (Real.exp (t' * (κ * m)) / (1 + t))
         + Real.exp (t' * (κ * m)) / (1 + t) ^ 2 ≤ C.δ / 8
 
 variable [Nonempty α] {σ : Type*} [Fintype σ] (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α))

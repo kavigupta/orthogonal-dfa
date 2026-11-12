@@ -1,9 +1,9 @@
 {
  "oracle": "residual",
  "seed": 0,
- "commit": "c18156b8",
+ "commit": "8d1aa81c",
  "dirty": true,
- "hours": 5.528958078291681,
- "family_size": 2479,
- "family_fnr": 0.1375
+ "hours": 6.431075389252769,
+ "family_size": 2485,
+ "family_fnr": 0.11375
 }

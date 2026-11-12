@@ -1,20 +1,18 @@
 import RLStar.Claims.RLStar
-import RLStar.Proofs.LoopDFASummed
+import RLStar.Proofs.TrieTol
 import RLStar.Proofs.ClaimRLStarUniform
 import RLStar.Proofs.ClaimReadsArith
 
 /-!
 # The learner's costs, asymptotically: the proof
 
-`learner_loop_dfa_dist_tol` bounds, for every draw, the loop's reads by `(|Q| + 1)` rounds of
-`6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, its probes by `(|Q| + 1) loopBudget`,
-and the strings the learner asks the oracle by `learnerReads` where the loop's harvested draws
-walk at most `⌈loopHB⌉₊` probes a round, all at `ℓ = L + |Q| + 4`, once `D` holds at most
-`1/loopTolInv ℓ` on any first `k` letters; but for chance `δ` the run succeeds with its draws
-walking within that bound. `Query.eval_congr` makes the output depend only on those strings'
-answers.
-The claim runs it at `c = ξ/(2R)`, `ξ/4` and `γ + 3ξ/4`, edges crossed at `1/β + |Q|`, its last
-round's leaf from `summed_bridge`; `ClaimRLStarArith` and `ClaimReadsArith` bound those shapes.
+`trie_loop_tol` bounds, for every draw, the loop's reads by `(|Q| + 1)` rounds of
+`6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, and its probes by
+`(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`, once `D` holds at most `1/(2⁴ trieTolInv⁵ ℓ)` on
+any first `k` letters; but for chance `δ` the run succeeds, asking the oracle at most
+`learnerReads` strings with no held-out ones.
+The claim runs it at main's rates at `R = 1` and `β = 1/|Σ|`: `c = ξ/2`, `ξ/4`, edges crossed at
+`|Σ|`; `ClaimRLStarArith` and `ClaimReadsArith` bound those shapes.
 `RLStarClaimUniform` and `RLStarClaimUniformSimple` follow (`ClaimRLStarUniform`).
 -/
 
@@ -25,59 +23,77 @@ namespace OrthoDFA
 open MeasureTheory Asymptotics Filter Real
 
 theorem rlStarClaim_holds : RLStarClaim := by
-  refine ⟨distP₀Tol, distPref, distSuff, distProbes, distReads, distHeldOut, distP₀Tol_isBigO,
-    distPref_isBigO, distSuff_isBigO, distProbes_isBigO, distReads_isBigO, distHeldOut_isBigO,
-    distP₀Tol_pos, ?_⟩
+  have hmapsR : Set.MapsTo (fun r => toDistRun (ratioOneRun r)) rlStarRunRegion
+      rlStarDistRunRegion := fun r hr => toDist_mem (ratioOne_mem hr)
+  refine ⟨fun r => distP₀Tol (toDistRun (ratioOneRun r)) ^ 5 / 2 ^ 4,
+    fun r => distPref (toDistRun (ratioOneRun r)), fun r => distSuff (toDistRun (ratioOneRun r)),
+    fun r => distProbes (toDistRun (ratioOneRun r)),
+    fun r => distLoopReads (toDistRun (ratioOneRun r)), ?_, ?_, ?_, ?_, ?_,
+    fun r => div_pos (pow_pos (distP₀Tol_pos _) 5) (by norm_num), ?_⟩
+  · refine ((((isBigO_comp_on distP₀Tol_isBigO hmapsR).pow 5).const_mul_left (2 ^ 4)).congr'
+      (eventually_principal.2 fun r _ => ?_) (eventually_principal.2 fun r hr => ?_))
+    · simp only [Function.comp_apply]
+      rw [one_div_pow, mul_one_div, one_div_div]
+    · simp only [Function.comp_apply]
+      rw [p₀Shape_one hr]
+  · refine (isBigO_comp_on distPref_isBigO hmapsR).congr' EventuallyEq.rfl
+      (eventually_principal.2 fun r hr => ?_)
+    obtain ⟨-, hA, hδ, -, hξ, -, hp, -, hs, -⟩ := hr
+    have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
+    simp only [Function.comp, toDistRun, ratioOneRun, ratioOne, toDist, one_div_one_div]
+    obtain ⟨e, e'⟩ := uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := 1) hA' hδ hξ hp hs
+    rw [e, e']
+    simp only [mul_one, one_pow]
+  · refine (isBigO_comp_on distSuff_isBigO hmapsR).congr' EventuallyEq.rfl
+      (eventually_principal.2 fun r hr => ?_)
+    obtain ⟨-, hA, hδ, -, hξ, -, hp, -, hs, -⟩ := hr
+    have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
+    simp only [Function.comp, toDistRun, ratioOneRun, ratioOne, toDist]
+    rw [(uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := 1) hA' hδ hξ hp hs).2]
+    simp only [mul_one]
+  · refine (isBigO_comp_on distProbes_isBigO hmapsR).congr' EventuallyEq.rfl
+      (eventually_principal.2 fun r hr => ?_)
+    simp only [Function.comp, toDistRun, ratioOneRun, ratioOne, toDist, one_div_one_div]
+    ring
+  · refine (isBigO_comp_on distLoopReads_isBigO hmapsR).congr' EventuallyEq.rfl
+      (eventually_principal.2 fun r hr => ?_)
+    obtain ⟨-, hA, hδ, -, hξ, -, hp, -, hs, -⟩ := hr
+    have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
+    simp only [Function.comp, toDistRun, ratioOneRun, ratioOne, toDist, shCluster, shSearch,
+      shHarvest, shPref, shSuff, shProbe, shFam, shRho, shLg, one_div_one_div]
+    obtain ⟨e, e'⟩ := uniform_rewrite (X := (r.L : ℝ) + r.Q) (R := 1) hA' hδ hξ hp hs
+    rw [e, e']
+    ring
+  -- the run
   intro α _ _ _ σ _ Ω _ μ _ x
-  obtain ⟨⟨Q, A, δ, R, ξ, pAP, s₀⟩, β⟩ := x
-  intro M O L γ D _ k L₁ Ls hx hQ hA hL hηle hlong hpre hfl hpAPu hdom
-  have hr : ({ toRLStarDistInputs := ⟨⟨Q, A, δ, R, ξ, pAP, s₀⟩, β⟩, L } : RLStarDistRun)
-      ∈ rlStarDistRunRegion := hx
-  obtain ⟨-, -, -, hAAe, -, -, -, -, -, hc0, hc1⟩ := dist_coords hr
-  obtain ⟨⟨-, hA2, hδ, hδ2, hR, hξ, hξ1, hpAP, hpAP1, hs, hs1⟩, hβ, -⟩ := hx
+  obtain ⟨Q, A, δ, ξ, pAP, s₀⟩ := x
+  intro M O L k D _ L₁ Ls hx hQ hA hLang hη hlong hkL hpre hpAPu
   subst hQ hA
+  obtain ⟨hQ1, hA2, hδ, hδ2, hξ, hξ1, hp, hp1, hs, hs1⟩ := hx
+  have hA' : (2 : ℝ) ≤ Fintype.card α := by exact_mod_cast hA2
   have hη₀ : 1 / 2 - s₀ < 1 / 2 := by linarith
-  have : Nonempty σ := ⟨M.start⟩
-  obtain ⟨q, -, hq⟩ := hdom
-  have hAe : (2 : ℝ) ≤ 1 / β :=
-    (show (2 : ℝ) ≤ Fintype.card α by exact_mod_cast hA2).trans hAAe
-  have hfl' : ∀ i, k ≤ i → i ≤ L → ∀ y a, D.real {w | prefixOf w i = y}
-      ≤ 1 / β * D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of a} := fun i hi hi' y a => by
-    have h := hfl i hi hi' y a
-    have e : 1 / β * D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of a}
-        = D.real {w | prefixOf w (i + 1) = y * FreeMonoid.of a} / β := by ring
-    rw [e, le_div_iff₀ hβ]
-    linarith
-  have hM1 : 1 ≤ loopTolInv (L + Fintype.card σ + 4) (Fintype.card σ) (Fintype.card α)
-      (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
-      (1 / 2 - s₀) :=
-    (loopTolInv_le _ _ (by have : (0 : ℝ) ≤ L := Nat.cast_nonneg _; linarith)
-      (Nat.cast_nonneg _) (Nat.cast_nonneg _)
-      (by have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _; linarith) hδ (by linarith) hc0
-      hc1 (by positivity) hpAP hpAP1 (by linarith) hη₀).1
-  have hp₀ : distP₀Tol ⟨⟨⟨Fintype.card σ, Fintype.card α, δ, R, ξ, pAP, s₀⟩, β⟩, L⟩
-      ≤ 1 / loopTolInv (L + Fintype.card σ + 4) (Fintype.card σ) (Fintype.card α)
-        (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
-        (1 / 2 - s₀) := by
-    have e : distP₀Tol ⟨⟨⟨Fintype.card σ, Fintype.card α, δ, R, ξ, pAP, s₀⟩, β⟩, L⟩
-        = 1 / max 1 (loopTolInv (L + Fintype.card σ + 4) (Fintype.card σ) (Fintype.card α)
-          (1 / β + Fintype.card σ) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP
-          (1 / 2 - s₀)) := rfl
-    rw [e, max_eq_right hM1]
-  obtain ⟨settings, hw, -, -, -, -, hcnt, hcalls, hprob⟩ := learner_loop_dfa_dist_tol M O L D
-    (1 / 2 - s₀)
-    (ξ / (2 * R)) (γ + 3 * ξ / 4) δ pAP (ξ / 4) (1 / β + Fintype.card σ) _ hL hηle hη₀ hc0 hc1 hδ
-    (by linarith) hpAP (by positivity) hA2
-    (by have : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _; linarith) hlong hpre hpAPu
-    (summed_bridge M O hL L D (by linarith) hξ hAe (hlong.mono fun x hx => le_trans (by omega) hx)
-      hfl' ⟨q, hq⟩) hp₀
-  replace hprob := hprob _ (Nat.ceil_mono (min_le_right _ _))
-  rw [show γ + 3 * ξ / 4 + ξ / 4 = γ + ξ by ring] at hprob
-  refine ⟨settings, hw, hcnt, (measureReal_mono ?_).trans hprob⟩
-  intro q hq hs
-  obtain ⟨rounds, hr, hok, hlv, hW⟩ := hs
-  exact hq ⟨⟨rounds, hr, hok, hlv⟩, _, hcalls q.1 q.2 rounds hr hlv hW,
-    fun o ho => (Query.eval_congr _ _ ho).1⟩
+  have hc0 : 0 < ξ / (2 * 1) := by positivity
+  have hc1 : ξ / (2 * 1) ≤ 1 := by linarith
+  set T := trieTolInv ((L : ℝ) + Fintype.card σ + 4) (Fintype.card σ)
+      (Fintype.card α) (1 / (1 / (Fintype.card α : ℝ))) (Fintype.card σ) (Fintype.card α) δ
+      (ξ / (2 * 1)) (ξ / 4) pAP (1 / 2 - s₀) with hTd
+  have hT1 : 1 ≤ T := one_le_trieTolInv _ _
+    (by have : (0 : ℝ) ≤ L := Nat.cast_nonneg _; linarith) (Nat.cast_nonneg _) (Nat.cast_nonneg _)
+    (by rw [one_div_one_div]; exact hA') hδ (by linarith) hc0 hc1 (by positivity) hp hp1
+    (by linarith) hη₀
+  have hTm : max 1 T = T := max_eq_right hT1
+  -- `D`'s first `k` letters weigh at most `1/Ak`
+  have hpre' : ∀ u, D.real {w | prefixOf w k = u} ≤ (2 ^ 4 * T ^ 5)⁻¹ := by
+    intro u
+    refine (hpre u).trans (le_of_eq ?_)
+    change (1 / max 1 T) ^ 5 / 2 ^ 4 = _
+    rw [hTm, one_div_pow, div_div, one_div, mul_comm]
+  obtain ⟨settings, hwk, hprobe, hprob⟩ := trie_loop_tol (Ω := Ω) (μ := μ) M O L k k
+    (1 / 2 - s₀) (ξ / (2 * 1)) δ pAP (ξ / 4) ξ (1 / (1 / (Fintype.card α : ℝ)))
+    (2 ^ 4 * T ^ 5) D hLang hη hη₀ hc0 hc1 hδ (by linarith) hp (by positivity) hA2
+    (le_of_eq (one_div_one_div _).symm) hkL le_rfl hlong hpre' hpAPu le_rfl
+    (by linarith)
+  exact ⟨settings, hwk, hprobe, hprob⟩
 
 theorem rlStarClaimUniform_holds : RLStarClaimUniform :=
   rlStarClaimUniform_of_rlStarClaim rlStarClaim_holds
