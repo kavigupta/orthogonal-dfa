@@ -137,11 +137,12 @@ noncomputable def readLoss (reads : S → Prop) (P : Finset S) (v : S) : ℝ :=
 open scoped Classical in
 /-- `misreadAt` over the reads it is handed. -/
 noncomputable def misreadLoss (c : ℝ) (reads : S → Prop) (P : Finset S) (v : S) : ℝ :=
-  readLoss reads P v - (1 - 2 * c) * ((P.filter (fun p => reads (p * v))).card : ℝ)
+  (readLoss reads P v - (1 - 2 * c) * ((P.filter (fun p => reads (p * v))).card : ℝ))
+    / (2 * max c (1 - c))
 
 lemma misreadLoss_half (reads : S → Prop) (P : Finset S) :
     misreadLoss (1 / 2) reads P = readLoss reads P := by
-  funext v; unfold misreadLoss; ring
+  funext v; unfold misreadLoss; norm_num
 
 open scoped Classical in
 /-- `nearestRows` at centre `c` over the reads it is handed. -/
