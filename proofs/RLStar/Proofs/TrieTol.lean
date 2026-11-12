@@ -119,7 +119,7 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
   set R₀ : ℝ := 2 ^ 22 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
     + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) with hR₀d
   set E₁ : ℝ := 2 ^ 20 * Θa * (R₀ + 1) / s + (Q + 3) ^ 2 * (2 ^ 24 * Θι * (R₀ + 1)
-    + 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ')
+    + 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * (P₀ + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ')
     + 2 ^ 18 * (P₀ + 2) / pAP)
     with hE₁d
   set Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
@@ -276,9 +276,11 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
   have hlgd : 0 ≤ Real.log (16 * (Q + 2) / δ') :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hQ0])
   have hl : Real.log (16 * (Q + 2) / δ')
-      ≤ Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ') := by
+      ≤ Real.log (128 * (Q + 2) * (P₀ + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ') := by
     refine Real.log_le_log (by positivity) (div_le_div_of_nonneg_right ?_ hδ'0.le)
-    nlinarith only [hlR₀, hQ0, mul_nonneg (by linarith only [hQ0] : (0 : ℝ) ≤ Q + 2) hlR₀]
+    have h1 : 1 ≤ (P₀ + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) :=
+      one_le_mul_of_one_le_of_one_le (by linarith only [hP₀1]) (by linarith only [hlR₀])
+    nlinarith only [hQ0, mul_le_mul_of_nonneg_left h1 (by linarith only [hQ0] : (0 : ℝ) ≤ Q + 2)]
   have hE₁ge := tol_E₁_ge (Q := Q) hR₀ hΘι1 hΘa1 hP₀1 hpAP hp1 hs0 hlgd hl hE₁d
   have hP₀E : P₀ ≤ E₁ := by
     have h0 : 0 ≤ 2 ^ 24 * (R₀ + 1) + 2 ^ 28 * Real.log (16 * (Q + 2) / δ') := by positivity
