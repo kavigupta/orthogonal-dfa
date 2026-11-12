@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 4,
   "benchmark": "n06_018",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -9,14 +9,16 @@
   "alphabet_size": 2,
   "learner_config": {
     "min_signal_strength": 0.3,
-    "min_suffix_frequency": 0.02
+    "min_suffix_frequency": 0.02,
+    "sample_length": 40,
+    "certified_error": 0.050000000000000044
   },
   "learned_states": 6,
   "accuracy": 1.0,
   "converged": true,
-  "queries_total": 607301,
+  "queries_total": 637283,
   "equivalence_queries": 0,
-  "seconds": 25.838,
+  "seconds": 23.47,
   "error_type": null,
   "error": null,
   "target": {
@@ -25,9 +27,7 @@
     "accepting_states": 4,
     "acceptance_rate": 0.7457627123221755,
     "class_preserving_fraction": 0.023217438822939584,
-    "non_start_zone_accuracy_ceiling": 0.9999999999999998,
     "unvisited_states": 0,
-    "starts": 6,
     "endpoint_mass_min": 0.08474575621403346,
     "endpoint_mass_max": 0.22033898619247339,
     "depth_max": 2,
@@ -41,16 +41,31 @@
       "representative_prefixes": 600,
       "suffixes": 1783,
       "family_size": 65,
-      "probes": 471,
+      "probes": 69,
+      "ending": "harvest ends",
+      "hypothesis_states": 6,
+      "hypothesis_edges": 6,
+      "sampling_seconds": 13.050798833370209,
+      "probing_seconds": 1.3956162184476852,
+      "queries_at_search_end": 354974,
+      "certified": null,
+      "consistency": 0.1
+    },
+    {
+      "prefixes": 610,
+      "representative_prefixes": 210,
+      "suffixes": 1783,
+      "family_size": 61,
+      "probes": 421,
       "ending": "success",
       "hypothesis_states": 6,
       "hypothesis_edges": 12,
-      "sampling_seconds": 15.016322478652,
-      "probing_seconds": 3.7708851620554924,
-      "queries_at_search_end": 409324,
+      "sampling_seconds": 0.5882170796394348,
+      "probing_seconds": 2.4329811334609985,
+      "queries_at_search_end": 458949,
       "certified": true,
-      "consistency": 0.9985835694050992
+      "consistency": 1.0
     }
   ],
-  "chosen_round": 0
+  "chosen_round": 1
 }

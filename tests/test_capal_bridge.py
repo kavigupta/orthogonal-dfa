@@ -16,6 +16,7 @@ from orthogonal_dfa.capal_official import (
     build_modulo_dfa,
     build_regex_dfa,
     fit_with_fallback,
+    from_automata_dfa,
     import_capal,
     make_learner,
     resolve_capal_dir,
@@ -117,6 +118,21 @@ class TestCapalBridge(unittest.TestCase):
         for word in _all_words("01", 8):
             truth = oracle.membership_query(bytes(int(c) for c in word))
             self.assertEqual(dfa.run(word), truth, word)
+
+    def test_from_automata_dfa_matches_the_oracle(self):
+        from orthogonal_dfa.l_star.examples.bernoulli_parity import (
+            BinaryDivisibleOracle,
+            PrefixMajorityOracle,
+        )
+
+        for oracle in (
+            BinaryDivisibleOracle(modulo=5),
+            PrefixMajorityOracle(prefix_length=5),
+        ):
+            dfa = from_automata_dfa(oracle.target_dfa())
+            for word in _all_words("01", 8):
+                truth = oracle.membership_query(bytes(int(c) for c in word))
+                self.assertEqual(dfa.run(word), truth, (oracle, word))
 
     def test_defaults_match_the_upstream_benchmark_script(self):
         # The comparison is only fair if CAPAL runs at the settings its authors

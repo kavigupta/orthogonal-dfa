@@ -18,7 +18,10 @@
       "regex_subseq_1010101",
       "regex_two_1111",
       "regex_alt_1111_or_0000_11_3sym",
-      "regex_alt_111_or_000_3sym"
+      "regex_alt_111_or_000_3sym",
+      "regex_prefix_1111",
+      "binary_divisible_by_5",
+      "prefix_majority_5"
     ],
     "configs": [
       "matched,enum=8,extra=16,pool=24,m=2000"
@@ -50,11 +53,11 @@
         "query_budget": 1485384
       },
       "learned_states": 16,
-      "accuracy": 0.5694,
+      "accuracy": 0.4584,
       "converged": false,
       "queries_total": 1485384,
       "equivalence_queries": 8,
-      "seconds": 67.879,
+      "seconds": 67.332,
       "error_type": "BudgetExhausted",
       "error": "stopped at the 1485384 distinct-query budget"
     },
@@ -82,11 +85,11 @@
         "query_budget": 1485384
       },
       "learned_states": 12,
-      "accuracy": 0.9148,
+      "accuracy": 0.8846,
       "converged": false,
       "queries_total": 1485384,
       "equivalence_queries": 8,
-      "seconds": 68.571,
+      "seconds": 69.49,
       "error_type": "BudgetExhausted",
       "error": "stopped at the 1485384 distinct-query budget"
     },
@@ -114,11 +117,11 @@
         "query_budget": 1485384
       },
       "learned_states": 17,
-      "accuracy": 0.7482,
+      "accuracy": 0.6952,
       "converged": false,
       "queries_total": 1485384,
       "equivalence_queries": 10,
-      "seconds": 59.616,
+      "seconds": 60.102,
       "error_type": "BudgetExhausted",
       "error": "stopped at the 1485384 distinct-query budget"
     },
@@ -143,16 +146,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 1945920
+        "query_budget": 2174000
       },
       "learned_states": 8,
-      "accuracy": 0.9186,
+      "accuracy": 0.8176,
       "converged": false,
       "queries_total": 1300438,
       "equivalence_queries": 500,
-      "seconds": 316.857,
+      "seconds": 316.086,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 1300438 of the 1945920 query budget"
+      "error": "stopped after 500 iterations having used 1300438 of the 2174000 query budget"
     },
     {
       "benchmark": "regex_subseq_1010101",
@@ -175,16 +178,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 1945920
+        "query_budget": 2174000
       },
-      "learned_states": 19,
-      "accuracy": 0.6666,
+      "learned_states": 16,
+      "accuracy": 0.6024,
       "converged": false,
-      "queries_total": 1945920,
-      "equivalence_queries": 28,
-      "seconds": 66.356,
+      "queries_total": 2174000,
+      "equivalence_queries": 31,
+      "seconds": 79.682,
       "error_type": "BudgetExhausted",
-      "error": "stopped at the 1945920 distinct-query budget"
+      "error": "stopped at the 2174000 distinct-query budget"
     },
     {
       "benchmark": "regex_subseq_1010101",
@@ -207,16 +210,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 1945920
+        "query_budget": 2174000
       },
-      "learned_states": 14,
-      "accuracy": 0.9186,
+      "learned_states": 13,
+      "accuracy": 0.8176,
       "converged": false,
-      "queries_total": 1945920,
-      "equivalence_queries": 79,
-      "seconds": 158.599,
+      "queries_total": 2174000,
+      "equivalence_queries": 102,
+      "seconds": 215.946,
       "error_type": "BudgetExhausted",
-      "error": "stopped at the 1945920 distinct-query budget"
+      "error": "stopped at the 2174000 distinct-query budget"
     },
     {
       "benchmark": "regex_two_1111",
@@ -242,11 +245,11 @@
         "query_budget": 1189838
       },
       "learned_states": 9,
-      "accuracy": 0.8674,
+      "accuracy": 0.6386,
       "converged": false,
       "queries_total": 1189838,
       "equivalence_queries": 68,
-      "seconds": 115.177,
+      "seconds": 115.54,
       "error_type": "BudgetExhausted",
       "error": "stopped at the 1189838 distinct-query budget"
     },
@@ -274,11 +277,11 @@
         "query_budget": 1189838
       },
       "learned_states": 14,
-      "accuracy": 0.8814,
+      "accuracy": 0.6792,
       "converged": false,
       "queries_total": 1189838,
       "equivalence_queries": 12,
-      "seconds": 30.084,
+      "seconds": 30.352,
       "error_type": "BudgetExhausted",
       "error": "stopped at the 1189838 distinct-query budget"
     },
@@ -306,11 +309,11 @@
         "query_budget": 1189838
       },
       "learned_states": 14,
-      "accuracy": 0.8674,
+      "accuracy": 0.6436,
       "converged": false,
       "queries_total": 1189838,
       "equivalence_queries": 12,
-      "seconds": 32.849,
+      "seconds": 33.253,
       "error_type": "BudgetExhausted",
       "error": "stopped at the 1189838 distinct-query budget"
     },
@@ -335,16 +338,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 2445341
+        "query_budget": 2646686
       },
       "learned_states": 8,
-      "accuracy": 0.9648,
+      "accuracy": 0.9272,
       "converged": false,
       "queries_total": 46040,
       "equivalence_queries": 500,
-      "seconds": 77.415,
+      "seconds": 75.003,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 46040 of the 2445341 query budget"
+      "error": "stopped after 500 iterations having used 46040 of the 2646686 query budget"
     },
     {
       "benchmark": "regex_alt_1111_or_0000_11_3sym",
@@ -367,16 +370,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 2445341
+        "query_budget": 2646686
       },
       "learned_states": 8,
-      "accuracy": 0.9648,
+      "accuracy": 0.9272,
       "converged": false,
       "queries_total": 50012,
       "equivalence_queries": 500,
-      "seconds": 89.413,
+      "seconds": 87.575,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 50012 of the 2445341 query budget"
+      "error": "stopped after 500 iterations having used 50012 of the 2646686 query budget"
     },
     {
       "benchmark": "regex_alt_1111_or_0000_11_3sym",
@@ -399,16 +402,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 2445341
+        "query_budget": 2646686
       },
       "learned_states": 8,
-      "accuracy": 0.9648,
+      "accuracy": 0.9272,
       "converged": false,
       "queries_total": 38057,
       "equivalence_queries": 500,
-      "seconds": 55.68,
+      "seconds": 54.493,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 38057 of the 2445341 query budget"
+      "error": "stopped after 500 iterations having used 38057 of the 2646686 query budget"
     },
     {
       "benchmark": "regex_alt_111_or_000_3sym",
@@ -431,16 +434,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 3187599
+        "query_budget": 4971542
       },
       "learned_states": 18,
-      "accuracy": 0.8884,
+      "accuracy": 0.9062,
       "converged": false,
       "queries_total": 150037,
       "equivalence_queries": 500,
-      "seconds": 380.894,
+      "seconds": 375.523,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 150037 of the 3187599 query budget"
+      "error": "stopped after 500 iterations having used 150037 of the 4971542 query budget"
     },
     {
       "benchmark": "regex_alt_111_or_000_3sym",
@@ -463,16 +466,16 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 3187599
+        "query_budget": 4971542
       },
       "learned_states": 16,
-      "accuracy": 0.719,
+      "accuracy": 0.6778,
       "converged": false,
       "queries_total": 150037,
       "equivalence_queries": 500,
-      "seconds": 396.522,
+      "seconds": 392.921,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 150037 of the 3187599 query budget"
+      "error": "stopped after 500 iterations having used 150037 of the 4971542 query budget"
     },
     {
       "benchmark": "regex_alt_111_or_000_3sym",
@@ -495,16 +498,304 @@
         "extra_len_max": 16,
         "eta_hat": 0.3,
         "label": "matched,enum=8,extra=16,pool=24,m=2000",
-        "query_budget": 3187599
+        "query_budget": 4971542
       },
       "learned_states": 4,
-      "accuracy": 0.4288,
+      "accuracy": 0.1092,
       "converged": false,
       "queries_total": 22005,
       "equivalence_queries": 500,
-      "seconds": 28.873,
+      "seconds": 28.154,
       "error_type": "Stalled",
-      "error": "stopped after 500 iterations having used 22005 of the 3187599 query budget"
+      "error": "stopped after 500 iterations having used 22005 of the 4971542 query budget"
+    },
+    {
+      "benchmark": "regex_prefix_1111",
+      "family": "ours",
+      "learner": "CAPAL",
+      "eta": 0.3,
+      "seed": 0,
+      "target_states": 6,
+      "alphabet_size": 2,
+      "learner_config": {
+        "max_iters": 500,
+        "max_same_samples": 2000,
+        "suffix_pool_len_max": 24,
+        "alpha": 0.001,
+        "tau_cap": 0.2,
+        "suffix_pool_init": 100,
+        "discr_search_max_len": 6,
+        "discr_search_random": 2000,
+        "enum_depth": 8,
+        "extra_len_max": 16,
+        "eta_hat": 0.3,
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 712584
+      },
+      "learned_states": 8,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 563059,
+      "equivalence_queries": 9,
+      "seconds": 11.384,
+      "error_type": null,
+      "error": null
+    },
+    {
+      "benchmark": "regex_prefix_1111",
+      "family": "ours",
+      "learner": "CAPAL",
+      "eta": 0.3,
+      "seed": 1,
+      "target_states": 6,
+      "alphabet_size": 2,
+      "learner_config": {
+        "max_iters": 500,
+        "max_same_samples": 2000,
+        "suffix_pool_len_max": 24,
+        "alpha": 0.001,
+        "tau_cap": 0.2,
+        "suffix_pool_init": 100,
+        "discr_search_max_len": 6,
+        "discr_search_random": 2000,
+        "enum_depth": 8,
+        "extra_len_max": 16,
+        "eta_hat": 0.3,
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 712584
+      },
+      "learned_states": 8,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 363025,
+      "equivalence_queries": 9,
+      "seconds": 7.003,
+      "error_type": null,
+      "error": null
+    },
+    {
+      "benchmark": "regex_prefix_1111",
+      "family": "ours",
+      "learner": "CAPAL",
+      "eta": 0.3,
+      "seed": 2,
+      "target_states": 6,
+      "alphabet_size": 2,
+      "learner_config": {
+        "max_iters": 500,
+        "max_same_samples": 2000,
+        "suffix_pool_len_max": 24,
+        "alpha": 0.001,
+        "tau_cap": 0.2,
+        "suffix_pool_init": 100,
+        "discr_search_max_len": 6,
+        "discr_search_random": 2000,
+        "enum_depth": 8,
+        "extra_len_max": 16,
+        "eta_hat": 0.3,
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 712584
+      },
+      "learned_states": 5,
+      "accuracy": 0.9384,
+      "converged": false,
+      "queries_total": 712584,
+      "equivalence_queries": 49,
+      "seconds": 34.518,
+      "error_type": "BudgetExhausted",
+      "error": "stopped at the 712584 distinct-query budget"
+    },
+    {
+      "benchmark": "binary_divisible_by_5",
+      "family": "ours",
+      "learner": "CAPAL",
+      "eta": 0.3,
+      "seed": 0,
+      "target_states": 5,
+      "alphabet_size": 2,
+      "learner_config": {
+        "max_iters": 500,
+        "max_same_samples": 2000,
+        "suffix_pool_len_max": 24,
+        "alpha": 0.001,
+        "tau_cap": 0.2,
+        "suffix_pool_init": 100,
+        "discr_search_max_len": 6,
+        "discr_search_random": 2000,
+        "enum_depth": 8,
+        "extra_len_max": 16,
+        "eta_hat": 0.3,
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 964090
+      },
+      "learned_states": 12,
+      "accuracy": 0.7844,
+      "converged": false,
+      "queries_total": 964090,
+      "equivalence_queries": 6,
+      "seconds": 29.512,
+      "error_type": "BudgetExhausted",
+      "error": "stopped at the 964090 distinct-query budget"
+    },
+    {
+      "benchmark": "binary_divisible_by_5",
+      "family": "ours",
+      "learner": "CAPAL",
+      "eta": 0.3,
+      "seed": 1,
+      "target_states": 5,
+      "alphabet_size": 2,
+      "learner_config": {
+        "max_iters": 500,
+        "max_same_samples": 2000,
+        "suffix_pool_len_max": 24,
+        "alpha": 0.001,
+        "tau_cap": 0.2,
+        "suffix_pool_init": 100,
+        "discr_search_max_len": 6,
+        "discr_search_random": 2000,
+        "enum_depth": 8,
+        "extra_len_max": 16,
+        "eta_hat": 0.3,
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 964090
+      },
+      "learned_states": 13,
+      "accuracy": 0.96,
+      "converged": false,
+      "queries_total": 964090,
+      "equivalence_queries": 9,
+      "seconds": 30.937,
+      "error_type": "BudgetExhausted",
+      "error": "stopped at the 964090 distinct-query budget"
+    },
+    {
+      "benchmark": "binary_divisible_by_5",
+      "family": "ours",
+      "learner": "CAPAL",
+      "eta": 0.3,
+      "seed": 2,
+      "target_states": 5,
+      "alphabet_size": 2,
+      "learner_config": {
+        "max_iters": 500,
+        "max_same_samples": 2000,
+        "suffix_pool_len_max": 24,
+        "alpha": 0.001,
+        "tau_cap": 0.2,
+        "suffix_pool_init": 100,
+        "discr_search_max_len": 6,
+        "discr_search_random": 2000,
+        "enum_depth": 8,
+        "extra_len_max": 16,
+        "eta_hat": 0.3,
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 964090
+      },
+      "learned_states": 14,
+      "accuracy": 0.9076,
+      "converged": false,
+      "queries_total": 964090,
+      "equivalence_queries": 11,
+      "seconds": 32.458,
+      "error_type": "BudgetExhausted",
+      "error": "stopped at the 964090 distinct-query budget"
+    },
+    {
+      "benchmark": "prefix_majority_5",
+      "family": "ours",
+      "learner": "CAPAL",
+      "eta": 0.3,
+      "seed": 0,
+      "target_states": 11,
+      "alphabet_size": 2,
+      "learner_config": {
+        "max_iters": 500,
+        "max_same_samples": 2000,
+        "suffix_pool_len_max": 24,
+        "alpha": 0.001,
+        "tau_cap": 0.2,
+        "suffix_pool_init": 100,
+        "discr_search_max_len": 6,
+        "discr_search_random": 2000,
+        "enum_depth": 8,
+        "extra_len_max": 16,
+        "eta_hat": 0.3,
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 315767
+      },
+      "learned_states": 1,
+      "accuracy": 0.488,
+      "converged": false,
+      "queries_total": 315767,
+      "equivalence_queries": 1,
+      "seconds": 6.135,
+      "error_type": "BudgetExhausted",
+      "error": "stopped at the 315767 distinct-query budget"
+    },
+    {
+      "benchmark": "prefix_majority_5",
+      "family": "ours",
+      "learner": "CAPAL",
+      "eta": 0.3,
+      "seed": 1,
+      "target_states": 11,
+      "alphabet_size": 2,
+      "learner_config": {
+        "max_iters": 500,
+        "max_same_samples": 2000,
+        "suffix_pool_len_max": 24,
+        "alpha": 0.001,
+        "tau_cap": 0.2,
+        "suffix_pool_init": 100,
+        "discr_search_max_len": 6,
+        "discr_search_random": 2000,
+        "enum_depth": 8,
+        "extra_len_max": 16,
+        "eta_hat": 0.3,
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 315767
+      },
+      "learned_states": 4,
+      "accuracy": 0.512,
+      "converged": false,
+      "queries_total": 315767,
+      "equivalence_queries": 3,
+      "seconds": 6.517,
+      "error_type": "BudgetExhausted",
+      "error": "stopped at the 315767 distinct-query budget"
+    },
+    {
+      "benchmark": "prefix_majority_5",
+      "family": "ours",
+      "learner": "CAPAL",
+      "eta": 0.3,
+      "seed": 2,
+      "target_states": 11,
+      "alphabet_size": 2,
+      "learner_config": {
+        "max_iters": 500,
+        "max_same_samples": 2000,
+        "suffix_pool_len_max": 24,
+        "alpha": 0.001,
+        "tau_cap": 0.2,
+        "suffix_pool_init": 100,
+        "discr_search_max_len": 6,
+        "discr_search_random": 2000,
+        "enum_depth": 8,
+        "extra_len_max": 16,
+        "eta_hat": 0.3,
+        "label": "matched,enum=8,extra=16,pool=24,m=2000",
+        "query_budget": 315767
+      },
+      "learned_states": 6,
+      "accuracy": 0.5124,
+      "converged": false,
+      "queries_total": 315767,
+      "equivalence_queries": 5,
+      "seconds": 5.361,
+      "error_type": "BudgetExhausted",
+      "error": "stopped at the 315767 distinct-query budget"
     }
   ]
 }

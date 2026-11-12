@@ -1,9 +1,9 @@
 {
  "oracle": "saw",
  "seed": 0,
- "commit": "c18156b8",
- "dirty": false,
- "hours": 3.6984477928611965,
+ "commit": "8d1aa81c",
+ "dirty": true,
+ "hours": 3.9988846782843273,
  "family_size": 2485,
  "family_fnr": 0.0775
 }

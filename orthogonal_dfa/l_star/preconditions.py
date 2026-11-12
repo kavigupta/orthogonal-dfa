@@ -11,18 +11,12 @@ the learner will draw from:
 - acceptance_rate: the sampled strings are not all accepted or all rejected
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
-- non_start_zone_accuracy_ceiling: re-rooting the target at the best start state
-  (a state in its own non-start zone) still classifies almost every string,
-  without the re-rooted run leaving that zone -- at every string length from
-  ``ceil(length / 2)`` to twice ``length``, taking the worst length for each start
 
 Under uniform sampling every condition is computed exactly, as a chain over
-states, pairs of states or sets of states; under any other sampler it is
-estimated from ``num_samples`` draws.
+states or sets of states; under any other sampler it is estimated from
+num_samples draws.
 """
 
-import copy
-import itertools
 import math
 from collections import Counter
 from dataclasses import dataclass
@@ -35,8 +29,6 @@ from automata.fa.dfa import DFA
 from .sampler import Sampler, UniformSampler
 
 DEFAULT_NUM_SAMPLES = 2000
-
-MAX_VISIT_RATIO = 10
 
 MIN_CLASS_PRESERVING_FRAC = 0.02
 
@@ -202,10 +194,9 @@ def start_length(length: int) -> int:
     return math.ceil(length / 2)
 
 
-def _run(dfa: DFA, string: bytes, start=None) -> list:
-    """The states visited running ``string`` from ``start`` (default q0), the
-    start included."""
-    q = dfa.initial_state if start is None else start
+def _run(dfa: DFA, string: bytes) -> list:
+    """The states visited running string from q0, q0 included."""
+    q = dfa.initial_state
     states = [q]
     for c in string:
         q = dfa.transitions[q][c]
@@ -249,207 +240,6 @@ def _exact_window_visits(table: np.ndarray, initial: int, length: int) -> np.nda
     return _exact_visits(table, _distribution_at(table, initial, k), length - k)
 
 
-def non_start_zone_states(
-    dfa: DFA,
-    *,
-    length: int,
-    num_samples: int = DEFAULT_NUM_SAMPLES,
-    sampler: Optional[Sampler] = None,
-) -> dict:
-    """
-    Per state s in its own non-start zone, that zone
-
-        {q : r_s(q) <= C * w(q)},   C = MAX_VISIT_RATIO * (L + 1) / (L + 1 - k)
-
-    with w(q) the runs from q0 visiting q at positions k = start_length(L) to L, and
-    r_s(q) the runs from s visiting q at positions 0 to L.
-    """
-    k = start_length(length)
-    ratio = MAX_VISIT_RATIO * (length + 1) / (length + 1 - k)
-    if _exact(length, sampler):
-        states, table, _, initial = dfa_tables(dfa)
-        window = _exact_window_visits(table, initial, length)
-        rerooted = _exact_visits(table, np.eye(len(states)), length)
-        zone = rerooted <= ratio * window
-        return {
-            states[s]: {q for q, inside in zip(states, zone[s]) if inside}
-            for s in range(len(states))
-            if window[s] > 0 and zone[s, s]
-        }
-    strings = _samples(dfa, length, num_samples, sampler)
-    window = _window_visits(
-        dfa, length=length, num_samples=num_samples, sampler=sampler
-    )
-    zones = {}
-    for start in window:
-        rerooted = Counter(q for s in strings for q in set(_run(dfa, s, start)))
-        zone = {q for q in dfa.states if rerooted[q] <= ratio * window[q]}
-        if start in zone:
-            zones[start] = zone
-    return zones
-
-
-@lru_cache(maxsize=None)
-def _sampler_at_length(sampler: Sampler, length: int) -> Sampler:
-    """``sampler`` drawing ``length`` symbols instead; its other settings stay."""
-    if sampler.length == length:
-        return sampler
-    other = copy.copy(sampler)
-    object.__setattr__(other, "length", length)
-    return other
-
-
-def _strings_at_length(
-    dfa: DFA, length: int, num_samples: int, sampler: Optional[Sampler]
-) -> np.ndarray:
-    """Strings of ``length`` as symbol indices, one per row: every string when
-    uniform and there are at most ``num_samples``, else a sample."""
-    symbols = tuple(sorted(dfa.input_symbols))
-    if length == 0:
-        return np.zeros((1, 0), dtype=int)
-    if sampler is None and len(symbols) ** length <= num_samples:
-        return np.array(
-            list(itertools.product(range(len(symbols)), repeat=length)), dtype=int
-        ).reshape(-1, length)
-    if sampler is None:
-        sampler = UniformSampler(length)
-    else:
-        sampler = _sampler_at_length(sampler, length)
-    strings = _samples(dfa, length, num_samples, sampler)
-    index = {c: i for i, c in enumerate(symbols)}
-    return np.array([[index[c] for c in s] for s in strings], dtype=int).reshape(
-        -1, length
-    )
-
-
-def _worst_start_accuracies(
-    dfa: DFA,
-    *,
-    length: int,
-    string_lengths: range,
-    num_samples: int,
-    sampler: Optional[Sampler],
-) -> np.ndarray:
-    """Per start of ``non_start_zone_states`` at ``length``, its lowest accuracy
-    over ``string_lengths``."""
-    zones = non_start_zone_states(
-        dfa, length=length, num_samples=num_samples, sampler=sampler
-    )
-    states, table, final, initial = dfa_tables(dfa)
-    index = {q: i for i, q in enumerate(states)}
-    starts = np.array(sorted(index[q] for q in zones), dtype=int)
-    allowed = np.array(
-        [[q in zones[states[s]] for q in states] for s in starts], dtype=bool
-    ).reshape(len(starts), len(states))
-    if _exact(length, sampler):
-        return _exact_worst_start_accuracies(
-            table,
-            final,
-            initial,
-            starts=starts,
-            allowed=allowed,
-            string_lengths=string_lengths,
-        )
-    worst = np.ones(len(starts))
-    for ell in string_lengths:
-        strings = _strings_at_length(dfa, ell, num_samples, sampler)
-        initial_end, _ = _run_from(
-            table,
-            np.ones((1, len(states)), dtype=bool),
-            strings,
-            np.array([initial]),
-        )
-        truth = final[initial_end[0]]
-        ends, stayed = _run_from(table, allowed, strings, starts)
-        accuracy = (stayed & (final[ends] == truth)).mean(axis=1)
-        worst = np.minimum(worst, accuracy)
-    return worst
-
-
-def _exact_worst_start_accuracies(
-    table, final, initial, *, starts, allowed, string_lengths: range
-) -> np.ndarray:
-    """``_worst_start_accuracies`` under uniform sampling, from the joint
-    distribution of (run from the initial state, run from each start)."""
-    n = len(table)
-    pair_table = (table[:, None, :] * n + table[None, :, :]).reshape(n * n, -1)
-    # joint[s, x, y]: x the run from the initial state, y the run from starts[s],
-    # with the mass whose y-run has left the start's zone dropped
-    joint = np.zeros((len(starts), n, n))
-    joint[np.arange(len(starts)), initial, starts] = 1.0
-    agree = final[:, None] == final[None, :]
-    worst = np.ones(len(starts))
-    for ell in range(string_lengths.stop):
-        if ell in string_lengths:
-            worst = np.minimum(worst, (joint * agree).sum(axis=(1, 2)))
-        joint = _step(joint.reshape(len(starts), n * n), pair_table)
-        joint = joint.reshape(len(starts), n, n) * allowed[:, None, :]
-    return worst
-
-
-def non_start_zone_accuracy_at(
-    dfa: DFA,
-    *,
-    length: int,
-    num_samples: int = DEFAULT_NUM_SAMPLES,
-    sampler: Optional[Sampler] = None,
-) -> float:
-    """``non_start_zone_accuracy_ceiling`` on strings of exactly ``length``."""
-    worst = _worst_start_accuracies(
-        dfa,
-        length=length,
-        string_lengths=range(length, length + 1),
-        num_samples=num_samples,
-        sampler=sampler,
-    )
-    return float(worst.max(initial=0.0))
-
-
-def non_start_zone_accuracy_ceiling(
-    dfa: DFA,
-    *,
-    length: int,
-    num_samples: int = DEFAULT_NUM_SAMPLES,
-    sampler: Optional[Sampler] = None,
-) -> float:
-    """
-    Best accuracy reachable when the classifier may only be started from a start
-    of ``non_start_zone_states``, counting a string only if the run from there
-    stays within that start's zone.
-
-    E-L* discovers states from where its sampled prefixes land, so it can only
-    anchor its automaton at a state they land in often. Only the start is
-    constrained, from there we follow the target's true transitions and read off
-    the endpoint's true accept label. A run through a state the window lands in
-    far less often than the run does uses transitions the learner rarely checks.
-
-    A start's accuracy is its minimum over string lengths ``ceil(length / 2)`` to
-    2 * ``length``; the ceiling is the best start's. A custom ``sampler`` is asked
-    for the other lengths by changing only its ``length``, and is always sampled,
-    never enumerated.
-    """
-    worst = _worst_start_accuracies(
-        dfa,
-        length=length,
-        string_lengths=range((length + 1) // 2, 2 * length + 1),
-        num_samples=num_samples,
-        sampler=sampler,
-    )
-    return float(worst.max(initial=0.0))
-
-
-def _run_from(table, allowed, strings, starts):
-    """Endpoints of running each row of ``strings`` from each of ``starts``, and
-    whether the run stayed in its start's row of ``allowed``."""
-    rows = np.arange(len(starts))[:, None]
-    current = np.repeat(starts[:, None], len(strings), axis=1)
-    stayed = allowed[rows, current]
-    for j in range(strings.shape[1]):
-        current = table[current, strings[:, j]]
-        stayed &= allowed[rows, current]
-    return current, stayed
-
-
 @dataclass(frozen=True)
 class PreconditionReport:
     """The verdict, plus the measurements and the reasons behind it.
@@ -462,9 +252,8 @@ class PreconditionReport:
     length: int
     acceptance_rate: float
     class_preserving_fraction: Optional[float] = None
-    non_start_zone_accuracy_ceiling: Optional[float] = None
-    #: States no sampled prefix lands in, as strings -- populated when the
-    #: ceiling is measured, since that is the check they explain.
+    #: States no run from q0 visits at positions start_length(length) to length,
+    #: as strings.
     unvisited_states: Optional[List[str]] = None
     #: One entry per failed precondition, naming the measured value and the
     #: threshold it missed. Empty iff the DFA is admitted.
@@ -483,7 +272,6 @@ def satisfies_preconditions(
     *,
     length: int,
     min_class_preserving_frac: float = MIN_CLASS_PRESERVING_FRAC,
-    min_non_start_zone_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     short_circuit: bool = True,
     sampler: Optional[Sampler] = None,
@@ -493,12 +281,11 @@ def satisfies_preconditions(
     All under length-``length`` sampling, uniform unless ``sampler`` says otherwise:
 
     - acceptance rate strictly between 0 and 1;
-    - class-preserving fraction at least ``min_class_preserving_frac``;
-    - non-start-zone accuracy ceiling at least ``min_non_start_zone_accuracy``
+    - class-preserving fraction at least min_class_preserving_frac.
 
     The acceptance-rate check only rejects degeneracy -- a language that is
     constant over the sampled strings, which E-L* cannot get signal from and
-    which the other two checks pass trivially. It carries no balance
+    which the class-preserving check passes trivially. It carries no balance
     requirement: an imbalanced language is the class-preserving check's business.
 
     Checks run in increasing cost. By default they stop at the first failure,
@@ -525,15 +312,6 @@ def satisfies_preconditions(
         if short_circuit:
             return PreconditionReport(length, rate, cp, reasons=tuple(reasons))
 
-    ceiling = non_start_zone_accuracy_ceiling(
-        dfa, length=length, num_samples=num_samples, sampler=sampler
-    )
-    if ceiling < min_non_start_zone_accuracy:
-        reasons.append(
-            f"non-start-zone accuracy ceiling {ceiling:.3f} below "
-            f"{min_non_start_zone_accuracy} (a decision rides on a state the window "
-            "lands in far less than the run does)"
-        )
     if _exact(length, sampler):
         states, table, _, initial = dfa_tables(dfa)
         window = _exact_window_visits(table, initial, length)
@@ -543,4 +321,4 @@ def satisfies_preconditions(
             dfa, length=length, num_samples=num_samples, sampler=sampler
         )
     unvisited = sorted(str(q) for q in dfa.states if q not in visited)
-    return PreconditionReport(length, rate, cp, ceiling, unvisited, tuple(reasons))
+    return PreconditionReport(length, rate, cp, unvisited, tuple(reasons))

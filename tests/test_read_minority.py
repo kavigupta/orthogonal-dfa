@@ -13,7 +13,7 @@ from orthogonal_dfa.l_star.statistics import (
 )
 
 #: `selection_not_trichotomy` and `selection_not_minority_bounded` in
-#: proofs/OrthoDFA/OrthoDFA/Proofs/FamilyRead.lean: at each center and signal the cross
+#: proofs/RLStar/Proofs/FamilyRead.lean: at each center and signal the cross
 #: and FNR criteria alone pick a band that fails one half of the check.
 TRICHOTOMY_CASE = dict(
     center=17 / 30, signal=17 / 30 - 67 / 500, cross_limit=(2 / 15) ** 15 * (1 + 1e-7)

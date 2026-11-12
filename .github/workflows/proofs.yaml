@@ -16,7 +16,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: proofs/OrthoDFA
+        working-directory: proofs
     steps:
       - uses: actions/checkout@v4
       - name: Install elan
@@ -26,13 +26,13 @@ jobs:
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Fetch prebuilt Mathlib
         run: lake exe cache get
-      - name: Restore OrthoDFA's own build
+      - name: Restore RLStar's own build
         uses: actions/cache@v4
         with:
-          path: proofs/OrthoDFA/.lake/build
-          key: lean-build-${{ hashFiles('proofs/OrthoDFA/lean-toolchain', 'proofs/OrthoDFA/lake-manifest.json') }}-${{ github.sha }}
+          path: proofs/.lake/build
+          key: lean-build-${{ hashFiles('proofs/lean-toolchain', 'proofs/lake-manifest.json') }}-${{ github.sha }}
           restore-keys: |
-            lean-build-${{ hashFiles('proofs/OrthoDFA/lean-toolchain', 'proofs/OrthoDFA/lake-manifest.json') }}-
+            lean-build-${{ hashFiles('proofs/lean-toolchain', 'proofs/lake-manifest.json') }}-
       - name: Make the restored build newer than the fresh checkout
         run: |
           [ -d .lake/build ] && find .lake/build -type f -exec touch {} +
@@ -40,13 +40,13 @@ jobs:
       - name: Build
         run: lake build 2>&1 | tee build.log
       - name: Elaborate Verify.lean afresh
-        run: lake env lean OrthoDFA/Verify.lean 2>&1 | tee -a build.log
+        run: lake env lean RLStar/Verify.lean 2>&1 | tee -a build.log
       - name: No sorry, and every claim rests on the core axioms alone
         run: |
           if grep -E "declaration uses .sorry." build.log; then
             echo "::error::a declaration uses sorry"; exit 1
           fi
-          claims=$(grep -F "OrthoDFA/Verify.lean" build.log | grep -F "depends on axioms")
+          claims=$(grep -F "RLStar/Verify.lean" build.log | grep -F "depends on axioms")
           [ -n "$claims" ] || { echo "::error::Verify.lean printed no axioms"; exit 1; }
           if echo "$claims" | sed 's/.*depends on axioms: \[\(.*\)\]/\1/' | tr ',' '\n' \
               | tr -d ' ' | grep -vxE "propext|Classical\.choice|Quot\.sound"; then
@@ -54,6 +54,6 @@ jobs:
           fi
       - name: Code does not import claims or proofs
         run: |
-          if grep -rnE '^import OrthoDFA\.(LowLevelClaims|Claims|Proofs)' OrthoDFA/Code; then
+          if grep -rnE '^import RLStar\.(LowLevelClaims|Claims|Proofs)' RLStar/Code; then
             echo "::error::Code/ must not import claims or proofs"; exit 1
           fi

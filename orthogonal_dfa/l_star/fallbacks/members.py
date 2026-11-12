@@ -1,5 +1,5 @@
 """Reading an edge a probe leaves undecided on a member of its source leaf, as
-``EdgeResolver`` does.  Not covered by the proof: OrthoDFA/Code/Level3.lean learns an edge
+``EdgeResolver`` does.  Not covered by the proof: RLStar/Code/Level3.lean learns an edge
 only from the probe's own prefix."""
 
 from typing import List, Sequence
