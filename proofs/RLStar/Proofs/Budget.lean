@@ -1265,7 +1265,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   classical
   set hz : ℕ := (allHarvest H).card with hhz
   have hpop : populations.Nonempty := ⟨uni, htame huni⟩
-  simp only [ret_eq, familyAt_eq]
+  simp only [ret_eq, readη_decl, familyAt_eq]
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := by have := gap_le_one O; linarith
   have hcard : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop

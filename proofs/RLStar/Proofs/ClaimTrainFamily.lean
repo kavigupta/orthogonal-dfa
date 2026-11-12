@@ -825,15 +825,15 @@ private lemma transfer {f g : ClusterVec → ℝ} {g' : TrainFamilyInputs → �
     (hg : ∀ x, g (toVec x) = g' x) : (fun x => f (toVec x)) =O[𝓟 trainFamilyRegion] g' :=
   (isBigO_comp_on h fun _ hx => toVec_mem hx).congr_right hg
 
-/-- The clustering runs at a quarter of the signal. -/
-private def quarter (x : TrainFamilyInputs) : TrainFamilyInputs := { x with s₀ := x.s₀ / 4 }
+/-- The clustering reads at half the signal. -/
+private def half (x : TrainFamilyInputs) : TrainFamilyInputs := { x with s₀ := x.s₀ / 2 }
 
-/-- `toVec` at a quarter of the signal. -/
+/-- `toVec` at half the signal. -/
 private def quad : ClusterVec → ClusterVec := fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
-  (nJ, iδ, ip, ie, isl, iu, iw, 4 * is, nH)
+  (nJ, iδ, ip, ie, isl, iu, iw, 2 * is, nH)
 
-private lemma toVec_quarter (x : TrainFamilyInputs) : toVec (quarter x) = quad (toVec x) := by
-  simp only [toVec, quarter, quad, TrainFamilyInputs.εc, TrainFamilyInputs.εsc, one_div_div,
+private lemma toVec_half (x : TrainFamilyInputs) : toVec (half x) = quad (toVec x) := by
+  simp only [toVec, half, quad, TrainFamilyInputs.εc, TrainFamilyInputs.εsc, one_div_div,
     mul_one_div]
 
 private lemma quad_maps : Set.MapsTo quad vecRegion vecRegion := by
@@ -846,60 +846,60 @@ private lemma quad_maps : Set.MapsTo quad vecRegion vecRegion := by
 private lemma logM_quad {ie iu iw is : ℝ} (hie : 2 ≤ ie) (his : 2 ≤ is) (hiu : 0 ≤ iu)
     (hiw : 0 ≤ iw) :
     1 ≤ log (max (ie * is) (max iu iw))
-      ∧ log (max (ie * is) (max iu iw)) ≤ log (max (ie * (4 * is)) (max iu iw))
-      ∧ log (max (ie * (4 * is)) (max iu iw)) ≤ 2 * log (max (ie * is) (max iu iw)) := by
+      ∧ log (max (ie * is) (max iu iw)) ≤ log (max (ie * (2 * is)) (max iu iw))
+      ∧ log (max (ie * (2 * is)) (max iu iw)) ≤ 2 * log (max (ie * is) (max iu iw)) := by
   set M := max (ie * is) (max iu iw) with hMd
   have hM : 4 ≤ M := le_max_of_le_left (by nlinarith)
-  have hM' : M ≤ max (ie * (4 * is)) (max iu iw) := max_le_max (by nlinarith) le_rfl
-  have hM4 : max (ie * (4 * is)) (max iu iw) ≤ 4 * M := by
+  have hM' : M ≤ max (ie * (2 * is)) (max iu iw) := max_le_max (by nlinarith) le_rfl
+  have hM4 : max (ie * (2 * is)) (max iu iw) ≤ 4 * M := by
     refine max_le ?_ ?_
-    · rw [show ie * (4 * is) = 4 * (ie * is) by ring]
-      exact mul_le_mul_of_nonneg_left (le_max_left _ _) (by norm_num)
+    · have := le_max_left (ie * is) (max iu iw)
+      nlinarith
     · have := le_max_right (ie * is) (max iu iw)
       linarith
   refine ⟨one_le_log_of_three_le (by linarith), Real.log_le_log (by linarith) hM', ?_⟩
-  calc log (max (ie * (4 * is)) (max iu iw)) ≤ log (4 * M) := Real.log_le_log (by linarith) hM4
+  calc log (max (ie * (2 * is)) (max iu iw)) ≤ log (4 * M) := Real.log_le_log (by linarith) hM4
     _ = log 4 + log M := Real.log_mul (by norm_num) (by linarith)
     _ ≤ 2 * log M := by linarith [Real.log_le_log (by norm_num : (0 : ℝ) < 4) hM]
 
-/-- The logs the shapes take, at a quarter of the signal: `log M` at most doubles, the nested
+/-- The logs the shapes take, at half the signal: `log M` at most doubles, the nested
 log at most quadruples, and the products' logs at most double. -/
 private lemma quad_logs {nJ iδ ip ie iu iw is : ℝ} (hJ : 1 ≤ nJ) (hiδ : 2 ≤ iδ) (hip : 1 ≤ ip)
     (hie : 2 ≤ ie) (hiu : 2 ≤ iu) (hiw : 1 ≤ iw) (his : 2 ≤ is) :
     0 ≤ log (log (max (ie * is) (max iu iw)) * iδ * ip * is)
-      ∧ 0 ≤ log (log (max (ie * (4 * is)) (max iu iw)) * iδ * ip * (4 * is))
-      ∧ log (log (max (ie * (4 * is)) (max iu iw)) * iδ * ip * (4 * is))
+      ∧ 0 ≤ log (log (max (ie * (2 * is)) (max iu iw)) * iδ * ip * (2 * is))
+      ∧ log (log (max (ie * (2 * is)) (max iu iw)) * iδ * ip * (2 * is))
         ≤ 4 * log (log (max (ie * is) (max iu iw)) * iδ * ip * is)
       ∧ 0 ≤ log (nJ * iδ * ip * ie * iu * iw * is)
-      ∧ 0 ≤ log (nJ * iδ * ip * ie * iu * iw * (4 * is))
-      ∧ log (nJ * iδ * ip * ie * iu * iw * (4 * is))
+      ∧ 0 ≤ log (nJ * iδ * ip * ie * iu * iw * (2 * is))
+      ∧ log (nJ * iδ * ip * ie * iu * iw * (2 * is))
         ≤ 2 * log (nJ * iδ * ip * ie * iu * iw * is) := by
   obtain ⟨h1, h2, h3⟩ := logM_quad (iu := iu) (iw := iw) hie his (by linarith) (by linarith)
   obtain ⟨-, -, hP⟩ := prods hJ hiδ hip hie hiu hiw his
   set L := log (max (ie * is) (max iu iw))
-  set L' := log (max (ie * (4 * is)) (max iu iw))
+  set L' := log (max (ie * (2 * is)) (max iu iw))
   have hZ : 4 ≤ L * iδ * ip * is := by
     have a : 2 ≤ L * iδ := by nlinarith
     have b : 2 ≤ L * iδ * ip := by nlinarith
     nlinarith
-  have hZ' : L * iδ * ip * is ≤ L' * iδ * ip * (4 * is) := by
+  have hZ' : L * iδ * ip * is ≤ L' * iδ * ip * (2 * is) := by
     have : L * iδ * ip ≤ L' * iδ * ip := by
       have := mul_le_mul_of_nonneg_right h2 (by positivity : (0 : ℝ) ≤ iδ * ip)
       linarith [show L * iδ * ip = L * (iδ * ip) by ring,
         show L' * iδ * ip = L' * (iδ * ip) by ring]
     have h4 : 0 ≤ L' * iδ * ip := by nlinarith
     nlinarith
-  have hZ8 : L' * iδ * ip * (4 * is) ≤ 8 * (L * iδ * ip * is) := by
-    have := mul_le_mul_of_nonneg_right h3 (by positivity : (0 : ℝ) ≤ iδ * ip * (4 * is))
-    linarith [show L' * iδ * ip * (4 * is) = L' * (iδ * ip * (4 * is)) by ring,
-      show 2 * L * (iδ * ip * (4 * is)) = 8 * (L * iδ * ip * is) by ring]
-  have e : nJ * iδ * ip * ie * iu * iw * (4 * is) = 4 * (nJ * iδ * ip * ie * iu * iw * is) := by
+  have hZ8 : L' * iδ * ip * (2 * is) ≤ 8 * (L * iδ * ip * is) := by
+    have := mul_le_mul_of_nonneg_right h3 (by positivity : (0 : ℝ) ≤ iδ * ip * (2 * is))
+    linarith [show L' * iδ * ip * (2 * is) = L' * (iδ * ip * (2 * is)) by ring,
+      show 2 * L * (iδ * ip * (2 * is)) = 4 * (L * iδ * ip * is) by ring, hZ]
+  have e : nJ * iδ * ip * ie * iu * iw * (2 * is) = 2 * (nJ * iδ * ip * ie * iu * iw * is) := by
     ring
   refine ⟨Real.log_nonneg (by linarith), Real.log_nonneg (by linarith),
     (Real.log_le_log (by linarith) hZ8).trans (log_eight_mul_le (by linarith)),
     Real.log_nonneg (by linarith), Real.log_nonneg (by rw [e]; linarith), ?_⟩
   rw [e]
-  exact log_four_mul_le (by linarith)
+  exact (Real.log_le_log (by linarith) (by linarith)).trans (log_four_mul_le (by linarith))
 
 private lemma kW_quad : (fun v => kW (quad v)) =O[𝓟 vecRegion]
     (fun (_, _, _, ie, _, iu, iw, is, _) =>
@@ -940,50 +940,52 @@ private lemma sufAtomTolW_quad : (fun v => 1 / sufAtomTolW (quad v)) =O[𝓟 vec
   refine ⟨by nlinarith, by nlinarith, ?_⟩
   nlinarith [mul_le_mul_of_nonneg_right h3 hp]
 
-/-- `nprefW`'s shape without its `isl` term, at a quarter of the signal. -/
+/-- `nprefW`'s shape without its `isl` term, at half the signal. -/
 private lemma core_quad {nJ iδ ip ie iu iw is nH : ℝ} (hJ : 1 ≤ nJ) (hiδ : 2 ≤ iδ) (hip : 1 ≤ ip)
     (hie : 2 ≤ ie) (hiu : 2 ≤ iu) (hiw : 1 ≤ iw) (his : 2 ≤ is) (hnH : 0 ≤ nH) :
     0 ≤ nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is)
           * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
         + log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 4 + iu ^ 2)
         + nH * (ie * is ^ 2 + iu)
-      ∧ 0 ≤ nJ * log (log (max (ie * (4 * is)) (max iu iw)) * iδ * ip * (4 * is))
-          * (ie ^ 2 * (4 * is) ^ 4 + iu ^ 2 * (4 * is) ^ 4)
-        + log (nJ * iδ * ip * ie * iu * iw * (4 * is)) * (ie ^ 2 * (4 * is) ^ 4 + iu ^ 2)
-        + nH * (ie * (4 * is) ^ 2 + iu)
-      ∧ nJ * log (log (max (ie * (4 * is)) (max iu iw)) * iδ * ip * (4 * is))
-          * (ie ^ 2 * (4 * is) ^ 4 + iu ^ 2 * (4 * is) ^ 4)
-        + log (nJ * iδ * ip * ie * iu * iw * (4 * is)) * (ie ^ 2 * (4 * is) ^ 4 + iu ^ 2)
-        + nH * (ie * (4 * is) ^ 2 + iu)
+      ∧ 0 ≤ nJ * log (log (max (ie * (2 * is)) (max iu iw)) * iδ * ip * (2 * is))
+          * (ie ^ 2 * (2 * is) ^ 4 + iu ^ 2 * (2 * is) ^ 4)
+        + log (nJ * iδ * ip * ie * iu * iw * (2 * is)) * (ie ^ 2 * (2 * is) ^ 4 + iu ^ 2)
+        + nH * (ie * (2 * is) ^ 2 + iu)
+      ∧ nJ * log (log (max (ie * (2 * is)) (max iu iw)) * iδ * ip * (2 * is))
+          * (ie ^ 2 * (2 * is) ^ 4 + iu ^ 2 * (2 * is) ^ 4)
+        + log (nJ * iδ * ip * ie * iu * iw * (2 * is)) * (ie ^ 2 * (2 * is) ^ 4 + iu ^ 2)
+        + nH * (ie * (2 * is) ^ 2 + iu)
         ≤ 1024 * (nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is)
           * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
         + log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 4 + iu ^ 2)
         + nH * (ie * is ^ 2 + iu)) := by
   obtain ⟨a0, a0', ha, b0, b0', hb⟩ := quad_logs hJ hiδ hip hie hiu hiw his
   set L1 := log (log (max (ie * is) (max iu iw)) * iδ * ip * is)
-  set L1' := log (log (max (ie * (4 * is)) (max iu iw)) * iδ * ip * (4 * is))
+  set L1' := log (log (max (ie * (2 * is)) (max iu iw)) * iδ * ip * (2 * is))
   set L2 := log (nJ * iδ * ip * ie * iu * iw * is)
-  set L2' := log (nJ * iδ * ip * ie * iu * iw * (4 * is))
+  set L2' := log (nJ * iδ * ip * ie * iu * iw * (2 * is))
   set A := ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4 with hA
   set Bq := ie ^ 2 * is ^ 4 + iu ^ 2 with hB
   set C := ie * is ^ 2 + iu with hC
-  have eA : ie ^ 2 * (4 * is) ^ 4 + iu ^ 2 * (4 * is) ^ 4 = 256 * A := by rw [hA]; ring
-  have eB : ie ^ 2 * (4 * is) ^ 4 + iu ^ 2 ≤ 256 * Bq := by
-    rw [hB]; nlinarith [sq_nonneg iu]
-  have eC : ie * (4 * is) ^ 2 + iu ≤ 16 * C := by rw [hC]; nlinarith [sq_nonneg is]
+  have eA : ie ^ 2 * (2 * is) ^ 4 + iu ^ 2 * (2 * is) ^ 4 = 16 * A := by rw [hA]; ring
+  have eB : ie ^ 2 * (2 * is) ^ 4 + iu ^ 2 ≤ 256 * Bq := by
+    rw [hB]; nlinarith [sq_nonneg iu, sq_nonneg (ie * is ^ 2)]
+  have eC : ie * (2 * is) ^ 2 + iu ≤ 16 * C := by
+    rw [hC]; nlinarith [mul_nonneg (by linarith : (0 : ℝ) ≤ ie) (sq_nonneg is)]
   have hA0 : 0 ≤ A := by positivity
   have hB0 : 0 ≤ Bq := by positivity
   have hC0 : 0 ≤ C := by positivity
-  have hB'0 : 0 ≤ ie ^ 2 * (4 * is) ^ 4 + iu ^ 2 := by positivity
-  have hC'0 : 0 ≤ ie * (4 * is) ^ 2 + iu := by positivity
+  have hB'0 : 0 ≤ ie ^ 2 * (2 * is) ^ 4 + iu ^ 2 := by positivity
+  have hC'0 : 0 ≤ ie * (2 * is) ^ 2 + iu := by positivity
   rw [eA]
-  have t1 : nJ * L1' * (256 * A) ≤ 1024 * (nJ * L1 * A) := by
-    have := mul_le_mul_of_nonneg_left ha (by positivity : (0 : ℝ) ≤ nJ * (256 * A))
+  have t1 : nJ * L1' * (16 * A) ≤ 1024 * (nJ * L1 * A) := by
+    have := mul_le_mul_of_nonneg_left ha (by positivity : (0 : ℝ) ≤ nJ * (16 * A))
+    have : 0 ≤ nJ * L1 * A := by positivity
     nlinarith
-  have t2 : L2' * (ie ^ 2 * (4 * is) ^ 4 + iu ^ 2) ≤ 512 * (L2 * Bq) := by
+  have t2 : L2' * (ie ^ 2 * (2 * is) ^ 4 + iu ^ 2) ≤ 512 * (L2 * Bq) := by
     have := mul_le_mul hb eB hB'0 (by positivity)
     nlinarith
-  have t3 : nH * (ie * (4 * is) ^ 2 + iu) ≤ 16 * (nH * C) := by
+  have t3 : nH * (ie * (2 * is) ^ 2 + iu) ≤ 16 * (nH * C) := by
     have := mul_le_mul_of_nonneg_left eC hnH
     nlinarith
   have p1 : 0 ≤ nJ * L1 * A := by positivity
@@ -1031,31 +1033,35 @@ private lemma atomTolW_quad : (fun v => 1 / atomTolW (quad v)) =O[𝓟 vecRegion
       rw [e]
       exact le_mul_of_one_le_right (by linarith) h1
     linarith
-  have eY : nJ * iδ * ip * ie * isl * iu * iw * (4 * is) * (nH + 1) = 4 * Y := by rw [hY]; ring
-  have hlY := log_four_mul_le (by linarith : 4 ≤ Y)
+  have eY : nJ * iδ * ip * ie * isl * iu * iw * (2 * is) * (nH + 1) = 2 * Y := by rw [hY]; ring
+  have hlY : log (2 * Y) ≤ 2 * log Y :=
+    (Real.log_le_log (by linarith) (by linarith)).trans (log_four_mul_le (by linarith : 4 ≤ Y))
   have hlY0 : 0 ≤ log Y := Real.log_nonneg (by linarith)
   set Bv := nJ * (iu + isl) + ie * is ^ 2 + iu * is with hBv
   have hBv0 : 0 ≤ Bv := by positivity
-  have hBq : nJ * (iu + isl) + ie * (4 * is) ^ 2 + iu * (4 * is) ≤ 16 * Bv := by
-    rw [hBv]; nlinarith [mul_nonneg (by linarith : (0 : ℝ) ≤ nJ) (by linarith : (0 : ℝ) ≤ iu + isl)]
-  have hBq0 : 0 ≤ nJ * (iu + isl) + ie * (4 * is) ^ 2 + iu * (4 * is) := by positivity
+  have hBq : nJ * (iu + isl) + ie * (2 * is) ^ 2 + iu * (2 * is) ≤ 16 * Bv := by
+    rw [hBv]
+    nlinarith [mul_nonneg (by linarith : (0 : ℝ) ≤ nJ) (by linarith : (0 : ℝ) ≤ iu + isl),
+      mul_nonneg (by linarith : (0 : ℝ) ≤ ie) (sq_nonneg is),
+      mul_nonneg (by linarith : (0 : ℝ) ≤ iu) (by linarith : (0 : ℝ) ≤ is)]
+  have hBq0 : 0 ≤ nJ * (iu + isl) + ie * (2 * is) ^ 2 + iu * (2 * is) := by positivity
   rw [eY]
   set A := nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is)
           * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
         + log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 4 + iu ^ 2)
         + nH * (ie * is ^ 2 + iu)
-  set A' := nJ * log (log (max (ie * (4 * is)) (max iu iw)) * iδ * ip * (4 * is))
-          * (ie ^ 2 * (4 * is) ^ 4 + iu ^ 2 * (4 * is) ^ 4)
-        + log (nJ * iδ * ip * ie * iu * iw * (4 * is)) * (ie ^ 2 * (4 * is) ^ 4 + iu ^ 2)
-        + nH * (ie * (4 * is) ^ 2 + iu)
+  set A' := nJ * log (log (max (ie * (2 * is)) (max iu iw)) * iδ * ip * (2 * is))
+          * (ie ^ 2 * (2 * is) ^ 4 + iu ^ 2 * (2 * is) ^ 4)
+        + log (nJ * iδ * ip * ie * iu * iw * (2 * is)) * (ie ^ 2 * (2 * is) ^ 4 + iu ^ 2)
+        + nH * (ie * (2 * is) ^ 2 + iu)
   have h1 := mul_le_mul hc hBq hBq0 (by positivity)
-  have h2 : nJ * log (4 * Y) * isl ^ 2 ≤ 2 * (nJ * log Y * isl ^ 2) := by
+  have h2 : nJ * log (2 * Y) * isl ^ 2 ≤ 2 * (nJ * log Y * isl ^ 2) := by
     have := mul_le_mul_of_nonneg_left hlY (by positivity : (0 : ℝ) ≤ nJ * isl ^ 2)
     nlinarith
   have h3 : 0 ≤ nJ * log Y * isl ^ 2 := by positivity
   have h4 : 0 ≤ A * Bv := mul_nonneg c0 hBv0
-  have h5 : 0 ≤ nJ * log (4 * Y) * isl ^ 2 := by
-    have := Real.log_nonneg (by linarith : (1 : ℝ) ≤ 4 * Y)
+  have h5 : 0 ≤ nJ * log (2 * Y) * isl ^ 2 := by
+    have := Real.log_nonneg (by linarith : (1 : ℝ) ≤ 2 * Y)
     positivity
   refine ⟨by linarith [mul_nonneg c0' hBq0], by linarith, by linarith⟩
 
@@ -1063,10 +1069,10 @@ private lemma half_eq (a : ℝ) : 1 / (2 * (1 / a)) = a / 2 := by
   rw [one_div, one_div, mul_inv, inv_inv, mul_comm, div_eq_mul_inv]
 
 theorem trainFamilyClaim_holds : TrainFamilyClaim := by
-  have hq : ∀ x, toVec (quarter x) = quad (toVec x) := toVec_quarter
-  refine ⟨fun x => kW (toVec (quarter x)), fun x => nsuffW (toVec (quarter x)),
-    fun x => nprefW (toVec (quarter x)), fun x => atomTolW (toVec (quarter x)),
-    fun x => sufAtomTolW (toVec (quarter x)),
+  have hq : ∀ x, toVec (half x) = quad (toVec x) := toVec_half
+  refine ⟨fun x => kW (toVec (half x)), fun x => nsuffW (toVec (half x)),
+    fun x => nprefW (toVec (half x)), fun x => atomTolW (toVec (half x)),
+    fun x => sufAtomTolW (toVec (half x)),
     (transfer kW_quad fun x => by
       simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf).congr_left
       fun x => by rw [hq],
@@ -1087,12 +1093,13 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
   obtain ⟨nJ, δ, pAP, εcov₀, ε_s₀, ε_u, κ, s₀, β⟩ := x
   simp only [trainFamilyRegion, Set.mem_ofPred_eq] at hx hcard hgap
   obtain ⟨hJ, hδ, hδ1, hpAP, hpAP1, he₀, he₁, hsl₀, hsl₁, hu, hu1, hw, hw1, hs, hs1, hb⟩ := hx
-  obtain ⟨η₀, rfl⟩ : ∃ η₀, s₀ = 4 * (1 / 2 - η₀) := ⟨1 / 2 - s₀ / 4, by ring⟩
+  obtain ⟨η₀, rfl⟩ : ∃ η₀, s₀ = 2 * (1 / 2 - η₀) := ⟨1 / 2 - s₀ / 2, by ring⟩
   subst hcard
   have hη₀ : η₀ < 1 / 2 := by linarith
-  have hq4 : 4 * (1 / 2 - η₀) / 4 = 1 / 2 - η₀ := by ring
-  simp only [TrainFamilyOutcome, quarter, toVec, TrainFamilyInputs.εc, TrainFamilyInputs.εsc, hq4,
-    sub_sub_cancel]
+  have hq4 : 2 * (1 / 2 - η₀) / 2 = 1 / 2 - η₀ := by ring
+  have hdecl : (1 : ℝ) / 2 - 2 * (1 / 2 - η₀) = 2 * η₀ - 1 / 2 := by ring
+  simp only [TrainFamilyOutcome, half, toVec, TrainFamilyInputs.εc, TrainFamilyInputs.εsc, hq4,
+    hdecl, sub_sub_cancel]
   -- the schedule is sized for coverage `min(εcov, β/2)` and redraw share `min(ε_s, that)`
   set εcov := min εcov₀ (β / 2) with hεcov
   set ε_s := min ε_s₀ εcov with hεs
@@ -1110,7 +1117,7 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
       simp [allHarvest] at hs)
   obtain ⟨states, hnp, -, hkn, hband, hκ, hmain⟩ := clustering_guarantee_of_correct O
     populations populations uni (fun _ => ∅) Pre Suf η₀ ε_u εcov ε_s (δ / 2) (δ / 2) pAP (κ ^ 4)
-        εcov₀ hgap
+        εcov₀ (by linarith)
     hη₀ huni (Finset.Subset.refl _) hflat (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hu
         hu1
     (by positivity) (by linarith) he he1 hsl hsl1 hεc0 he₁ (by positivity) (by linarith)

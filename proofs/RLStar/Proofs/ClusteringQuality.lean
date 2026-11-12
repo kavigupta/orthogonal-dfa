@@ -418,9 +418,11 @@ def ClusteringQualitySized : Prop :=
         ∀ t, 2 ^ 16 * (B.nsuff : ℝ) * Dsf.real {t} ≤ pAP) →
         1 - δ - α ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val)
+                streams H uni x ∈ ret O.mq populations uni (2 * η₀ - 1 / 2)
+                    indecisionLimit εcov α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εcov α B.val →
+              streams H uni x ∈ ret O.mq populations uni (2 * η₀ - 1 / 2)
+                  indecisionLimit εcov α B.val →
               ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
                   (familyAt O.mq populations (streams H uni x) B.val) p ∂(D uni)
                 ≤ εcov + εs + slack
@@ -442,7 +444,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   set hsz : ℕ := (allHarvest H).card with hhsz
   have hpop : populations.Nonempty := ⟨uni, htame huni⟩
   classical
-  simp only [ret_eq, familyAt_eq]
+  simp only [ret_eq, readη_decl, familyAt_eq]
   set δ' : ℝ := δ / 2 with hδ'def
   have hδ' : 0 < δ' := by positivity
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith

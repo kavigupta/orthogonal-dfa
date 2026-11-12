@@ -66,8 +66,9 @@ lands at or below `lo`, or one whose mean lies at or below `lo` lands above `hi`
 `crossLimit` of the time; and whatever its two rates, such a vote reads its rarer decided side at
 most `κ` times as often as undecided, for any `κ` with `crossLimit ≤ κ⁴`.
 
-The algorithm is told only `η₀`, whose signal `½ − η₀` is at most a quarter of the gap
-`1 − ηIn − ηOut`; it reads where the two rates sit off the data.  `uni` is the uniform pool,
+The algorithm reads at `η₀`, whose signal `½ − η₀` is at most a quarter of the gap
+`1 − ηIn − ηOut`; it is told the half-gap `2 (½ − η₀)`, so `ret` takes `2 η₀ − ½`, and it reads
+where the two rates sit off the data.  `uni` is the uniform pool,
 the one population every prefix of the learner's distribution is drawn from, and it holds at
 least `2·εcov` of the language and of its complement.  The second count's log reads the
 family's size: the band is tried at each of its centres.  `εs` is the slack
@@ -158,9 +159,10 @@ def ClusteringGuarantee : Prop :=
       (∀ B ∈ states, ∀ t : S, 2 ^ 16 * (B.nsuff : ℝ) * Dsf.real {t} ≤ pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real
         {x | (∃ B : {B : State // B ∈ states},
-              streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εg α B.val)
+              streams H uni x ∈ ret O.mq populations uni (2 * η₀ - 1 / 2)
+                  indecisionLimit εg α B.val)
           ∧ ∀ B : {B : State // B ∈ states},
-            streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εg α B.val →
+            streams H uni x ∈ ret O.mq populations uni (2 * η₀ - 1 / 2) indecisionLimit εg α B.val →
             1 - εg - εs
               ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                   (familyAt O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}

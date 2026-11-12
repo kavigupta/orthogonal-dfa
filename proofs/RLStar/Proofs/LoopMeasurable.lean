@@ -393,7 +393,7 @@ theorem measurableSet_ret (O : Oracle μ (FreeMonoid α)) (pops : Finset (Option
     (uni : Option (Fin K)) (η₀ ι εcov a : ℝ) (B : State) :
     MeasurableSet (ret O.mq pops uni η₀ ι εcov a B : Set (Run Ω (FreeMonoid α) (Option (Fin K)))) := by
   rw [ret_eq]
-  exact measurableSet_retBy O pops uni η₀ ι εcov a B
+  exact measurableSet_retBy O pops uni (readη η₀) ι εcov a B
 
 /-- A run's family at the state `B` is a measurable function of the run. -/
 theorem measurableSet_clusterAt (O : Oracle μ (FreeMonoid α)) (pops : Finset (Option (Fin K)))

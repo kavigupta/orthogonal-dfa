@@ -500,12 +500,16 @@ states by their prefix counts. -/
 noncomputable def gateLevel (α : ℝ) (populations : Finset J) (B : State) : ℝ :=
   sizeLevel (α / (9 * populations.card * B.k)) B.npref
 
+/-- The rate `ret` reads at for a declared half-gap `½ − η₀`: half of it, the rest left for
+estimating the centre. -/
+noncomputable def readη (η₀ : ℝ) : ℝ := (1 / 2 + η₀) / 2
+
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
 test on `certOf`, and the gate, at each population `keptAt` keeps, the gate drawing that
 population further when the split reads uncertified, to at most twice its size.  The FNR reads
 the family with its seed; the gate reads it without, since the seed's read is the bit the gate
-scores.  The gate reads each side's wrong class at the rate `½ − η₀` short of the band's
+scores.  The gate reads each side's wrong class at the rate `½ − readη η₀` short of the band's
 centre, once the uniform pool's sample bears that centre out (`centreFits`). -/
 noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (η₀ indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
@@ -516,11 +520,11 @@ noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
             (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
     ∧ ∀ j ∈ populations, keptAt populations j B.npref x → ∃ e ≤ B.npref,
-      certifiesAt mq B.centre (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀) (gateLimit uni εcov j)
-        (gateLevel α populations B) B.lo B.hi
+      certifiesAt mq B.centre (B.centre - 1 / 2 + readη η₀) (1 / 2 - B.centre + readη η₀)
+        (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi
         (clusterAt mq populations x B) (refsAt mq populations x B)
         (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x)
-      ∧ centreFits mq η₀ (gateLevel α populations B) B (clusterAt mq populations x B)
+      ∧ centreFits mq (readη η₀) (gateLevel α populations B) B (clusterAt mq populations x B)
         (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x)}
 
 end OrthoDFA

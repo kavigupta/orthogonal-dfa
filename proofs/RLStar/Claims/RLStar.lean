@@ -6,7 +6,7 @@ import RLStar.Code.LearnerLoopTrie
 /-!
 # The learner's costs, asymptotically
 
-The learner runs at `η₀ = 1/2 − s₀/4` and at accuracy `ξc = min(ξ, (L + |Q|) β)`, so its
+The learner is given `η₀ = 1/2 − s₀` and runs at accuracy `ξc = min(ξ, (L + |Q|) β)`, so its
 clustering's coverage, about `ξc/L`, is within `β`, the least share either class holds of the
 strings the DFA is judged on.
 -/
@@ -16,8 +16,8 @@ namespace OrthoDFA
 open MeasureTheory Asymptotics Filter
 
 /-- `Q` states, `A` letters, `ξ` the accuracy slack, `pAP` the share of suffixes that preserve
-membership, `s₀` the gap between the classes' accept rates and `β` the least share of either
-class. -/
+membership, `s₀` a lower bound on half the gap between the classes' accept rates and `β` the
+least share of either class. -/
 structure RLStarInputs where
   Q : ℕ
   A : ℕ
@@ -68,7 +68,7 @@ def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads :
   let Ls : ℕ := L₁ + Fintype.card Q + 3
   x ∈ rlStarRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  x.s₀ ≤ O.gap →
+  2 * x.s₀ ≤ O.gap →
   x.β ≤ (prefixLaw D L).real {p | p ∈ O.L} → x.β ≤ (prefixLaw D L).real {p | p ∉ O.L} →
   (∀ᵐ w ∂D, Ls ≤ w.toList.length) →
   k ≤ L →
@@ -139,7 +139,7 @@ def RLStarWithinUniform.{u, v, w} (k₀ : RLStarRun → ℝ)
   let L₁ : ℕ := L + Fintype.card Q + 3
   x ∈ rlStarRegion → Fintype.card Q = x.Q → Fintype.card A = x.A →
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
-  x.s₀ ≤ O.gap →
+  2 * x.s₀ ≤ O.gap →
   x.β ≤ (uniformStrings L).real {p | p ∈ O.L} → x.β ≤ (uniformStrings L).real {p | p ∉ O.L} →
   x.pAP ≤ (uniformStrings (L₁ + Fintype.card Q + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   k₀ { x with L } ≤ k → k ≤ L →

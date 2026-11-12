@@ -83,9 +83,9 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
             ∀ t, 2 ^ 16 * (B.nsuff : ℝ) * Dsf.real {t} ≤ pAP) →
           (runMeasure μ D Dsf).real
             {x | ¬ ((∃ B ∈ schedule pops, streams (fun _ => ∅) none x
-                ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
+                ∈ ret O.mq pops none (2 * η₀ - 1 / 2) indecisionLimit εcov gateLevel B)
               ∧ ∀ B ∈ schedule pops, streams (fun _ => ∅) none x
-                ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B →
+                ∈ ret O.mq pops none (2 * η₀ - 1 / 2) indecisionLimit εcov gateLevel B →
                 ∫ p, miscutProb O B.lo (B.hi + 1)
                     (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p ∂(D none)
                     ≤ 513 / 512 * εcov + slack
@@ -205,23 +205,25 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
     have hg := hgood D Dsf hD hDsf hsupp hbalL hbalN hsuppSf hpAPDsf hcolT hcolE hcolH' hslD' htbD
       hcolSf
     set SpecR := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
-      (∃ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
-        ∧ ∀ B ∈ states, x ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B →
+      (∃ B ∈ states, x ∈ ret O.mq pops none (2 * η₀ - 1 / 2) indecisionLimit εcov gateLevel
+          B)
+        ∧ ∀ B ∈ states, x ∈ ret O.mq pops none (2 * η₀ - 1 / 2) indecisionLimit εcov gateLevel
+          B →
           ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p ∂(D none)
               ≤ 513 / 512 * εcov + slack
             ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
               ∂(D j) ≤ 2 * indecisionLimit + slack}
     have hSm : MeasurableSet (streams (Ω := Ω) (fun _ => ∅) none ⁻¹' SpecR) :=
-      measurable_streams _ none (measurableSet_specAt O pops states η₀ indecisionLimit εcov
-        gateLevel (fun B F => ∫ p, miscutProb O B.lo (B.hi + 1) F p ∂(D none)
+      measurable_streams _ none (measurableSet_specAt O pops states (2 * η₀ - 1 / 2)
+        indecisionLimit εcov gateLevel (fun B F => ∫ p, miscutProb O B.lo (B.hi + 1) F p ∂(D none)
           ≤ 513 / 512 * εcov + slack
           ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1) F p ∂(D j)
             ≤ 2 * indecisionLimit + slack))
     have hsub : {x : Draws Ω (FreeMonoid α) (Option (Fin K)) |
         (∃ B : {B : State // B ∈ states}, streams (fun _ => ∅) none x
-          ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B.val)
+          ∈ ret O.mq pops none (2 * η₀ - 1 / 2) indecisionLimit εcov gateLevel B.val)
           ∧ ∀ B : {B : State // B ∈ states}, streams (fun _ => ∅) none x
-            ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B.val →
+            ∈ ret O.mq pops none (2 * η₀ - 1 / 2) indecisionLimit εcov gateLevel B.val →
             ∫ p, miscutProb O B.val.lo (B.val.hi + 1)
                 (familyAt O.mq pops (streams (fun _ => ∅) none x) B.val) p
                 ∂(D none) ≤ εcov + εcov / 512 + slack
@@ -502,8 +504,8 @@ def LoopCore : Prop :=
   0 < y → y ≤ C.harvestRate / 4 → y ≤ 1 → 0 < δₘ → 0 < scanCap →
   4 * ((K + 3) * NP) ≤ Tsc → Tsc ≤ scanCap → 4 * (3 * NP) ≤ Th → Th ≤ Nh →
   ∃ settings : LoopSettings K,
-    settings.η₀ = η₀ ∧ settings.indecisionLimit = indecisionLimit ∧ settings.εcov = εcov ∧
-    settings.gateLevel = gateLevel ∧ settings.level3 = C ∧ settings.scanCap = scanCap ∧
+    settings.η₀ = 2 * η₀ - 1 / 2 ∧ settings.indecisionLimit = indecisionLimit
+    ∧ settings.εcov = εcov ∧ settings.gateLevel = gateLevel ∧ settings.level3 = C ∧ settings.scanCap = scanCap ∧
     (∀ pops, ∑ n ∈ (settings.schedule pops).image State.npref, n ≤ 2 * NP) ∧
     (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (K + 1) * NP
@@ -554,7 +556,7 @@ theorem loop_core_holds : LoopCore := by
     split_ifs at hB
     · exact hband₀ pops B hB
     · simp at hB
-  set settings : LoopSettings K := ⟨schedule, η₀, ι, εcov, gate, C, scanCap⟩ with hset
+  set settings : LoopSettings K := ⟨schedule, 2 * η₀ - 1 / 2, ι, εcov, gate, C, scanCap⟩ with hset
   -- the schedule's sizes
   have hsizes : ∀ pops, ∀ B ∈ settings.schedule pops, B.nsuff = poolCount η₀ pops ι εcov (δc / 2)
       (pAP - ms) c ∧ B.npref ≤ NP ∧ none ∈ pops := fun pops B hB => by

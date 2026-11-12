@@ -114,10 +114,11 @@ lemma ret_congr (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
           ¬ decided O.mq B.lo (B.hi + 1) (insert 1 (cl ω'')) p ω'').card : ℝ)
             ≤ ι * (certOf P j B.npref x).card)
         ∧ ∀ j ∈ pops, keptAt pops j B.npref x → ∃ e ≤ B.npref, certifiesAt O.mq B.centre
-          (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀)
+          (B.centre - 1 / 2 + readη η₀) (1 / 2 - B.centre + readη η₀)
           (gateLimit uni εc j) (gateLevel a pops B) B.lo B.hi (cl ω'') (C \ insert 1 (cl ω''))
           (certOf P j (B.npref + e) x) ω''
-          ∧ centreFits O.mq η₀ (gateLevel a pops B) B (cl ω'') (certOf P uni B.npref x) ω'') := by
+          ∧ centreFits O.mq (readη η₀) (gateLevel a pops B) B (cl ω'') (certOf P uni B.npref x)
+            ω'') := by
     intro ω''
     simp only [ret, familyAt, refsAt, clusterAt_eq, clusterAt_eq_clusterOf, Set.mem_setOf_eq]
     rfl
@@ -147,8 +148,8 @@ lemma ret_congr (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
     refine and_congr (certifiesAt_alike O
       (fun p hp v hv => hread _ hc p hp v (Finset.mem_insert_of_mem hv))
       (fun p hp v hv => h _ (mem_readSet (hc hp) (hCs (Finset.mem_sdiff.1 hv).1)))
-      (fun p hp => hseed _ hc p hp)) ⟨centreFits_congr O η₀ _ B _ _ hfr,
-        centreFits_congr O η₀ _ B _ _ (fun w hw => (hfr w hw).symm)⟩
+      (fun p hp => hseed _ hc p hp)) ⟨centreFits_congr O (readη η₀) _ B _ _ hfr,
+        centreFits_congr O (readη η₀) _ B _ _ (fun w hw => (hfr w hw).symm)⟩
 
 lemma clusterAt_congr_sched (O : Oracle μ (FreeMonoid α)) (sched : Finset State)
     (pops : Finset (Option (Fin K))) {B : State} (hB : B ∈ sched) {ω ω' : Ω}
