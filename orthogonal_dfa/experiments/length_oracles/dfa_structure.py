@@ -17,16 +17,20 @@ def is_ring(dfa):
 
 
 def wildcard_cycles(dfa):
-    """The cycles reached by reading only wildcards, each as a set of states."""
-    if any(dfa.transitions[q][3] != dfa.transitions[q][4] for q in dfa.states):
-        raise ValueError("the two wildcards go to different states")
+    """Every simple cycle that reads only wildcards, each as a set of states; where the
+    two wildcards go to different states, a cycle may take either."""
+    successors = {q: {dfa.transitions[q][3], dfa.transitions[q][4]} for q in dfa.states}
     cycles = set()
+
+    def extend(path):
+        for t in successors[path[-1]]:
+            if t == path[0]:
+                cycles.add(frozenset(path))
+            elif t not in path:
+                extend(path + [t])
+
     for q in dfa.states:
-        path = []
-        while q not in path:
-            path.append(q)
-            q = dfa.transitions[q][3]
-        cycles.add(frozenset(path[path.index(q) :]))
+        extend([q])
     return cycles
 
 

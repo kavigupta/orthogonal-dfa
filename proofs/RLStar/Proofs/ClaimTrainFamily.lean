@@ -413,15 +413,14 @@ private def atomTolW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, isl, iu, iw, 
   else 1
 
 open scoped Classical in
-private def collTolW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
+private def sufAtomTolW : ClusterVec → ℝ := fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
   if 0 < nJ ∧ 0 < iδ ∧ 0 < ip ∧ 0 < ie ∧ 0 < isl ∧ 0 < iu ∧ 0 < is then
-    1 / (2 * iδ) * (1 / ip)
-      / (2 ^ 13 * max 1 (nsuffW (nJ, iδ, ip, ie, isl, iu, iw, is, nH)))
+    1 / ip / (2 ^ 16 * max 1 (nsuffW (nJ, iδ, ip, ie, isl, iu, iw, is, nH)))
   else 1
 
-private lemma tol_pos (v : ClusterVec) : 0 < atomTolW v ∧ 0 < collTolW v := by
+private lemma tol_pos (v : ClusterVec) : 0 < atomTolW v ∧ 0 < sufAtomTolW v := by
   obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := v
-  simp only [atomTolW, collTolW]
+  simp only [atomTolW, sufAtomTolW]
   split_ifs with h
   · obtain ⟨hJ, hiδ, hip, hie, hisl, hiu, his⟩ := h
     have : 0 < log (max 2 (64 * nJ * max 1 (kW (nJ, iδ, ip, ie, isl, iu, iw, is, nH))
@@ -769,11 +768,11 @@ private lemma atomTolW_isBigO : (fun v => 1 / atomTolW v) =O[𝓟 vecRegion]
       = nJ * G * iu + nJ * G * isl + G * (ie * is ^ 2 + iu * is) := by ring
   linarith
 
-private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 vecRegion]
+private lemma sufAtomTolW_isBigO : (fun v => 1 / sufAtomTolW v) =O[𝓟 vecRegion]
     (fun (_, iδ, ip, ie, _, iu, iw, is, _) =>
-      iδ * ip * (log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip)
+      ip * (log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip)
       : ClusterVec → ℝ) := by
-  refine isBigO_on (2 ^ 22) fun b hb => ?_
+  refine isBigO_on (2 ^ 40) fun b hb => ?_
   obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := b
   obtain ⟨hJ, hiδ, hip, hie, hisl, hiu, hiw, his, -⟩ := region hb
   obtain ⟨-, hx, -⟩ := prods hJ hiδ hip hie hiu hiw his
@@ -785,7 +784,7 @@ private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 vecRegion]
   have hcond : 0 < nJ ∧ 0 < iδ ∧ 0 < ip ∧ 0 < ie ∧ 0 < isl ∧ 0 < iu ∧ 0 < is :=
     ⟨by linarith, by linarith, by linarith, by linarith, by linarith, by linarith, by linarith⟩
   dsimp only
-  simp only [collTolW, nsuffW, if_pos hcond]
+  simp only [sufAtomTolW, nsuffW, if_pos hcond]
   set N := nsuffB (1 / is) (rsc ie iu is) ((1 / iw) ^ 4) (1 / ip) (1 / (2 * iδ))
   set G := log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip
   have hG1 : 1 ≤ 240 * G := by
@@ -795,12 +794,12 @@ private lemma collTolW_isBigO : (fun v => 1 / collTolW v) =O[𝓟 vecRegion]
     have : 0 ≤ log iδ * ip := by positivity
     linarith
   have hM : max 1 N ≤ 240 * G := max_le hG1 hs
-  have hA0 : 0 < 1 / (2 * iδ) * (1 / ip) / (2 ^ 13 * max 1 N) := by positivity
+  have hA0 : 0 < 1 / ip / (2 ^ 16 * max 1 N) := by positivity
   refine ⟨(one_div_pos.2 hA0).le, by positivity, ?_⟩
-  rw [one_div_div, show 2 ^ 13 * max 1 N / (1 / (2 * iδ) * (1 / ip))
-      = 2 ^ 14 * (max 1 N * iδ * ip) by field_simp]
-  have : max 1 N * iδ * ip ≤ (240 * G) * iδ * ip := by gcongr
-  have : 0 ≤ iδ * ip * G := by positivity
+  rw [one_div_div, show 2 ^ 16 * max 1 N / (1 / ip) = 2 ^ 16 * (max 1 N * ip) by
+    field_simp]
+  have : max 1 N * ip ≤ (240 * G) * ip := by gcongr
+  have : 0 ≤ ip * G := by positivity
   linarith
 
 /-- No strings harvested. -/
@@ -937,18 +936,18 @@ private lemma nsuffW_quad : (fun v => nsuffW (quad v)) =O[𝓟 vecRegion]
   refine ⟨by nlinarith, by nlinarith, ?_⟩
   nlinarith [mul_le_mul_of_nonneg_right h3 hp]
 
-private lemma collTolW_quad : (fun v => 1 / collTolW (quad v)) =O[𝓟 vecRegion]
+private lemma sufAtomTolW_quad : (fun v => 1 / sufAtomTolW (quad v)) =O[𝓟 vecRegion]
     (fun (_, iδ, ip, ie, _, iu, iw, is, _) =>
-      iδ * ip * (log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip)
+      ip * (log (max (ie * is) (max iu iw)) * ip * is ^ 2 + log iδ * ip)
       : ClusterVec → ℝ) := by
-  refine (isBigO_comp_on collTolW_isBigO quad_maps).trans (isBigO_on 32 fun b hb => ?_)
+  refine (isBigO_comp_on sufAtomTolW_isBigO quad_maps).trans (isBigO_on 32 fun b hb => ?_)
   obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := b
   obtain ⟨-, hiδ, hip, hie, -, hiu, hiw, his, -⟩ := region hb
   obtain ⟨h1, h2, h3⟩ := logM_quad (iu := iu) (iw := iw) hie his (by linarith) (by linarith)
   have hl : 0 ≤ log iδ := Real.log_nonneg (by linarith)
   dsimp only [Function.comp_apply, quad]
-  have hp : 0 ≤ iδ * ip * (ip * is ^ 2) := by positivity
-  have hq : 0 ≤ iδ * ip * (log iδ * ip) := by positivity
+  have hp : 0 ≤ ip * (ip * is ^ 2) := by positivity
+  have hq : 0 ≤ ip * (log iδ * ip) := by positivity
   refine ⟨by nlinarith, by nlinarith, ?_⟩
   nlinarith [mul_le_mul_of_nonneg_right h3 hp]
 
@@ -1078,7 +1077,7 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
   have hq : ∀ x, toVec (quarter x) = quad (toVec x) := toVec_quarter
   refine ⟨fun x => kW (toVec (quarter x)), fun x => nsuffW (toVec (quarter x)),
     fun x => nprefW (toVec (quarter x)), fun x => atomTolW (toVec (quarter x)),
-    fun x => collTolW (toVec (quarter x)),
+    fun x => sufAtomTolW (toVec (quarter x)),
     (transfer kW_quad fun x => by
       simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf).congr_left
       fun x => by rw [hq],
@@ -1091,11 +1090,11 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
     (transfer atomTolW_quad fun x => by
       simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf).congr_left
       fun x => by dsimp only; rw [hq],
-    (transfer collTolW_quad fun x => by
+    (transfer sufAtomTolW_quad fun x => by
       simp only [toVec, TrainFamilyInputs.ℓ_conf]; ring_nf).congr_left
       fun x => by dsimp only; rw [hq],
     fun x => tol_pos _, ?_⟩
-  intro Ω _ μ _ S _ J _ x O populations tame uni Pre Suf hx hcard hgap huni htame hflat
+  intro Ω _ μ _ S _ J _ x O populations uni Pre Suf hx hcard hgap huni hflat
   obtain ⟨nJ, δ, pAP, εcov₀, ε_s₀, ε_u, κ, s₀, β⟩ := x
   simp only [trainFamilyRegion, Set.mem_ofPred_eq] at hx hcard hgap
   obtain ⟨hJ, hδ, hδ1, hpAP, hpAP1, he₀, he₁, hsl₀, hsl₁, hu, hu1, hw, hw1, hs, hs1, hb⟩ := hx
@@ -1121,15 +1120,15 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
     Finset.card_eq_zero.2 (Finset.eq_empty_of_forall_notMem fun s hs => by
       simp [allHarvest] at hs)
   obtain ⟨states, hnp, -, hkn, hband, hκ, hmain⟩ := clustering_guarantee_of_correct O
-    populations tame uni (fun _ => ∅) Pre Suf η₀ ε_u εcov ε_s (δ / 2) (δ / 2) pAP (κ ^ 4) εcov₀ hgap
-    hη₀ huni htame hflat (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hu hu1
+    populations populations uni (fun _ => ∅) Pre Suf η₀ ε_u εcov ε_s (δ / 2) (δ / 2) pAP (κ ^ 4) εcov₀ hgap
+    hη₀ huni (Finset.Subset.refl _) hflat (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hu hu1
     (by positivity) (by linarith) he he1 hsl hsl1 hεc0 he₁ (by positivity) (by linarith)
     (by positivity)
     (pow_le_one₀ hw.le hw1)
   simp only [hH0, CharP.cast_eq_zero] at hnp
   have hs0 : 0 < 1 / 2 - η₀ := by linarith
   have hcard : (0 : ℝ) < populations.card := by
-    exact_mod_cast Finset.card_pos.2 ⟨uni, htame huni⟩
+    exact_mod_cast Finset.card_pos.2 ⟨uni, huni⟩
   have hr : 0 < rateScale η₀ ε_u εcov := by
     have := rs_pos (ie := 1 / εcov) (iu := 1 / ε_u) (is := 1 / (1 / 2 - η₀)) (by positivity)
       (by positivity) (by positivity)
@@ -1153,8 +1152,8 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
         / (512 * log (max 2 (64 * populations.card * max 1 (kW v)
           * (3 + 2 * logb 2 (max 1 (nprefW v))) / (δ / 2))))) := by
     simp only [v, atomTolW, if_pos hcond, one_div_one_div, half_eq]
-  have ec : collTolW v = δ / 2 * pAP / (2 ^ 13 * max 1 (nsuffW v)) := by
-    simp only [v, collTolW, if_pos hcond, one_div_one_div, half_eq]
+  have ec : sufAtomTolW v = pAP / (2 ^ 16 * max 1 (nsuffW v)) := by
+    simp only [v, sufAtomTolW, if_pos hcond, one_div_one_div, half_eq]
   have hks : ∀ B ∈ states, (B.k : ℝ) ≤ kW v ∧ (B.nsuff : ℝ) ≤ nsuffW v := fun B hB => by
     rw [ek, es]; exact hkn B hB
   have hnpW : ∀ B ∈ states, (B.npref : ℝ) ≤ nprefW v := fun B hB => by
@@ -1187,7 +1186,7 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
   have hlb0 : 0 ≤ logb 2 (max 1 (nprefW v)) := logb_nonneg one_lt_two (le_max_left _ _)
   refine (le_of_eq (by ring)).trans ((hmain D Dsf hD hDsf hpre (hεβ.trans hbalL)
     (hεβ.trans hbalN) hsuf hpAP'
-    (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB => ?_)).trans
+    (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB t => ?_)).trans
     (measureReal_mono (fun r hr => ⟨hr.1, fun B hB =>
       ⟨le_trans (by linarith) (hr.2 B hB).1, fun j hj =>
         ⟨le_trans (by linarith) ((hr.2 B hB).2 j hj).1, ((hr.2 B hB).2 j hj).2⟩⟩⟩)
@@ -1243,12 +1242,12 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
         ≤ 512 * log (max 2 (64 * populations.card * max 1 (kW v)
           * (3 + 2 * logb 2 (max 1 (nprefW v))) / (δ / 2))) * (D j).real {t} := by gcongr
       _ ≤ _ := by linarith
-  · have h := hcoll
+  · have h := hcoll t
     have : 0 < max 1 (nsuffW v) := lt_max_of_lt_left one_pos
     rw [le_div_iff₀ (by positivity)] at h
-    have hc0 : 0 ≤ collisionMass Dsf := tsum_nonneg fun t => sq_nonneg _
-    calc 2 ^ 13 * (B.nsuff : ℝ) * collisionMass Dsf
-        ≤ 2 ^ 13 * max 1 (nsuffW v) * collisionMass Dsf := by
+    have hc0 : 0 ≤ Dsf.real {t} := measureReal_nonneg
+    calc 2 ^ 16 * (B.nsuff : ℝ) * Dsf.real {t}
+        ≤ 2 ^ 16 * max 1 (nsuffW v) * Dsf.real {t} := by
           gcongr; exact (hks B hB).2.trans (le_max_right _ _)
       _ ≤ _ := by linarith
 

@@ -44,10 +44,10 @@ variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasu
   {S : Type*} [Stringlike S]
   {J : Type*} [Fintype J]
 
-/-- `ClusteringGuarantee`'s conclusion at `states`, its conditions on each state's atoms replaced
-by `atomTol` and `collTol`. -/
-def TrainFamilyOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
-    (Pre Suf : Set S) (x : TrainFamilyInputs) (atomTol collTol : ℝ)
+/-- `ClusteringGuarantee`'s conclusion at `states`, every population tame, its conditions on each
+state's atoms replaced by `atomTol` and `sufAtomTol`. -/
+def TrainFamilyOutcome (O : Oracle μ S) (populations : Finset J) (uni : J)
+    (Pre Suf : Set S) (x : TrainFamilyInputs) (atomTol sufAtomTol : ℝ)
     (states : Finset State) : Prop :=
   (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
       (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ x.κ ^ 4)
@@ -61,8 +61,8 @@ def TrainFamilyOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
     x.β ≤ (D uni).real {p | p ∉ O.L} →
     Dsf Sufᶜ = 0 →
     x.pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-    (∀ j ∈ tame, ∀ t : S, (D j).real {t} ≤ atomTol) →
-    collisionMass Dsf ≤ collTol →
+    (∀ j ∈ populations, ∀ t : S, (D j).real {t} ≤ atomTol) →
+    (∀ t : S, Dsf.real {t} ≤ sufAtomTol) →
     1 - x.δ ≤ (runMeasure μ D Dsf).real
       {r | let R := streams (fun _ : J => (∅ : Finset S)) uni r
         (∃ B : {B : State // B ∈ states},
@@ -72,32 +72,32 @@ def TrainFamilyOutcome (O : Oracle μ S) (populations tame : Finset J) (uni : J)
           1 - x.εcov - x.ε_s
             ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyAt O.mq populations R B.val) p (oracleNoise r.1)}
-          ∧ ∀ j ∈ tame, 1 / 2 - x.ε_s
+          ∧ ∀ j ∈ populations, 1 / 2 - x.ε_s
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyAt O.mq populations R B.val) p (oracleNoise r.1)}
             ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
                 (familyAt O.mq populations R B.val) p (oracleNoise r.1)}
               ≤ 2 * x.ε_u}
 
-def TrainFamilyWithin.{u, v, w} (k nsuff npref atomTol collTol : TrainFamilyInputs → ℝ) : Prop :=
-  (∀ x, 0 < atomTol x ∧ 0 < collTol x) ∧
+def TrainFamilyWithin.{u, v, w} (k nsuff npref atomTol sufAtomTol : TrainFamilyInputs → ℝ) :
+    Prop :=
+  (∀ x, 0 < atomTol x ∧ 0 < sufAtomTol x) ∧
     ∀ {Ω : Type u} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
       {S : Type v} [Stringlike S] {J : Type w} [Fintype J]
-      (x : TrainFamilyInputs) (O : Oracle μ S) (populations tame : Finset J) (uni : J)
+      (x : TrainFamilyInputs) (O : Oracle μ S) (populations : Finset J) (uni : J)
       (Pre Suf : Set S),
     x ∈ trainFamilyRegion →
     populations.card = x.nJ →
     x.s₀ ≤ O.gap →
-    uni ∈ tame →
-    tame ⊆ populations →
+    uni ∈ populations →
     Flat Pre Suf →
     ∃ states : Finset State,
       (∀ B ∈ states, (B.npref : ℝ) ≤ npref x ∧ (B.k : ℝ) ≤ k x ∧ (B.nsuff : ℝ) ≤ nsuff x) ∧
-      TrainFamilyOutcome O populations tame uni Pre Suf x (atomTol x) (collTol x) states
+      TrainFamilyOutcome O populations uni Pre Suf x (atomTol x) (sufAtomTol x) states
 
 open Real in
 def TrainFamilyClaim.{u, v, w} : Prop :=
-  ∃ k nsuff npref atomTol collTol : TrainFamilyInputs → ℝ,
+  ∃ k nsuff npref atomTol sufAtomTol : TrainFamilyInputs → ℝ,
     k =O[𝓟 trainFamilyRegion] (fun x => x.ℓ_conf / x.s₀ ^ 2) ∧
     nsuff =O[𝓟 trainFamilyRegion] (fun x =>
       x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP) ∧
@@ -114,8 +114,8 @@ def TrainFamilyClaim.{u, v, w} : Prop :=
             * (1 / (x.εc ^ 2 * x.s₀ ^ 4) + 1 / x.ε_u ^ 2))
           * (x.nJ * (1 / x.ε_u + 1 / x.εsc) + 1 / (x.εc * x.s₀ ^ 2) + 1 / (x.ε_u * x.s₀))
         + x.nJ * log (x.nJ / (x.δ * x.pAP * x.εc * x.εsc * x.ε_u * x.κ * x.s₀)) / x.εsc ^ 2) ∧
-    (fun x => 1 / collTol x) =O[𝓟 trainFamilyRegion] (fun x =>
-      1 / (x.δ * x.pAP) * (x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP)) ∧
-    TrainFamilyWithin.{u, v, w} k nsuff npref atomTol collTol
+    (fun x => 1 / sufAtomTol x) =O[𝓟 trainFamilyRegion] (fun x =>
+      1 / x.pAP * (x.ℓ_conf / (x.pAP * x.s₀ ^ 2) + log (1 / x.δ) / x.pAP)) ∧
+    TrainFamilyWithin.{u, v, w} k nsuff npref atomTol sufAtomTol
 
 end OrthoDFA

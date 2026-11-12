@@ -4,7 +4,7 @@ import RLStar.Proofs.LoopDFASummed
 # The learner's DFA under the relative rule: the proof
 
 The claims are `learner_loop_dfa_dist_core` and `learner_loop_dfa_dist_tol` at `D` uniform, the
-coverage `ξ/(2R)` and edges crossed at `|Σ| + |Q|`, so `ε = m/(3(|Σ|+|Q|+1)N)` at `m = 3ξ/(8R)`,
+coverage `ξ/(2R)` and edges crossed at `|Σ|`, so `ε = m/(3(|Σ|+1)N)` at `m = 3ξ/(8R)`,
 with `ξ/4` and `γ + 3ξ/4` in place of `ξ` and `γ`: the last round's leaf misjudges at most
 `γ + 3ξ/4` (`summed_bridge`). A start in its own zone gives `R ≥ 1/2`, so the coverage is at most
 `1`.
@@ -35,7 +35,7 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
       = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
   have h := learner_loop_dfa_dist_core M O L
     (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ (ξ / (2 * R))
-    (γ + 3 * ξ / 4) δ pAP (ξ / 4) (A + Q) (A ^ k)⁻¹ hL hgap hη₀
+    (γ + 3 * ξ / 4) δ pAP (ξ / 4) A (A ^ k)⁻¹ hL hgap hη₀
     (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalL; simp only [εcov]; ring_nf)
     (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalN; simp only [εcov]; ring_nf)
     (by positivity) hc1 hδ hδ1 hpAP
@@ -43,7 +43,7 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
     (fun u => uniformStrings_prefix_le (by omega) u) (by rw [hpS]; exact hpAPu)
     (summed_bridge M O hL L _ hR hξ hA ((uniformStrings_long _).mono fun x hx => by omega)
       (fun i _ hi y a => uniformStrings_floor (by omega) y a) ⟨q, by rw [hpL]; exact hq⟩)
-  rw [show ∀ x : ℝ, ξ / (2 * R) / (4 * (A + Q + 1) * x) = m / (3 * (A + Q + 1) * x) from
+  rw [show ∀ x : ℝ, ξ / (2 * R) / (4 * (A + 1) * x) = m / (3 * (A + 1) * x) from
       fun x => by simp only [m]; field_simp; ring,
     show ∀ x : ℝ, ξ / (2 * R) / (10 * x) = ξ / (20 * R * x) from fun x => by ring,
     show ∀ x : ℝ, ξ / 4 / (8 * x) = ξ / (32 * x) from fun x => by ring,
@@ -67,10 +67,10 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
   have hc0 : 0 < ξ / (2 * R) := by positivity
   have hc1 : ξ / (2 * R) ≤ 1 := by rw [div_le_one (by positivity)]; linarith
-  have hMI : loopMassInv Q A (A + Q) (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4)
+  have hMI : loopMassInv Q A A (Fintype.card σ) (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4)
       pAP η₀ = E + E₂ + E₃ := by
     unfold loopMassInv loopMassTerms loopΘ loopΘa loopΘι
-    rw [show 4 * (A + Q + 1) / (ξ / (2 * R)) = aε by
+    rw [show 4 * (A + 1) / (ξ / (2 * R)) = aε by
         simp only [aε, m]; field_simp; ring,
       show (10 : ℝ) / (ξ / (2 * R)) = 20 * R / ξ by rw [div_div_eq_mul_div]; ring,
       show (8 : ℝ) / (ξ / 4) = 32 / ξ by ring,
@@ -83,10 +83,10 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   have hpow : ((L : ℝ) + Q + 4) ^ 5 * (E + E₂ + E₃) ≤ A ^ k :=
     dfa_pow hA rfl hQ0 (Nat.cast_nonneg L) hEs1
       (by exact_mod_cast (show L ≤ 2 * ((L + 1) / 2) by omega)) rfl hL₀
-  have hp₀ : (A ^ k)⁻¹ ≤ 1 / loopTolInv ((L : ℝ) + Q + 4) Q A (A + Q) (Fintype.card σ)
+  have hp₀ : (A ^ k)⁻¹ ≤ 1 / loopTolInv ((L : ℝ) + Q + 4) Q A A (Fintype.card σ)
       (Fintype.card α) δ (ξ / (2 * R)) (ξ / 4) pAP η₀ := by
     have hL0 : (0 : ℝ) ≤ L := Nat.cast_nonneg L
-    obtain ⟨hT1, hTle⟩ := loopTolInv_le (ℓ := (L : ℝ) + Q + 4) (Q := Q) (A := A) (Ae := A + Q)
+    obtain ⟨hT1, hTle⟩ := loopTolInv_le (ℓ := (L : ℝ) + Q + 4) (Q := Q) (A := A) (Ae := A)
       (c := ξ / (2 * R)) (ξ := ξ / 4) (Fintype.card σ) (Fintype.card α) (by linarith) hQ0
       (by linarith) (by linarith) hδ hδ1 hc0 hc1 (by positivity) hpAP hp1 hη0 hη₀
     rw [hMI] at hTle
@@ -101,16 +101,16 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   have hwS : windowLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
       ((L + 1) / 2) (L + Fintype.card σ + 3)
       = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
-  have hR₀ : loopR₀ Q A (A + Q) δ (ξ / (2 * R)) (ξ / 4) pAP η₀ = R₀ := by
+  have hR₀ : loopR₀ Q A A δ (ξ / (2 * R)) (ξ / 4) pAP η₀ = R₀ := by
     unfold loopR₀ loopΘ loopΘι
-    rw [show 4 * (A + Q + 1) / (ξ / (2 * R)) = aε by
+    rw [show 4 * (A + 1) / (ξ / (2 * R)) = aε by
         simp only [aε, m]; field_simp; ring,
       show (10 : ℝ) / (ξ / (2 * R)) = 20 * R / ξ by rw [div_div_eq_mul_div]; ring,
       show (8 : ℝ) / (ξ / 4) = 32 / ξ by ring]
     rfl
   obtain ⟨settings, h1, h2, h3, h5, h6, -, -, h4⟩ := learner_loop_dfa_dist_tol M O L
     (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ (ξ / (2 * R))
-    (γ + 3 * ξ / 4) δ pAP (ξ / 4) (A + Q) (A ^ k)⁻¹ hL hgap hη₀
+    (γ + 3 * ξ / 4) δ pAP (ξ / 4) A (A ^ k)⁻¹ hL hgap hη₀
     (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalL; simp only [εcov]; ring_nf)
     (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalN; simp only [εcov]; ring_nf)
     hc0 hc1 hδ hδ1 hpAP
@@ -120,7 +120,7 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
     (summed_bridge M O hL L _ hR hξ hA ((uniformStrings_long _).mono fun x hx => by omega)
       (fun i _ hi y a => uniformStrings_floor (by omega) y a) ⟨q, by rw [hpL]; exact hq⟩) hp₀
   replace h4 := h4 _ (Nat.ceil_mono (min_le_left _ _))
-  have hε : ∀ x : ℝ, ξ / (2 * R) / (4 * (A + Q + 1) * x) = m / (3 * (A + Q + 1) * x) :=
+  have hε : ∀ x : ℝ, ξ / (2 * R) / (4 * (A + 1) * x) = m / (3 * (A + 1) * x) :=
     fun x => by simp only [m]; field_simp; ring
   rw [hε] at h2 h3 h5 h4
   rw [hR₀] at h5 h6 h4

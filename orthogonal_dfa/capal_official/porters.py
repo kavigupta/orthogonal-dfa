@@ -1,8 +1,8 @@
 """Convert target languages between this repo's DFA format and upstream's.
 
-`build_*` go this repo -> upstream `capal.DFA`, so CAPAL's PerfectEQ can run
-its product-BFS counterexample search against them. `to_automata_dfa` goes back
-the other way, for the oracles E-L* reads.
+`build_*` and `from_automata_dfa` go this repo -> upstream `capal.DFA`, so
+CAPAL's PerfectEQ can run its product-BFS counterexample search against them.
+`to_automata_dfa` goes back the other way, for the oracles E-L* reads.
 """
 
 from __future__ import annotations
@@ -64,6 +64,26 @@ def build_regex_dfa(regex: str, alphabet_size: int = 2) -> Any:
         start=sidx[aut.initial_state],
         accept={sidx[s] for s in aut.final_states},
         delta=delta,
+    )
+
+
+def from_automata_dfa(dfa: Any) -> Any:
+    """An automata-lib DFA over integer symbols, in upstream format with symbol i
+    as the character str(i)."""
+    M = import_capal()
+    symbols = sorted(dfa.input_symbols)
+    assert symbols == list(range(len(symbols))), symbols
+    sidx = {s: i for i, s in enumerate(sorted(dfa.states, key=str))}
+    return M.DFA(
+        alphabet=[str(a) for a in symbols],
+        num_states=len(sidx),
+        start=sidx[dfa.initial_state],
+        accept={sidx[s] for s in dfa.final_states},
+        delta={
+            (sidx[s], str(a)): sidx[dfa.transitions[s][a]]
+            for s in dfa.states
+            for a in symbols
+        },
     )
 
 

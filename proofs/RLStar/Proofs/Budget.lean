@@ -1143,14 +1143,14 @@ lemma cap_of_top {J : Type*} [Fintype J] (populations : Finset J)
     rw [le_div_iff₀ (by positivity)]
     linarith
 
-/-- The statement's pool hypothesis at the top rung is the pool's collision cap. -/
+/-- The statement's pool hypothesis at the top rung is the pool's atom cap. -/
 lemma poolCap_of_top {J : Type*} [Fintype J] (populations : Finset J)
     (η₀ indecisionLimit εcov δ pAP crossLimit ρsf : ℝ)
     (hM : (0 : ℝ) < (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ))
-    (h2 : 2 ^ 13 * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) * ρsf
-      ≤ δ * pAP) :
-    ρsf ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit := by
-  rw [poolCollisionCap, le_div_iff₀ (by positivity)]
+    (h2 : 2 ^ 16 * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) * ρsf
+      ≤ pAP) :
+    ρsf ≤ poolAtomCap η₀ populations indecisionLimit εcov δ pAP crossLimit := by
+  rw [poolAtomCap, le_div_iff₀ (by positivity)]
   linarith
 
 /-- The lowest rung whose rejections are rare enough draws at most the claim's second count. -/
@@ -1432,10 +1432,10 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
         have h := hcollH _ htop j hj t
         simp only [solvedState, solvedStateAt, Nat.cast_add, Nat.cast_one] at h
         exact h)
-  have hcapsf : collisionMass Dsf
-      ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit :=
-    poolCap_of_top populations η₀ indecisionLimit εcov δ pAP crossLimit (collisionMass Dsf) hM
-      (hcollSf _ htop)
+  have hcapsf : ∀ v, Dsf.real {v}
+      ≤ poolAtomCap η₀ populations indecisionLimit εcov δ pAP crossLimit := fun v =>
+    poolCap_of_top populations η₀ indecisionLimit εcov δ pAP crossLimit (Dsf.real {v}) hM
+      (hcollSf _ htop v)
   have hbudget : (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hz : ℝ)
       ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP crossLimit (3 * 2 ^ 25)
         + 6 * Real.log (256 * (populations.card : ℝ) / δ) / εs

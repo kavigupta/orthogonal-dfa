@@ -110,7 +110,7 @@ open MeasureTheory
 open Random (prefixMax le_prefixMax prefixMax_pos)
 
 /-- Level 5's premises at the band's `κ = ζ`, once the round's undecided reads, weighted `ζ`,
-stay under `√δ/(4e)`, and the pairs of probes under `δ/16`. -/
+stay under `δ/(16e²)`, and the pairs of probes under `1`. -/
 theorem roundPremises_of {σ α : Type*} [Fintype σ] [Fintype α] (C : Random.Level3Settings)
     (cross p₀ Wm : ℝ) :
     let nQ := Fintype.card σ
@@ -119,12 +119,12 @@ theorem roundPremises_of {σ α : Type*} [Fintype σ] [Fintype α] (C : Random.L
     0 < C.δ → C.δ < 1 → 0 < C.harvestRate → C.harvestRate ≤ C.disagreementRate / 48 →
     C.disagreementRate < 1 →
     36 * S / C.disagreementRate * Real.log (16 * S * (S + 1) / C.δ) + S ≤ C.probeBudget →
-    0 < cross →
-    C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀ ≤ C.δ / 16 →
+    0 < cross → 0 ≤ p₀ →
+    C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀ ≤ 1 →
     16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 3 + (nQ + 2) * nα * (nQ + 1) ≤ Wm →
-    cross * Wm ≤ Real.sqrt C.δ / (4 * Real.exp 1) →
+    cross * Wm ≤ C.δ / (16 * Real.exp 2) →
     RoundPremises σ α C cross p₀ := by
-  intro nQ nα S hδ0 hδ1 hy hyε hε hP hcr hpair hWm hcm
+  intro nQ nα S hδ0 hδ1 hy hyε hε hP hcr hp₀ hpair hWm hcm
   unfold RoundPremises
   dsimp only
   refine ⟨hδ0, hδ1, hy, hyε, hε, hP, hcr.le, ?_⟩
@@ -138,20 +138,39 @@ theorem roundPremises_of {σ α : Type*} [Fintype σ] [Fintype α] (C : Random.L
   have hlam0 : 0 ≤ lam := by positivity
   have hpos : 0 < lam + 2 * cross := by linarith
   obtain ⟨ht, ht', htc, htail⟩ := race_tail_choice hlam0 hcr.le hpos
+  have hone := race_tail_one hlam0 hcr.le hpos
   have hsum : lam + 2 * cross ≤ cross * Wm := by
     have e : lam + 2 * cross = cross * (16 / 5 * S * Real.log (8 * S * (S + 1) / C.δ) + 3
         + (nQ + 2) * nα * (nQ + 1)) := by rw [hlamd]; ring
     rw [e]
     exact mul_le_mul_of_nonneg_left hWm hcr.le
-  set u := Real.sqrt C.δ with hud
-  have hu2 : u * u = C.δ := Real.mul_self_sqrt hδ0.le
+  have he2 : 0 < Real.exp 2 := Real.exp_pos 2
+  have hX : Real.exp 2 * (lam + 2 * cross) ≤ C.δ / 16 := by
+    have := mul_le_mul_of_nonneg_left (hsum.trans hcm) he2.le
+    rw [show Real.exp 2 * (C.δ / (16 * Real.exp 2)) = C.δ / 16 by field_simp] at this
+    exact this
   have hsq : Real.exp 2 * (lam + 2 * cross) ^ 2 ≤ C.δ / 16 := by
-    have e : Real.exp 2 * (u / (4 * Real.exp 1)) ^ 2 = C.δ / 16 := by
-      rw [show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add, ← hu2]; field_simp; ring
-    calc Real.exp 2 * (lam + 2 * cross) ^ 2 ≤ Real.exp 2 * (u / (4 * Real.exp 1)) ^ 2 := by
-          gcongr; linarith
-      _ = C.δ / 16 := e
+    have h1 : lam + 2 * cross ≤ 1 := by
+      have : C.δ / 16 ≤ Real.exp 2 := by
+        have := Real.add_one_le_exp (2 : ℝ); linarith
+      nlinarith
+    have : Real.exp 2 * (lam + 2 * cross) ^ 2 ≤ Real.exp 2 * (lam + 2 * cross) := by
+      rw [sq, ← mul_assoc]
+      exact mul_le_of_le_one_right (by positivity) h1
+    linarith
   refine ⟨1 / (lam + 2 * cross), 2 * (1 / (lam + 2 * cross)), ht, ht', htc, ?_⟩
+  have hmin : C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀
+      * min 1 (Real.exp (2 * (1 / (lam + 2 * cross)) * (cross * (16 / 5 * S
+        * Real.log (8 * S * (S + 1) / C.δ) + 1 + (nQ + 2) * nα * (nQ + 1))))
+        / (1 + 1 / (lam + 2 * cross))) ≤ C.δ / 16 := by
+    refine (mul_le_mul_of_nonneg_left (min_le_right _ _)
+      (pairs_nonneg _ hp₀)).trans ?_
+    rw [← hlamd]
+    have h0 : 0 ≤ Real.exp (2 * (1 / (lam + 2 * cross)) * lam) / (1 + 1 / (lam + 2 * cross)) := by
+      positivity
+    calc _ ≤ 1 * (Real.exp (2 * (1 / (lam + 2 * cross)) * lam) / (1 + 1 / (lam + 2 * cross))) :=
+          mul_le_mul_of_nonneg_right hpair h0
+      _ ≤ C.δ / 16 := by rw [one_mul]; exact hone.trans hX
   have := htail.trans hsq
   linarith
 
@@ -168,27 +187,56 @@ lemma checks_mono {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Finty
     (h : o.Checks M O D k εr εu εd E u) : o.Checks M O D k εr' εu' εd' E u' :=
   ⟨agrees_mono hr hu h.1, h.2.1.trans hd, h.2.2.1, fun q a => (h.2.2.2 q a).trans (by linarith)⟩
 
-/-- The probes sharing a key weigh at most `ε/16`, and `prefixMax ≤ δ' ε²/18496`. -/
-lemma shared_key_le {B₃ T pm ε δ' : ℝ} (hB0 : 0 ≤ B₃) (hT : T ≤ B₃) (hpm : 0 ≤ pm)
-    (hε : 0 < ε) (hBε : 34 ≤ B₃ * ε) (hk : 16 * B₃ ^ 2 * pm ≤ δ') (hδ' : δ' ≤ 1) :
-    T * (2 * pm) ≤ ε / 16 ∧ 9248 * (2 * pm) ≤ δ' * ε ^ 2 := by
-  have h2 : 16 * 34 ^ 2 * pm ≤ 16 * pm * (B₃ * ε) ^ 2 := by
-    have : (34 : ℝ) ^ 2 ≤ (B₃ * ε) ^ 2 := pow_le_pow_left₀ (by norm_num) hBε 2
+/-- At the misled threshold `ε/(64|Q|)`, the probes sharing a key weigh at most a sixteenth of it,
+and the key mass times the misled rate `2(|Q| + 1)ζ` against the `|Q||Σ|` pairs of a state and a
+letter at most it times `δ'/8`. -/
+lemma misled_keys_le {Q A S B₃ T pm ε δ' cross Wm : ℝ} (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hpm : 0 ≤ pm)
+    (hε : 0 < ε) (hS : S = Q * ((Q + 2) * A + 1) + 2 * A + 1) (hT : T ≤ B₃) (hSB : S ≤ B₃)
+    (hBε : 34 * S ≤ B₃ * ε) (hk : 16 * B₃ ^ 2 * pm ≤ 1) (hδ' : 0 ≤ δ') (hcr : 0 ≤ cross)
+    (hW : Q * A * (Q + 1) ≤ Wm) (hcw : cross * Wm ≤ δ' / (16 * Real.exp 2)) :
+    T * (2 * pm) ≤ ε / (64 * Q) / 16
+      ∧ Q * A * (2 * pm) * (2 * (Q + 1) * cross) ≤ ε / (64 * Q) * (δ' / 8) := by
+  have hS4 : 4 * Q ≤ S := by
+    have h1 : 3 ≤ (Q + 2) * A := by nlinarith
+    have h2 : Q * 3 ≤ Q * ((Q + 2) * A) := mul_le_mul_of_nonneg_left h1 (by linarith)
+    rw [hS]; linarith
+  have hB0 : 0 < B₃ := by linarith
+  have hB1 : 1 ≤ B₃ := by linarith
+  have h2048 : 2048 * Q * (B₃ * pm) ≤ ε := by
+    have h1 : B₃ * (2048 * Q * (B₃ * pm)) ≤ B₃ * ε := by
+      have e : B₃ * (2048 * Q * (B₃ * pm)) = 128 * Q * (16 * B₃ ^ 2 * pm) := by ring
+      have : 128 * Q * (16 * B₃ ^ 2 * pm) ≤ 128 * Q * 1 :=
+        mul_le_mul_of_nonneg_left hk (by linarith)
+      linarith
+    exact le_of_mul_le_mul_left h1 hB0
+  constructor
+  · rw [div_div, le_div_iff₀ (by positivity)]
+    have e1 : Q * (T * pm) ≤ Q * (B₃ * pm) :=
+      mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hT hpm) (by linarith)
+    linarith
+  · have hpmB : pm ≤ B₃ * pm := le_mul_of_one_le_left hpm hB1
+    have hpmε : 2048 * Q * pm ≤ ε := by nlinarith
+    have he2 : 1 ≤ Real.exp 2 := Real.one_le_exp (by norm_num)
+    have hWc : Q * A * (Q + 1) * cross ≤ δ' / 16 := by
+      calc Q * A * (Q + 1) * cross ≤ Wm * cross := mul_le_mul_of_nonneg_right hW hcr
+        _ = cross * Wm := mul_comm _ _
+        _ ≤ δ' / (16 * Real.exp 2) := hcw
+        _ ≤ δ' / 16 := div_le_div_of_nonneg_left hδ' (by norm_num) (by linarith)
+    have e : Q * A * (2 * pm) * (2 * (Q + 1) * cross) = 4 * pm * (Q * A * (Q + 1) * cross) := by
+      ring
+    rw [e, show ε / (64 * Q) * (δ' / 8) = ε * δ' / (512 * Q) by field_simp; ring,
+      le_div_iff₀ (by positivity)]
+    have h1 : 4 * pm * (Q * A * (Q + 1) * cross) ≤ 4 * pm * (δ' / 16) :=
+      mul_le_mul_of_nonneg_left hWc (by positivity)
+    have h2 : 4 * pm * (δ' / 16) * (512 * Q) ≤ ε * δ' := by
+      have : 4 * pm * (δ' / 16) * (512 * Q) = (128 * Q * pm) * δ' := by ring
+      rw [this]
+      exact mul_le_mul_of_nonneg_right (by linarith) hδ'
     nlinarith
-  have e2 : 16 * pm * (B₃ * ε) ^ 2 = 16 * B₃ ^ 2 * pm * ε ^ 2 := by ring
-  have h3 : 16 * B₃ ^ 2 * pm * ε ^ 2 ≤ δ' * ε ^ 2 := mul_le_mul_of_nonneg_right hk (by positivity)
-  refine ⟨?_, by linarith⟩
-  have e1 : T * pm ≤ B₃ * pm := mul_le_mul_of_nonneg_right hT hpm
-  have e4 : 34 * (B₃ * pm) ≤ B₃ * pm * (B₃ * ε) := by
-    rw [mul_comm]; exact mul_le_mul_of_nonneg_left hBε (by positivity)
-  have e5 : B₃ * pm * (B₃ * ε) = B₃ ^ 2 * pm * ε := by ring
-  have e6 : 16 * B₃ ^ 2 * pm * ε ≤ δ' * ε := mul_le_mul_of_nonneg_right hk hε.le
-  have e7 : δ' * ε ≤ ε := by nlinarith
-  linarith
 
 /-- The misled probes' tail, over the `QA` pairs of a state and a letter. -/
 lemma misledTail_le {T p e ε δ' QA : ℝ} (hp : 0 ≤ p) (hTp : T * p ≤ ε / 16) (he : 0 ≤ e)
-    (he4 : e ≤ 1 / 4) (hε : 0 < ε) (hQA : 0 ≤ QA) (hpε : 2 * QA * p ≤ ε * δ') :
+    (he4 : e ≤ 1 / 4) (hε : 0 < ε) (hQA : 0 ≤ QA) (hpε : QA * p * e ≤ ε * (δ' / 8)) :
     QA * misledTail T p e ε ≤ δ' / 4 := by
   unfold misledTail
   rw [if_pos ⟨by linarith, by linarith⟩]
@@ -196,34 +244,12 @@ lemma misledTail_le {T p e ε δ' QA : ℝ} (hp : 0 ≤ p) (hTp : T * p ≤ ε /
   have h2 : 15 * ε / 16 ≤ ε - T * p := by linarith
   have hd : 15 * ε / 16 ≤ (2 - 4 * e) * (ε - T * p) := by nlinarith
   rw [mul_div_assoc', div_le_iff₀ (by linarith)]
-  have h3 : QA * (p * e) ≤ QA * p / 4 := by
-    have := mul_le_mul_of_nonneg_left he4 (mul_nonneg hQA hp)
-    linarith
   have hδ' : 0 ≤ δ' := by
-    have : 0 ≤ ε * δ' := le_trans (by positivity) hpε
-    exact nonneg_of_mul_nonneg_right (by linarith) hε
+    have : 0 ≤ ε * (δ' / 8) := le_trans (by positivity) hpε
+    have := nonneg_of_mul_nonneg_right (by linarith) hε
+    linarith
   have h4 : δ' / 4 * (15 * ε / 16) ≤ δ' / 4 * ((2 - 4 * e) * (ε - T * p)) :=
     mul_le_mul_of_nonneg_left hd (by positivity)
-  nlinarith
-
-/-- The probes' key mass against the `Q A` pairs of a state and a letter. -/
-lemma key_mass_le {Q A S B₃ pm ε δ' : ℝ} (hQ : 0 ≤ Q) (hA : 0 ≤ A) (hpm : 0 ≤ pm) (hε : 0 < ε)
-    (hS : S = Q * ((Q + 2) * A + 1) + 2 * A + 1) (hSB : S ≤ B₃) (hBε : 34 ≤ B₃ * ε)
-    (hk : 16 * B₃ ^ 2 * pm ≤ δ') : 2 * (Q * A) * (2 * pm) ≤ ε * δ' := by
-  have hQA : Q * A ≤ B₃ := by
-    have : Q * A ≤ S := by
-      rw [hS]; nlinarith [mul_nonneg hQ hA, mul_nonneg (mul_nonneg hQ hQ) hA]
-    linarith
-  have hB0 : 0 < B₃ := by
-    by_contra h
-    push Not at h
-    nlinarith
-  have h1 : B₃ * pm * 34 ≤ B₃ * pm * (B₃ * ε) := mul_le_mul_of_nonneg_left hBε (by positivity)
-  have h2 : B₃ * pm * (B₃ * ε) ≤ δ' * ε / 16 := by
-    have := mul_le_mul_of_nonneg_right hk hε.le
-    nlinarith
-  have h3 : Q * A * pm ≤ B₃ * pm := mul_le_mul_of_nonneg_right hQA hpm
-  have hδ' : 0 ≤ δ' := le_trans (by positivity) hk
   nlinarith
 
 /-- The band's rate against the misled probes' threshold: `2(|Q| + 1)ζ ≤ 1/4`. -/
@@ -301,7 +327,7 @@ lemma walk_tail_le {n : ℕ} {y δ : ℝ} (hy0 : 0 < y) (hy1 : y ≤ 1) (hδ : 0
 set_option maxHeartbeats 8000000 in -- the settings and the cap meet `LoopCore`'s conditions
 /-- The loop's claim with each round's failure `δ'` free and the last round's disagreeing probes
 at most `ε + ε/96`, level 3 running at disagreement rate `ε`, and at most half of each `E q`, plus
-`ε + ε/96`, misled; its family misreads at most `(1025/1024) εcov` and leaves undecided at most
+`ε/(32|Q|)`, misled; its family misreads at most `(1025/1024) εcov` and leaves undecided at most
 `(3/8) εcov` of `P.D`. Every round the filled draws run is good, every round's tree has at most
 `|Q| + 2` leaves, and its harvested populations' first `Nh` filled draws hold their samples and
 walk at most `⌈HB⌉₊` probes in all. -/
@@ -319,7 +345,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let S : ℝ := Q * ((Q + 2) * A + 1) + 2 * A + 1
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-    let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
+    let W : ℝ := max (2 * Real.exp 2 * Wm) 1
     let PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     let FV : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / 4
@@ -328,7 +354,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
         (ι / 2 / (8 * J * (RB + 1))))
-      (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
+      (min (min (pAP / (2 ^ 18 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
     let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ * (Q + 3) ^ ((Fintype.card σ + 2)
       * Fintype.card α)
@@ -345,7 +371,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     1 ≤ k → (2 + Nat.clog 2 P.L) * ε < 3 / 8 →
     prefixMax P.D k ≤ cap * ε / 1536 →
     1536 * Real.log (16 * (Q + 1) * Kc / δ') * prefixMax P.D k ≤ ε →
-    16 * B₃ ^ 2 * prefixMax P.D k ≤ δ' →
+    16 * B₃ ^ 2 * prefixMax P.D k ≤ 1 →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.level3.harvestReadCap : ℝ) ≤ HN ∧
@@ -364,7 +390,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
             {p | let rounds := idealRounds settings O P.D Dsf (persistDraws p) (Fintype.card σ + 1)
               ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                   o.Checks M O P.D k (1025 / 1024 * εcov) (3 / 8 * εcov) (ε + ε / 96) E
-                    (ε + ε / 96))
+                    (ε / (32 * Q)))
                 ∧ (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2)
                 ∧ RoundsFresh settings O P.D Dsf
                   (P.L + Fintype.card σ + 3) p
@@ -563,7 +589,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     show 0 < min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
         (ι / 2 / (8 * J * (RB + 1))))
-      (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
+      (min (min (pAP / (2 ^ 18 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
         (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
     refine lt_min (lt_min (lt_min (by positivity)
         (div_pos (by positivity) (mul_pos (by norm_num) hlogpos)))
@@ -642,9 +668,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     rw [hK1, show ι - ι / 2 = ι / 2 by ring]
     exact hmul (b := 8 * J * (RB + 1)) (by positivity) (by gcongr; linarith)
       ((min_le_left _ _).trans (min_le_right _ _))
-  have hq3 : 2 ^ 15 * ((⌊PB⌋₊ : ℕ) : ℝ) * cap ≤ δ' * (pAP - pAP / 2) := by
-    have h := hmul (x := 2 ^ 16 * ((⌊PB⌋₊ : ℕ) : ℝ)) (a := δ' * pAP)
-      (b := 2 ^ 16 * (PB + 1)) (by positivity) (by gcongr; linarith)
+  have hq3 : 2 ^ 17 * ((⌊PB⌋₊ : ℕ) : ℝ) * cap ≤ pAP - pAP / 2 := by
+    have h := hmul (x := 2 ^ 18 * ((⌊PB⌋₊ : ℕ) : ℝ)) (a := pAP)
+      (b := 2 ^ 18 * (PB + 1)) (by positivity) (by gcongr; linarith)
       (((min_le_right _ _).trans (min_le_left _ _)).trans (min_le_left _ _))
     linarith only [h]
   have hqm : 6 * (((Fintype.card σ + 1 : ℕ) : ℝ)) * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 1)
@@ -665,9 +691,6 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       (a := pAP) (b := 2 * J * (PB + 2)) (by positivity) (by gcongr <;> linarith)
       (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_left _ _))
     linarith only [h]
-  have hcapP : 6 * J * (RB + 1) * cap ≤ 1 :=
-    hmul (b := 6 * J * (RB + 1)) (by positivity) le_rfl
-      (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_right _ _))
   -- level 3's premises
   have hpm0 : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
   have hKc : (((1 + (Fintype.card σ + 1) ^ 3 * Fintype.card α) ^ Fintype.card σ
@@ -676,23 +699,21 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   -- level 5's race tail, at the band's `κ`
   have hcr1 : cross ≤ 1 := by
     rw [hcrossd, div_le_one (by positivity)]; linarith
-  set u := Real.sqrt δ' with hud
-  have hu0 : 0 < u := Real.sqrt_pos.2 hδ'0
-  have hu2 : u * u = δ' := Real.mul_self_sqrt hδ'0.le
-  have he0 : 0 < Real.exp 1 := Real.exp_pos 1
-  have hcm : cross * Wm ≤ u / (4 * Real.exp 1) := by
-    have hV : Real.exp 1 * u * Wm / 2 ≤ W := le_max_left _ _
+  have he20 : 0 < Real.exp 2 := Real.exp_pos 2
+  have hcm : cross * Wm ≤ δ' / (16 * Real.exp 2) := by
+    have hV : 2 * Real.exp 2 * Wm ≤ W := le_max_left _ _
     rw [hcrossd, div_mul_eq_mul_div, div_le_div_iff₀ (by positivity) (by positivity)]
-    calc δ' * Wm * (4 * Real.exp 1) = 8 * u * (Real.exp 1 * u * Wm / 2) := by rw [← hu2]; ring
-      _ ≤ 8 * u * W := by gcongr
-      _ = u * (8 * W) := by ring
+    calc δ' * Wm * (16 * Real.exp 2) = 8 * δ' * (2 * Real.exp 2 * Wm) := by ring
+      _ ≤ 8 * δ' * W := by gcongr
+      _ = δ' * (8 * W) := by ring
   have hprem : RoundPremises σ α C cross (2 * prefixMax P.D k) := by
     refine roundPremises_of C cross (2 * prefixMax P.D k) Wm hδ'0 hδ'1'
-      (by show 0 < ε / 48; positivity) (le_refl _) (by show ε < 1; linarith) ?_ hcr ?_ ?_ hcm
+      (by show 0 < ε / 48; positivity) (le_refl _) (by show ε < 1; linarith) ?_ hcr
+      (by positivity) ?_ ?_ hcm
     · show 36 * (S' : ℝ) / ε * Real.log (16 * S' * (S' + 1) / δ') + S' ≤ (budget : ℝ)
       rw [hSS]
       exact Nat.le_ceil _
-    · show (budget : ℝ) * ((budget : ℝ) - 1) / 2 * (2 * prefixMax P.D k) ≤ δ' / 16
+    · show (budget : ℝ) * ((budget : ℝ) - 1) / 2 * (2 * prefixMax P.D k) ≤ 1
       have hB0 : 0 ≤ B₃ := hbud0.trans hbud
       have h1 : (budget : ℝ) * ((budget : ℝ) - 1) ≤ B₃ ^ 2 := by
         nlinarith only [hbud, hbud0, hB0]
@@ -702,16 +723,29 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
       rw [hSS]
   -- the probes' avoided mass
+  have hcapJ : 6 * J ^ 2 * (RB + 1) * cap ≤ 1 := by
+    have h0 : 0 ≤ J ^ 2 * (RB + 1) := by positivity
+    have h := hmul (x := 6 * J ^ 2 * (RB + 1)) (a := ι) (b := 2 ^ 24 * J ^ 2 * (RB + 1))
+      (by positivity) (by linarith only [h0])
+      (((min_le_right _ _).trans (min_le_left _ _)).trans (min_le_right _ _))
+    linarith only [h, hι8, hε1]
   have hmr : 6 * (((Fintype.card σ + 1 : ℕ) : ℝ) + 1) * ((⌊RB⌋₊ : ℕ) : ℝ) * prefixMax P.D k
-      ≤ ε / 1536 := by
+      ≤ ε / (1536 * J) := by
     rw [hK1]
     calc 6 * J * ((⌊RB⌋₊ : ℕ) : ℝ) * prefixMax P.D k
         ≤ 6 * J * (RB + 1) * (cap * ε / 1536) :=
           mul_le_mul (mul_le_mul_of_nonneg_left (by linarith) (by positivity)) hk1 hpm0
             (by positivity)
-      _ = 6 * J * (RB + 1) * cap * (ε / 1536) := by ring
-      _ ≤ 1 * (ε / 1536) := mul_le_mul_of_nonneg_right hcapP (by positivity)
-      _ = ε / 1536 := one_mul _
+      _ = 6 * J ^ 2 * (RB + 1) * cap * (ε / (1536 * J)) := by field_simp
+      _ ≤ 1 * (ε / (1536 * J)) := mul_le_mul_of_nonneg_right hcapJ (by positivity)
+      _ = ε / (1536 * J) := one_mul _
+  have hmr96 : ε / (1536 * J) ≤ ε / 96 :=
+    div_le_div_of_nonneg_left hεd.le (by norm_num) (by linarith)
+  have hmrQ : ε / (64 * Q) + ε / (1536 * J) ≤ ε / (32 * Q) := by
+    have h : ε / (1536 * J) ≤ ε / (64 * Q) :=
+      div_le_div_of_nonneg_left hεd.le (by linarith) (by linarith)
+    have e : ε / (32 * Q) = 2 * (ε / (64 * Q)) := by field_simp; ring
+    linarith
   -- the harvests' threshold `Tu`: `A·Tu = 7/16` and `|Q| · 3ι / Tu < 7/16`, the slack and the
   -- avoided mass at most `1/16` each
   set Aₛ := roundSlope σ P.L C with hAₛ
@@ -731,10 +765,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       ring
     rw [e, div_le_iff₀ hεd]
     linarith
-  have hmrq : ε / 1536 / (C.harvestRate / 2) = 1 / 16 := by
-    show ε / 1536 / (ε / 48 / 2) = 1 / 16
-    field_simp
-    ring
+  have hmrq : ε / (1536 * J) / (C.harvestRate / 2) ≤ 1 / 16 := by
+    show ε / (1536 * J) / (ε / 48 / 2) ≤ 1 / 16
+    rw [show ε / (1536 * J) / (ε / 48 / 2) = 1 / (16 * J) by field_simp; ring]
+    exact one_div_le_one_div_of_le (by norm_num) (by linarith)
   have hAQι : Q * ι * Aₛ < 49 / 768 := by
     have hQQ : 0 < Q * (Q + 1) := by positivity
     calc Q * ι * Aₛ ≤ Q * (ε / (4608 * Q * (Q + 1))) * Aₛ := by gcongr
@@ -742,7 +776,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
           rw [hAeq]
           field_simp
       _ < 49 / 768 := by linarith
-  have hcond : Aₛ * Tu + roundSlack σ α C (2 * prefixMax P.D k) + ε / 1536 / (C.harvestRate / 2)
+  have hcond : Aₛ * Tu + roundSlack σ α C (2 * prefixMax P.D k)
+      + ε / (1536 * J) / (C.harvestRate / 2)
       + Fintype.card σ * (2 * ι + ι) / Tu < 1 := by
     have e1 : Aₛ * Tu = 7 / 16 := by rw [hTu]; field_simp
     have e2 : (Fintype.card σ : ℝ) * (2 * ι + ι) / Tu = 48 * (Q * ι * Aₛ) / 7 := by
@@ -750,12 +785,12 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       show Q * (2 * ι + ι) / (7 / (16 * Aₛ)) = _
       field_simp
       ring
-    rw [e1, e2, hmrq]
+    rw [e1, e2]
     linarith
   -- the misled probes: those sharing a probe's first `k` letters, and the rest
-  have hshort : Q * A * misledTail budget (2 * prefixMax P.D k) (2 * (Q + 1) * cross) ε
-      ≤ δ' / 4 := by
-    have hB₃ε : 34 ≤ B₃ * ε := by
+  have hshort : Q * A * misledTail budget (2 * prefixMax P.D k) (2 * (Q + 1) * cross)
+      (ε / (64 * Q)) ≤ δ' / 4 := by
+    have hB₃ε : 34 * S ≤ B₃ * ε := by
       set lg := Real.log (16 * S * (S + 1) / δ')
       have hx : (32 : ℝ) ≤ 16 * S * (S + 1) / δ' := by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)]
       have hl := Real.one_sub_inv_le_log_of_pos (show 0 < 16 * S * (S + 1) / δ' by linarith)
@@ -765,18 +800,11 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         show (36 * S / ε * lg + S + 1) * ε = _
         field_simp
         ring
-      have hSl : lg ≤ S * lg := le_mul_of_one_le_left hlogS hS1
       have h31 : (31 / 32 : ℝ) ≤ lg := le_trans (by linarith only [hinv]) hl
       have h2 : 0 ≤ (S + 1) * ε := mul_nonneg (by linarith only [hS1]) hεd.le
+      have h3 := mul_le_mul_of_nonneg_left h31 (by linarith only [hS1] : (0 : ℝ) ≤ S)
       rw [e]
-      nlinarith only [h31.trans hSl, h2]
-    have hB0 : 0 ≤ B₃ := hbud0.trans hbud
-    obtain ⟨hTp, -⟩ := shared_key_le hB0 hbud hpm0 hεd hB₃ε hk3 hδ'1
-    have hpε : 2 * (Q * A) * (2 * prefixMax P.D k) ≤ ε * δ' :=
-      key_mass_le (by positivity) (by positivity) hpm0 hεd rfl (by
-        show S ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
-        have : 0 ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') := by positivity
-        linarith) hB₃ε hk3
+      linarith only [h3, h2, hS1]
     have hWm : (Q + 2) * A * (Q + 1) ≤ Wm := by
       have : 0 ≤ Real.log (8 * S * (S + 1) / δ') :=
         Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)])
@@ -784,10 +812,19 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         + (Q + 2) * A * (Q + 1)
       have : 0 ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') := by positivity
       linarith
+    have hWm' : Q * A * (Q + 1) ≤ Wm := by
+      have : 0 ≤ 2 * A * (Q + 1) := by positivity
+      nlinarith only [hWm, this]
+    obtain ⟨hTp, hpε⟩ := misled_keys_le hQ1 hA1 hpm0 hεd rfl hbud (by
+        show S ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
+        have : 0 ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') := by positivity
+        linarith) hB₃ε hk3 hδ'0.le hcr.le hWm' hcm
     have he4 : 2 * (Q + 1) * cross ≤ 1 / 4 :=
-      cross_le_quarter hQ1 hA1 hcr.le hWm hcm (by rw [hud, Real.sqrt_le_one]; exact hδ'1)
-        (by linarith [Real.add_one_le_exp (1 : ℝ)])
-    exact misledTail_le (by positivity) hTp (by positivity) he4 hεd (by positivity) hpε
+      cross_le_quarter hQ1 hA1 hcr.le hWm (u := δ' / 4) (e₁ := Real.exp 2)
+        (hcm.trans_eq (by ring)) (by linarith)
+        (by linarith [Real.add_one_le_exp (2 : ℝ)])
+    exact misledTail_le (by positivity) hTp (by positivity) he4 (div_pos hεd (by linarith))
+      (by positivity) hpε
   -- the scan tail's atoms: `32 T cap ≤ 1`
   have hρ : 32 * (Tsc : ℝ) * cap ≤ 1 := by
     have hιl : ι ≤ 1 := by linarith only [hι8, hε1]
@@ -899,8 +936,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     linarith
   have hBpc : Bp ≤ ⌈HB⌉₊ := Nat.cast_le.1 (hBp.trans (Nat.le_ceil _))
   have hcore := loop_core_holds M O P E (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
-    ⌊PB⌋₊ ⌊RB⌋₊ ⌊FV⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / 1536) ε
-    cross Tu C Msc yh δm Tsc Th Nh Bp
+    ⌊PB⌋₊ ⌊RB⌋₊ ⌊FV⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / (1536 * J))
+    (ε / (64 * Q)) cross Tu C Msc yh δm Tsc Th Nh Bp
   dsimp only at hcore
   rw [hcexp] at hcore
   have hιε : ι ≤ εcov / 8 := min_le_left _ _
@@ -917,7 +954,8 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     (fun pops _ => hfam pops)
     hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0
     (by show prefixMax P.D k ≤ cap * (ε / 48) / 2; linarith [hk1])
-    hεd (by show 0 < ε / 48; positivity) hmr (by linarith) hcr hprem hTu0 hcond rfl hyh0
+    (div_pos hεd (by linarith)) (by show 0 < ε / 48; positivity) hmr
+    ((div_le_self hεd.le (by linarith)).trans hεd12) hcr hprem hTu0 hcond rfl hyh0
     (by show ε / 192 ≤ ε / 48 / 4; linarith) (by show ε / 192 ≤ 1; linarith) hδm0 (by omega)
     (le_max_left _ _) (by omega) (le_max_left _ _) (by rw [hNh]; omega)
   refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud, by rw [hC3]; exact hHN,
@@ -928,7 +966,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
   · intro draws hd hgood
     apply hd
     obtain ⟨⟨h1, o, ho, hag⟩, hlv, hfr, hrg, hwk⟩ := hgood
-    exact ⟨⟨h1, o, ho, checks_mono (by linarith) (by linarith) (by linarith) (by linarith) hag⟩,
+    exact ⟨⟨h1, o, ho, checks_mono (by linarith) (by linarith) (by linarith) hmrQ hag⟩,
       hlv, hfr, hrg, fun r hr hh => ⟨(hwk r hr hh).1, (hwk r hr hh).2.trans hBpc⟩⟩
   · have hδ8 := hshort
     have hQ0 : (0 : ℝ) ≤ (Fintype.card σ : ℝ) + 1 := by positivity
@@ -937,7 +975,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
           + 2 * Real.exp (-((Tsc : ℝ) / 8))) ≤ δ' / 2 :=
       scan_tail_le hδ'0 hcap0.le hρ (by rw [hK1]; exact hTsc8) hδmK
     show ((Fintype.card σ : ℝ) + 1) * (δ' + δ' / 4 + (δ' + Q * A
-      * misledTail budget (2 * prefixMax P.D k) (2 * (Q + 1) * cross) ε)
+      * misledTail budget (2 * prefixMax P.D k) (2 * (Q + 1) * cross) (ε / (64 * Q)))
       + (((Fintype.card σ + 1 : ℕ) : ℝ) * δm + (((Fintype.card σ + 1 : ℕ) : ℝ) + 1)
         * (2 * ((Msc.choose Tsc : ℕ) * ((Tsc : ℝ) * (2 * cap)) ^ (Msc - Tsc))
           + 2 * Real.exp (-((Tsc : ℝ) / 8)))
@@ -947,7 +985,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         + 2 ^ ((Fintype.card σ + 1) * Nh) * (1 - yh / 2) ^ (Bp + 1)))
         ≤ (Q + 1) * (4 * δ')
     have : δ' + δ' / 4 + (δ' + Q * A
-        * misledTail budget (2 * prefixMax P.D k) (2 * (Q + 1) * cross) ε)
+        * misledTail budget (2 * prefixMax P.D k) (2 * (Q + 1) * cross) (ε / (64 * Q)))
       + (((Fintype.card σ + 1 : ℕ) : ℝ) * δm + (((Fintype.card σ + 1 : ℕ) : ℝ) + 1)
         * (2 * ((Msc.choose Tsc : ℕ) * ((Tsc : ℝ) * (2 * cap)) ^ (Msc - Tsc))
           + 2 * Real.exp (-((Tsc : ℝ) / 8)))

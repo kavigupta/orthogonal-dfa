@@ -36,11 +36,6 @@ with both suffixes drawn forces `p = p'` on length alone.  Against the seed `ε`
 def Flat (Pre Suf : Set S) : Prop :=
   ∀ p ∈ Pre, ∀ p' ∈ Pre, ∀ v ∈ insert 1 Suf, ∀ v' ∈ insert 1 Suf, p * v = p' * v' → p = p'
 
-/-- The chance two independent draws coincide, `∑ₐ D({a})²`: `1/h` for a population uniform
-over `h` strings.  Drawing without replacement redraws a repeat, and the claim asks that a state's
-draws redraw only a small fraction of the time. -/
-noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {a}) ^ 2
-
 /-- The rates sit at least `½ − η₀` either side of `c`: the language reads accept at least that
 far above it, the rest at most that far below. -/
 def Oracle.Straddles (O : Oracle μ S) (c η₀ : ℝ) : Prop :=
@@ -84,7 +79,7 @@ prefixes a state draws at the signal times `min(εcov·signal, indecisionLimit)`
 `|J| + 3` times them at `min(εs, indecisionLimit)`: a draw then lands on what the state already
 holds rarely enough that its rejections are a binomial tail; and no string heavy against
 `min(εs, indecisionLimit)²/log(|J|·k/δ)`, so the hash splits it evenly at every centre.  The suffix
-measure needs a collision mass small against the suffixes; the other populations are arbitrary.  A
+measure needs no string heavy against the suffixes; the other populations are arbitrary.  A
 population is read only while `keptAt` keeps it.  `H j` are the strings population `j` harvested;
 the first count grows with how many there are. -/
 def ClusteringGuarantee : Prop :=
@@ -160,8 +155,7 @@ def ClusteringGuarantee : Prop :=
       (∀ B ∈ states, ∀ j ∈ tame, ∀ t : S,
         512 * Real.log (64 * (populations.card : ℝ) * B.k * (3 + 2 * (Nat.log 2 B.npref : ℝ))
           / δ) * (D j).real {t} ≤ min εs indecisionLimit ^ 2) →
-      (∀ B ∈ states,
-        2 ^ 13 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δ * pAP) →
+      (∀ B ∈ states, ∀ t : S, 2 ^ 16 * (B.nsuff : ℝ) * Dsf.real {t} ≤ pAP) →
       1 - δ - α ≤ (runMeasure μ D Dsf).real
         {x | (∃ B : {B : State // B ∈ states},
               streams H uni x ∈ ret O.mq populations uni η₀ indecisionLimit εg α B.val)

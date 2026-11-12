@@ -447,11 +447,12 @@ noncomputable def collisionCap (η : ℝ) (populations : Finset J)
         * (3 + 2 * (Nat.log 2 (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit
           hsz) : ℝ)) / δ)))
 
-/-- How much collision mass the suffix measure may carry: the pool redraws `M·ρ/pAP` of its `M`
-draws, a twentieth of the findable share. -/
-noncomputable def poolCollisionCap (η : ℝ) (populations : Finset J)
+/-- How much any one string may hold of the suffix measure: each of the pool's `n ≤ 2M` draws
+repeats an earlier one with chance at most `n·a ≤ pAP/2^15`, so its redraws stay a binomial tail
+below the `pAP M/20` it may spend. -/
+noncomputable def poolAtomCap (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℝ :=
-  δ * pAP / (2 ^ 13 * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
+  pAP / (2 ^ 16 * (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ))
 
 open scoped Classical in
 /-- The E-L\* clustering algorithm is PAC-correct: with probability `≥ 1 − δ − α` the loop
@@ -471,8 +472,7 @@ the uniform pool is a population holding at least `2·εcov` of each class, so t
 `εcov` of it is not vacuous; the populations, the harvested strings and
 the suffix measure are supported on a `Flat` pair of sets; no string has more than `ρ` of a tame
 population and `pAP` of the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov`,
-`εs` and `δ` are in range; and `ρ` fits `collisionCap` and `Dsf`'s collision mass fits
-`poolCollisionCap`. -/
+`εs` and `δ` are in range; and `ρ` fits `collisionCap` and `Dsf`'s atoms fit `poolAtomCap`. -/
 def ClusteringCorrect : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
@@ -512,8 +512,7 @@ def ClusteringCorrect : Prop :=
       + 6 * Real.log (256 * (populations.card : ℝ) / δ) / εs
       + harvestCap η₀ indecisionLimit εcov (allHarvest H).card →
   ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card →
-  collisionMass Dsf
-    ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit →
+  (∀ v, Dsf.real {v} ≤ poolAtomCap η₀ populations indecisionLimit εcov δ pAP crossLimit) →
   1 - δ - α ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations
         indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card ρ},

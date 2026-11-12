@@ -225,6 +225,8 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
     # sample.  On multi-iteration benchmarks this empty-prefix reclassification was
     # ~24% of all oracle queries (it recurs on up to num_samples draws per call).
     s0 = classify(b"")
+    if dfa.initial_state not in set(tree.leaves()):
+        s0 = dfa.initial_state
     if s0 is None:
         return 0.0  # every sample would fail to classify
     drawn = 0

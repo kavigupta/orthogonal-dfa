@@ -53,9 +53,10 @@ variable {σ : Type*} [Fintype σ] (M : DFA α σ) (side : σ → Bool) {xs : Li
   {R : ℕ}
 
 open scoped Classical in
-/-- A step growing the tree past `n + 2` leaves follows at least `n + 2 - |Q|` fresh-bad
-rounds. -/
-theorem grows_badCount (hd : Distinct xs C.walkStart) (hR : (n + 2) * Fintype.card α ≤ R)
+/-- A step growing the tree past `n + 2` leaves, where no string read wrong starts like two probes,
+follows at least `n + 2 - |Q|` fresh-bad rounds. -/
+theorem grows_badCount (hc : ∀ z ∈ before (rounds6 C xs n R) (xs.length * (R + 1)) r,
+      Wrong M side r z → Unshared xs C.walkStart z) (hR : (n + 2) * Fintype.card α ≤ R)
     (hgrow : GrowsRun r C n initialState xs) :
     n + 2 ≤ Fintype.card σ
       + badCount (rounds6 C xs n R) (wrongSet M side) (xs.length * (R + 1)) r := by
@@ -68,13 +69,27 @@ theorem grows_badCount (hd : Distinct xs C.walkStart) (hR : (n + 2) * Fintype.ca
       s'.tree.leaves.length ≤ n + 2 := fun i hi s' hs' => by
     by_contra hc
     exact Nat.find_min hP hi ⟨by omega, s', hs', by omega⟩
-  obtain ⟨-, -, -, hacc⟩ := account (M := M) (side := side) hd hR (Nat.find hP) s hs hmin
+  obtain ⟨-, -, -, hacc⟩ := account (M := M) (side := side) hc hR (Nat.find hP) s hs hmin
   have himg := img_card_le M side s.tree
   have hmono := badCount_mono (rounds6 C xs n R) (wrongSet M side) r
     (Nat.mul_le_mul_right (R + 1) hj)
   omega
 
 end Grows
+
+open scoped Classical in
+/-- A round reading wrong makes a fresh-bad round. -/
+theorem one_le_badCount {Z R : Type*} (Q : ℕ → (Z → R) → Finset Z) (B : Z → Set R) {N : ℕ}
+    {r : Z → R} {z : Z} (hz : z ∈ before Q N r) (hzB : r z ∈ B z) : 1 ≤ badCount Q B N r := by
+  have hP : ∃ i, i < N ∧ ∃ y ∈ Q i r, r y ∈ B y := by
+    obtain ⟨i, hi, hzi⟩ := (mem_before Q).1 hz
+    exact ⟨i, hi, z, hzi, hzB⟩
+  obtain ⟨hi₀, y, hy, hyB⟩ := Nat.find_spec hP
+  have hfresh : FreshBad Q B (Nat.find hP) r := by
+    refine ⟨y, Finset.mem_filter.2 ⟨hy, fun i hi hyi => ?_⟩, hyB⟩
+    exact Nat.find_min hP hi ⟨by omega, y, hyi, hyB⟩
+  unfold badCount
+  exact Finset.card_pos.2 ⟨_, Finset.mem_filter.2 ⟨Finset.mem_range.2 hi₀, hfresh⟩⟩
 
 /-! ## A round's reads -/
 
@@ -295,7 +310,18 @@ end Kappa
 
 end Random
 
-open MeasureTheory Random Random.Kappa Random.Spur RaceTail
+open MeasureTheory Random Random.Kappa Random.Spur RaceTail AdaptiveReads
+
+lemma pairs_nonneg (B : ℕ) {p₀ : ℝ} (hp : 0 ≤ p₀) : 0 ≤ (B : ℝ) * (B - 1 : ℝ) / 2 * p₀ := by
+  rcases Nat.eq_zero_or_pos B with h0 | h0
+  · simp [h0]
+  · have : (1 : ℝ) ≤ B := by exact_mod_cast h0
+    have : (0 : ℝ) ≤ B - 1 := by linarith
+    positivity
+
+lemma pairs_min_le (B : ℕ) {p₀ : ℝ} (hp : 0 ≤ p₀) (x : ℝ) :
+    (B : ℝ) * (B - 1 : ℝ) / 2 * p₀ * min 1 x ≤ (B : ℝ) * (B - 1 : ℝ) / 2 * p₀ :=
+  mul_le_of_le_one_right (pairs_nonneg B hp) (min_le_left _ _)
 
 /-- `Level5RoundCorrect` with an added floor `εw` on each read's wrong chance. -/
 def Level5EpsRoundCorrect : Prop :=
@@ -321,6 +347,7 @@ def Level5EpsRoundCorrect : Prop :=
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
     0 ≤ εw → 0 ≤ κ → 0 ≤ t → 0 ≤ t' → t * c ≤ 1 - Real.exp (-(t' * c)) →
     C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀
+        * min 1 (Real.exp (t' * (εw * b + κ * m)) / (1 + t))
       + Real.exp (t' * (εw * b + κ * m)) / (1 + t) ^ (f + 2) ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws
@@ -368,20 +395,21 @@ theorem level5EpsRoundCorrect_holds : Level5EpsRoundCorrect := by
       rw [indecisiveLStarLevel3_tree] at hd
       exact absurd (leaves_le_of_not_growsRun _ _ h0 hc.2) (not_le.2 hd)
   set π := Measure.pi fun _ : Fin C.probeBudget => P.D
-  set tail := Real.exp (t' * (εw * b + κ * m)) / (1 + t) ^ (f + 2)
+  set X : ℝ := εw * b + κ * m
+  set tail := Real.exp (t' * X) / (1 + t) ^ (f + 2)
+  set tail₁ : ℝ := min 1 (Real.exp (t' * X) / (1 + t))
   have htail0 : 0 ≤ tail := by positivity
-  -- a probe's sequence with distinct starts grows past the allowance only after `f + 2`
-  -- fresh-bad rounds
-  have hpt : ∀ d : Fin C.probeBudget → FreeMonoid α, π {d} ≠ 0 →
-      μ {ω | d ∈ {d | Distinct (List.ofFn d) C.walkStart
-        ∧ GrowsRun (R.read · ω) C nQ initialState (List.ofFn d)}} ≤ ENNReal.ofReal tail := by
-    intro d hd
-    by_cases hdist : Distinct (List.ofFn d) C.walkStart
-    swap
-    · have : {ω | d ∈ {d | Distinct (List.ofFn d) C.walkStart
-          ∧ GrowsRun (R.read · ω) C nQ initialState (List.ofFn d)}} = ∅ :=
-        Set.eq_empty_of_forall_notMem fun ω h => hdist h.1
-      rw [this, measure_empty]; exact bot_le
+  have htail₁0 : 0 ≤ tail₁ := le_min zero_le_one (by positivity)
+  -- no string read wrong starts like two probes
+  set Cl : (Fin C.probeBudget → FreeMonoid α) → Ω → Prop := fun d ω =>
+    ∀ z ∈ before (rounds6 C (List.ofFn d) nQ Rr) ((List.ofFn d).length * (Rr + 1)) (R.read · ω),
+      Wrong M side (R.read · ω) z → Unshared (List.ofFn d) C.walkStart z
+  -- `g` fresh-bad rounds, at a drawn point
+  have hrace : ∀ d : Fin C.probeBudget → FreeMonoid α, π {d} ≠ 0 → ∀ g : ℕ,
+      μ {ω | g ≤ badCount (rounds6 C (List.ofFn d) nQ Rr) (wrongSet M side)
+          ((List.ofFn d).length * (Rr + 1)) (R.read · ω)}
+        ≤ ENNReal.ofReal (Real.exp (t' * X) / (1 + t) ^ g) := by
+    intro d hd g
     have hL : ∀ x ∈ List.ofFn d, x.toList.length ≤ P.L := by
       intro x hx
       obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
@@ -401,19 +429,9 @@ theorem level5EpsRoundCorrect_holds : Level5EpsRoundCorrect := by
       exact hlt
     set xs := List.ofFn d
     have hlen : xs.length = C.probeBudget := List.length_ofFn
-    have hsub : {ω | d ∈ {d | Distinct (List.ofFn d) C.walkStart
-        ∧ GrowsRun (R.read · ω) C nQ initialState (List.ofFn d)}}
-        ⊆ {ω | f + 2 ≤ badCount (rounds6 C xs nQ Rr) (wrongSet M side)
-          (xs.length * (Rr + 1)) (R.read · ω)} := by
-      intro ω hω
-      have := grows_badCount (R := Rr) M side hdist le_rfl hω.2
-      have hnQ : nQ = Fintype.card σ + f := rfl
-      simp only [Set.mem_ofPred_eq]
-      omega
-    refine (measure_mono hsub).trans ?_
     have hc0 : (0 : ℝ) ≤ c := by positivity
     refine raceTailBound_holds μ R.read (wrongSet M side) (fun _ => {ARU.undecided}) εw κ
-      (rounds6 C xs nQ Rr) (f + 2) (xs.length * (Rr + 1)) b m c t t'
+      (rounds6 C xs nQ Rr) g (xs.length * (Rr + 1)) b m c t t'
       R.measurable R.indep hεw hκ (fun z => ?_) (fun j r r' _ h => rounds6_local le_rfl j r r' h)
       (fun r => ?_) (fun r => ?_) (fun r j _ => ?_) hc0 ht ht' htc
     · have h1 := R.wrong z
@@ -459,35 +477,64 @@ theorem level5EpsRoundCorrect_holds : Level5EpsRoundCorrect := by
         refine (Finset.card_le_card fun z hz => ?_).trans h2
         simp only [newQ, Finset.mem_filter, Set.mem_singleton_iff] at hz
         exact Finset.mem_filter.2 ⟨hz.1.1, hz.2⟩
+  -- a sequence growing the tree past the allowance has a wrong read starting like two probes, or
+  -- `f + 2` fresh-bad rounds
+  have hpt : ∀ d : Fin C.probeBudget → FreeMonoid α, π {d} ≠ 0 →
+      μ {ω | d ∈ {d | GrowsRun (R.read · ω) C nQ initialState (List.ofFn d)}}
+        ≤ {d | ¬ Distinct (List.ofFn d) C.walkStart}.indicator 1 d * ENNReal.ofReal tail₁
+          + ENNReal.ofReal tail := by
+    intro d hd
+    have hsplit : {ω | d ∈ {d | GrowsRun (R.read · ω) C nQ initialState (List.ofFn d)}}
+        ⊆ {ω | ¬ Cl d ω} ∪ {ω | Cl d ω ∧ GrowsRun (R.read · ω) C nQ initialState (List.ofFn d)} :=
+      fun ω hω => by
+        by_cases h : Cl d ω
+        · exact Or.inr ⟨h, hω⟩
+        · exact Or.inl h
+    refine (measure_mono hsplit).trans ((measure_union_le _ _).trans (add_le_add ?_ ?_))
+    · by_cases hdist : Distinct (List.ofFn d) C.walkStart
+      · have : {ω | ¬ Cl d ω} = ∅ := Set.eq_empty_of_forall_notMem fun ω h =>
+          h fun z _ _ => unshared_of_distinct hdist z
+        rw [this, measure_empty]
+        exact bot_le
+      rw [Set.indicator_of_mem (show d ∈ {d | ¬ Distinct (List.ofFn d) C.walkStart} from hdist),
+        Pi.one_apply, one_mul, ENNReal.ofReal_min, ENNReal.ofReal_one]
+      refine le_min prob_le_one ?_
+      refine (measure_mono fun ω hω => ?_).trans ((hrace d hd 1).trans (by rw [pow_one]))
+      simp only [Cl, Set.mem_setOf_eq, not_forall] at hω ⊢
+      obtain ⟨z, hz, hzw, -⟩ := hω
+      exact one_le_badCount _ _ hz hzw
+    · refine (measure_mono fun ω hω => ?_).trans (hrace d hd (f + 2))
+      have := grows_badCount (R := Rr) M side hω.1 le_rfl hω.2
+      have hnQ : nQ = Fintype.card σ + f := rfl
+      simp only [Set.mem_setOf_eq]
+      omega
   have hG : ∫⁻ ω, π {d | GrowsRun (R.read · ω) C nQ initialState (List.ofFn d)} ∂μ
-      ≤ ENNReal.ofReal (C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀)
+      ≤ ENNReal.ofReal (C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀) * ENNReal.ofReal tail₁
         + ENNReal.ofReal tail := by
-    calc _ ≤ ∫⁻ ω, (π {d | ¬ Distinct (List.ofFn d) C.walkStart}
-          + π {d | Distinct (List.ofFn d) C.walkStart
-            ∧ GrowsRun (R.read · ω) C nQ initialState (List.ofFn d)}) ∂μ := by
-          refine lintegral_mono fun ω => (measure_mono fun d hd => ?_).trans
-            (measure_union_le _ _)
-          by_cases h : Distinct (List.ofFn d) C.walkStart
-          · exact Or.inr ⟨h, hd⟩
-          · exact Or.inl h
-      _ = π {d | ¬ Distinct (List.ofFn d) C.walkStart}
-          + ∫⁻ ω, π {d | Distinct (List.ofFn d) C.walkStart
-            ∧ GrowsRun (R.read · ω) C nQ initialState (List.ofFn d)} ∂μ := by
-          rw [lintegral_add_left measurable_const, lintegral_const, measure_univ, mul_one]
-      _ ≤ _ := add_le_add (pi_notDistinct P C.walkStart p₀ hpre _)
-          (Eps.lintegral_le_of_points μ π _ _ hpt)
+    refine (Eps.lintegral_le_tsum_of_points μ π _ _ hpt).trans ?_
+    have e : ∑' d, π {d} * ({d | ¬ Distinct (List.ofFn d) C.walkStart}.indicator 1 d
+          * ENNReal.ofReal tail₁ + ENNReal.ofReal tail)
+        = π {d | ¬ Distinct (List.ofFn d) C.walkStart} * ENNReal.ofReal tail₁
+          + ENNReal.ofReal tail := by
+      simp_rw [mul_add, ← mul_assoc]
+      rw [ENNReal.tsum_add, ENNReal.tsum_mul_right, ENNReal.tsum_mul_right,
+        ← Eps.measure_eq_tsum π]
+      congr 1
+      have h1 : ∑' d, π {d} = 1 := by
+        rw [← measure_univ (μ := π), Eps.measure_eq_tsum π Set.univ]
+        simp
+      rw [h1, one_mul]
+    rw [e]
+    gcongr
+    exact pi_notDistinct P C.walkStart p₀ hpre _
   calc _ ≤ ENNReal.ofReal (7 * C.δ / 8) + (ENNReal.ofReal
-        (C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀) + ENNReal.ofReal tail) := by
+        (C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀) * ENNReal.ofReal tail₁
+          + ENNReal.ofReal tail) := by
         gcongr
     _ ≤ ENNReal.ofReal (7 * C.δ / 8) + ENNReal.ofReal (C.δ / 8) := by
         gcongr
-        have hpair : (0 : ℝ) ≤ C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀ := by
-          rcases Nat.eq_zero_or_pos C.probeBudget with h0 | h0
-          · simp [h0]
-          · have : (1 : ℝ) ≤ C.probeBudget := by exact_mod_cast h0
-            have : (0 : ℝ) ≤ C.probeBudget - 1 := by linarith
-            positivity
-        rw [← ENNReal.ofReal_add hpair htail0]
+        have hpair := pairs_nonneg C.probeBudget hp₀.le
+        rw [← ENNReal.ofReal_mul hpair, ← ENNReal.ofReal_add (by positivity) htail0]
         exact ENNReal.ofReal_le_ofReal hfin
     _ = _ := by
         rw [← ENNReal.ofReal_add (by positivity) (by positivity)]

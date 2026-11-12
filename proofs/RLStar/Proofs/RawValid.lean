@@ -301,8 +301,8 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (hρ : ∀ j ∈ tame, ∀ t, (D j).real {t} ≤ ρ)
     (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov εs δ α pAP crossLimit
       (allHarvest H).card)
-    (hρsf : collisionMass Dsf
-      ≤ poolCollisionCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
+    (hρsf : ∀ v, Dsf.real {v}
+      ≤ poolAtomCap η₀ populations indecisionLimit εcov δ pAP crossLimit) :
     (runMeasure μ D Dsf).real (streams H uni ⁻¹' ⋃ B : {B : State // B ∈ stoppable η₀
         populations indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card ρ},
       (retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εg α B.val
@@ -371,8 +371,8 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
       have := (hthird j hj).2
       rw [measureReal_def, h] at this; norm_num at this
     have hcoll := poolDraws_le_of_cap (indecisionLimit := indecisionLimit)
-        (crossLimit := crossLimit) η₀ populations hpAP0 hpAP1 hδ
-        (tsum_nonneg (fun a => sq_nonneg _)) hρsf
+        (crossLimit := crossLimit) η₀ populations hpAP0 hpAP1 hδ hδ1
+        (le_trans measureReal_nonneg (hρsf 1)) le_rfl
     have h := validity_of_returned (ruleOf := ruleOf) (crossLimit := crossLimit) (hsz := hz) hflat O
       populations tame uni huni htame (sideLawT H uni D g) (sideLawC H uni D g) Dsf
       (fun j => if j = uni then [] else (H j).toList) (tableLaw H uni D g) (certLaw H uni D g)
@@ -393,7 +393,8 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
           exact sideLawC_named H uni D g hju (hR0 j hj))
       (ae_sideLawT_mem H uni D g populations hsupp hH)
       (ae_sideLawC_mem H uni D g populations hsupp) hsuppSf indecisionLimit εcov εg α
-      (27 / 16 * indecisionLimit) hind (by linarith) hgap hη0 hη₀ hα0 hα1 ρ (collisionMass Dsf)
+      (27 / 16 * indecisionLimit) hind (by linarith) hgap hη0 hη₀ hα0 hα1 ρ
+      (poolAtomCap η₀ populations indecisionLimit εcov δ pAP crossLimit)
       (fun j hj t => by
         by_cases hju : j = uni
         · subst hju
@@ -404,7 +405,7 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
             if_neg (show ¬ (D j (onSide (allHarvest H) false g) = 0) from hR0 j hj)]
           exact ⟨cond_atom_le (D j) (hρ j hj) _ (hthird j hj).2 t,
             cond_atom_le (D j) (hρ j hj) _ (hthird j hj).1 t⟩)
-      le_rfl (tsum_nonneg (fun a => sq_nonneg _)) hεcov hεs δ hδ hδ1 pAP hpAP0 hpAP1 hpAPBound
+      hρsf (le_trans measureReal_nonneg (hρsf 1)) hεcov hεs δ hδ hδ1 pAP hpAP0 hpAP1 hpAPBound
       hcoll
     exact h
   -- off the bad events, a family bad for a population's law is bad for its reserve side's
