@@ -76,7 +76,7 @@ def prefOf (r : RLStarRun) : ℝ := prefSh r.Q r.A (r.L + r.Q) r.δ r.ξc r.pAP 
 
 def suffOf (r : RLStarRun) : ℝ := suffSh r.Q r.A (r.L + r.Q) r.δ r.ξc r.pAP r.s₀
 
-def probesOf (r : RLStarRun) : ℝ := probeSh r.Q r.A (r.L + r.Q) r.δ r.ξc
+def probesShOf (r : RLStarRun) : ℝ := probeSh r.Q r.A (r.L + r.Q) r.δ r.ξc
 
 def readsOf (r : RLStarRun) : ℝ := readsSh r.Q r.A (r.L + r.Q) r.δ r.ξc r.pAP r.s₀
 
@@ -352,10 +352,10 @@ lemma suff_dist : (fun r : RLStarRun => distSuff (toDistRun (ratioOneRun r)))
   simp only [mul_one]
 
 lemma probes_dist : (fun r : RLStarRun => distProbes (toDistRun (ratioOneRun r)))
-    =O[𝓟 rlStarRunRegion] probesOf := by
+    =O[𝓟 rlStarRunRegion] probesShOf := by
   refine (isBigO_comp_on distProbes_isBigO ratioOne_maps).congr' EventuallyEq.rfl
     (eventually_principal.2 fun r _ => ?_)
-  simp only [Function.comp, toDistRun, ratioOneRun, ratioOne, toDist, one_div_one_div, probesOf,
+  simp only [Function.comp, toDistRun, ratioOneRun, ratioOne, toDist, one_div_one_div, probesShOf,
     probeSh]
   ring
 

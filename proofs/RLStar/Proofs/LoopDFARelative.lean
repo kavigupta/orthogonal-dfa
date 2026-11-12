@@ -36,8 +36,8 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
   have h := learner_loop_dfa_dist_core M O L
     (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ (ξ / (2 * R))
     (γ + 3 * ξ / 4) δ pAP (ξ / 4) A (A ^ k)⁻¹ hL hgap hη₀
-    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalL; simp only [εcov]; ring_nf)
-    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalN; simp only [εcov]; ring_nf)
+    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalL; simp only [εcov, N, L₁, k]; ring_nf)
+    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalN; simp only [εcov, N, L₁, k]; ring_nf)
     (by positivity) hc1 hδ hδ1 hpAP
     (by positivity) hA2 (by linarith) (uniformStrings_long _)
     (fun u => uniformStrings_prefix_le (by omega) u) (by rw [hpS]; exact hpAPu)
@@ -111,8 +111,8 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   obtain ⟨settings, h1, h2, h3, h5, h6, -, -, h4⟩ := learner_loop_dfa_dist_tol M O L
     (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ (ξ / (2 * R))
     (γ + 3 * ξ / 4) δ pAP (ξ / 4) A (A ^ k)⁻¹ hL hgap hη₀
-    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalL; simp only [εcov]; ring_nf)
-    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalN; simp only [εcov]; ring_nf)
+    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalL; simp only [εcov, N, L₁, k]; ring_nf)
+    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalN; simp only [εcov, N, L₁, k]; ring_nf)
     hc0 hc1 hδ hδ1 hpAP
     (by positivity) hA2 (by linarith) (uniformStrings_long _)
     (fun u => uniformStrings_prefix_le (by show (L + 1) / 2 ≤ _; omega) u)
