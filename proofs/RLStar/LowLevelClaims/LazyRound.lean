@@ -98,7 +98,7 @@ def LazyRoundShape : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3Settings)
     (K nh E J b : ℕ) (X₀ : Finset (FreeMonoid α))
     (draws : Fin E → EpochDraws α C.probeBudget J b),
-    TrieOK K X₀ →
+    0 < nh → TrieOK K X₀ →
     let p := lazyRoundQ C K nh X₀ draws
     let r := p.eval read
     TrieOK K r.expanded ∧ X₀ ⊆ r.expanded
