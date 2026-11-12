@@ -281,7 +281,8 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     rw [← hyd] at h8
     have hy : 0 ≤ y := hyd ▸ mul_nonneg (by positivity) (by linarith)
     have hm1 : 1 ≤ max 1 C := le_max_left 1 C
-    have hc' : 1 / p₀Tol { x with L } ≤ (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne { x with L }))) ^ 5 :=
+    have hc' : 1 / p₀Tol { x with L }
+        ≤ (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne { x with L }))) ^ 5 :=
       calc 1 / p₀Tol { x with L }
           ≤ max 1 C * (16 * y) ^ 5 :=
             hc.trans (mul_le_mul (le_max_right 1 C) (pow_le_pow_left₀ hs0 h8 5)
@@ -289,13 +290,14 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
         _ ≤ max 1 C ^ 5 * (16 * y) ^ 5 :=
             mul_le_mul_of_nonneg_right (le_self_pow₀ hm1 (by norm_num)) (by positivity)
         _ = _ := by rw [hC₀d, hyd]; ring
-    have hpow : (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne { x with L }))) ^ 5 ≤ (x.A : ℝ) ^ k := by
+    have hpow : (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne { x with L }))) ^ 5
+        ≤ (x.A : ℝ) ^ k := by
       have hlA : 0 < log (x.A : ℝ) := Real.log_pos (by linarith)
       have hZ : 0 < ((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne { x with L })) :=
         mul_pos (pow_pos (by have : (0 : ℝ) ≤ L := Nat.cast_nonneg _; linarith) 6)
           (by linarith [one_le_mul_of_one_le_of_one_le hC₀ hG1])
-      change 5 * log (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne { x with L }))) / log (x.A : ℝ) ≤ k
-        at hk₀
+      change 5 * log (((L : ℝ) + x.Q) ^ 6 * (C₀ * loopG (ratioOne { x with L })))
+        / log (x.A : ℝ) ≤ k at hk₀
       have h9 := (div_le_iff₀ hlA).1 hk₀
       rw [← Real.log_le_log_iff (pow_pos hZ 5) (pow_pos (by linarith) k), Real.log_pow,
         Real.log_pow]

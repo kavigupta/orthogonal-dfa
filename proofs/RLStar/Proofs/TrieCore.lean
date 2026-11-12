@@ -168,7 +168,8 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
     let W : ℝ := max (2 * Real.exp 2 * Wm) 1
-    let PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
+    let PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28)
+        / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     let RB : ℝ := 2 ^ 22 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
       + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
@@ -181,7 +182,8 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
     let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
     let HN : ℝ := 192 / ε * Real.log (4 * (Q + 1) * SC / δ') + 1
-    let FV : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / 4
+    let FV : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28)
+        / 4
     let SH : ℝ := 24 * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
     let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
@@ -290,7 +292,8 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
   have hPB0 : 0 ≤ PB := by
     have hl : 0 ≤ Real.log (3 / (δ' / 2)) :=
       Real.log_nonneg (by rw [le_div_iff₀ (by positivity)]; linarith)
-    show 0 ≤ (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
+    show 0 ≤ (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) /
+        pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     positivity
   have hFV0 : 0 ≤ FV := by
@@ -396,7 +399,8 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
         o.ReadsAt O p.1 := e2 _ hloop
     have hprem := trieRoundGood_of O P Dsf settings p hrg
       (fun r hr h => hn3 ⟨r, hr⟩ h) (fun r hr h => hnT ⟨r, hr⟩ h)
-    obtain ⟨t1, t2⟩ := trieLoopAgrees_holds rd settings cap P.D Dsf p.2 (hcap.trans_eq hwalk.symm) hprem
+    obtain ⟨t1, t2⟩ := trieLoopAgrees_holds rd settings cap P.D Dsf p.2 (hcap.trans_eq hwalk.symm)
+        hprem
     rw [e1, Option.map_some] at t1
     have hcons : o.result.ending = .consistent := hch.1.1
     have hoK : o ∈ idealRounds settings O P.D Dsf draws (Fintype.card σ + 1) :=

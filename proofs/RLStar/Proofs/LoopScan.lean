@@ -140,7 +140,8 @@ offer `m`. -/
 lemma prefixesOf_agree {n : Option (Fin K) → ℕ} {m : ℕ}
     {x y : Draws Ω (FreeMonoid α) (Option (Fin K))} (hxy : AgreeTo none n x y) (j : Option (Fin K))
     (hm : m ≤ (seqsOf n x j).1.toFinset.card) :
-    prefixesOf j m (streams (fun _ => ∅) none x) = prefixesOf j m (streams (fun _ => ∅) none y) := by
+    prefixesOf j m (streams (fun _ => ∅) none x) = prefixesOf j m (streams (fun _ => ∅) none
+        y) := by
   classical
   obtain ⟨-, -, hg, hp, -⟩ := hxy
   rcases j with _ | i
@@ -389,7 +390,8 @@ theorem roundOf_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
       = fun B => B ∈ sched ∧ r' ∈ ret O.mq ps none settings.η₀ settings.indecisionLimit
         settings.εcov settings.gateLevel B := by
     funext B
-    exact propext (and_congr_right fun hB => hr.ret O.mq none (Finset.mem_insert_self _ _) _ _ _ _ hB)
+    exact propext (and_congr_right fun hB => hr.ret O.mq none (Finset.mem_insert_self _ _) _ _ _ _
+        hB)
   have hB := (Classical.epsilon_spec (p := fun B => B ∈ sched ∧ r ∈ ret O.mq ps none
     settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
     (let ⟨B, hB, hx⟩ := hret; ⟨B, hB, hx⟩)).1

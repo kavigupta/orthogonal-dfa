@@ -102,7 +102,8 @@ open scoped Classical in
 /-- The seed's count against side `accept` on `A` within `hoeffDev #A a` of its mean, from
 above. -/
 def readLive (O : Oracle μ S) (accept : Bool) (A : Finset S) (a : ℝ) (ω : Ω) : Prop :=
-  (againstOn O.mq accept A ω : ℝ) ≤ ∑ p ∈ A, μ[againstVar O (sideClass accept) p] + hoeffDev A.card a
+  (againstOn O.mq accept A ω : ℝ) ≤ ∑ p ∈ A, μ[againstVar O (sideClass accept) p] + hoeffDev A.card
+      a
 
 open scoped Classical in
 /-- A count on `A` of those of `X` and of `Y` bounds the count of `X ∪ Y`'s members. -/

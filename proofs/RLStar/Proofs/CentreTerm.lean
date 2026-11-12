@@ -221,7 +221,8 @@ theorem measureReal_centreBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
   set ν := streamMeasure μ Pp Pc Dsf
   have hn : (B.npref : ℝ) ≤ ((B.npref + r : ℕ) : ℝ) := by exact_mod_cast Nat.le_add_right _ _
   have hstretch : ∀ l E : ℝ, 0 ≤ l →
-      Real.exp (-(((B.npref + r : ℕ) : ℝ) * relRate l E)) ≤ Real.exp (-((B.npref : ℝ) * relRate l E))
+      Real.exp (-(((B.npref + r : ℕ) : ℝ) * relRate l E)) ≤ Real.exp (-((B.npref : ℝ) * relRate l
+          E))
       := fun l E hl => Real.exp_le_exp.2 (neg_le_neg (mul_le_mul_of_nonneg_right hn
         (by unfold relRate; positivity)))
   have hC := fun b => (measureReal_heavyHits_le (rule := rule) Pp Pc Dsf O populations uni Du hPc
@@ -688,7 +689,8 @@ misses' rate sits under half of `εcov/20`, and the tails sum to `δ/16`. -/
 lemma solved_centre (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP : ℝ}
     (hη₀ : η₀ < 1 / 2) (hgap : 4 * sig η₀ ≤ O.gap) (hεcov : 0 < εcov) (hε4 : εcov ≤ 1 / 4)
     (hεs : 0 < εs) (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2) (hα : 0 < α)
-    (hα1 : α ≤ 1) (hδ : 0 < δ) (hpAP : 0 < pAP) (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) (B : State)
+    (hα1 : α ≤ 1) (hδ : 0 < δ) (hpAP : 0 < pAP) (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) (B :
+        State)
     (hBm : B.npref = prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
     (hBk : B.k = famCount η₀ populations indecisionLimit εcov δ crossLimit + 1)
     (hstr : O.Straddles B.centre η₀) :

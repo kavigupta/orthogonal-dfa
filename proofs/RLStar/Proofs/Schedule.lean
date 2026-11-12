@@ -516,19 +516,23 @@ def ClusteringCorrect : Prop :=
   1 - δ - α ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations
         indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card ρ},
-        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit εg α
+        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀
+            indecisionLimit εg α
           B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs δ
         α pAP crossLimit (allHarvest H).card ρ},
-        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit εg α
+        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀
+            indecisionLimit εg α
           B.val →
         ∀ j ∈ tame, 1 - gateLimit uni εg j - 2 * certFrac indecisionLimit εs
             - (if j = uni then 0 else εs / 2)
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-              (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise
+              (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p
+                  (oracleNoise
                 x.1)}
           ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
-              (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise
+              (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p
+                  (oracleNoise
                 x.1)}
             ≤ 2 * indecisionLimit}
 

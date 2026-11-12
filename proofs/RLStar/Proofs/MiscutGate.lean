@@ -296,10 +296,13 @@ theorem le_mul_wrongCap (n k ag : ℕ) (ap : ℝ) (hk : k ≤ n) {x y yb d s : �
     set μ : ℝ := (((n : ℝ) - k) * x + k * (1 - y)) / n with hμ
     have hid := spread_identity (n : ℝ) k hnR x y c
     rw [← hμ] at hid
-    have hμlo : ((ag : ℝ) - d) / n ≤ μ := by rw [hμ]; exact div_le_div_of_nonneg_right (by linarith) hnR.le
-    have hμhi : μ ≤ ((ag : ℝ) + d) / n := by rw [hμ]; exact div_le_div_of_nonneg_right (by linarith) hnR.le
+    have hμlo : ((ag : ℝ) - d) / n ≤ μ := by rw [hμ]; exact div_le_div_of_nonneg_right (by linarith)
+        hnR.le
+    have hμhi : μ ≤ ((ag : ℝ) + d) / n := by rw [hμ]; exact div_le_div_of_nonneg_right (by linarith)
+        hnR.le
     have hmid : (1 - 2 * c) * (μ - c)
-        ≤ max ((1 - 2 * c) * (((ag : ℝ) - d) / n - c)) ((1 - 2 * c) * (((ag : ℝ) + d) / n - c)) := by
+        ≤ max ((1 - 2 * c) * (((ag : ℝ) - d) / n - c)) ((1 - 2 * c) * (((ag : ℝ) + d) / n -
+            c)) := by
       rcases le_total 0 (1 - 2 * c) with h | h
       · exact le_trans (mul_le_mul_of_nonneg_left (by linarith) h) (le_max_right _ _)
       · exact le_trans (mul_le_mul_of_nonpos_left (by linarith) h) (le_max_left _ _)
@@ -509,7 +512,8 @@ inside it. -/
 lemma miscut_le_sides (O : Oracle μ S) (lo hi : ℕ) (F P : Finset S) (ω : Ω) :
     ((P.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card : ℝ)
       ≤ (((acceptSide O.mq hi F P ω).filter (fun p => O.label p ≠ sideClass true)).card : ℝ)
-        + (((rejectSide O.mq lo F P ω).filter (fun p => O.label p ≠ sideClass false)).card : ℝ) := by
+        + (((rejectSide O.mq lo F P ω).filter (fun p => O.label p ≠ sideClass false)).card :
+            ℝ) := by
   classical
   have hsub : P.filter (fun p => ¬ cutCorrect O lo hi F p ω)
       ⊆ (acceptSide O.mq hi F P ω).filter (fun p => O.label p ≠ sideClass true)
@@ -2526,7 +2530,8 @@ lemma centreFits_congr (O : Oracle μ S) (η₀ a : ℝ) (B : State) (F A : Fins
     Finset.filter_congr (fun p hp => by rw [hvc p hp])
   have hag : ∀ (b : Bool) (X : Finset S), X ⊆ A → againstOn O.mq b X ω = againstOn O.mq b X ω' :=
     fun b X hX => congrArg Finset.card (Finset.filter_congr (fun p hp => by rw [hA p (hX hp)]))
-  have hrb : ∀ (b : Bool) (X : Finset S), X ⊆ A → readBound O.mq b X a ω = readBound O.mq b X a ω' :=
+  have hrb : ∀ (b : Bool) (X : Finset S), X ⊆ A → readBound O.mq b X a ω = readBound O.mq b X a
+      ω' :=
     fun b X hX => by unfold readBound; rw [hag b X hX]
   unfold centreFits
   rw [hrej, hacc, hrb false _ (by rw [← hrej]; exact Finset.filter_subset _ _),

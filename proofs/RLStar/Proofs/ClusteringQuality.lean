@@ -177,7 +177,8 @@ theorem selected_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
 open scoped Classical in
 /-- How far the returned family's realized failure mass on the population prefixes of `F` the table
 does not hold falls below its mean under fresh noise. -/
-noncomputable def devAt (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J) (B : State) (Dj : Measure S)
+noncomputable def devAt (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J) (B : State)
+    (Dj : Measure S)
     (F : Finset S) (Ev : Finset S → S → Ω → Prop) (x : Run Ω S J) : ℝ :=
   ∑ p ∈ F \ prefixesAt populations B.npref x,
       Dj.real {p} * μ.real {ω | Ev (familyBy rule O.mq populations x B) p ω}
@@ -606,9 +607,11 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     measurableSet_filter_pred_map O (T := U) (fun v => p * v) hU
       (fun W => ¬ (B.hi + 1 < Finset.card W ∨ Finset.card W ≤ B.lo))
   set badC : State → J → Set (Run Ω S J) :=
-    fun B j => {x | slack / 2 ≤ devAt (nearestClusterer B.centre) O populations B (D j) (F j) (EvC B) x} with hbadC
+    fun B j => {x | slack / 2 ≤ devAt (nearestClusterer B.centre) O populations B (D j) (F j) (EvC
+        B) x} with hbadC
   set badU : State → J → Set (Run Ω S J) :=
-    fun B j => {x | slack / 2 ≤ devAt (nearestClusterer B.centre) O populations B (D j) (F j) (EvU B) x} with hbadU
+    fun B j => {x | slack / 2 ≤ devAt (nearestClusterer B.centre) O populations B (D j) (F j) (EvU
+        B) x} with hbadU
   set Bad : Set (Draws Ω S J) := streams H uni ⁻¹' ⋃ B ∈ states, ⋃ j ∈ tame,
     (badC B j ∪ badU B j) with hBaddef
   have hsq : ∀ j ∈ tame, ∑ p ∈ F j, (D j).real {p} ^ 2 ≤ σ := fun j hj =>
@@ -620,8 +623,10 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
       rw [show 2 * (slack / 2) ^ 2 / σ = Real.log X by rw [hσdef]; field_simp,
         Real.exp_neg, Real.exp_log (by linarith), one_div]
     refine runMeasure_streams_le H uni D Dsf _
-      ((measurableSet_devAt (rule := nearestClusterer B.centre) O populations B (D j) (F j) (EvC B) (hEvCm B)
-        (slack / 2)).union (measurableSet_devAt (rule := nearestClusterer B.centre) O populations B (D j) (F j)
+      ((measurableSet_devAt (rule := nearestClusterer B.centre) O populations B (D j) (F j) (EvC B)
+          (hEvCm B)
+        (slack / 2)).union (measurableSet_devAt (rule := nearestClusterer B.centre) O populations B
+            (D j) (F j)
           (EvU B) (hEvUm B) (slack / 2))) (fun g => ?_)
     have hsT := ae_sideLawT_mem H uni D g populations hsupp hH
     have h1 := streamMeasure_dev_le (rule := nearestClusterer B.centre) hflat O (sideLawT H uni D g)
@@ -672,15 +677,19 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
           rw [hXdef]; field_simp; ring
       _ ≤ δ / 2 := by linarith
   have key : ∀ T : Set (Draws Ω S J), {x | (∃ B : {B : State // B ∈ states},
-          streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ iL εcov α B.val) ∧
+          streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ iL εcov α
+              B.val) ∧
         ∀ B : {B : State // B ∈ states},
-          streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ iL εcov α B.val →
+          streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ iL εcov α
+              B.val →
           ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * certFrac iL εs
               - (if j = uni then 0 else εs / 2)
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-                (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
+                (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val)
+                    p (oracleNoise x.1)}
             ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
-                (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)}
+                (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val)
+                    p (oracleNoise x.1)}
               ≤ 2 * iL} ⊆ T ∪ Bad →
       1 - δ - α ≤ (runMeasure μ D Dsf).real T := by
     intro T hT
@@ -737,15 +746,19 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     have hC := integral_le_realized (D j) (hsupp j (htame hj)) (F j) P
       (fun p => EvC B.val G p (oracleNoise x.1)) (fun p => miscutProb O B.val.lo (B.val.hi + 1) G p)
       (fun p => measureReal_nonneg) (fun p => measureReal_le_one)
-      (devAt (nearestClusterer B.val.centre) O populations B.val (D j) (F j) (EvC B.val) (streams H uni x)) rfl
+      (devAt (nearestClusterer B.val.centre) O populations B.val (D j) (F j) (EvC B.val) (streams H
+          uni x)) rfl
     have hU := integral_le_realized (D j) (hsupp j (htame hj)) (F j) P
       (fun p => EvU B.val G p (oracleNoise x.1))
       (fun p => undecidedProb O B.val.lo (B.val.hi + 1) G p)
       (fun p => measureReal_nonneg) (fun p => measureReal_le_one)
-      (devAt (nearestClusterer B.val.centre) O populations B.val (D j) (F j) (EvU B.val) (streams H uni x)) rfl
-    have hdevC : devAt (nearestClusterer B.val.centre) O populations B.val (D j) (F j) (EvC B.val) (streams H uni x)
+      (devAt (nearestClusterer B.val.centre) O populations B.val (D j) (F j) (EvU B.val) (streams H
+          uni x)) rfl
+    have hdevC : devAt (nearestClusterer B.val.centre) O populations B.val (D j) (F j) (EvC B.val)
+        (streams H uni x)
         < slack / 2 := not_le.1 (hnb j hj).1
-    have hdevU : devAt (nearestClusterer B.val.centre) O populations B.val (D j) (F j) (EvU B.val) (streams H uni x)
+    have hdevU : devAt (nearestClusterer B.val.centre) O populations B.val (D j) (F j) (EvU B.val)
+        (streams H uni x)
         < slack / 2 := not_le.1 (hnb j hj).2
     have hrealC : (D j).real {p | ¬ cutCorrect O B.val.lo (B.val.hi + 1) G p (oracleNoise x.1)}
         ≤ gateLimit uni εcov j + εs := by

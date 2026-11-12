@@ -302,9 +302,11 @@ lemma loopPool_le_pow {ℓ Q A Ae iδ ic iξ ip is X : ℝ} (hℓ : 1 ≤ ℓ) (
   have hm0 : 0 ≤ max (log (20 * Θ)) (log (8 * W₀ * (8 * (Q + 1) * iδ))) :=
     le_max_of_le_left (Real.log_nonneg (by linarith))
   have hl0 : 0 ≤ log ℓ := Real.log_nonneg hℓ
-  have hb : (50 * (max (log (20 * Θ)) (log (8 * W₀ * (8 * (Q + 1) * iδ))) + (2 * log ℓ + 3)) * is ^ 2
+  have hb : (50 * (max (log (20 * Θ)) (log (8 * W₀ * (8 * (Q + 1) * iδ))) + (2 * log ℓ + 3)) * is ^
+      2
       + 20 * is + 28) ≤ 2 ^ 33 * X ^ 15 := by
-    have h1 : (50 * (max (log (20 * Θ)) (log (8 * W₀ * (8 * (Q + 1) * iδ))) + (2 * log ℓ + 3)) * is ^ 2)
+    have h1 : (50 * (max (log (20 * Θ)) (log (8 * W₀ * (8 * (Q + 1) * iδ))) + (2 * log ℓ + 3)) * is
+        ^ 2)
         ≤ 50 * (2 ^ 27 * X ^ 13 + (2 * X ^ 13 + 3 * X ^ 13)) * X ^ 2 := by
       have : (3 : ℝ) ≤ 3 * X ^ 13 := by nlinarith [one_le_pow₀ (n := 13) hX]
       gcongr
@@ -363,7 +365,8 @@ lemma loopPool_le_log {ℓ Q A Ae iδ ic iξ ip is X : ℝ} (hℓ : 1 ≤ ℓ) (
   have hs2 : 1 ≤ is ^ 2 := one_le_pow₀ his
   have hb : 50 * (max (log (20 * Θ)) (log (8 * W₀ * (8 * (Q + 1) * iδ))) + (2 * log ℓ + 3)) * is ^ 2
       + 20 * is + 28 ≤ 2700 * log X * is ^ 2 := by
-    have e1 : 50 * (max (log (20 * Θ)) (log (8 * W₀ * (8 * (Q + 1) * iδ))) + (2 * log ℓ + 3)) * is ^ 2
+    have e1 : 50 * (max (log (20 * Θ)) (log (8 * W₀ * (8 * (Q + 1) * iδ))) + (2 * log ℓ + 3)) * is ^
+        2
         ≤ 50 * (39 * log X + (2 * (3 * log X) + 3)) * is ^ 2 := by gcongr
     have e2 : is ≤ is ^ 2 := by nlinarith
     have hl := Real.log_two_gt_d9

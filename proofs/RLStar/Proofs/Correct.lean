@@ -43,26 +43,32 @@ theorem clustering_correct : ClusteringCorrect := by
     (allHarvest H).card ρ with hst
   set Bad := streams H uni ⁻¹' ⋃ B : {B : State // B ∈ st},
       (retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit εg α B.val
-        ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := (nearestClusterer B.val.centre)) O populations uni D εg εs
+        ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := (nearestClusterer B.val.centre)) O populations uni D εg
+            εs
           (certFrac indecisionLimit εs) indecisionLimit y B.val j}) with hBad
   set NoRet := {x : Draws Ω S J | ∀ B : {B : State // B ∈ st},
-      streams H uni x ∉ retAll (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit εg α
+      streams H uni x ∉ retAll (nearestClusterer B.val.centre) O.mq populations uni η₀
+          indecisionLimit εg α
         B.val}
     with hNoRet
   set ν := runMeasure μ D Dsf with hν
   have hgood : (Bad ∪ NoRet)ᶜ ⊆ {x | (∃ B : {B : State // B ∈ st},
-        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit εg α
+        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀
+            indecisionLimit εg α
           B.val) ∧
       ∀ B : {B : State // B ∈ st},
-        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit εg α
+        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀
+            indecisionLimit εg α
           B.val →
         ∀ j ∈ tame, 1 - gateLimit uni εg j - 2 * certFrac indecisionLimit εs
             - (if j = uni then 0 else εs / 2)
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-              (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise
+              (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p
+                  (oracleNoise
                 x.1)}
           ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
-              (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise
+              (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p
+                  (oracleNoise
                 x.1)}
             ≤ 2 * indecisionLimit} := by
     intro x hx
@@ -71,7 +77,8 @@ theorem clustering_correct : ClusteringCorrect := by
     refine ⟨?_, fun B hB j hj => ?_⟩
     · simp only [hNoRet, Set.mem_ofPred_eq, not_forall, not_not] at hxN
       obtain ⟨B, hB⟩ := hxN
-      exact ⟨B, retAll_subset_retBy (nearestClusterer B.val.centre) O.mq η₀ indecisionLimit εg α B.val hB⟩
+      exact ⟨B, retAll_subset_retBy (nearestClusterer B.val.centre) O.mq η₀ indecisionLimit εg α
+          B.val hB⟩
     · by_contra hc
       apply hxB
       refine Set.mem_preimage.2 (Set.mem_iUnion.2 ⟨B, hB, fun hall => hc ?_⟩)

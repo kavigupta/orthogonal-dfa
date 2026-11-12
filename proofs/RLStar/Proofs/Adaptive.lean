@@ -329,7 +329,8 @@ lemma mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ
       ↔ ∃ i < ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz,
         ∃ m ∈ centreSet η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit),
           B = solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
-            (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ i) m := by
+            (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ i)
+                m := by
   rw [schedule, Finset.mem_image]
   constructor
   · rintro ⟨⟨i, m⟩, him, rfl⟩
@@ -354,7 +355,8 @@ lemma k_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP 
 lemma npref_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
     (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
     ∃ i < ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz,
-      B.npref = prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ i := by
+      B.npref = prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^
+          i := by
   obtain ⟨i, hi, m, -, rfl⟩ := mem_schedule.1 hB
   exact ⟨i, hi, rfl⟩
 
@@ -711,9 +713,11 @@ lemma famHoeff_terms (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
   have h1 := Nat.le_ceil (Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2)
   have h2 := Nat.le_ceil ((max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2)
   have h3 := Nat.le_ceil (2 / voteSlack η₀)
-  have m1 := le_max_left (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
+  have m1 := le_max_left (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ :
+      ℝ)
     (⌈(max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2⌉₊ : ℝ)
-  have m2 := le_max_right (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
+  have m2 := le_max_right (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ :
+      ℝ)
     (⌈(max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2⌉₊ : ℝ)
   constructor <;> linarith
 
@@ -943,7 +947,8 @@ lemma famHoeff_band_one (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} 
 omit [Fintype J] in
 /-- Hoeffding's crossing tail at `famHoeff`, read at the band's full width, at any centre. -/
 lemma famHoeff_crossTail (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
-    (hsig : η₀ < 1 / 2) (hζ : 0 < crossLimit) {m : ℕ} (hm : m ∈ centres η₀ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit)) :
+    (hsig : η₀ < 1 / 2) (hζ : 0 < crossLimit) {m : ℕ} (hm : m ∈ centres η₀ (famHoeff η₀ populations
+        indecisionLimit εcov δ crossLimit)) :
     crossTail η₀ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit) m ≤ crossLimit := by
   have hL := famHoeff_cross (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hsig
@@ -1607,7 +1612,8 @@ lemma clusterAt_congr (O : Oracle μ S) (populations : Finset J) (B : State)
   have hcands : screenedAt O.mq populations B (ω, d) = screenedAt O.mq populations B (ω', d) :=
     screenedAt_congr O populations B d hbit
   unfold clusterBy
-  rw [show oracleNoise ((ω, d) : Run Ω S J) = ω from rfl, show oracleNoise ((ω', d) : Run Ω S J) = ω' from rfl,
+  rw [show oracleNoise ((ω, d) : Run Ω S J) = ω from rfl, show oracleNoise ((ω', d) : Run Ω S J) =
+      ω' from rfl,
     ← hcands]
   refine congrArg (fun t : Finset S => t.erase 1) ?_
   exact rule.congr _ _ _ _ _ (one_mem_screenedAt O populations B (ω, d))
@@ -2934,7 +2940,8 @@ lemma streamMeasure_prefix_apply (Pp Pc : J → Measure (ℕ → S)) (Dsf : Meas
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
     [IsProbabilityMeasure Dsf] (C : Set (J → ℕ → S)) (hC : MeasurableSet C) :
     streamMeasure μ Pp Pc Dsf {x : Run Ω S J | prefixStreams x ∈ C} = (Measure.pi Pp) C := by
-  have hpre : {x : Run Ω S J | prefixStreams x ∈ C} = (draws : Run Ω S J → _) ⁻¹' (Prod.snd ⁻¹' C) :=
+  have hpre : {x : Run Ω S J | prefixStreams x ∈ C} = (draws : Run Ω S J → _) ⁻¹' (Prod.snd ⁻¹'
+      C) :=
     rfl
   rw [hpre, ← Measure.map_apply (by fun_prop) (measurable_snd hC), map_drawBlock Pp Pc Dsf,
     ← Measure.map_apply measurable_snd hC, Measure.map_snd_prod]
@@ -3002,7 +3009,8 @@ open scoped Classical in
 of which there are countably many. -/
 lemma measurableSet_of_run_data (populations : Finset J) (B : State)
     (R : Finset S → Finset S → Set (Run Ω S J)) (hR : ∀ P C, MeasurableSet (R P C)) :
-    MeasurableSet {x : Run Ω S J | x ∈ R (prefixesAt populations B.npref x) (poolAt B.nsuff x)} := by
+    MeasurableSet {x : Run Ω S J | x ∈ R (prefixesAt populations B.npref x) (poolAt B.nsuff
+        x)} := by
   classical
   have hcov : {x : Run Ω S J | x ∈ R (prefixesAt populations B.npref x) (poolAt B.nsuff x)}
       = ⋃ z : Finset S × Finset S, (({x : Run Ω S J | prefixesAt populations B.npref x = z.1}
@@ -3034,7 +3042,8 @@ lemma summable_singleton_real (Dj : Measure S) [IsProbabilityMeasure Dj] :
 lemma summable_singleton_sq (Dj : Measure S) [IsProbabilityMeasure Dj] :
     Summable (fun a : S => Dj.real {a} ^ 2) := by
   refine Summable.of_nonneg_of_le (fun a => sq_nonneg _) (fun a => ?_) (summable_singleton_real Dj)
-  nlinarith [measureReal_nonneg (μ := Dj) (s := ({a} : Set S)), measureReal_le_one' Dj ({a} : Set S)]
+  nlinarith [measureReal_nonneg (μ := Dj) (s := ({a} : Set S)), measureReal_le_one' Dj ({a} : Set
+      S)]
 
 lemma map_suffixBlock (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
@@ -3207,7 +3216,8 @@ lemma measureReal_repeats_le {β : Type*} [MeasurableSpace β] (ν : Measure β)
   classical
   set I : Finset (ℕ × ℕ) :=
     ((Finset.range n) ×ˢ (Finset.range n)).filter (fun q => q.1 < q.2) with hI
-  have hrep : ∀ x, repeatPairs (fun i => y i x) n = I.filter (fun q => x ∈ {x | y q.1 x = y q.2 x}) := by
+  have hrep : ∀ x, repeatPairs (fun i => y i x) n = I.filter (fun q => x ∈ {x | y q.1 x = y q.2
+      x}) := by
     intro x
     ext q
     simp only [repeatPairs, hI, Finset.mem_filter, Set.mem_setOf_eq, and_assoc]
@@ -3647,7 +3657,8 @@ noncomputable def clusterOf (rule : Clusterer S) (O : Oracle μ S) (sc scd : ℕ
 lemma clusterAt_eq_clusterOf (O : Oracle μ S) (populations : Finset J) (B : State)
     (x : Run Ω S J) :
     clusterBy rule O.mq populations x B
-      = clusterOf rule O B.sc B.scd (prefixesAt populations B.npref x) (poolAt B.nsuff x) B.k (oracleNoise x) :=
+      = clusterOf rule O B.sc B.scd (prefixesAt populations B.npref x) (poolAt B.nsuff x) B.k
+          (oracleNoise x) :=
   rfl
 
 lemma clusterOf_subset (O : Oracle μ S) (sc scd : ℕ) (P cands : Finset S) (k : ℕ) (ω : Ω)

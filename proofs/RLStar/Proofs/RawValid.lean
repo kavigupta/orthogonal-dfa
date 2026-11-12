@@ -341,7 +341,8 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
   -- the events
   set T : (S → Bool) → Set (Run Ω S J) := fun g => ⋃ B : {B : State // B ∈ st},
     (retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εg α B.val
-      ∩ FailAt (ruleOf B.val) O populations tame uni (certLaw H uni D g) εg c (27 / 16 * indecisionLimit)
+      ∩ FailAt (ruleOf B.val) O populations tame uni (certLaw H uni D g) εg c (27 / 16 *
+          indecisionLimit)
         B.val) with hT
   set BalBad : Set (S → Bool) := ⋃ j ∈ tame, sideBad (D j) Hs e with hBalBad
   set Bad : Set (Draws Ω S J) := {x | ¬ fillOK H uni populations K N x}
@@ -349,7 +350,8 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
       imbSet (rule := ruleOf B) O populations H uni (D j) K N e b B with hBad
   set E : Set (Draws Ω S J) := Y ⁻¹' ⋃ B : {B : State // B ∈ st},
       (retBy (ruleOf B.val) O.mq populations uni η₀ indecisionLimit εg α B.val
-        ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := ruleOf B.val) O populations uni D εg εs c indecisionLimit y
+        ∩ {y | ¬ ∀ j ∈ tame, goodD (rule := ruleOf B.val) O populations uni D εg εs c
+            indecisionLimit y
           B.val j}) with hE
   -- at each even hash, the stream-level validity against the reserve side's law
   have hslice : ∀ g ∉ BalBad,
@@ -463,7 +465,8 @@ theorem raw_valid {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
       have hHj : (D j).real ↑Hs ≤ 1 / 4 := by linarith [hHsM j hj]
       have hcutW := le_cond_add (D j) Hs x.2 (famSet (rule := ruleOf B.val) O populations true (Y x)
         B.val) he0.le he8 hHj (himbj true) hbalj
-      have hundW := le_cond_add (D j) Hs x.2 (famSet (rule := ruleOf B.val) O populations false (Y x)
+      have hundW := le_cond_add (D j) Hs x.2 (famSet (rule := ruleOf B.val) O populations false (Y
+          x)
         B.val) he0.le he8 hHj (himbj false) hbalj
       simp only [famSet, if_true, Bool.false_eq_true, if_false] at hcutW hundW
       have hcompl : ∀ (ν : Measure S) [IsProbabilityMeasure ν],

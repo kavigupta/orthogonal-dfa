@@ -155,7 +155,8 @@ private lemma nprefB_bound {nJ iδ ip ie isl iu iw is nH r n : ℝ} (hJ : 1 ≤ 
       nJ nH n
     ∧ nprefB (1 / is) r (min (1 / ie) (1 / iu)) (1 / (2 * iδ)) (1 / (2 * iδ)) (1 / ip) (1 / isl)
       nJ nH n ≤ 2 ^ 32 *
-      (nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is) * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
+      (nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is) * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^
+          4)
         + log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 4 + iu ^ 2)
         + isl * log (nJ * iδ) + nH * (ie * is ^ 2 + iu)) := by
   have hl : ∀ x ∈ [nJ, iδ, ip, ie, iu, iw, is], 1 ≤ x := fun x hx => by
@@ -462,7 +463,8 @@ private lemma nsuffW_isBigO : nsuffW =O[𝓟 vecRegion] (fun (nJ, iδ, ip, ie, _
 
 private lemma nprefW_isBigO : nprefW =O[𝓟 vecRegion]
     (fun (nJ, iδ, ip, ie, isl, iu, iw, is, nH) =>
-      nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is) * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
+      nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is) * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^
+          4)
         + log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 4 + iu ^ 2)
         + isl * log (nJ * iδ) + nH * (ie * is ^ 2 + iu) : ClusterVec → ℝ) := by
   refine isBigO_on (2 ^ 32) fun b hb => ?_
@@ -1107,8 +1109,10 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
     Finset.card_eq_zero.2 (Finset.eq_empty_of_forall_notMem fun s hs => by
       simp [allHarvest] at hs)
   obtain ⟨states, hnp, -, hkn, hband, hκ, hmain⟩ := clustering_guarantee_of_correct O
-    populations populations uni (fun _ => ∅) Pre Suf η₀ ε_u εcov ε_s (δ / 2) (δ / 2) pAP (κ ^ 4) εcov₀ hgap
-    hη₀ huni (Finset.Subset.refl _) hflat (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hu hu1
+    populations populations uni (fun _ => ∅) Pre Suf η₀ ε_u εcov ε_s (δ / 2) (δ / 2) pAP (κ ^ 4)
+        εcov₀ hgap
+    hη₀ huni (Finset.Subset.refl _) hflat (fun _ p hp => absurd hp (Finset.notMem_empty p)) hpAP hu
+        hu1
     (by positivity) (by linarith) he he1 hsl hsl1 hεc0 he₁ (by positivity) (by linarith)
     (by positivity)
     (pow_le_one₀ hw.le hw1)
@@ -1173,7 +1177,8 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
   have hlb0 : 0 ≤ logb 2 (max 1 (nprefW v)) := logb_nonneg one_lt_two (le_max_left _ _)
   refine (le_of_eq (by ring)).trans ((hmain D Dsf hD hDsf hpre (hεβ.trans hbalL)
     (hεβ.trans hbalN) hsuf hpAP'
-    (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB t => ?_)).trans
+    (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB t =>
+        ?_)).trans
     (measureReal_mono (fun r hr => ⟨hr.1, fun B hB =>
       ⟨le_trans (by linarith) (hr.2 B hB).1, fun j hj =>
         ⟨le_trans (by linarith) ((hr.2 B hB).2 j hj).1, ((hr.2 B hB).2 j hj).2⟩⟩⟩)

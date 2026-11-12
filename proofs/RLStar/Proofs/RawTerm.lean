@@ -465,7 +465,8 @@ theorem measureReal_named_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
         (({x | streams H uni x ∉ retAtK (nearestClusterer B.centre) O populations uni η₀
           indecisionLimit εcov α B j ∧ centreFits O.mq η₀ (gateLevel α populations B)
             B (clusterBy (nearestClusterer B.centre) O.mq populations (streams H uni x) B)
-            (certOf (prefixesAt populations B.npref (streams H uni x)) uni B.npref (streams H uni x))
+            (certOf (prefixesAt populations B.npref (streams H uni x)) uni B.npref (streams H uni
+                x))
             (oracleNoise (streams H uni x))}
           \ streams H uni ⁻¹' nearShift O populations B Δ a)
           \ streams H uni ⁻¹' poolEvents O populations B pAP tap rs)

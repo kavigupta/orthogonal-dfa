@@ -885,15 +885,19 @@ theorem budgetCap_split (populations : Finset J) (η indecisionLimit εcov δ α
 theorem validCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP crossLimit : ℝ)
     (hind : 0 < indecisionLimit) (hpop : populations.Nonempty) (hδ : 0 < δ) (hδ1 : δ ≤ 1) :
     (validCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
-      ≤ 27 * Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) / (2 * indecisionLimit) + 2 := by
+      ≤ 27 * Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov
+          δ crossLimit : ℝ) + 1) / δ) / (2 * indecisionLimit) + 2 := by
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
   have hK1 : (1 : ℝ) ≤ ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) := by
     linarith [(Nat.cast_nonneg _ : (0 : ℝ) ≤ (famCount η populations indecisionLimit εcov δ
       crossLimit : ℝ))]
-  have hlog : 0 ≤ Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) :=
+  have hlog : 0 ≤ Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit
+      εcov δ crossLimit : ℝ) + 1) / δ) :=
     Real.log_nonneg (by rw [le_div_iff₀ hδ]; nlinarith)
-  have e : Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) / undecRate indecisionLimit
-      = 27 * Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) / (2 * indecisionLimit) := by
+  have e : Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ
+      crossLimit : ℝ) + 1) / δ) / undecRate indecisionLimit
+      = 27 * Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov
+          δ crossLimit : ℝ) + 1) / δ) / (2 * indecisionLimit) := by
     rw [undecRate]; field_simp
   rw [validCount]
   push_cast
@@ -906,15 +910,18 @@ theorem validCount_le_rej (populations : Finset J) (η indecisionLimit εcov δ 
     (hη : 0 ≤ η) (hηlt : η < 1 / 2) (hεcov : 0 < εcov) (hind : 0 < indecisionLimit)
     (hind1 : indecisionLimit ≤ 1 / 2) (hpop : populations.Nonempty) (hδ : 0 < δ) (hδ1 : δ ≤ 1) :
     2 * (validCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
-      ≤ 2 ^ 13 * Real.log (32 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ)
+      ≤ 2 ^ 13 * Real.log (32 * (populations.card : ℝ) * ((famCount η populations indecisionLimit
+          εcov δ crossLimit : ℝ) + 1) / δ)
         / (sig η * min (εcov * sig η) indecisionLimit) := by
   have hv := validCount_le populations η indecisionLimit εcov δ pAP crossLimit hind hpop hδ hδ1
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
   have hK1 : (1 : ℝ) ≤ ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) := by
     linarith [(Nat.cast_nonneg _ : (0 : ℝ) ≤ (famCount η populations indecisionLimit εcov δ
       crossLimit : ℝ))]
-  have hcK : (1 : ℝ) ≤ (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) := by nlinarith
-  set L32 : ℝ := Real.log (32 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) with hL32
+  have hcK : (1 : ℝ) ≤ (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ
+      crossLimit : ℝ) + 1) := by nlinarith
+  set L32 : ℝ := Real.log (32 * (populations.card : ℝ) * ((famCount η populations indecisionLimit
+      εcov δ crossLimit : ℝ) + 1) / δ) with hL32
   have hL3 : 3 ≤ L32 := by
     rw [hL32, Real.le_log_iff_exp_le (by positivity)]
     have h3 : Real.exp 3 = Real.exp 1 ^ 3 := by rw [← Real.exp_nat_mul]; norm_num
@@ -925,7 +932,8 @@ theorem validCount_le_rej (populations : Finset J) (η indecisionLimit εcov δ 
         pow_le_pow_left₀ h0.le Real.exp_one_lt_d9.le 3
       nlinarith only [this]
     nlinarith only [this, hcK, hδ1, mul_le_mul_of_nonneg_right this hδ.le]
-  have h128 : Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) ≤ 2 * L32 := by
+  have h128 : Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov
+      δ crossLimit : ℝ) + 1) / δ) ≤ 2 * L32 := by
     have e : 128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ
           crossLimit : ℝ) + 1) / δ
         = 4 * (32 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ
@@ -945,7 +953,8 @@ theorem validCount_le_rej (populations : Finset J) (η indecisionLimit εcov δ 
       ≤ 2 ^ 13 * L32 / (sig η * min (εcov * sig η) indecisionLimit) := by
     rw [div_le_div_iff₀ hind (by positivity)]
     nlinarith only [mul_le_mul_of_nonneg_left hRs (by linarith only [hL3] : (0 : ℝ) ≤ L32)]
-  have hB : 27 * Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ) / (2 * indecisionLimit)
+  have hB : 27 * Real.log (128 * (populations.card : ℝ) * ((famCount η populations indecisionLimit
+      εcov δ crossLimit : ℝ) + 1) / δ) / (2 * indecisionLimit)
       ≤ 27 * L32 / indecisionLimit := by
     rw [div_le_div_iff₀ (by positivity) hind]
     nlinarith only [mul_le_mul_of_nonneg_right h128 hind.le]
@@ -1250,7 +1259,8 @@ carry their share at the collision cap, which the top rung always does; the stat
 hypotheses at the top rung are the caps. -/
 theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   intro Ω _ μ _ S _ J _ O populations tame uni H Pre Suf η₀ indecisionLimit εcov εs α δ pAP
-    crossLimit εg hgap hη₀ huni htame hflat hH hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hεs hεsc
+    crossLimit εg hgap hη₀ huni htame hflat hH hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hεs
+        hεsc
     hεg hεg1 hδ hδ1 hζ hζ1
   classical
   set hz : ℕ := (allHarvest H).card with hhz
@@ -1447,7 +1457,8 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
       linarith)
   refine le_trans (clustering_correct O populations tame uni H D Dsf Pre Suf η₀
     indecisionLimit εcov εs α δ ρ₀ pAP crossLimit (3 * 2 ^ 25) εg hgap hη₀ huni hbalL hbalN htame
-    hflat hH hsupp hsuppSf hcaps hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov (by linarith) hεs
+    hflat hH hsupp hsuppSf hcaps hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov (by linarith)
+        hεs
     hεsc hεg hδ hbudget
     le_rfl hcapsf)
     (measureReal_mono ?_ (measure_ne_top _ _))
@@ -1456,10 +1467,12 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     linarith
   rintro x ⟨hex, hall⟩
   have huni' : ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP
-      crossLimit hz ρ₀}, streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀
+      crossLimit hz ρ₀}, streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations
+          uni η₀
         indecisionLimit εg α B.val →
       1 - εg - εs ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-        (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)} :=
+        (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p
+            (oracleNoise x.1)} :=
     fun B hB => by
       have h := (hall B hB uni huni).1
       simp only [gateLimit, if_pos rfl, if_true, sub_zero] at h

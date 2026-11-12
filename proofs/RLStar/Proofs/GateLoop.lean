@@ -1633,7 +1633,8 @@ lemma measurableSet_lightMiss (O : Oracle μ S) (populations : Finset J) (j : J)
             famGood O f kmin kmax A₀ p ∧ ¬ decided O.mq B.lo (B.hi + 1) (insert 1 A₀) p ω)).card
               : ℝ) ≤ l * (A.card : ℝ)} := by
           refine measurableSet_filter_pred' O
-            (fun p ω => famGood O f kmin kmax A₀ p ∧ ¬ decided O.mq B.lo (B.hi + 1) (insert 1 A₀) p ω)
+            (fun p ω => famGood O f kmin kmax A₀ p ∧ ¬ decided O.mq B.lo (B.hi + 1) (insert 1 A₀) p
+                ω)
             (fun p _ => ?_) (fun U => ((U.card : ℝ) ≤ l * (A.card : ℝ)))
           by_cases hg : famGood O f kmin kmax A₀ p
           · simpa [hg] using measurableSet_decided' O B.lo (B.hi + 1) (insert 1 A₀) p
