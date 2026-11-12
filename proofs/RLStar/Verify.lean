@@ -13,6 +13,7 @@ import RLStar.Proofs.FamilyOracle
 import RLStar.Proofs.FamilyRead
 import RLStar.Proofs.HypothesisDFA
 import RLStar.Proofs.Level2Round
+import RLStar.Proofs.Level3NoWrong
 import RLStar.Proofs.LoopRuns
 import RLStar.Proofs.Probe
 import RLStar.Proofs.LoopDFA
@@ -56,9 +57,10 @@ both. The loop runs level 5.
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
 `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
 `CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `TrieTableCorrect`,
-`TrieTableReads`, `Level3TrieRootOne`, `Level3TrieAgrees`, `TrieLoopAgrees`, `RateTestSound`,
-`SeqRateSound`, `TripartiteSearchCorrect`, `SiftWithPathCorrect`, `SiftAndSplitCorrect`,
-`WalkCorrect`, `SplitAndLearnCorrect` and `RunsKeepEdgesAtLeaves`.
+`TrieTableReads`, `Level3TrieRootOne`, `Level3TrieAgrees`, `Level3NoWrongCorrect`,
+`TrieLoopAgrees`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
+`SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
+`RunsKeepEdgesAtLeaves`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`:
 `TrainFamilyClaim`, `CounterexSynthClaim`, `RLStarClaim`,
@@ -229,6 +231,10 @@ theorem level3_trie_root_one : Level3TrieRootOne := level3TrieRootOne
 theorem level3_trie_agrees : Level3TrieAgrees := level3TrieAgrees_holds
 
 #print axioms level3_trie_agrees
+
+theorem level3_no_wrong_correct : Level3NoWrongCorrect := level3NoWrongCorrect_holds
+
+#print axioms level3_no_wrong_correct
 
 theorem trie_loop_agrees : TrieLoopAgrees := trieLoopAgrees_holds
 
