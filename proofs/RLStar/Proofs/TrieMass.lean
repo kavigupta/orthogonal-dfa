@@ -1,4 +1,5 @@
 import RLStar.LowLevelClaims.TrieMass
+import RLStar.Proofs.TrieTable
 
 /-!
 # Probe mass through a trie
@@ -12,26 +13,6 @@ namespace OrthoDFA
 open MeasureTheory
 
 variable {α : Type*}
-
-namespace Random
-
-lemma walkStartIn_spec (X : Finset (FreeMonoid α)) (x : FreeMonoid α) :
-    walkStartIn X x ≤ x.toList.length
-      ∧ (∀ j < walkStartIn X x, prefixOf x j ∈ X)
-      ∧ (walkStartIn X x < x.toList.length → prefixOf x (walkStartIn X x) ∉ X) := by
-  classical
-  unfold walkStartIn
-  rcases h : (List.range x.toList.length).find? (fun k => decide (prefixOf x k ∉ X)) with _ | k
-  · rw [List.find?_range_eq_none] at h
-    simp only [Option.getD_none]
-    exact ⟨le_rfl, fun j hj => by simpa using h j hj, fun h' => absurd h' (lt_irrefl _)⟩
-  · rw [List.find?_range_eq_some] at h
-    obtain ⟨hk, hkn, hlt⟩ := h
-    simp only [Option.getD_some]
-    exact ⟨(List.mem_range.1 hkn).le, fun j hj => by simpa using hlt j hj,
-      fun _ => by simpa using hk⟩
-
-end Random
 
 theorem trieMassBound_holds : TrieMassBound := by
   intro α _ _ D _ X K hX
