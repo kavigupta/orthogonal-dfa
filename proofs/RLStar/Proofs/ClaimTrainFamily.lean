@@ -30,13 +30,9 @@ private def nprefB (s r m δ α pAP εs nJ nH n : ℝ) : ℝ :=
     + 6 * log (256 * nJ / δ) / εs + 2 ^ 11 * nH / r
 
 private lemma rs_eq {ie iu is : ℝ} (his : 0 < is) :
-    rateScale (1 / 2 - 1 / is) (1 / iu) (1 / ie) = min (16 / (ie * (is + 2) ^ 2)) (1 / iu) := by
+    rateScale (1 / 2 - 1 / is) (1 / iu) (1 / ie) = min (4 / (ie * is ^ 2)) (1 / iu) := by
   unfold rateScale
-  have : (1 - 2 * (1 / 2 - 1 / is)) / (1 - (1 / 2 - 1 / is)) = 4 / (is + 2) := by
-    rw [show 1 - (1 / 2 - 1 / is) = (is + 2) / (2 * is) by field_simp; ring,
-      show 1 - 2 * (1 / 2 - 1 / is) = 2 / is by field_simp; ring, div_div_div_eq,
-      div_eq_div_iff (by positivity) (by positivity)]
-    ring
+  have : 1 - 2 * (1 / 2 - 1 / is) = 2 / is := by field_simp; ring
   rw [this]
   congr 1
   field_simp
@@ -49,11 +45,10 @@ private lemma rs_pos {ie iu is : ℝ} (hie : 0 < ie) (hiu : 0 < iu) (his : 0 < i
 private lemma rs_le {ie iu is : ℝ} (hie : 0 < ie) (hiu : 0 < iu) (his : 2 ≤ is) :
     1 / rateScale (1 / 2 - 1 / is) (1 / iu) (1 / ie) ≤ ie * is ^ 2 + iu := by
   rw [rs_eq (by linarith)]
-  have h1 : 0 < 16 / (ie * (is + 2) ^ 2) := by positivity
+  have h1 : 0 < 4 / (ie * is ^ 2) := by positivity
   refine (one_div_min_le h1 (by positivity)).trans ?_
   rw [one_div_div, one_div_one_div]
-  have : (is + 2) ^ 2 ≤ 16 * is ^ 2 := by nlinarith
-  have := mul_le_mul_of_nonneg_left this hie.le
+  have : 0 ≤ ie * is ^ 2 := by positivity
   linarith
 
 /-- `(nJ, 1/δ, 1/pAP, 1/εcov, 1/ε_s, 1/ε_u, 1/κ, 1/s₀, nH)`. -/

@@ -62,11 +62,11 @@ theorem measureReal_stalled_nearest_le (O : Oracle μ S) (populations : Finset J
     (hkM : B.k ≤ B.nsuff) (ρsf : ℝ) (rs : ℕ) (hρsf : ∀ v, Dsf.real {v} ≤ ρsf)
     (hρsf0 : 0 ≤ ρsf) :
     (streamMeasure μ Pp Pc Dsf).real
-        (stalled nearestClusterer O populations B (B.k - 1) (B.k - 1))
+        (stalled (nearestClusterer (1 / 2)) O populations B (B.k - 1) (B.k - 1))
       ≤ poolTail (B.nsuff + rs) rs ρsf := by
   refine le_trans (measureReal_mono (fun x hx => ?_) (measure_ne_top _ _))
     (measureReal_poolBad_le Pp Pc Dsf B.nsuff rs ρsf hρsf)
-  have h := stalled_subset (rule := nearestClusterer) O populations B hkpos hx
+  have h := stalled_subset (rule := (nearestClusterer (1 / 2))) O populations B hkpos hx
   simp only [Set.mem_setOf_eq] at h ⊢
   intro hgood
   apply h
@@ -99,6 +99,27 @@ lemma lohi_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B :
   rw [hlo, hhi]
   unfold loAt hiAt
   omega
+
+/-- Every rung's band is centred at half its family. -/
+lemma centre_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
+    (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    B.centre = 1 / 2 := by
+  obtain ⟨hBk, hBlo, hBhi⟩ := band_of_mem_schedule hB
+  have hev := famCount_even (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    η₀ populations εcov δ
+  have h4 := famCount_ge_four (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    η₀ populations εcov δ hη₀
+  obtain ⟨hlo, hhi⟩ := loAt_hiAt η₀ hev h4 hη0 hη₀
+  have hκ : (4 : ℝ) ≤ famCount η₀ populations indecisionLimit εcov δ crossLimit := by
+    exact_mod_cast h4
+  rw [State.centre, hBk, hBlo, hBhi, hlo, hhi]
+  push_cast
+  set κ : ℝ := (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ)
+  set b : ℝ := (bandAt η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit) : ℝ)
+  rw [show κ / 2 - b - 1 + (κ / 2 + b) + 1 = κ by ring, show κ + 1 - 1 = κ by ring,
+    div_eq_iff (by intro h; linarith)]
+  ring
 
 /-- A vote over a family no larger than a rung's own, whose mean lies outside the rung's band,
 reaches the band's far side at most `crossLimit` of the time. -/
@@ -271,7 +292,8 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
     (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0)
     (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (indecisionLimit εcov α u : ℝ)
-    (hil : 0 < indecisionLimit) (hα0 : 0 < α) (hα1 : α ≤ 1) (B : State) (hk : 0 < B.k)
+    (hil : 0 < indecisionLimit) (hα0 : 0 < α) (hα1 : α ≤ 1) (B : State)
+    (hstr : O.Straddles B.centre η₀) (hk : 0 < B.k)
     (rT r : ℕ) (c : ℝ) (hc0 : 0 ≤ c) (hr : (r : ℝ) ≤ c * B.npref)
     (hu : 3 / 2 * indecisionLimit + c ≤ u) (hc316 : c ≤ 3 / 16 * indecisionLimit)
     (ρ : ℝ) (hρ : ∀ j ∈ tame, ∀ t, (Dc j).real {t} ≤ ρ ∧ (Dp j).real {t} ≤ ρ)
@@ -339,7 +361,8 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
               (oracleNoise x)}ᶜ from rfl,
           measureReal_compl (measurableSet_of_countable _), probReal_univ]
         linarith [not_le.1 hmass]
-      have hin := falseCertify_subset (rule := rule) O hηle populations (Dc j) j B
+      have hin := falseCertify_subset (rule := rule) O (wrongRate_le_centre O hstr).1
+        (wrongRate_le_centre O hstr).2 populations (Dc j) j B
         (gateLimit uni εcov j) c a r hc0 hr ⟨hgate j (htame hj) hkept, hG x hxG, hgt, hc2⟩
       exact Or.inl (Set.mem_biUnion hj (Or.inl hin))
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
@@ -546,7 +569,9 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       exact exists_apRef O M pAP (9 * pAP / 20) rs B.k (by exact_mod_cast hcount) x hx.1 hx.2
         _ (familyBy_card_le O populations B hk x)
     have h := per_state_le (rule := rule) hflat O populations tame uni huni htame Pp Pc Dsf L Dp
-      Dc hL hPp hPc hsuppP hsuppC hsuppSf hηle hη₀ indecisionLimit εcov α u hindLim hα0 hα1 B hk
+      Dc hL hPp hPc hsuppP hsuppC hsuppSf hηle hη₀ indecisionLimit εcov α u hindLim hα0 hα1 B
+      (by rw [centre_of_mem_schedule (le_trans (eta_nonneg O) hηle) hη₀ hsched]
+          exact straddles_half O hηle) hk
       rT r c hc0.le hr hu (by
         have h1 := (certFrac_le (εs := εs) (indecisionLimit := iLc)).1
         linarith) (3 * ρ) hρ G hG'
@@ -628,19 +653,16 @@ lemma budgetScale_pos (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hin
     (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) : 0 < budgetScale η₀ indecisionLimit εcov :=
   lt_min (mul_pos (lt_min hε (by norm_num)) (pow_pos (gateA_pos hη0 hsig) 2)) hind
 
-/-- The scale sits under the signal: `a²/2 ≤ sig` since `a ≤ 1 − η₀`. -/
+/-- The scale sits under the signal: `a²/2 ≤ sig` since `a = 2 sig ≤ 1`. -/
 lemma budgetScale_le_sig (η₀ indecisionLimit εcov : ℝ) (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) :
     budgetScale η₀ indecisionLimit εcov ≤ sig η₀ := by
   have ha := gateA_pos hη0 hsig
-  have hne : (1 - η₀) ≠ 0 := by intro h; linarith
-  have e : (1 - η₀) * gateA η₀ = 1 - 2 * η₀ := by unfold gateA; field_simp
-  have ha1 : gateA η₀ ≤ 1 - η₀ := by nlinarith
+  have ha2 : gateA η₀ ^ 2 ≤ 2 * sig η₀ := by unfold gateA sig; nlinarith
   have hmn : min εcov (1 / 2) ≤ 1 / 2 := min_le_right _ _
   have h : min εcov (1 / 2) * gateA η₀ ^ 2 ≤ sig η₀ := by
-    rw [sig]
     rcases le_or_gt 0 (min εcov (1 / 2)) with h0 | h0
-    · nlinarith [mul_le_mul_of_nonneg_left ha1 ha.le]
-    · nlinarith [sq_nonneg (gateA η₀)]
+    · nlinarith [mul_le_mul_of_nonneg_left ha2 h0, sq_nonneg (gateA η₀)]
+    · nlinarith [sq_nonneg (gateA η₀), sig_pos η₀ hsig]
   exact (min_le_left _ _).trans h
 
 lemma cutBudget_ge (η₀ indecisionLimit εcov : ℝ) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
@@ -673,11 +695,7 @@ lemma shiftBudget_le_cutBudget (η₀ indecisionLimit εcov : ℝ) (hind : 0 < i
   have hβu : shiftScale indecisionLimit εcov ≤ indecisionLimit := min_le_right _ _
   have hmε : min εcov (1 / 2) ≤ εcov := min_le_left _ _
   have hm2 : min εcov (1 / 2) ≤ 1 / 2 := min_le_right _ _
-  have ha : 2 * sig η₀ ≤ gateA η₀ := by
-    have e : (1 - η₀) * gateA η₀ = 1 - 2 * η₀ := by
-      have hne : (1 - η₀) ≠ 0 := by intro h; linarith
-      unfold gateA; field_simp
-    rw [sig]; nlinarith [gateA_pos hη0 hsig]
+  have ha : 2 * sig η₀ ≤ gateA η₀ := by unfold sig gateA; linarith
   have hsβ : sig η₀ ^ 2 * shiftScale indecisionLimit εcov ≤ shiftScale indecisionLimit εcov :=
     mul_le_of_le_one_left hβ.le (by nlinarith)
   rw [shiftBudget, cutBudget]
@@ -686,10 +704,7 @@ lemma shiftBudget_le_cutBudget (η₀ indecisionLimit εcov : ℝ) (hind : 0 < i
   nlinarith [mul_le_mul_of_nonneg_right h4 (le_trans hβ.le hβm)]
 
 lemma two_sig_le_gateA {η₀ : ℝ} (hη0 : 0 ≤ η₀) (hsig : η₀ < 1 / 2) : 2 * sig η₀ ≤ gateA η₀ := by
-  have e : (1 - η₀) * gateA η₀ = 1 - 2 * η₀ := by
-    have hne : (1 - η₀) ≠ 0 := by intro h; linarith
-    unfold gateA; field_simp
-  rw [sig]; nlinarith [gateA_pos hη0 hsig]
+  unfold sig gateA; linarith
 
 /-- The table's redraws are a hundred-and-twenty-eighth of the cut budget. -/
 lemma tabFrac_le_cut (η₀ indecisionLimit εcov : ℝ) (hind : 0 < indecisionLimit)
@@ -1726,7 +1741,8 @@ misses, a side is dead or the pool is short, once each class's bad prefixes `M b
 test's share `lF` and, charged at that class's rate, the gate's share `lG`. -/
 lemma retAt_of_light (O : Oracle μ S) (populations : Finset J) (uni : J)
     (huni : uni ∈ populations) (j : J) (B : State) (x : Run Ω S J) (hmpos : 0 < B.npref)
-    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (εcov α : ℝ) (hα0 : 0 < α) (hα1 : α ≤ 1)
+    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hcB : B.centre = 1 / 2) (εcov α : ℝ) (hα0 : 0 < α)
+    (hα1 : α ≤ 1)
     (l lF lG lmis t : ℝ) (M : Bool → ℝ) (rs kmin kmax : ℕ) (hkmin : B.k ≤ kmin + 1)
     (hlF : 2 * lF + l ≤ indecisionLimit) (hlmis : 0 ≤ lmis) (hlohi : B.lo ≤ B.hi) (ht : 0 ≤ t)
     (hkpos : 0 < B.k) (hpool : B.k < B.nsuff)
@@ -1900,7 +1916,11 @@ lemma retAt_of_light (O : Oracle μ S) (populations : Finset J) (uni : J)
     (fun v hv p _ => hne1 v hv p) hmpos hCn (lim := gateLimit uni εcov j)
     (a := gateLevel α populations B) (t := t) (fun b => M b + gm b) hga.1 hga.2 ht hlive
     hmis hgate'
-  refine ⟨?_, ?_, hcert⟩
+  have hcert' : certifiesAt O.mq (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀)
+      (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi F R C (oracleNoise x) := by
+    rw [hcB, show (1 : ℝ) / 2 - 1 / 2 + η₀ = η₀ by ring]
+    exact hcert
+  refine ⟨?_, ?_, hcert'⟩
   · have : B.k ≤ F.card + 1 := by omega
     exact this
   · rw [hCn]
@@ -1912,7 +1932,8 @@ family of the wrong size, its shift on a class not read off its draws, too many 
 heavy prefixes on the sample, a light count missed, a dead side, or a short pool. -/
 lemma notRetAt_subset (O : Oracle μ S) (populations : Finset J) (uni : J)
     (huni : uni ∈ populations) (j : J) (Dj : Measure S) [IsProbabilityMeasure Dj] (B : State)
-    (hmpos : 0 < B.npref) (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (εcov α : ℝ) (hα0 : 0 < α)
+    (hmpos : 0 < B.npref) (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hcB : B.centre = 1 / 2)
+    (εcov α : ℝ) (hα0 : 0 < α)
     (hα1 : α ≤ 1) (l lF lG lmis Δ c cC g t : ℝ) (r rs kmin kmax : ℕ) (hkmin : B.k ≤ kmin + 1)
     (hlF : 2 * lF + l ≤ indecisionLimit) (hlmis : 0 ≤ lmis) (hΔ : 0 ≤ Δ) (hc : 0 ≤ c)
     (hg : 0 ≤ g) (hr : (r : ℝ) ≤ cC * B.npref)
@@ -1981,7 +2002,7 @@ lemma notRetAt_subset (O : Oracle μ S) (populations : Finset J) (uni : J)
     have h2 := mul_le_mul_of_nonneg_right (hstretch b) hch
     have h3 := mul_le_mul_of_nonneg_left (hUG b) hmR
     nlinarith
-  refine hx (retAt_of_light O populations uni huni j B x hmpos hηle hη₀ εcov α hα0 hα1 l lF lG
+  refine hx (retAt_of_light O populations uni huni j B x hmpos hηle hη₀ hcB εcov α hα0 hα1 l lF lG
     lmis t (fun b => ((B.npref + r : ℕ) : ℝ) * (clsQ O η₀ Δ c g b + clsQ O η₀ Δ c g b / 32)) rs
     kmin kmax hkmin hlF hlmis hlohi ht hkpos hpool hgate h5' hCn (fun b => ?_) hMF hMG h8 h10
     h11)
