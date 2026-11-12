@@ -559,7 +559,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
   have hpoly := prefCount_le_split (hsz := hsz) populations η₀ indecisionLimit εcov εs δ' α pAP
     crossLimit hsig hη0 hpop hind hε hεs hδ' (by linarith) hα (by linarith) hpAP hpAP1
   have hbudget : (prefCount η₀ populations indecisionLimit εcov εs δ' α pAP crossLimit hsz : ℝ)
-      ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit (2 ^ 26)
+      ≤ budgetCap populations η₀ indecisionLimit εcov δ' α pAP crossLimit (3 * 2 ^ 25)
         + 6 * Real.log (256 * (populations.card : ℝ) / δ') / εs
         + harvestCap η₀ indecisionLimit εcov hsz := by
     have := budgetCap_split populations η₀ indecisionLimit εcov δ' α pAP crossLimit hind hε hδ'
@@ -567,7 +567,7 @@ theorem clustering_quality_sized : ClusteringQualitySized := by
     rw [harvestCap]
     linarith [hpoly]
   have hcc := clustering_correct O populations tame uni H D Dsf Pre Suf η₀ iL εcov εs α δ'
-    ρ₀ pAP crossLimit (2 ^ 26) hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
+    ρ₀ pAP crossLimit (3 * 2 ^ 25) hηle hη₀ huni htame hflat hH hsupp hsuppSf hcaps hpAP hpAPBound
     hind' hind1 hα hα1 hε (by linarith) hεs hδ' hbudget le_rfl hcapsf
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=
