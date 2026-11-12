@@ -5,8 +5,8 @@ checked-in runs and labels alone.
 
 A run's DFA's state accepts iff its fit-half strings accept above the fit half's rate; phi
 is on the read half.  A residual run's first stage and product are scored the same way
-on the flat labels, as are rules on which frames hold a stop; its residual DFA keeps the
-accepting states saved with it.  Writes to figures/length-oracles/
+on the flat labels, as are rules on which frames hold a stop; its residual DFA's accepting
+states are fit the same way by residual_report.  Writes to figures/length-oracles/
 the panels (lengths.pdf, dfa_saw.tex, and dfa_first.tex, dfa_residual.tex and
 dfa_product.tex for the product), values.tex (macros for the caption's numbers) and
 phis.tex (macros for the phis the text compares)."""
@@ -18,7 +18,7 @@ from automata.fa.dfa import DFA
 from matplotlib import pyplot as plt
 from matplotlib import transforms
 
-from orthogonal_dfa.l_star.dfa_utils import phi_maximizing_states, table_end_states
+from orthogonal_dfa.l_star.dfa_utils import above_rate_states, table_end_states
 
 from ..capal_comparison.core import REPO_ROOT
 from ..random_minimal.analyze import PAPER_COLORS, PAPER_RC
@@ -27,6 +27,7 @@ from .label import saved_labels
 from .oracles import SYMBOLS, VOCAB
 from .render_dfa import dfa_tikz
 from .residual import SEEDS, run_restarts
+from .residual_report import product
 
 RANDOM_STRINGS = (
     REPO_ROOT / "data" / "neural" / "length_oracles" / "random_strings.json"
@@ -38,11 +39,13 @@ OUT_DIR = REPO_ROOT / "figures" / "length-oracles"
 PAPER_NAMES = {"saw": "Improperly Calibrated", "flat": "Correctly Calibrated"}
 #: The DFAs drawn, by (oracle, seed, restart).  Only the restart a run kept may be drawn.
 REPRESENTATIVES = {"saw": ("saw", 1, 0)}
-#: The residual seed whose first stage, residual DFA and product are drawn.
-PRODUCT_SEED = 1
-#: Each drawn part of that run, by its key in residual_products.json.  The residual DFA
-#: reads the residual oracle, whose labels are not saved, so it keeps the accepting states
-#: saved with it and has no phi.
+#: The residual seed whose first stage, residual DFA and product are drawn.  Not the seed
+#: with the best product: its parts are the plainest to draw.
+PRODUCT_SEED = 0
+#: Each drawn part of that run, by its key in residual_products.json.  The residual DFA's
+#: accepting states come from residual_report, and it has no phi here.  The saved product
+#: is minimized under a different fit, which merges states this one separates, so the
+#: product is rebuilt from the other two.
 PRODUCT_PARTS = {"first_stage": "first", "residual": "residual", "product": "product"}
 #: The parts with a phi, by their name in phis.tex.
 PHI_NAMES = {"first": "Original", "product": "Product"}
@@ -146,11 +149,11 @@ def minimal_dfa(table, accepting):
 
 
 def product_parts(y, data, run):
-    """Each part's minimal DFA, and its phi on the flat labels where it reads them, with
-    accepting states as held_out_phi fits them."""
+    """Each part's minimal DFA, and its phi on the flat labels where it reads them."""
     parts = {}
+    tables = dict(run, product=product(run["first_stage"], run["residual"]))
     for key, name in PRODUCT_PARTS.items():
-        table = run[key]
+        table = tables[key]
         if key == "residual":
             parts[name] = dict(minimal=minimal_dfa(table, table["accepting"]))
             continue
@@ -161,7 +164,7 @@ def product_parts(y, data, run):
         accepts = np.bincount(
             end[fit], weights=y["flat"][fit], minlength=len(transitions)
         )
-        chosen = phi_maximizing_states(
+        chosen = above_rate_states(
             {q: c for q, c in enumerate(counts) if c},
             {q: a for q, a in enumerate(accepts) if counts[q]},
         )
@@ -309,9 +312,11 @@ def values(described, data, parts):
 
 def phis(data, parts, product_phis, y):
     """Macros for the product's parts' and the frame rules' phis, e.g. \\phiProduct, and
-    \\phiMin, the lowest product phi over the residual seeds."""
+    \\phiMin and \\phiMax, the lowest and highest product phi over the residual seeds.
+    """
     found = {phi_name: parts[name]["phi"] for name, phi_name in PHI_NAMES.items()}
     found["Min"] = min(product_phis)
+    found["Max"] = max(product_phis)
     for name, rule in FRAME_RULES.items():
         v = rule(data.closed)[data.read].astype(float)
         found[name] = phi(v, y["flat"][data.read])
@@ -344,10 +349,8 @@ def main():
     product_phis = [
         product_parts(y, data, run)["product"]["phi"] for run in runs.values()
     ]
-    if parts["product"]["phi"] != max(product_phis):
-        raise ValueError(
-            f"seed {PRODUCT_SEED}'s product is not the best of {product_phis}"
-        )
+    if parts["product"]["phi"] <= parts["first"]["phi"]:
+        raise ValueError(f"seed {PRODUCT_SEED}'s product does not beat its first stage")
     for name, d in parts.items():
         (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(d["minimal"]))
     (OUT_DIR / "values.tex").write_text(values(described, data, parts))

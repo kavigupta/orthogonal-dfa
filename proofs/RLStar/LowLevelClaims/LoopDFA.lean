@@ -35,7 +35,7 @@ them, and a little more, are misled.
 `LearnerLoopDFARelative` admits the target by the relative rule, and no state need be covered. A
 state is wrong when an edge out of its true leaf is wrong or unlearned, or it is read on its wrong
 side. Summed over the wrong states, their occupancy of the window is below `m = 3ξ/(8R)` at the
-disagreement rate `m/(3(|Σ|+|Q|+1)N)`, so the runs from the start through a wrong state of its zone
+disagreement rate `m/(3(|Σ|+1)N)`, so the runs from the start through a wrong state of its zone
 cost at most `Cm ≤ 3ξ/4`; the pick of the start leaf costs the other `ξ/4`.
 
 `LearnerLoopDFADist` is `LearnerLoopDFASimple` over strings drawn from `D`: the probes are `D`'s
@@ -169,7 +169,7 @@ def LearnerLoopDFASimple : Prop :=
   -- The strings a round reads undecided; the clustering's band must keep their wrong reads within
   -- level 5's race tail.
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-  let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
+  let W : ℝ := max (2 * Real.exp 2 * Wm) 1
   -- The clustering's suffix pool.
   let PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
@@ -180,7 +180,7 @@ def LearnerLoopDFASimple : Prop :=
   let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
         (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
       (ι / 2 / (8 * J * (RB + 1))))
-    (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
+    (min (min (pAP / (2 ^ 18 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
@@ -265,14 +265,14 @@ def LearnerLoopDFA : Prop :=
   let Θa : ℝ := 2 * Ce / s + Θι
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-  let W₀ : ℝ := Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
+  let W₀ : ℝ := 2 * Real.exp 2 * Wm + 1
   let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 5) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
   let R₀ : ℝ := 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
     + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2)
   let E₁ : ℝ := 2 ^ 20 * Θa * (R₀ + 1) / s + (Q + 3) ^ 2 * (2 ^ 24 * Θι * (R₀ + 1)
     + 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ')
-    + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
+    + 2 ^ 18 * (P₀ + 2) / pAP)
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
@@ -326,7 +326,7 @@ def LearnerLoopDFA : Prop :=
 
 /-- `LearnerLoopDFASimple` with the target admitted by the relative rule: if some state `q` in
 `nonStartZoneStates M L R q` re-roots the target with accuracy at least `1 − γ` without leaving it,
-the conclusion is `LearnerLoopDFASimple`'s, at the disagreement rate `m/(3(|Σ|+|Q|+1)N)`. -/
+the conclusion is `LearnerLoopDFASimple`'s, at the disagreement rate `m/(3(|Σ|+1)N)`. -/
 def LearnerLoopDFARelativeSimple : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -343,7 +343,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let m : ℝ := 3 * ξ / (8 * R)
   -- Each round's disagreement rate, low enough that the wrong states occupy the window less
   -- than `m`.
-  let ε : ℝ := m / (3 * (A + Q + 1) * N)
+  let ε : ℝ := m / (3 * (A + 1) * N)
   -- The clustering's accuracy.
   let εcov : ℝ := min (ξ / (20 * R * N)) (ξ / (32 * N))
   -- Each round's share of `δ`.
@@ -364,7 +364,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   -- The strings a round reads undecided; the clustering's band must keep their wrong reads within
   -- level 5's race tail.
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-  let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
+  let W : ℝ := max (2 * Real.exp 2 * Wm) 1
   -- The clustering's suffix pool.
   let PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
@@ -375,7 +375,7 @@ def LearnerLoopDFARelativeSimple : Prop :=
   let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
         (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
       (ι / 2 / (8 * J * (RB + 1))))
-    (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
+    (min (min (pAP / (2 ^ 18 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
@@ -446,7 +446,7 @@ def LearnerLoopDFARelative : Prop :=
   let m : ℝ := 3 * ξ / (8 * R)
   -- Each round's disagreement rate, low enough that the wrong states occupy the window less
   -- than `m`.
-  let ε : ℝ := m / (3 * (A + Q + 1) * N)
+  let ε : ℝ := m / (3 * (A + 1) * N)
   -- Each round's share of `δ`.
   let δ' : ℝ := δ / (8 * (Q + 1))
   let s : ℝ := 1 / 2 - η₀
@@ -460,21 +460,21 @@ def LearnerLoopDFARelative : Prop :=
   -- `1/cap ≤ ℓ³ (1 + log ℓ) E₁`, `1/ε ≤ ℓ aε`, `1/ι ≤ ℓ Θι`, `1/τ ≤ ℓ Θ`, the atoms' scale
   -- `1/min(εcov s/2, ι) ≤ ℓ Θa`, the prefix count `≤ ℓ² (1 + log ℓ) R₀`, the budget `≤ ℓ K₁`,
   -- `W ≤ ℓ² W₀`.
-  let aε : ℝ := 3 * (A + Q + 1) / m
+  let aε : ℝ := 3 * (A + 1) / m
   let Ce : ℝ := 20 * R / ξ + 32 / ξ
   let Θι : ℝ := 8 * Ce + 4608 * Q * (Q + 1) * aε
   let Θ : ℝ := Ce / (2 * s ^ 2) + Θι
   let Θa : ℝ := 2 * Ce / s + Θι
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-  let W₀ : ℝ := Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1
+  let W₀ : ℝ := 2 * Real.exp 2 * Wm + 1
   let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 5) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
   let R₀ : ℝ := 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
     + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2)
   let E₁ : ℝ := 2 ^ 20 * Θa * (R₀ + 1) / s + (Q + 3) ^ 2 * (2 ^ 24 * Θι * (R₀ + 1)
     + 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ')
-    + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
+    + 2 ^ 18 * (P₀ + 2) / pAP)
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ
     * (Q + 3) ^ ((Fintype.card σ + 2) * Fintype.card α)
@@ -568,7 +568,7 @@ def LearnerLoopDFADist : Prop :=
   -- The strings a round reads undecided; the clustering's band must keep their wrong reads within
   -- level 5's race tail.
   let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
-  let W : ℝ := max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
+  let W : ℝ := max (2 * Real.exp 2 * Wm) 1
   -- The clustering's suffix pool.
   let PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
@@ -579,7 +579,7 @@ def LearnerLoopDFADist : Prop :=
   let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
         (ι ^ 2 / (2 ^ 28 * Real.log (128 * J * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
       (ι / 2 / (8 * J * (RB + 1))))
-    (min (min (δ' * pAP / (2 ^ 16 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
+    (min (min (pAP / (2 ^ 18 * (PB + 1))) (ι / (2 ^ 24 * J ^ 2 * (RB + 1))))
       (min (pAP / (2 * J * (PB + 2))) (1 / (6 * J * (RB + 1)))))
   -- Counts the trees a round can grow, with an edge map into each one's leaves.
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ Fintype.card σ

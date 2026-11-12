@@ -9,7 +9,7 @@ most `κ U q`, `U q` its state's chance of reading undecided (`KappaReadOracle`)
 within `|Q| + f + 2` leaves. A wrong read adds at most one spurious leaf, so with level 3's premises
 taken at `|Q| + f` states (`Level3AllowanceCorrect`) the round fails only where `f + 2` rounds of
 reads meet a fresh wrong read (`RaceTailBound`), or two probes share their first `walkStart`
-letters, so that one probe's wrong read could recur in another's.
+letters and some round reads wrong, so that one probe's wrong read could recur in another's.
 
 A step reads in rounds: its probe's reads and one re-sift per edge of a split. Each reads at most
 one string undecided, so meets a fresh wrong read with chance at most `κ`; the premise
@@ -67,9 +67,9 @@ def Level5RoundCorrect : Prop :=
     y ≤ ε / 48 → ε < 1 →
     36 * S / ε * Real.log (16 * S * (S + 1) / δ) + S ≤ C.probeBudget →
     0 ≤ κ → 0 ≤ t → 0 ≤ t' → t * κ ≤ 1 - Real.exp (-(t' * κ)) →
-    -- Two probes share their first `walkStart` letters, or `f + 2` rounds read wrong, with chance
-    -- at most `δ/8`.
-    C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀
+    -- Two probes share their first `walkStart` letters and a round reads wrong, or `f + 2` rounds
+    -- read wrong, with chance at most `δ/8`.
+    C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀ * min 1 (Real.exp (t' * (κ * m)) / (1 + t))
       + Real.exp (t' * (κ * m)) / (1 + t) ^ (f + 2) ≤ δ / 8 →
     ∫⁻ ω, (Measure.pi fun _ : Fin C.probeBudget => P.D)
         {draws | let result := indecisiveLStarLevel3 C (R.read · ω) draws

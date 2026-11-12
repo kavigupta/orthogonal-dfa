@@ -24,8 +24,8 @@
   "accuracy": null,
   "converged": null,
   "queries_total": 230842,
-  "equivalence_queries": 160,
-  "seconds": 7200.003,
+  "equivalence_queries": 163,
+  "seconds": 7200.035,
   "error_type": "Timeout",
   "error": "no hypothesis within 7200s"
 }

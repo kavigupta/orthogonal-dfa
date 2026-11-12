@@ -447,11 +447,11 @@ lemma rb_le {Q ι τ Θι Θ ℓ PB P₀ δ' s pAP : ℝ} (hQ : 0 ≤ Q) (hι0 :
     _ = _ := by ring
 
 /-- The band's ceiling `W` at the length `ℓ`, within `ℓ²` of its length-free bound. -/
-lemma w_le {ℓ δ' Wm : ℝ} (hℓ1 : 1 ≤ ℓ) (hWm : 0 ≤ Wm) :
-    max (Real.exp 1 * Real.sqrt δ' * Wm / 2) 1
-      ≤ (Real.exp 1 * Real.sqrt δ' * Wm / 2 + 1) * ℓ ^ 2 := by
+lemma w_le {ℓ Wm : ℝ} (hℓ1 : 1 ≤ ℓ) (hWm : 0 ≤ Wm) :
+    max (2 * Real.exp 2 * Wm) 1
+      ≤ (2 * Real.exp 2 * Wm + 1) * ℓ ^ 2 := by
   have hℓ21 : 1 ≤ ℓ ^ 2 := one_le_pow₀ hℓ1
-  have h0b : 0 ≤ Real.exp 1 * Real.sqrt δ' * Wm / 2 := by positivity
+  have h0b : 0 ≤ 2 * Real.exp 2 * Wm := by positivity
   refine (max_le (by linarith) (by linarith)).trans
     (le_mul_of_one_le_right (by positivity) hℓ21)
 
@@ -481,12 +481,12 @@ lemma cap_ge {Q ι mnA s Θι Θa ℓ RB R₀ PB P₀ δ' pAP E₁ : ℝ} (hQ : 
     (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2)
     (hE₁ : E₁ = 2 ^ 20 * Θa * (R₀ + 1) / s + (Q + 3) ^ 2 * (2 ^ 24 * Θι * (R₀ + 1)
       + 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ')
-      + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))) :
+      + 2 ^ 18 * (P₀ + 2) / pAP)) :
     1 / (E₁ * (ℓ ^ 3 * (1 + Real.log ℓ)))
       ≤ min (min (min (s * mnA / (2 ^ 20 * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * (Q + 2) * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
         (ι / 2 / (8 * (Q + 2) * (RB + 1))))
-      (min (min (δ' * pAP / (2 ^ 16 * (PB + 1)))
+      (min (min (pAP / (2 ^ 18 * (PB + 1)))
           (ι / (2 ^ 24 * (Q + 2) ^ 2 * (RB + 1))))
         (min (pAP / (2 * (Q + 2) * (PB + 2))) (1 / (6 * (Q + 2) * (RB + 1))))) := by
   have hℓ0 : 0 < ℓ := by linarith
@@ -503,7 +503,7 @@ lemma cap_ge {Q ι mnA s Θι Θa ℓ RB R₀ PB P₀ δ' pAP E₁ : ℝ} (hQ : 
     have := Real.exp_one_lt_d9
     nlinarith only [this, hδ'1, hδ'0, hG0, hQ]
   set X2 : ℝ := 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * G / δ') with hX2
-  set X3 : ℝ := 2 ^ 16 * (P₀ + 2) / (pAP * δ') with hX3
+  set X3 : ℝ := 2 ^ 18 * (P₀ + 2) / pAP with hX3
   set X4 : ℝ := 2 ^ 24 * Θι * (R₀ + 1) with hX4
   have hΘa1 : 1 ≤ Θa := hΘι.trans hΘa
   have hX10 : 0 ≤ X1 := by positivity
@@ -614,16 +614,16 @@ lemma cap_ge {Q ι mnA s Θι Θa ℓ RB R₀ PB P₀ δ' pAP E₁ : ℝ} (hQ : 
       rwa [one_mul] at h
     have h2 : 8 * (Q + 2) ≤ 2 ^ 23 * (Q + 3) ^ 2 := by linarith only [hQb, hQ]
     exact mul_le_mul h2 h1 (by positivity) (by positivity)
-  · -- the suffix collision
+  · -- the suffix atoms
     refine key _ _ _ (by positivity) (by positivity) h1X3 ?_
-    have e : δ' * pAP * ((Q + 3) ^ 2 * X3 * (ℓ ^ 3 * Λ))
-        = 2 ^ 16 * (Q + 3) ^ 2 * ((P₀ + 2) * (ℓ ^ 3 * Λ)) := by
+    have e : pAP * ((Q + 3) ^ 2 * X3 * (ℓ ^ 3 * Λ))
+        = 2 ^ 18 * (Q + 3) ^ 2 * ((P₀ + 2) * (ℓ ^ 3 * Λ)) := by
       rw [hX3]; field_simp
     rw [e]
     have h1 : PB + 1 ≤ (P₀ + 2) * (ℓ ^ 3 * Λ) := by
       have h := mul_le_mul_of_nonneg_left hℓD (by positivity : (0 : ℝ) ≤ P₀ + 2)
       linarith only [h, hPB1]
-    have h2 : (2 : ℝ) ^ 16 ≤ 2 ^ 16 * (Q + 3) ^ 2 := by linarith only [hQb, hQ]
+    have h2 : (2 : ℝ) ^ 18 ≤ 2 ^ 18 * (Q + 3) ^ 2 := by linarith only [hQb, hQ]
     exact mul_le_mul h2 h1 (by positivity) (by positivity)
   · -- the earlier rounds' prefixes and the certificates
     refine key _ _ _ (by positivity) (by positivity) h1X4 ?_
@@ -639,15 +639,12 @@ lemma cap_ge {Q ι mnA s Θι Θa ℓ RB R₀ PB P₀ δ' pAP E₁ : ℝ} (hQ : 
   · -- the earlier rounds' suffixes
     refine key _ _ _ (by positivity) (by positivity) h1X3 ?_
     have e : pAP * ((Q + 3) ^ 2 * X3 * (ℓ ^ 3 * Λ))
-        = 2 ^ 16 / δ' * (Q + 3) ^ 2 * ((P₀ + 2) * (ℓ ^ 3 * Λ)) := by
+        = 2 ^ 18 * (Q + 3) ^ 2 * ((P₀ + 2) * (ℓ ^ 3 * Λ)) := by
       rw [hX3]; field_simp
     rw [e]
     have h1 : PB + 2 ≤ (P₀ + 2) * (ℓ ^ 3 * Λ) :=
       hPB1.trans (mul_le_mul_of_nonneg_left hℓD (by positivity))
-    have h2 : 2 * (Q + 2) ≤ 2 ^ 16 / δ' * (Q + 3) ^ 2 := by
-      rw [div_mul_eq_mul_div, le_div_iff₀ hδ'0]
-      have := mul_le_mul_of_nonneg_left hδ'1 (by positivity : (0 : ℝ) ≤ 2 * (Q + 2))
-      linarith only [this, hQb, hQ]
+    have h2 : 2 * (Q + 2) ≤ 2 ^ 18 * (Q + 3) ^ 2 := by linarith only [hQb, hQ]
     exact mul_le_mul h2 h1 (by positivity) (by positivity)
   · -- the probes' avoided mass
     refine key _ _ _ (by positivity) zero_le_one h1X4 ?_
@@ -832,7 +829,7 @@ lemma dfa_mass_one {Ae E₁ E E₂ E₃ lg Q n R₀ K₁ δ δ' c s pAP Θι Θa
     (hlg : 0 ≤ lg) (haεd : aε = 4 * (Ae + 1) / c)
     (hE₁d : E₁ = 2 ^ 20 * Θa * (R₀ + 1) / s + (Q + 3) ^ 2 * (2 ^ 24 * Θι * (R₀ + 1)
       + 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ')
-      + 2 ^ 16 * (P₀ + 2) / (pAP * δ')))
+      + 2 ^ 18 * (P₀ + 2) / pAP))
     (hEd : E = 1536 * aε * E₁ + 1536 * lg * aε)
     (hE₂d : E₂ = 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
     (hE₃d : E₃ = 16 * K₁ ^ 2 / δ') :
@@ -850,7 +847,7 @@ lemma dfa_mass_one {Ae E₁ E E₂ E₃ lg Q n R₀ K₁ δ δ' c s pAP Θι Θa
         * Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ') :=
       mul_nonneg (by positivity) (Real.log_nonneg (by
         rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hQ, hlR₀]))
-    have h3 : 0 ≤ 2 ^ 16 * (P₀ + 2) / (pAP * δ') := by positivity
+    have h3 : 0 ≤ 2 ^ 18 * (P₀ + 2) / pAP := by positivity
     have h4 : 0 ≤ 2 ^ 24 * Θι * (R₀ + 1) := by positivity
     have h5 := mul_nonneg (sq_nonneg (Q + 3)) (add_nonneg (add_nonneg h4 h2) h3)
     linarith only [h1, h5]
@@ -875,7 +872,7 @@ lemma dfa_mass {Ae ℓ Λ ε cap aε E₁ E E₂ E₃ lg Q n J RB R₀ B₃ K₁
     (hcap : 1 / (E₁ * (ℓ ^ 3 * Λ)) ≤ cap) (hlg : 0 ≤ lg) (haεd : aε = 4 * (Ae + 1) / c)
     (hE₁d : E₁ = 2 ^ 20 * Θa * (R₀ + 1) / s + (Q + 3) ^ 2 * (2 ^ 24 * Θι * (R₀ + 1)
       + 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ')
-      + 2 ^ 16 * (P₀ + 2) / (pAP * δ')))
+      + 2 ^ 18 * (P₀ + 2) / pAP))
     (hEd : E = 1536 * aε * E₁ + 1536 * lg * aε)
     (hE₂d : E₂ = 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ)
     (hE₃d : E₃ = 16 * K₁ ^ 2 / δ') (hJ : J = Q + 2) (hRB0 : 0 ≤ RB)
@@ -911,8 +908,8 @@ def loopΘa (Q A c ξ η₀ : ℝ) : ℝ :=
 def loopW₀ (Q A δ : ℝ) : ℝ :=
   let δ' := δ / (8 * (Q + 1))
   let S := Q * ((Q + 2) * A + 1) + 2 * A + 1
-  Real.exp 1 * Real.sqrt δ'
-    * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) / 2 + 1
+  2 * Real.exp 2
+    * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) + 1
 
 /-- Bounds `LearnerLoopDFASimple`'s suffix pool `PB` at `ℓ = L₁ + 1`, edges crossed at rate `Ae`. -/
 def loopPool (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
@@ -973,7 +970,7 @@ def loopMassTerms (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ �
     + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2)
   let E₁ : ℝ := 2 ^ 20 * Θa * (R₀ + 1) / s + (Q + 3) ^ 2 * (2 ^ 24 * Θι * (R₀ + 1)
     + 2 ^ 28 * Θι ^ 2 * Real.log (128 * (Q + 2) * (13 + 2 * Real.logb 2 (R₀ + 1)) / δ')
-    + 2 ^ 16 * (P₀ + 2) / (pAP * δ'))
+    + 2 ^ 18 * (P₀ + 2) / pAP)
   let Kc : ℝ := (1 + (Q + 1) ^ 3 * A) ^ nQ * (Q + 3) ^ ((nQ + 2) * nA)
   let E : ℝ := 1536 * aε * E₁ + 1536 * Real.log (16 * (Q + 1) * Kc / δ') * aε
   let E₂ : ℝ := 4 * n * (6 * (Q + 2) * R₀ + K₁ + n) / δ
@@ -990,6 +987,11 @@ conditions at `ℓ = L₁ + 1`. -/
 def loopTolInv (ℓ Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ :=
   let t := loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀
   ℓ ^ 4 * (1 + Real.log ℓ) * t.1 + ℓ ^ 2 * (1 + Real.log ℓ) * t.2.1 + ℓ ^ 2 * t.2.2
+
+/-- `loopTolInv`'s `E` term alone: the trie's loop picks no hypothesis (`E₂`), and `E` covers its
+walk starts' budget (`E₃`). -/
+def trieTolInv (ℓ Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ :=
+  ℓ ^ 4 * (1 + Real.log ℓ) * (loopMassTerms Q A Ae nQ nA δ c ξ pAP η₀).1
 
 lemma loopMassTerms_ge {Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hQ : 0 ≤ Q) (hA : 0 ≤ A)
     (hAe : 2 ≤ Ae) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hc : 0 < c) (hc1 : c ≤ 1) (hξ : 0 < ξ)
@@ -1032,14 +1034,14 @@ lemma loopMassTerms_ge {Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hQ : 0 �
     have : 0 ≤ Q * ((Q + 2) * A + 1) := by positivity
     linarith
   have hW₀ : 1 ≤ W₀ := by
-    show 1 ≤ Real.exp 1 * Real.sqrt δ'
-      * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) / 2 + 1
+    show 1 ≤ 2 * Real.exp 2
+      * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) + 1
     have hl : 0 ≤ Real.log (8 * S * (S + 1) / δ') :=
       Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith)
     have : 0 ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1) := by
       positivity
-    have : 0 ≤ Real.exp 1 * Real.sqrt δ'
-        * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) / 2 := by
+    have : 0 ≤ 2 * Real.exp 2
+        * (16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)) := by
       positivity
     linarith
   have hP₀1 : 1 ≤ P₀ := pool_ge_one hs0 hs1 hpAP hp1 hΘ1 hW₀ hδ'0 hδ'1
@@ -1103,6 +1105,14 @@ lemma loopTolInv_le {ℓ Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hℓ : 1
     have b := mul_le_mul_of_nonneg_right h5b h2
     have c := mul_le_mul_of_nonneg_right h5c h3
     linarith
+
+lemma one_le_trieTolInv {ℓ Q A Ae δ c ξ pAP η₀ : ℝ} (nQ nA : ℕ) (hℓ : 1 ≤ ℓ) (hQ : 0 ≤ Q)
+    (hA : 0 ≤ A) (hAe : 2 ≤ Ae) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hc : 0 < c) (hc1 : c ≤ 1)
+    (hξ : 0 < ξ) (hpAP : 0 < pAP) (hp1 : pAP ≤ 1) (hη0 : 0 ≤ η₀) (hη : η₀ < 1 / 2) :
+    1 ≤ trieTolInv ℓ Q A Ae nQ nA δ c ξ pAP η₀ := by
+  obtain ⟨h1, -, -⟩ := loopMassTerms_ge nQ nA hQ hA hAe hδ hδ1 hc hc1 hξ hpAP hp1 hη0 hη
+  have hΛ1 : 1 ≤ 1 + Real.log ℓ := by have := Real.log_nonneg hℓ; linarith
+  exact one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (one_le_pow₀ hℓ) hΛ1) h1
 
 end OrthoDFA
 
