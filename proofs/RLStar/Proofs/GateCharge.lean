@@ -25,12 +25,13 @@ lemma spread_identity (n k : ℝ) (hn : 0 < n) (x y c : ℝ) :
   field_simp
   ring
 
-lemma spread_at_le (n k ag ap : ℕ) (hk : k ≤ n) (hn : 0 < n) {x y d t tu : ℝ} (hd : 0 ≤ d)
+lemma spread_at_le (n k ag : ℕ) (ap : ℝ) (hk : k ≤ n) (hn : 0 < n) {x y d t tu s : ℝ}
+    (hd : 0 ≤ d) (htu : 0 ≤ tu) (hs0 : 0 ≤ s) (hs : s ≤ 1 / 2)
     (hlo : ((n : ℝ) - k) * x + k * (1 - y) - t ≤ ag)
     (hhi : (ag : ℝ) ≤ ((n : ℝ) - k) * x + k * (1 - y) + t)
-    (hb : 2 * (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) - tu ≤ ap)
+    (hb : ((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y)) - s * tu ≤ ap)
     (hc0 : 0 ≤ (ag : ℝ) / n) (hc1 : (ag : ℝ) / n ≤ 1) :
-    spreadBound n ag ap d ((ag : ℝ) / n)
+    spreadBound n ag ap d ((ag : ℝ) / n) s
       ≤ (n - k) / n * (x - ag / n) ^ 2 + k / n * (1 - y - ag / n) ^ 2
         + (t + 3 / 2 * d + tu / 2) / n := by
   have hnR : (0 : ℝ) < n := by exact_mod_cast hn
@@ -55,14 +56,16 @@ lemma spread_at_le (n k ag ap : ℕ) (hk : k ≤ n) (hn : 0 < n) {x y d t tu : �
       by rw [this]; exact mul_le_mul h12 hcμ (abs_nonneg _) (by norm_num)
     have := neg_abs_le ((1 - 2 * c) * (μ - c))
     linarith
-  have hfl : ((ap : ℝ) - d) / (2 * n)
+  have hfl : (ap - s * d) / n
       ≥ (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) / n - (tu + d) / (2 * n) := by
-    have e : ((ap : ℝ) - d) / (2 * n)
+    have e : (ap - s * d) / n
         - ((((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) / n - (tu + d) / (2 * n))
-        = ((ap : ℝ) - 2 * (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) + tu) / (2 * n) := by
+        = (ap - (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) + s * tu
+            + (1 / 2 - s) * (tu + d)) / n := by
       field_simp; ring
-    have : 0 ≤ ((ap : ℝ) - 2 * (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) + tu)
-        / (2 * n) := div_nonneg (by linarith) (by positivity)
+    have : 0 ≤ (ap - (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) + s * tu
+        + (1 / 2 - s) * (tu + d)) / n :=
+      div_nonneg (by nlinarith) hnR.le
     linarith
   unfold spreadBound
   have : (t + 3 / 2 * d + tu / 2) / n = t / n + d / n + (tu + d) / (2 * n) := by
@@ -70,12 +73,12 @@ lemma spread_at_le (n k ag ap : ℕ) (hk : k ≤ n) (hn : 0 < n) {x y d t tu : �
   rw [this]
   linarith
 
-lemma wrongCap_le_one (n ag ap : ℕ) (d y : ℝ) : wrongCap n ag ap d y ≤ 1 := by
+lemma wrongCap_le_one (n ag : ℕ) (ap d y s : ℝ) : wrongCap n ag ap d y s ≤ 1 := by
   unfold wrongCap; split_ifs
   · exact min_le_left _ _
   · exact le_rfl
 
-lemma wrongCap_nonneg (n ag ap : ℕ) (d y : ℝ) : 0 ≤ wrongCap n ag ap d y := by
+lemma wrongCap_nonneg (n ag : ℕ) (ap d y s : ℝ) : 0 ≤ wrongCap n ag ap d y s := by
   unfold wrongCap; split_ifs
   · exact le_min (by norm_num) (div_nonneg (le_max_left _ _) (sq_nonneg _))
   · norm_num
@@ -95,7 +98,7 @@ noncomputable def gateGap (η₀ : ℝ) : ℝ := gateA η₀ - gateKappa η₀
 
 /-- What the seed's and the references' deviations cost, per unit:
 
-    gateDevT = 16/(5 H w) + 9/(4 (H w)²),   gateDevD = 27/(10 (H w)²),   gateDevU = 9/(10 (H w)²) -/
+    gateDevT = 16/(5w) + 9/(4w²),   gateDevD = 27/(10w²),   gateDevU = 9/(10w²) -/
 noncomputable def gateDevT (η₀ : ℝ) : ℝ := 16 / (5 * gateGap η₀) + 9 / (4 * gateGap η₀ ^ 2)
 
 noncomputable def gateDevD (η₀ : ℝ) : ℝ := 27 / (10 * gateGap η₀ ^ 2)
@@ -190,13 +193,14 @@ lemma inv_one_sub_sq_le {e : ℝ} (h0 : 0 ≤ e) (h4 : e ≤ 1 / 4) :
 set_option maxHeartbeats 4000000 in
 /-- A side's cap against its wrong count: with the side's counts within `t` and `tu` of their
 means, it charges each wrong prefix `1/gateKappa`, and the deviations `gateDev`. -/
-theorem mul_wrongCap_le (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d t tu : ℝ}
+theorem mul_wrongCap_le (n k ag : ℕ) (ap : ℝ) (hk : k ≤ n) {x y y₀ η₀ d t tu s : ℝ}
+    (hs0 : 0 ≤ s) (hs : s ≤ 1 / 2)
     (hd : 0 ≤ d) (ht : 0 ≤ t) (htu : 0 ≤ tu) (hx0 : 0 ≤ x) (hy0 : 0 ≤ y) (hyy₀ : y ≤ y₀)
     (hxy₀ : x + y₀ ≤ 2 * η₀) (hη₀ : η₀ < 1 / 2)
     (hlo : ((n : ℝ) - k) * x + k * (1 - y) - t ≤ ag)
     (hhi : (ag : ℝ) ≤ ((n : ℝ) - k) * x + k * (1 - y) + t)
-    (hb : 2 * (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) - tu ≤ ap) :
-    n * wrongCap n ag ap d y₀
+    (hb : ((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y)) - s * tu ≤ ap) :
+    n * wrongCap n ag ap d y₀ s
       ≤ k / gateKappa η₀ + gateDevT η₀ * t + gateDevD η₀ * d + gateDevU η₀ * tu := by
   have h0 : 0 ≤ η₀ := by linarith
   obtain ⟨hκ0, hκ3, hq⟩ := gateKappa_facts h0 hη₀
@@ -210,8 +214,8 @@ theorem mul_wrongCap_le (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d t tu 
   have hw1 : w ≤ 1 := by linarith
   have hHw : 0 < w := hw0
   have hHw1 : w ≤ 1 := hw1
-  have hcap1 := wrongCap_le_one n ag ap d y₀
-  have hcap0 := wrongCap_nonneg n ag ap d y₀
+  have hcap1 := wrongCap_le_one n ag ap d y₀ s
+  have hcap0 := wrongCap_nonneg n ag ap d y₀ s
   obtain ⟨hT0, hD0, hU0⟩ := gateDev_pos h0 hη₀
   have hdev0 : 0 ≤ gateDevD η₀ * d + gateDevU η₀ * tu := by positivity
   have hdevT0 : 0 ≤ gateDevT η₀ * t := by positivity
@@ -242,14 +246,14 @@ theorem mul_wrongCap_le (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d t tu 
   -- a side mostly wrong is charged by its size
   by_cases hA : κl * n ≤ k
   · have : (n : ℝ) ≤ k / κl := by rw [le_div_iff₀ hκ0]; linarith
-    have h1 : (n : ℝ) * wrongCap n ag ap d y₀ ≤ n * 1 :=
+    have h1 : (n : ℝ) * wrongCap n ag ap d y₀ s ≤ n * 1 :=
       mul_le_mul_of_nonneg_left hcap1 hnR.le
     linarith only [h1, this, hdevT0, hdev0]
   push Not at hA
   -- a side too small for its deviations
   by_cases hC : n * w < 4 * t
   · have : (n : ℝ) ≤ 4 * t / w := by rw [le_div_iff₀ hHw]; linarith
-    have h1 : (n : ℝ) * wrongCap n ag ap d y₀ ≤ n * 1 :=
+    have h1 : (n : ℝ) * wrongCap n ag ap d y₀ s ≤ n * 1 :=
       mul_le_mul_of_nonneg_left hcap1 hnR.le
     linarith only [h1, this, hdevC, hkdiv0, hdev0]
   push Not at hC
@@ -308,7 +312,7 @@ theorem mul_wrongCap_le (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d t tu 
   -- the spread
   have hc0 : 0 ≤ c := by rw [hc]; exact div_nonneg (Nat.cast_nonneg _) hnR.le
   have hc1 : c ≤ 1 := by linarith
-  have hsp := spread_at_le n k ag ap hk hn hd hlo hhi hb hc0 hc1
+  have hsp := spread_at_le n k ag ap hk hn hd htu hs0 hs hlo hhi hb hc0 hc1
   rw [← hc] at hsp
   have hsplit : ((n : ℝ) - k) / n * (x - c) ^ 2 + k / n * (1 - y - c) ^ 2
       = (c - x - κ * Δ) ^ 2 + κ * (1 - κ) * Δ ^ 2 := by
@@ -319,20 +323,20 @@ theorem mul_wrongCap_le (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d t tu 
       _ ≤ ε ^ 2 := pow_le_pow_left₀ (abs_nonneg _) this 2
   set Dv : ℝ := (t + 3 / 2 * d + tu / 2) / n with hDv
   have hDv0 : 0 ≤ Dv := by rw [hDv]; positivity
-  have hSp : spreadBound n ag ap d c ≤ κ * (1 - κ) * Δ ^ 2 + (ε ^ 2 + Dv) := by
+  have hSp : spreadBound n ag ap d c s ≤ κ * (1 - κ) * Δ ^ 2 + (ε ^ 2 + Dv) := by
     rw [hsplit] at hsp; linarith
   have hA0' : 0 ≤ κ * (1 - κ) * Δ ^ 2 := by
     have : 0 ≤ 1 - κ := by linarith
     positivity
   have hnum0 : 0 ≤ κ * (1 - κ) * Δ ^ 2 + (ε ^ 2 + Dv) := by positivity
-  have hcapS : wrongCap n ag ap d y₀
+  have hcapS : wrongCap n ag ap d y₀ s
       ≤ (κ * (1 - κ) * Δ ^ 2 + (ε ^ 2 + Dv)) / (1 - y₀ - c) ^ 2 := by
     unfold wrongCap
     rw [if_pos ⟨hn, by rw [← hc]; exact hdenpos⟩, ← hc]
     refine le_trans (min_le_right _ _) ?_
     refine div_le_div_of_nonneg_right ?_ (sq_nonneg _)
     exact max_le hnum0 hSp
-  have hcap2 : wrongCap n ag ap d y₀
+  have hcap2 : wrongCap n ag ap d y₀ s
       ≤ (κ * (1 - κ) * Δ ^ 2 + (ε ^ 2 + Dv)) / (D₁ * (1 - η')) ^ 2 :=
     le_trans hcapS (div_le_div_of_nonneg_left hnum0 (by positivity)
       (pow_le_pow_left₀ hden0.le hden 2))
@@ -349,7 +353,7 @@ theorem mul_wrongCap_le (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d t tu 
       linarith
     calc κ * (1 - κ) = κ / κl * (κl * (1 - κ)) := by field_simp
       _ ≤ κ / κl * z ^ 2 := mul_le_mul_of_nonneg_left hf (div_nonneg hκ0' hκ0.le)
-  have hfin : wrongCap n ag ap d y₀
+  have hfin : wrongCap n ag ap d y₀ s
       ≤ κ / κl + 16 / 5 * η' + 9 / 5 * ((ε ^ 2 + Dv) / w ^ 2) := by
     have e : (κ * (1 - κ) * Δ ^ 2 + (ε ^ 2 + Dv)) / (D₁ * (1 - η')) ^ 2
         = (κ * (1 - κ) * Δ ^ 2 / D₁ ^ 2 + (ε ^ 2 + Dv) / D₁ ^ 2) * (1 / (1 - η') ^ 2) := by
@@ -371,7 +375,7 @@ theorem mul_wrongCap_le (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d t tu 
         (pow_le_pow_left₀ hHw.le (le_trans hHzw hD₁H) 2)
     have hA0 : 0 ≤ κ * (1 - κ) * Δ ^ 2 / D₁ ^ 2 := by positivity
     have hinv0 : 0 ≤ 1 / (1 - η') ^ 2 := by positivity
-    calc wrongCap n ag ap d y₀
+    calc wrongCap n ag ap d y₀ s
         ≤ (κ * (1 - κ) * Δ ^ 2 / D₁ ^ 2 + (ε ^ 2 + Dv) / D₁ ^ 2) * (1 / (1 - η') ^ 2) := hcap2
       _ ≤ (κ / κl + (ε ^ 2 + Dv) / w ^ 2) * (1 + 16 / 5 * η') :=
           mul_le_mul (by linarith) hinv hinv0 (by positivity)
@@ -405,7 +409,7 @@ theorem mul_wrongCap_le (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d t tu 
       linarith
     rw [mul_add, e1, e2]
     linarith
-  have hkey : (n : ℝ) * wrongCap n ag ap d y₀
+  have hkey : (n : ℝ) * wrongCap n ag ap d y₀ s
       ≤ k / κl + 16 / 5 * (t / w) + 9 / 5 * ((5 / 4 * t + 3 / 2 * d + tu / 2) / w ^ 2)
       := by
     have h := mul_le_mul_of_nonneg_left hfin hnR.le
@@ -430,13 +434,14 @@ lemma gateGap_le {η₀ : ℝ} (h0 : 0 ≤ η₀) (h1 : η₀ < 1 / 2) : gateGap
 set_option maxHeartbeats 1000000 in
 /-- `mul_wrongCap_le` at the side's own rates: a wrong prefix is charged
 `4(1 − x − y)²/(1 − y₀ − x)²` rather than `1/gateKappa`, and the deviations twice. -/
-theorem mul_wrongCap_le_rates (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d t tu : ℝ}
+theorem mul_wrongCap_le_rates (n k ag : ℕ) (ap : ℝ) (hk : k ≤ n) {x y y₀ η₀ d t tu s : ℝ}
+    (hs0 : 0 ≤ s) (hs : s ≤ 1 / 2)
     (hd : 0 ≤ d) (ht : 0 ≤ t) (htu : 0 ≤ tu) (hx0 : 0 ≤ x) (hy0 : 0 ≤ y) (hyy₀ : y ≤ y₀)
     (hxy₀ : x + y₀ ≤ 2 * η₀) (hη₀ : η₀ < 1 / 2)
     (hlo : ((n : ℝ) - k) * x + k * (1 - y) - t ≤ ag)
     (hhi : (ag : ℝ) ≤ ((n : ℝ) - k) * x + k * (1 - y) + t)
-    (hb : 2 * (((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y))) - tu ≤ ap) :
-    n * wrongCap n ag ap d y₀
+    (hb : ((n : ℝ) - k) * (x * (1 - x)) + k * (y * (1 - y)) - s * tu ≤ ap) :
+    n * wrongCap n ag ap d y₀ s
       ≤ 4 * k * ((1 - x - y) ^ 2 / (1 - y₀ - x) ^ 2)
         + 2 * (gateDevT η₀ * t + gateDevD η₀ * d + gateDevU η₀ * tu) := by
   have h0 : 0 ≤ η₀ := by linarith
@@ -449,8 +454,8 @@ theorem mul_wrongCap_le_rates (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d
   have hDHw : Hw ≤ D := by rw [hD]; linarith
   have hDΔ : D ≤ Δ := by rw [hD, hΔ]; linarith
   have hΔ1 : Δ ≤ 1 := by rw [hΔ]; linarith
-  have hcap1 := wrongCap_le_one n ag ap d y₀
-  have hcap0 := wrongCap_nonneg n ag ap d y₀
+  have hcap1 := wrongCap_le_one n ag ap d y₀ s
+  have hcap0 := wrongCap_nonneg n ag ap d y₀ s
   obtain ⟨hT0, hD0', hU0⟩ := gateDev_pos h0 hη₀
   have hdev0 : 0 ≤ gateDevT η₀ * t + gateDevD η₀ * d + gateDevU η₀ * tu := by positivity
   have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg _
@@ -459,7 +464,7 @@ theorem mul_wrongCap_le_rates (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d
   rcases Nat.eq_zero_or_pos n with hn0 | hn
   · rw [hn0, Nat.cast_zero, zero_mul]; linarith
   have hnR : (0 : ℝ) < n := by exact_mod_cast hn
-  have hn1 : (n : ℝ) * wrongCap n ag ap d y₀ ≤ n := by nlinarith
+  have hn1 : (n : ℝ) * wrongCap n ag ap d y₀ s ≤ n := by nlinarith
   -- a side mostly wrong is charged by its size
   by_cases hA : (n : ℝ) * D ≤ 4 * k * Δ
   · have : (n : ℝ) ≤ 4 * k * (Δ ^ 2 / D ^ 2) := by
@@ -518,7 +523,7 @@ theorem mul_wrongCap_le_rates (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d
   have hden0 : 0 < 1 - y₀ - c := by linarith
   have hc0 : 0 ≤ c := by rw [hc]; exact div_nonneg (Nat.cast_nonneg _) hnR.le
   have hc1 : c ≤ 1 := by linarith
-  have hsp := spread_at_le n k ag ap hk hn hd hlo hhi hb hc0 hc1
+  have hsp := spread_at_le n k ag ap hk hn hd htu hs0 hs hlo hhi hb hc0 hc1
   rw [← hc] at hsp
   have hsplit : ((n : ℝ) - k) / n * (x - c) ^ 2 + k / n * (1 - y - c) ^ 2
       = (c - x - κ * Δ) ^ 2 + κ * (1 - κ) * Δ ^ 2 := by
@@ -532,16 +537,16 @@ theorem mul_wrongCap_le_rates (n k ag ap : ℕ) (hk : k ≤ n) {x y y₀ η₀ d
   have hκ1' : κ * (1 - κ) * Δ ^ 2 ≤ κ * Δ ^ 2 := by
     have : 0 ≤ κ * κ * Δ ^ 2 := by positivity
     nlinarith
-  have hSp : spreadBound n ag ap d c ≤ κ * Δ ^ 2 + (ε ^ 2 + Dv) := by
+  have hSp : spreadBound n ag ap d c s ≤ κ * Δ ^ 2 + (ε ^ 2 + Dv) := by
     rw [hsplit] at hsp; linarith
   have hnum0 : 0 ≤ κ * Δ ^ 2 + (ε ^ 2 + Dv) := by positivity
-  have hcapS : wrongCap n ag ap d y₀ ≤ (κ * Δ ^ 2 + (ε ^ 2 + Dv)) / (1 - y₀ - c) ^ 2 := by
+  have hcapS : wrongCap n ag ap d y₀ s ≤ (κ * Δ ^ 2 + (ε ^ 2 + Dv)) / (1 - y₀ - c) ^ 2 := by
     unfold wrongCap
     rw [if_pos ⟨hn, by rw [← hc]; exact hden0⟩, ← hc]
     refine le_trans (min_le_right _ _) ?_
     refine div_le_div_of_nonneg_right ?_ (sq_nonneg _)
     exact max_le hnum0 hSp
-  have hcap2 : wrongCap n ag ap d y₀ ≤ (κ * Δ ^ 2 + (ε ^ 2 + Dv)) / (9 / 16 * D) ^ 2 :=
+  have hcap2 : wrongCap n ag ap d y₀ s ≤ (κ * Δ ^ 2 + (ε ^ 2 + Dv)) / (9 / 16 * D) ^ 2 :=
     le_trans hcapS (div_le_div_of_nonneg_left hnum0 (by positivity)
       (pow_le_pow_left₀ (by positivity) hden 2))
   -- scaled by the side's size

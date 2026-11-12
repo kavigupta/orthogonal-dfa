@@ -379,7 +379,8 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     rw [← nsmul_eq_mul, ← Finset.sum_const]
     refine Finset.sum_le_sum (fun j hj => le_trans (measureReal_union_le _ _) (add_le_add ?_ ?_))
     · exact measureReal_popGate_le hflat O populations Pp Pc Dsf hsuppP hsuppC hsuppSf j
-        (htame hj) (Dc j) (hPc j hj) B ha0 ha1
+        (htame hj) (Dc j) (hPc j hj) B (centre_mem_of_straddles O hstr hη₀.le).1
+        (centre_mem_of_straddles O hstr hη₀.le).2 ha0 ha1
     · refine le_trans (measureReal_undecidedShort_le Pp Pc Dsf O populations j (Dc j)
         (hPc j hj) B _ _ (by linarith) (by linarith)) (Real.exp_le_exp.2 ?_)
       have hrate : undecRate indecisionLimit
@@ -1873,8 +1874,8 @@ lemma retAt_of_light (O : Oracle μ S) (populations : Finset J) (uni : J)
       have : v = 1 := mul_left_cancel (a := p) (by rw [h, mul_one])
       rw [this]; exact Finset.mem_insert_self _ _)
   -- the gate
-  have hlive : sidesLive O B.lo B.hi F C R t t ω := by
-    by_contra hcon; exact h10 hcon
+  have hlive : sidesLive O B.lo B.hi F C R (1 / 2) t t ω := by
+    rw [← hcB]; by_contra hcon; exact h10 hcon
   have hgateN := hgate
   have hlim : min εcov (1 / 2) ≤ gateLimit uni εcov j := by
     unfold gateLimit
@@ -1916,7 +1917,7 @@ lemma retAt_of_light (O : Oracle μ S) (populations : Finset J) (uni : J)
     (fun v hv p _ => hne1 v hv p) hmpos hCn (lim := gateLimit uni εcov j)
     (a := gateLevel α populations B) (t := t) (fun b => M b + gm b) hga.1 hga.2 ht hlive
     hmis hgate'
-  have hcert' : certifiesAt O.mq (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀)
+  have hcert' : certifiesAt O.mq B.centre (B.centre - 1 / 2 + η₀) (1 / 2 - B.centre + η₀)
       (gateLimit uni εcov j) (gateLevel α populations B) B.lo B.hi F R C (oracleNoise x) := by
     rw [hcB, show (1 : ℝ) / 2 - 1 / 2 + η₀ = η₀ by ring]
     exact hcert
@@ -2019,8 +2020,9 @@ theorem measureReal_failUnion_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
     [IsProbabilityMeasure Dsf]
     (hsuppP : ∀ j ∈ populations, ∀ᵐ y ∂(Pp j), ∀ i, y i ∈ Pre)
     (hsuppC : ∀ j ∈ populations, ∀ᵐ y ∂(Pc j), ∀ i, y i ∈ Pre) (hsuppSf : Dsf Sufᶜ = 0) (j : J)
-    (hj : j ∈ populations) (B : State) (l lmis E t ρsf : ℝ) (f : S → ℝ) (r rs kmin kmax : ℕ)
-    (hE : 0 ≤ E) (hEl : E ≤ l) (hElm : E ≤ lmis)
+    (hj : j ∈ populations) (B : State) (hc0 : 0 ≤ B.centre) (hc1 : B.centre ≤ 1)
+    (l lmis E t ρsf : ℝ) (f : S → ℝ) (r rs kmin kmax : ℕ) (hE : 0 ≤ E) (hEl : E ≤ l)
+    (hElm : E ≤ lmis)
     (ht : 0 ≤ t) (hρsf : ∀ v, Dsf.real {v} ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
     (Ecert : ℝ) (hcertBad : (streamMeasure μ Pp Pc Dsf).real
       {x : Run Ω S J | ¬ certGood populations j B.npref r x} ≤ Ecert)
@@ -2058,7 +2060,7 @@ theorem measureReal_failUnion_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
   have b8 := measureReal_lightMiss_le (rule := rule) hflat O populations Pp Pc Dsf hsuppP hsuppC
     hsuppSf j hj B l lmis E f kmin kmax hE hEl hElm hdec hcut
   have b10 := measureReal_sidesDead_le (rule := rule) hflat O populations Pp Pc Dsf hsuppP hsuppC
-    hsuppSf j hj B B.npref ht
+    hsuppSf j hj B hc0 hc1 B.npref ht
   have b11 := measureReal_poolBad_le (μ := μ) Pp Pc Dsf B.nsuff rs ρsf hρsf
   have := u E1 E5
   have := u (E1 ∪ E5) Edset
