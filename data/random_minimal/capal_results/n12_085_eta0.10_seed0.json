@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "benchmark": "n12_085",
+  "family": "random_minimal",
+  "learner": "CAPAL",
+  "eta": 0.1,
+  "seed": 0,
+  "target_states": 12,
+  "alphabet_size": 2,
+  "learner_config": {
+    "max_iters": 200,
+    "max_same_samples": 80,
+    "suffix_pool_len_max": 10,
+    "alpha": 0.001,
+    "tau_cap": 0.2,
+    "suffix_pool_init": 100,
+    "discr_search_max_len": 6,
+    "discr_search_random": 2000,
+    "enum_depth": 3,
+    "extra_len_max": 8,
+    "eta_hat": 0.15
+  },
+  "learned_states": 15,
+  "accuracy": 1.0,
+  "converged": true,
+  "queries_total": 13334,
+  "equivalence_queries": 21,
+  "seconds": 1.832,
+  "error_type": null,
+  "error": null
+}

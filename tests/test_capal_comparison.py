@@ -1,3 +1,4 @@
+# pylint: disable=duplicate-code
 """Smoke tests for the CAPAL vs E-L* comparison harness.
 
 One cheap cell through each learner driver, plus the exclusion path and the
@@ -20,9 +21,17 @@ from orthogonal_dfa.experiments.capal_comparison import (
     run_elstar_cell,
     write_experiment,
 )
-from orthogonal_dfa.experiments.capal_comparison.capal_targets import capal_benchmarks
+from orthogonal_dfa.experiments.capal_comparison.capal_targets import (
+    CAPAL_BENCHMARK_NAMES,
+    capal_benchmarks,
+)
 from orthogonal_dfa.experiments.capal_comparison.core import eval_words
+from orthogonal_dfa.experiments.capal_comparison.our_targets import (
+    OUR_BENCHMARK_NAMES,
+    our_benchmarks,
+)
 from orthogonal_dfa.experiments.capal_comparison.sweep import run_cell
+from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH
 from tests.test_capal_bridge import _ensure_capal_checkout
 
 #: Both are 2-state targets inside E-L*'s regime, so a cell on either is seconds.
@@ -41,6 +50,10 @@ class TestCapalComparison(unittest.TestCase):
     def _cell_inputs(self, name):
         b = self.benchmarks[name]
         return b, eval_words(b.symbols), b.truth()
+
+    def test_name_lists_match_what_is_built(self):
+        self.assertEqual(list(self.benchmarks), CAPAL_BENCHMARK_NAMES)
+        self.assertEqual([b.name for b in our_benchmarks()], OUR_BENCHMARK_NAMES)
 
     def test_capal_cell(self):
         b, words, truth = self._cell_inputs(CAPAL_TARGET)
@@ -76,6 +89,7 @@ class TestCapalComparison(unittest.TestCase):
             symbols=b.symbols,
             words=words,
             truth=truth,
+            sample_length=DEFAULT_SAMPLE_LENGTH,
             target_states=b.target_states,
         )
         self.assertIsNone(cell.error)

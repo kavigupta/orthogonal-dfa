@@ -113,6 +113,18 @@ class TestGateCompositionResidualScore(unittest.TestCase):
         ]
         self.assertAlmostEqual(oracle.membership_queries(fresh).mean(), 0.5, delta=0.2)
 
+    def test_oracle_rejects_band_not_covering_threshold_length(self):
+        with self.assertRaisesRegex(AssertionError, "outside the fitted band"):
+            gate_residual_oracle(
+                self.exon,
+                self.module,
+                length=QUERY_LENGTH,
+                len_lo=QUERY_LENGTH + 1,
+                len_hi=QUERY_LENGTH + 6,
+                bin_width=5,
+                **FAST,
+            )
+
     def test_fit_gate_bins_augments_the_linear_fit_with_monotonics(self):
         with no_cache_global():
             fit = _fit_gate_bins.function(

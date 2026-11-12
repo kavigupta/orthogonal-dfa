@@ -1,9 +1,12 @@
+import functools
 import itertools
 import math
 from typing import Iterator, Optional, Tuple
 
+import numpy as np
 import scipy
 import scipy.special
+import scipy.stats
 
 
 def binom_cdf(k, n, p):
@@ -29,6 +32,7 @@ def binom_sf(k, n, p):
     return scipy.special.bdtrc(k, n, p)
 
 
+@functools.cache
 def population_size_and_evidence_margin(
     signal_strength, cross_limit, acceptable_fnr, *, center
 ) -> Tuple[int, float]:
@@ -68,10 +72,12 @@ def population_size_and_evidence_margin(
     return res
 
 
+@functools.cache
 def cross_limit_for_coverage_error(
-    signal_strength, acceptable_fnr, max_coverage_error, *, center
+    signal_strength, acceptable_fnr, max_coverage_error, *, center, at_most
 ):
-    """The loosest cross limit whose band holds ``max_coverage_error``.
+    """The loosest cross limit up to ``at_most`` whose band holds
+    ``max_coverage_error``.
 
     A side of the cut keeps its class while the share of it belonging to the other
     stays under ``(1 - eps/signal)/2``, since a prefix on the wrong side reads
@@ -82,15 +88,19 @@ def cross_limit_for_coverage_error(
     interval from zero and the largest is the one worth finding.
     """
     wanted = signal_strength * (1 - 2 * max_coverage_error)
-    if wanted <= 0:
-        return 1.0
+
+    def holds(limit):
+        _, eps = population_size_and_evidence_margin(
+            signal_strength, limit, acceptable_fnr, center=center
+        )
+        return eps >= wanted
+
+    if wanted <= 0 or holds(at_most):
+        return at_most
     low, high = -30.0, 0.0
     for _ in range(24):
         mid = (low + high) / 2
-        _, eps = population_size_and_evidence_margin(
-            signal_strength, 10**mid, acceptable_fnr, center=center
-        )
-        low, high = (mid, high) if eps >= wanted else (low, mid)
+        low, high = (mid, high) if holds(10**mid) else (low, mid)
     # A band this wide leaves the class it is meant to admit inside it, so no
     # limit buys one: the undecided rate has to give first.
     assert low > -30, (
@@ -130,6 +140,15 @@ def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
             yield k_low, k_high, eps
 
 
+#: In a state whose read is undecided at least a third of the time, the most its
+#: rarer decided side may be read.
+MINORITY_READ_LIMIT = 0.01
+
+#: The most often a state may read on its rarer decided side, as a multiple of how
+#: often it reads undecided.
+MINORITY_UNDECIDED_RATIO = 4e-3
+
+
 def evidence_margin_for_population_size(
     signal_strength, cross_limit, acceptable_fnr, N, *, center
 ) -> Optional[Tuple[int, float]]:
@@ -149,9 +168,88 @@ def evidence_margin_for_population_size(
             binom_cdf(k_high - 1, N, center + side) - binom_cdf(k_low, N, center + side)
             for side in (signal_strength, -signal_strength)
         )
-        if cross <= cross_limit and fnr <= acceptable_fnr:
+        if (
+            cross <= cross_limit
+            and fnr <= acceptable_fnr
+            and reads_minority_bounded(
+                k_low,
+                k_high,
+                N,
+                accept_rate=center + signal_strength,
+                reject_rate=center - signal_strength,
+                limit=cross_limit,
+                minority_limit=MINORITY_READ_LIMIT,
+                ratio=MINORITY_UNDECIDED_RATIO,
+            )
+        ):
             return N, eps
     return None
+
+
+@functools.lru_cache(maxsize=4)
+def _rate_tables(accept_rate, reject_rate, size):
+    """P(Y = k), P(Z <= k) and P(Z >= k) as three arrays, each indexed `[n, k]` for
+    `n, k < size`, where Y ~ Bin(n, accept_rate) and Z ~ Bin(n, reject_rate)."""
+    n, count = np.tril_indices(size)
+    y_pmf = np.zeros((size, size))
+    y_pmf[n, count] = scipy.stats.binom.pmf(count, n, accept_rate)
+    z_pmf = np.zeros((size, size))
+    z_pmf[n, count] = scipy.stats.binom.pmf(count, n, reject_rate)
+    z_le = np.cumsum(z_pmf, axis=1)
+    z_ge = np.cumsum(z_pmf[:, ::-1], axis=1)[:, ::-1]
+    return y_pmf, z_le, z_ge
+
+
+@functools.lru_cache(maxsize=8)
+def _vote_parts(N, accept_rate, reject_rate):
+    """P(Y = k), P(Z <= k) and P(Z >= k) as three arrays, each indexed `[a, k]` for a
+    state from which `a` of the `N` suffixes lead into the language, where Y and Z
+    count the accept votes among those `a` suffixes and among the other `N - a`."""
+    # Sizes round up to a power of two so the searches over N share tables.
+    y_pmf, z_le, z_ge = _rate_tables(accept_rate, reject_rate, 1 << N.bit_length())
+    # Gathers from strided views are several times slower than from copies.
+    return tuple(
+        np.ascontiguousarray(part)
+        for part in (
+            y_pmf[: N + 1, : N + 1],
+            z_le[N::-1, : N + 1],
+            z_ge[N::-1, : N + 1],
+        )
+    )
+
+
+def reads_minority_bounded(
+    k_low, k_high, N, *, accept_rate, reject_rate, limit, minority_limit, ratio
+):
+    """Whether, for every `a`, the read of a state from which `a` of the `N` suffixes
+    lead into the language (each voting accept at `accept_rate`, the rest at
+    `reject_rate`) is accept at most `limit` of the time, or reject at most `limit`,
+    or undecided at least a third with accept or reject at most `minority_limit`; and
+    is on its rarer decided side at most `limit`, or at most `ratio` times as often as
+    it is undecided.
+    `BandPasses` in proofs/RLStar/LowLevelClaims/FamilyRead.lean.
+
+    `evidence_margin_for_population_size`'s other two criteria imply neither half:
+    a mean just inside the band at a small count can sit at or below `k_low` more
+    than 2/3 of the time while its far tail is a hair above the band edge's, and a
+    band can keep both edges' tails under the cross limit while the state at its
+    centre reads each way a sizeable fraction of its undecided rate.
+    """
+    y_pmf, z_le, z_ge = _vote_parts(N, accept_rate, reject_rate)
+    count = np.arange(N + 1)
+    reject = (y_pmf[:, : k_low + 1] * z_le[:, k_low::-1]).sum(axis=1)
+    accept = (y_pmf * z_ge[:, np.maximum(k_high - count, 0)]).sum(axis=1)
+    undecided = 1 - accept - reject
+    leans = (accept <= minority_limit) | (reject <= minority_limit)
+    trichotomous = (
+        (accept <= limit) | (reject <= limit) | (leans & (undecided >= 1 / 3))
+    )
+    # Below `limit` the ratio is not asked: `undecided` is computed by subtraction, so
+    # it reads 0 at a state whose true undecided rate is under float epsilon, while
+    # its rarer side is tinier still.
+    minority = np.minimum(accept, reject)
+    bounded = (minority <= limit) | (minority <= ratio * undecided)
+    return bool(np.all(trichotomous & bounded))
 
 
 def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_level):
@@ -174,7 +272,7 @@ DENOISE_FAILURE_PROB = 1e-5
 def _decides(num_samples, signal_strength, boundary, failure_prob):
     """Whether a state either side of the boundary reaches significance at this size.
 
-    ``isf``/``ppf`` invert the tails ``binomial_side_of_boundary`` tests, so
+    ``isf``/``ppf`` invert the tails ``rate_side`` tests, so
     ``high`` and ``low`` are exactly the counts it calls significant.  An off the
     end of the range gives a zero-probability tail, which decides nothing.
     """
@@ -219,63 +317,34 @@ def denoise_sample_size(
     return lo
 
 
-def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_prob=1e-5):
-    """Binomial test of num_accepts/num_samples against accept rate ``boundary``.
+def seq_rate(p0, p1, level, trials, hits) -> bool:
+    """``seqRate`` of RLStar/Code/SeqTest.lean, proved sound by ``SeqRateSound``: whether the
+    likelihood ratio of rate ``p1`` against ``p0`` reaches ``1 / level``,
 
-    Returns True if the count is significantly above ``boundary``, False if
-    significantly below, and None if neither tail clears ``failure_prob`` (including
-    small ``num_samples``).
-    """
-    above = 1 - binom_cdf(num_accepts - 1, num_samples, boundary)
-    if above < failure_prob:
+        (p1 / p0)^hits ((1 - p1) / (1 - p0))^(trials - hits) >= 1 / level.
+
+    Under rate ``p0``, or any rate on the far side of it from ``p1``, the chance it ever fires
+    over a stream of looks is at most ``level``."""
+    misses = trials - hits
+    if not 0 < p0 < 1 or (hits and p1 <= 0) or (misses and p1 >= 1):
+        return False
+    llr = 0.0
+    if hits:
+        llr += hits * math.log(p1 / p0)
+    if misses:
+        llr += misses * math.log((1 - p1) / (1 - p0))
+    return llr >= math.log(1 / level)
+
+
+def rate_side(theta, level, min_samples, trials, hits) -> Optional[bool]:
+    """``rateSide θ a n₀ n h`` of RLStar/Code/RateTest.lean, proved sound by
+    ``RateTestSound``: ``True`` where ``P(Bin(trials, θ) ≥ hits) < level``, ``False``
+    where ``P(Bin(trials, θ) ≤ hits) < level``, and ``None`` otherwise or before
+    ``min_samples`` trials."""
+    if trials < min_samples:
+        return None
+    if binom_sf(hits - 1, trials, theta) < level:
         return True
-    below = binom_cdf(num_accepts, num_samples, boundary)
-    if below < failure_prob:
+    if binom_cdf(hits, trials, theta) < level:
         return False
     return None
-
-
-def _largest_rejecting_count(n, null, level) -> Optional[int]:
-    """Largest count a test at ``level`` under ``null`` still calls low."""
-    if binom_cdf(0, n, null) > level:
-        return None
-    low, high = 0, n
-    while low < high:
-        mid = (low + high + 1) // 2
-        if binom_cdf(mid, n, null) <= level:
-            low = mid
-        else:
-            high = mid - 1
-    return low
-
-
-def _low_tail_power(n, null, alternative, level) -> float:
-    k = _largest_rejecting_count(n, null, level)
-    return 0.0 if k is None else binom_cdf(k, n, alternative)
-
-
-def low_tail_detection_size(null, alternative, level, miss_rate) -> int:
-    """Fewest samples at which a rate of ``alternative`` is called low at
-    ``level`` under ``null``, all but ``miss_rate`` of the time.
-    """
-    assert 0 <= alternative < null <= 1, (alternative, null)
-    # Both have to leave something for a finite size to reach: at a level of zero
-    # the tails clear it only once they underflow, and at a zero miss rate no
-    # size holds, so the search below doubles until the counts overflow.
-    assert 0 < level < 1, level
-    assert 0 < miss_rate < 1, miss_rate
-    low, high = 1, None
-    while high is None or low < high:
-        n = low * 2 if high is None else (low + high) // 2
-        if _low_tail_power(n, null, alternative, level) >= 1 - miss_rate:
-            high = n
-        else:
-            low = n + 1
-    # The power moves in steps as the rejection count crosses the lattice, so
-    # the bisection can stop above the smallest size that holds.
-    while (
-        high > 1
-        and _low_tail_power(high - 1, null, alternative, level) >= 1 - miss_rate
-    ):
-        high -= 1
-    return high

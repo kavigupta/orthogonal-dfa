@@ -1,20 +1,13 @@
 """
 Counterexample-driven synthesis: the E-L* learner loop.
 
-Each round builds a DFA from the current prefix pool and splits it in place on
-DFA-vs-tree disagreements (the counterexample pass).
-
-When the estimate still falls short, the representative pool is rebuilt to add
-    - boundary strings the family could not place
-    - per-state balanced sample
-
-These drive the suffix-family FNR gate to re-cluster and resolve them
-in the next round.
+Each round searches a suffix family and runs the counterexample search against it; what
+the round harvests joins the next round's pool.
 """
 
-import math
 import time
 import warnings
+from collections import Counter
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -23,14 +16,23 @@ from automata.fa.dfa import DFA
 
 from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
+from .counterexample_config import counterexample_search_config
+from .counterexample_probe import plain_bisect
+from .counterexample_search import CounterexampleSearch
+from .dfa_utils import held_out_phi, labelled_sample
+from .fallbacks.members import MemberFallback
+from .fallbacks.score_patience import ScorePatience, Selection
+from .fallbacks.skipping import skipping_search
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
-from .midfix_tree import MidfixTree
+from .midfix_tree import MidfixTree, oracle_decider
+from .preconditions import start_length
 from .prefix_populations import PoolState
-from .prefix_sources import BoundarySource, aim_at, state_source
-from .progress import track
-from .tracker import SynthesisTracker
-from .transition_resolver import TransitionResolver
+from .prefix_sources import HarvestSource, Replay, UniformSource, harvest_reader
+from .probe_batching import warmed_draws
+from .progress import counter
+from .suffix_family import SuffixFamily
+from .tracker import RoundSummary, SynthesisTracker
 
 
 @dataclass
@@ -41,9 +43,9 @@ class RoundClassifier:
 
     The thresholds are the prefix/suffix tracker's own, so the cut here is the one
     synthesis made. ``calibrated[i]`` marks prefixes of the sampler length -- the
-    population the family was clustered on. Off-length prefixes (boundary strings,
-    per-state samples) reach the family off its calibration, so a consumer checking
-    the recorded cut should restrict to the calibrated ones."""
+    population the family was clustered on. Off-length prefixes (boundary strings)
+    reach the family off its calibration, so a consumer checking the recorded cut
+    should restrict to the calibrated ones."""
 
     prefixes: List[bytes]
     votes: np.ndarray
@@ -77,90 +79,39 @@ def _round_classifier(pst, vs) -> RoundClassifier:
     )
 
 
-#: Probes drawn per counterexample pass.
-COUNTEREXAMPLE_PROBES = 4000
-
 #: P(some round certifies a DFA whose error is over certified_error), where the
 #: signal is stated exactly.
 CERTIFICATE_ALPHA = 1e-3
 
 
-def _default_patience(acc_threshold: float) -> int:
-    """Consecutive clean probes that end a counterexample pass: seeing this many
-    in a row is a ``<= 0.05`` event if the disagreement rate were still at the
-    tolerated ``1 - acc_threshold``.
-
-    A perfect-accuracy target tolerates no disagreement, so no finite clean run
-    rules it out -- never early-stop, run the whole probe budget."""
-    if acc_threshold >= 1:
-        return COUNTEREXAMPLE_PROBES
-    return math.ceil(math.log(0.05) / math.log(acc_threshold))
-
-
-def _accumulate_indecisive(resolver, state, wanted) -> int:
-    """Take up to ``wanted`` of the round's boundary strings ``state`` does not
+def _accumulate_harvest(strings, read, state, wanted) -> int:
+    """Take up to ``wanted`` of the harvested ``strings`` ``state`` does not
     already hold, returning how many.
 
     Sorted then shuffled with a fixed rng, so the cap picks the same unbiased
     sample every run.
     """
-    taken = sorted(resolver.indecisive - state.seen)
+    taken = sorted(set(strings) - state.seen)
     np.random.default_rng(0).shuffle(taken)
     for string in taken[:wanted]:
-        state.seen.add(string)
-        state.harvest().append(string)
+        state.take(string, read)
     return min(wanted, len(taken))
 
 
-def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
-    """``("state", leaf) -> members``, ``per_state`` of them resting at each
-    state that has a source."""
-    state.retire("state")
-    for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
-        aim = aim_at(pst, dfa, leaf)
-        if aim is None:
-            # Out of reach rather than short: too few strings of the sampler's
-            # length arrive here to draw from, so no round is going to fill it
-            # and this one is not waiting on a draw.
-            continue
-        source = state_source(resolver, leaf, aim, wanted=per_state)
-        if source is None:
-            continue
-        state.hold(("state", leaf), source, per_state)
-
-
-def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
-    """Probe for up to ``wanted`` more boundary strings, keeping what the yield
-    test turned up even when the source fails it.
-
-    A round with its fill already still leaves the population a source, unproved:
-    otherwise the only population the counterexample pass fills for free is the
-    one a later round has nothing to draw with.
-    """
-    source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=state.seen)
-    if wanted > 0:
-        # Not `has_sufficient_yield`: same probes, but the verdict is not kept.
-        drawing = source.worth_drawing()
-        found = source.found()
-        if drawing:
-            found += [source.draw() for _ in range(wanted - len(found))]
-        for string in found[:wanted]:
-            state.seen.add(string)
-            state.harvest().append(string)
-    if state.harvesting is not None:
-        state.sources[state.harvesting] = source
-
-
-def _aimed_at(pst, resolver, dfa) -> set:
-    """The leaves the round aims at, which are the ones its aims settle strings
-    into -- `state_source` proves a leaf's yield by aiming at it, so a leaf
-    whose yield comes out too low has still been filled by the proving.
-    """
-    return {
-        leaf
-        for leaf in range(resolver.num_states)
-        if aim_at(pst, dfa, leaf) is not None
-    }
+def _boundary_source(pst, state, *, acc_threshold) -> None:
+    """Hands the round's boundary population a source that draws more the way
+    its strings were found, proved only when a family search first asks it for
+    more."""
+    if state.harvesting is None:
+        return
+    state.sources[state.harvesting] = HarvestSource(
+        Counter(state.harvest_reads),
+        pst.rng,
+        known=state.seen,
+        acc_threshold=acc_threshold,
+        # Its search walked deeper because its reads repeated, so they may run out.
+        retirable=any(read.round.trie.prefixes for read in state.harvest_reads),
+    )
 
 
 def _publish_pool(pst, state) -> int:
@@ -178,7 +129,7 @@ def _publish_pool(pst, state) -> int:
         if prefixes:
             pst.table.add_prefixes(sorted(set(prefixes)), population=label)
     state.published = set(state.held)
-    state.harvesting = None
+    state.close_harvest()
     return int(pst.table.representative.sum())
 
 
@@ -191,34 +142,16 @@ CERTIFICATE_PATIENCE = 5
 
 
 class _StallDetector:
-    """Stops a run that has started repeating itself. We consider a round stalled if
-
-    1. There are no new states
-    2. (Internal) accuracy has not increased
-    3. No distinguisher the tree can propose still splits a state
-
-    Deliberately fairly restrictive, so we can have a low Patience before
-    exiting the loop.
-    """
+    """Stops a run whose rounds have stopped handing the next one new strings or a
+    tighter family."""
 
     def __init__(self, patience: int):
         self._patience = patience
-        self._states = 0
         self._stalled = 0
 
-    def stalled(self, *, states: int, improved: bool, settled) -> bool:
-        progressed = states > self._states or improved or not settled()
+    def stalled(self, *, progressed: bool) -> bool:
         self._stalled = 0 if progressed else self._stalled + 1
-        self._states = states
         return self._stalled >= self._patience
-
-
-#: Representative strings drawn per DFA state.  Every round draws this many
-#: afresh through the state's source and replaces the last round's, so the
-#: population does not accumulate across rounds.  Over
-#: `MEMBERS_TO_RULE_OUT_A_SPLIT` with room to spare, since the draws the family
-#: cannot place are not among the ones that rule a split out.
-PER_STATE = 50
 
 
 class UncertifiedResult(UserWarning):
@@ -227,13 +160,15 @@ class UncertifiedResult(UserWarning):
 
 @dataclass
 class BestRound:
-    """The certified round's hypothesis, or else the most consistent one. Rounds
+    """The certified round's hypothesis, or else the best by ``score`` where rounds
+    are scored and the most consistent one where they are not. Rounds
     are not monotone -- rebuilding the representative pool re-clusters, so a
     later family can classify worse -- so the run keeps this rather than the last
     round's. The boundary comes with it because denoising reads the labels
     against it."""
 
     consistency: float = -1.0
+    score: Optional[float] = None
     dfa: Optional[DFA] = None
     tree: Optional[MidfixTree] = None
     boundary: Optional[float] = None
@@ -241,28 +176,46 @@ class BestRound:
     #: The denoised DFA the certificate passed, if one did.
     certified: Optional[DFA] = None
 
-    def consider(self, *, consistency, dfa, tree, boundary, round_index, certified):
-        if (certified is not None, consistency) > (
-            self.certified is not None,
-            self.consistency,
-        ):
-            self.consistency = consistency
+    def consider(
+        self, *, consistency, score, dfa, tree, boundary, round_index, certified
+    ):
+        rank = consistency if score is None else score
+        held = self.consistency if self.score is None else self.score
+        if (certified is not None, rank) > (self.certified is not None, held):
+            self.consistency, self.score = consistency, score
             self.dfa, self.tree = dfa, tree
             self.boundary, self.round_index = boundary, round_index
             self.certified = certified
 
 
 def _certified(pst, dfa, *, index, tracker):
-    """denoise_accept_labels(dfa) if the certificate passes it, else None."""
+    """denoise_accept_labels(dfa) if the certificate passes it, else None; and the
+    state it blames."""
     output = denoise_accept_labels(pst, dfa)
     # Spread over the rounds, whichever of them reach the certificate.
     verdict = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
     tracker.on_certificate_decided(verdict.certified, index)
     if verdict.certified:
         print(f"[round {index}] certified; stopping synthesis")
-        return output
+        return output, None
     print(f"[round {index}] at target, not certified; blames {verdict.blamed}")
-    return None
+    return None, verdict.blamed
+
+
+def _next_harvest(pst, search, ending, blamed):
+    """The strings the next family search is shown, and what draws more of them:
+    a success the certificate refused shows the blamed state's undecided reads."""
+    draw = UniformSource(pst).draw
+    if blamed is None or ending.harvest:
+        return ending.harvest, Replay(search, harvest_reader(ending, search), draw)
+    leaf = search.hypothesis.tree.path_of(blamed)
+
+    def at_leaf(by_edge):
+        return [z for c in range(pst.alphabet_size) for z in by_edge.get((leaf, c), [])]
+
+    return at_leaf(search.counts.edge_harvest), Replay(
+        search, lambda charged: at_leaf(charged.undecided_by_edge), draw
+    )
 
 
 def _uncertified_too_long(index, uncertified_since) -> bool:
@@ -276,13 +229,159 @@ def _uncertified_too_long(index, uncertified_since) -> bool:
     return True
 
 
+def _counterexample_search(pst, vs, *, acc_threshold, selection):
+    """The round's search and how it ended."""
+    family = SuffixFamily(pst, vs)
+    fallback, table = None, pst.table
+    if pst.config.counterexample_member_fallback:
+        fallback = MemberFallback(
+            [p for p, keep in zip(table.prefixes, table.representative) if keep]
+        )
+    score_patience = ScorePatience.from_config(
+        pst.config,
+        lambda search: held_out_phi(_hypothesis_dfa(pst, search), *selection),
+    )
+    search = CounterexampleSearch(
+        counterexample_search_config(
+            acc_threshold,
+            pst.config.acceptable_fnr,
+        ),
+        lambda z: family.is_accept(z, b""),
+        MidfixTree([pst.table.suffix(i) for i in vs]),
+        max_k=start_length(pst.sampler.length),
+        member_fallback=fallback,
+        bisect=(
+            skipping_search
+            if pst.config.counterexample_skip_undecided
+            else plain_bisect
+        ),
+        score_patience=score_patience,
+    )
+    with counter(search.config.max_probes, "Probing") as pbar:
+
+        def draw():
+            pbar.update(1)
+            return pst.sampler.sample(pst.rng, pst.alphabet_size)
+
+        ending = search.run(warmed_draws(search, draw, family.read_many))
+    if score_patience is not None:
+        score_patience.finish(search)
+    if fallback is not None:
+        if score_patience is None:
+            fallback.close(search.hypothesis, pst.alphabet_size)
+        else:
+            score_patience.guarded(
+                search,
+                lambda: fallback.close(search.hypothesis, pst.alphabet_size),
+            )
+    return search, ending
+
+
+def _best_search(pst, vs, *, acc_threshold, index, selection, tracker):
+    """The round's search, how it ended, and its DFA: of ``counterexample_restarts``
+    searches on independent probe streams, the one with the best phi on
+    ``selection.pick``."""
+    restarts = pst.config.counterexample_restarts
+    if restarts == 1:
+        search, ending = _counterexample_search(
+            pst,
+            vs,
+            acc_threshold=acc_threshold,
+            selection=None if selection is None else selection.search,
+        )
+        dfa = _hypothesis_dfa(pst, search)
+        pick_score = None if selection is None else held_out_phi(dfa, *selection.pick)
+        tracker.on_restart_ended(0, search, ending, dfa, pick_score, index)
+        return search, ending, dfa
+    runs = []
+    for i, rng in enumerate(pst.rng.spawn(restarts)):
+        pst.rng = rng
+        search, ending = _counterexample_search(
+            pst, vs, acc_threshold=acc_threshold, selection=selection.search
+        )
+        dfa = _hypothesis_dfa(pst, search)
+        phi = held_out_phi(dfa, *selection.pick)
+        print(f"[round {index}] restart {i}: {ending.kind}, held-out phi {phi:.3f}")
+        tracker.on_restart_ended(i, search, ending, dfa, phi, index)
+        runs.append((phi, rng, search, ending, dfa))
+    # The run goes on from the kept search's stream, as if it were the only one.
+    _, pst.rng, search, ending, dfa = max(runs, key=lambda run: run[0])
+    return search, ending, dfa
+
+
+def _round_score(pst, dfa, selection, index) -> Optional[float]:
+    """What ``BestRound`` ranks an uncertified round on in place of consistency."""
+    if not pst.config.rank_rounds_by_held_out:
+        return None
+    score = held_out_phi(dfa, *selection.pick)
+    print(f"[round {index}] held-out phi: {score:.4f}")
+    return score
+
+
+#: Strings in each half of the held-out sample.  At 2,000 the DFA picked on it
+#: scored 0.06 above its phi on fresh strings.
+SELECTION_HALF = 8000
+
+
+def _selection_sample(pst):
+    """The held-out samples, or ``None`` where nothing is scored."""
+    config = pst.config
+    if (
+        config.counterexample_restarts == 1
+        and not config.rank_rounds_by_held_out
+        and config.counterexample_score_patience is None
+    ):
+        return None
+    # A child stream, so scoring leaves the run's own draws as they were.
+    rng = pst.rng.spawn(1)[0]
+    halves = [
+        labelled_sample(pst.oracle, pst.sampler, pst.alphabet_size, SELECTION_HALF, rng)
+        for _ in range(4)
+    ]
+    return Selection(search=tuple(halves[:2]), pick=tuple(halves[2:]))
+
+
+def _hypothesis_dfa(pst, search):
+    hypothesis = search.hypothesis
+    boundary = pst.decision_boundary
+    decide, _ = oracle_decider(
+        pst.oracle, hypothesis.tree.base_family, boundary, boundary
+    )
+    initial = hypothesis.tree.classify(b"", decide)
+    leaves = hypothesis.to_dfa(pst.alphabet_size, 0 if initial is None else initial)
+    if not pst.config.counterexample_prepend_trie:
+        return leaves
+    return search.trie.prepend(
+        leaves,
+        lambda v: hypothesis.tree.classify(v, decide),
+        lambda u: decide(u, hypothesis.tree.root[0]),
+    )
+
+
+def _round_summary(pst, vs, search, ending, seconds) -> RoundSummary:
+    """``seconds`` is the round's ``(sampling, probing)`` time."""
+    tree = search.hypothesis.tree
+    assert tree.num_states >= 2
+    return RoundSummary(
+        prefixes=pst.num_prefixes,
+        representative_prefixes=int(pst.table.representative.sum()),
+        suffixes=pst.table.num_suffixes,
+        family_size=len(vs),
+        probes=search.probes,
+        ending=ending.kind,
+        hypothesis_states=tree.num_states,
+        hypothesis_edges=len(search.hypothesis.edges),
+        sampling_seconds=seconds[0],
+        probing_seconds=seconds[1],
+    )
+
+
 def counterexample_driven_synthesis(
     pst,
     *,
     acc_threshold: float,
     tracker: SynthesisTracker,
     max_rounds: Optional[int] = None,
-    per_state: int = PER_STATE,
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
 ) -> BestRound:
@@ -290,42 +389,55 @@ def counterexample_driven_synthesis(
     the first refusal run out of patience, or max_rounds of them have run.
     Only a caller driving the loop itself can set that cap; `learn_dfa` does not
     forward one."""
-    # The cap is read at the foot of the body, so a round always runs.
+    # The cap is read once a round has run, so a round always runs.
     assert max_rounds is None or max_rounds >= 1, max_rounds
-    patience = _default_patience(acc_threshold)
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' boundary strings keep the family honest about the whole
     # chain (they turn decisive once their state is resolved).
-    uniform = [
-        p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
-    ]
-    state = PoolState(uniform)
+    state = PoolState(
+        [p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep],
+        pst.rng.bytes(16),
+    )
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
+    selection = _selection_sample(pst)
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
     uncertified_since = None
     index = 0
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
+        vs, boundary, fnr = sample_suffix_family(
+            pst, pst.table.intern_suffix(b""), state
+        )
         pst.decision_boundary = boundary
-        tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
+        tracker.on_family_resolved(
+            [pst.table.suffix(i) for i in vs], boundary, fnr, index
+        )
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        resolver = TransitionResolver(pst, vs)
-        resolver.close_edges()
-        resolver.counterexample_pass(
-            max_probes=COUNTEREXAMPLE_PROBES, patience=patience
+        search, ending, dfa = _best_search(
+            pst,
+            vs,
+            acc_threshold=acc_threshold,
+            index=index,
+            selection=selection,
+            tracker=tracker,
         )
-        dfa, dt = resolver.to_dfa_and_tree()
+        summary = _round_summary(
+            pst, vs, search, ending, (sampled - started, time.monotonic() - sampled)
+        )
+        tracker.on_search_ended(ending, index)
+        tracker.on_round_summarized(summary, index)
+        dt = search.hypothesis.tree
         print(
-            f"[round {index}] resolved {dt.num_states} states over a family of "
-            f"{len(vs)} suffixes ({sampled - started:.1f}s sampling, "
-            f"{time.monotonic() - sampled:.1f}s resolving)"
+            f"[round {index}] {summary.ending} after {summary.probes} probes: "
+            f"{summary.hypothesis_states} states, {summary.hypothesis_edges} edges "
+            f"learned, over a family of {summary.family_size} suffixes "
+            f"({summary.sampling_seconds:.1f}s sampling, "
+            f"{summary.probing_seconds:.1f}s probing)"
         )
-        assert dt.num_states >= 2
         tracker.on_initial_dfa_found(dfa, dt, index)
         print(dfa)
         true_acc = estimate_agreement_rate(
@@ -340,14 +452,15 @@ def counterexample_driven_synthesis(
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
         # Only a round that would otherwise return is worth the certificate's reads.
-        output = None
+        output, blamed = None, None
         if true_acc >= acc_threshold:
-            output = _certified(pst, dfa, index=index, tracker=tracker)
+            output, blamed = _certified(pst, dfa, index=index, tracker=tracker)
             uncertified_since = (
                 index if uncertified_since is None else uncertified_since
             )
         best.consider(
             consistency=true_acc,
+            score=_round_score(pst, dfa, selection, index),
             dfa=dfa,
             tree=dt,
             boundary=pst.decision_boundary,
@@ -358,38 +471,35 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
+        # Everything below readies the next round.
+        if max_rounds is not None and index + 1 >= max_rounds:
+            print(f"[round {index}] ran the {max_rounds} rounds asked for")
+            return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-        taken = _accumulate_indecisive(resolver, state, target)
-        _per_state_members(pst, resolver, dfa, state, per_state)
-        # Asked after the aims, which are what fill the leaves it reads.  A
-        # leaf nothing aims at is not one the round waits on.  Rounds after a
-        # refusal have their own patience, so they are not weighed for a stall.
-        if uncertified_since is None and stall.stalled(
-            states=dt.num_states,
-            improved=best.round_index == index,
-            settled=lambda: resolver.splits.nothing_left_to_split(
-                _aimed_at(pst, resolver, dfa)
-            ),
-        ):
+        strings, provenance = _next_harvest(pst, search, ending, blamed)
+        taken = _accumulate_harvest(strings, provenance, state, target)
+        halved = (
+            taken == 0
+            and pst.fnr_limit / 2 >= pst.config.fnr_floor * pst.config.fnr_limit
+        )
+        if halved:
+            pst.fnr_limit /= 2
+            print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
+        # Rounds after a refusal have their own patience, so they are not
+        # weighed for a stall.
+        if uncertified_since is None and stall.stalled(progressed=taken > 0 or halved):
             print(
-                f"[round {index}] no progress ({dt.num_states} states) in "
-                f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
-                "stopping synthesis"
+                f"[round {index}] no new strings harvested in {STALL_PATIENCE} "
+                "rounds; stopping synthesis"
             )
             return best
-        # Last, so what the draws and the check strand lands in the pool the
-        # round they were found rather than the round after.
-        taken += _accumulate_indecisive(resolver, state, target - taken)
-        _top_up_boundary(pst, resolver, dfa, state, target - taken)
+        _boundary_source(pst, state, acc_threshold=acc_threshold)
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "
             f"{len(state.seen)} boundary strings harvested so far"
         )
         index += 1
-        if max_rounds is not None and index >= max_rounds:
-            print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
-            return best
 
 
 def do_counterexample_driven_synthesis(
@@ -409,4 +519,5 @@ def do_counterexample_driven_synthesis(
         )
         dfa = denoise_accept_labels(pst, best.dfa)
     tracker.on_corrected_dfa_found(dfa, best.round_index)
-    return dfa
+    # The spelled-out prefixes' states are mostly copies of the leaves they lead to.
+    return dfa.minify()

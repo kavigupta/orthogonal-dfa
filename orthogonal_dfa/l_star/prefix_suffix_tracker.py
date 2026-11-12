@@ -8,7 +8,7 @@ import scipy.stats
 from .mask_table import UNIFORM, MaskTable
 from .progress import counter
 from .sampler import Sampler
-from .statistics import binomial_side_of_boundary
+from .statistics import rate_side
 from .structures import Oracle
 
 #: Below this a signal is not worth sizing a population for.
@@ -35,6 +35,9 @@ class SearchConfig:
     #: A rate every prefix population has to meet on its own, not an average
     #: across them.
     fnr_limit: float = 0.10
+    #: The tightest `fnr_limit` gets, as a share of where it starts: it halves after
+    #: a round that harvests nothing, down to this floor.
+    fnr_floor: float = 0.25
     #: The first two bound the split's crispness, and say nothing about whether the
     #: split is the accept-preserving one.  `acceptable_fnr` is the chance a prefix
     #: is called indecisive, all indecision counting against it; `cross_limit`
@@ -60,9 +63,34 @@ class SearchConfig:
     #: such a family exists, which is the class-preserving precondition; a caller
     #: learning a target that fails it turns this off.
     require_accept_preserving: bool = True
+    #: Full families in a row whose FNR fails to drop by ``fnr_plateau_tol`` before
+    #: the family search takes the best one seen; ``None`` waits for ``fnr_limit``.
+    fnr_plateau_patience: Optional[int] = None
+    fnr_plateau_tol: float = 0.01
     #: Error against the noiseless labels the returned DFA is certified within,
     #: where min_signal_strength is the oracle's signal exactly.
     certified_error: float = 0.05
+    #: Searches per round on independent probe streams, keeping the one whose DFA
+    #: has the best held-out phi.
+    counterexample_restarts: int = 1
+    #: Rank uncertified rounds by held-out phi rather than consistency.
+    rank_rounds_by_held_out: bool = False
+    #: When set, a round's search returns its best hypothesis by held-out phi, and
+    #: stops once this many probes pass without a better one.
+    counterexample_score_patience: Optional[int] = None
+    #: Off, a round's search ends only on success or on its score stalling, and
+    #: harvests every distinct string it read undecided; needs
+    #: ``counterexample_score_patience``.
+    counterexample_harvest_tests: bool = True
+    #: Read an edge a probe leaves undecided on a representative prefix of its
+    #: source leaf instead.
+    counterexample_member_fallback: bool = False
+    #: Step past an undecided midpoint in a probe's search to the decided position
+    #: nearest it.
+    counterexample_skip_undecided: bool = False
+    #: Off, the search still walks from its spelled-out starts, but the DFA leaves
+    #: them out: its start state is the leaf the empty prefix classifies to.
+    counterexample_prepend_trie: bool = True
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for
@@ -70,6 +98,7 @@ class SearchConfig:
         assert self.min_signal_strength > MIN_SIGNAL_STRENGTH, self.min_signal_strength
         # Past a half, a DFA no better than chance would be certified.
         assert 0 < self.certified_error < 1 / 2, self.certified_error
+        assert self.counterexample_restarts >= 1, self.counterexample_restarts
 
 
 def _draw_budget(count: int) -> int:
@@ -119,6 +148,9 @@ class PrefixSuffixTracker:
     evidence_margin: float = 0.0
     #: The suffix rows clustering picks families from.
     suffix_pool: List[int] = field(default_factory=list)
+    #: The configured limit, halved after each round that hands the next one no
+    #: new strings.
+    fnr_limit: float = field(init=False)
 
     @property
     def num_prefixes(self) -> int:
@@ -127,6 +159,14 @@ class PrefixSuffixTracker:
     @property
     def alphabet_size(self) -> int:
         return self.oracle.alphabet_size
+
+    def __post_init__(self):
+        self.fnr_limit = self.config.fnr_limit
+
+    @property
+    def acceptable_fnr(self) -> float:
+        # At the configured ratio to the limit, which a clean family must stay below.
+        return self.fnr_limit * self.config.acceptable_fnr / self.config.fnr_limit
 
     @property
     def accept_thresh(self) -> float:
@@ -189,7 +229,9 @@ class PrefixSuffixTracker:
         eta = 0.5 - self.config.min_signal_strength
         declared_rate = 2 * eta * (1 - eta)
         ref = self.table.column(reference)
-        candidates = np.flatnonzero(self.table.representative)
+        candidates = np.flatnonzero(self.table.representative)[
+            ~self.table.seed_scoring()
+        ]
         order = candidates[self.rng.permutation(len(candidates))]
         staircase = self._screening_staircase(len(order))
         alpha = self.config.screening_alpha / len(staircase)
@@ -208,9 +250,7 @@ class PrefixSuffixTracker:
             alive = [
                 row
                 for row, count in zip(alive, disagreements)
-                if not binomial_side_of_boundary(
-                    int(count), p, same_family_rate, failure_prob=alpha
-                )
+                if not rate_side(same_family_rate, alpha, 0, p, int(count))
             ]
         return alive
 

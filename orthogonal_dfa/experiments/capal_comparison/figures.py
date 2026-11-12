@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the CAPAL vs E-L* summary tables as LaTeX, and as images of it.
+"""Render the CAPAL vs E-L* summary tables as LaTeX fragments to `\\input` into a paper.
 
 Two tables, both read from `data/capal/*.json`:
 
@@ -7,11 +7,10 @@ Two tables, both read from `data/capal/*.json`:
    E-L* scored only over the targets its preconditions admit, plus how many
    targets that is.
 2. query cost -- what each learner spends on the targets *both* solve, so the
-   ratio is like for like. Rows with no such target are dropped: two numbers
+   comparison is like for like. Rows with no such target are dropped: two numbers
    from disjoint target sets do not make a comparison.
 
-Each table is written twice: a `\\tabular` fragment to `\\input` into a paper,
-and a PNG of it to look at.
+Plus a grid of which learner solves each target E-L* admits at each eta.
 
     python -m orthogonal_dfa.experiments.capal_comparison.figures
 """
@@ -20,25 +19,17 @@ from __future__ import annotations
 
 import collections
 import json
-import shutil
+import re
 import statistics
-import subprocess
-import tempfile
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
-from .core import LEARNER_CAPAL, LEARNER_ELSTAR, REPO_ROOT
-
-#: Accuracy at which a hypothesis counts as a success. E-L* synthesises to
-#: `learn.DEFAULT_ACC_THRESHOLD`, so holding either learner to exactness would
-#: be holding it to a bar neither aims at.
-SUCCESS_THRESHOLD = 0.98
+from .core import LEARNER_CAPAL, LEARNER_ELSTAR, REPO_ROOT, SUCCESS_THRESHOLD
 
 DATA_DIR = REPO_ROOT / "data" / "capal"
 OUT_DIR = REPO_ROOT / "figures" / "capal-comparison"
 
 EXPERIMENTS = ["capal_benchmarks", "our_benchmarks"]
-SOURCE_NAMES = {"capal_dataset": "CAPAL suite", "ours": "This repo"}
+SOURCE_NAMES = {"capal_dataset": "CAPAL suite", "ours": "Our benchmarks"}
 SOURCE_ORDER = ["capal_dataset", "ours"]
 
 
@@ -115,11 +106,12 @@ def success_rows(cells: Sequence[dict]) -> List[List[str]]:
     return rows
 
 
-def cost_rows(cells: Sequence[dict]) -> List[List[str]]:
+def cost_rows(cells: Sequence[dict]) -> List[Union[List[str], str]]:
     idx = _grouped(cells)
     targets, etas = _axes(cells)
-    rows = []
+    rows: List[Union[List[str], str]] = []
     for family in SOURCE_ORDER:
+        group = []
         for eta in etas:
             pairs = [
                 (
@@ -134,18 +126,43 @@ def cost_rows(cells: Sequence[dict]) -> List[List[str]]:
             capal_mq = statistics.mean(c["queries_total"] for c, _ in both)
             capal_eq = statistics.mean(c["equivalence_queries"] for c, _ in both)
             elstar_mq = statistics.mean(e["queries_total"] for _, e in both)
-            rows.append(
+            group.append(
                 [
-                    SOURCE_NAMES[family],
                     f"{eta:g}",
-                    str(len(both)),
                     _sci(capal_mq),
                     f"{capal_eq:.1f}",
                     _sci(elstar_mq),
-                    _sci(elstar_mq / capal_mq),
                 ]
             )
+        if not group:
+            continue
+        if rows:
+            rows.append(r"\midrule")
+        # \multirow needs \usepackage{multirow} in the including document.
+        source = f"\\multirow{{{len(group)}}}{{*}}{{{SOURCE_NAMES[family]}}}"
+        rows.append([source] + group[0])
+        rows += [[""] + row for row in group[1:]]
     return rows
+
+
+#: Upstream's own benchmark setting, (m, pool, alpha), which experiments 1, 2 and
+#: 4 also run at.
+UPSTREAM_CONFIG = (80, 10, 1e-3)
+
+
+def _config(cell: dict) -> tuple:
+    lc = cell["learner_config"]
+    return lc["max_same_samples"], lc["suffix_pool_len_max"], lc["alpha"]
+
+
+def capal_fails_at_default(sweep: Sequence[dict]) -> set:
+    """Our benchmarks on which CAPAL at UPSTREAM_CONFIG fails every seed at
+    eta = 0.30; experiments 3 and 4 ask whether anything rescues these."""
+    runs = collections.defaultdict(list)
+    for c in sweep:
+        if _config(c) == UPSTREAM_CONFIG and c["eta"] == 0.30:
+            runs[c["benchmark"]].append(c)
+    return {b for b, cs in runs.items() if not any(map(succeeded, cs))}
 
 
 def sweep_rows(_cells: Sequence[dict]) -> List[List[str]]:
@@ -155,21 +172,18 @@ def sweep_rows(_cells: Sequence[dict]) -> List[List[str]]:
     table says what was actually varied. Cells are successes out of the runs at
     that (config, eta), which is targets x seeds.
     """
-    cells = load_experiment("wall_sweep")
+    sweep = load_experiment("wall_sweep")
+    failing = capal_fails_at_default(sweep)
+    cells = [c for c in sweep if c["benchmark"] in failing]
     if not cells:
         return []
     etas = sorted({c["eta"] for c in cells})
     grid = collections.defaultdict(list)
     for c in cells:
-        lc = c["learner_config"]
-        grid[
-            (lc["max_same_samples"], lc["suffix_pool_len_max"], lc["alpha"], c["eta"])
-        ].append(c)
+        grid[(*_config(c), c["eta"])].append(c)
     rows = []
     for m, pool, alpha in sorted({(m, p, a) for m, p, a, _ in grid}):
-        # Bold marks upstream's own benchmark setting, which is also what
-        # experiments 1, 2 and 4 run at.
-        baseline = (m, pool, alpha) == (80, 10, 1e-3)
+        baseline = (m, pool, alpha) == UPSTREAM_CONFIG
 
         def mark(value: Any, bold: bool = baseline) -> str:
             return f"\\textbf{{{value}}}" if bold else str(value)
@@ -194,7 +208,8 @@ def budget_rows(_cells: Sequence[dict]) -> List[List[str]]:
     like-for-like; folding a stalled cell in would report CAPAL's score "at
     E-L*'s budget" for a run that never approached it.
     """
-    cells = load_experiment("matched_budget")
+    failing = capal_fails_at_default(load_experiment("wall_sweep"))
+    cells = [c for c in load_experiment("matched_budget") if c["benchmark"] in failing]
     if not cells:
         return []
     elstar = {
@@ -229,8 +244,11 @@ def budget_rows(_cells: Sequence[dict]) -> List[List[str]]:
     return rows
 
 
-def tabular(headers: Sequence[str], align: str, rows: Sequence[Sequence[str]]) -> str:
-    body = "\n".join(" & ".join(r) + r" \\" for r in rows)
+def tabular(
+    headers: Sequence[str], align: str, rows: Sequence[Union[Sequence[str], str]]
+) -> str:
+    """A row given as a string, such as a rule, goes in as it is."""
+    body = "\n".join(r if isinstance(r, str) else " & ".join(r) + r" \\" for r in rows)
     return "\n".join(
         [
             f"\\begin{{tabular}}{{{align}}}",
@@ -244,48 +262,108 @@ def tabular(headers: Sequence[str], align: str, rows: Sequence[Sequence[str]]) -
     )
 
 
-def render(fragment: str, png_path: Path) -> bool:
-    """Compile `fragment` standalone and write a PNG beside it.
+#: Readable names for this repo's targets; CAPAL's are named like "Simple01".
+OUR_LABELS = {
+    "parity_mod9_allowed_3_6": r"$\#_1(x) \bmod 9 \in \{3, 6\}$",
+    "regex_subseq_1010101": r"\texttt{.*1010101.*}",
+    "regex_two_1111": r"\texttt{.*1111.*1111.*}",
+    "regex_alt_1111_or_0000_11_3sym": r"\texttt{.*(1111|0000)11.*}, ternary",
+    "regex_alt_111_or_000_3sym": r"\texttt{.*(111|000).*}, ternary",
+    "regex_prefix_1111": r"\texttt{1111.*}",
+    "binary_divisible_by_5": r"binary $x \equiv 0 \pmod 5$",
+    "prefix_majority_5": r"majority of $x_{1..5}$ is 1",
+}
+DIFFICULTY_ORDER = ["Simple", "Normal", "Difficult"]
+GRID_PANELS = [
+    ("capal_benchmarks", "CAPAL suite"),
+    ("our_benchmarks", "our benchmarks"),
+]
 
-    Returns False when there is no LaTeX toolchain, so the fragments still get
-    written on a machine that cannot render them.
-    """
-    if not (shutil.which("pdflatex") and shutil.which("pdftoppm")):
-        return False
-    document = "\n".join(
-        [
-            r"\documentclass[border=6pt]{standalone}",
-            r"\usepackage{booktabs}",
-            r"\begin{document}",
-            fragment,
-            r"\end{document}",
-        ]
+# Each cell is a square split on its diagonal: CAPAL upper-left, E-L* lower-right.
+# Rows run downward from y = 0, so panels with different row counts align at the top.
+# A row is one cell high, but a column is wider than a cell so the eta labels fit, leaving gaps
+# between the cells of a row.
+GRID_COLUMN = "0.62cm"
+GRID_CELL = "0.42cm"
+# the paper's light blue and orange (frame-alignment-checks' bar colors)
+GRID_MACROS = r"""\definecolor{bgsolved}{HTML}{80CDFF}
+\definecolor{bgfailed}{HTML}{FFCA80}
+\def\bgcell#1#2#3#4{
+    \begin{scope}[shift={(#1 + 0.5, -#2 - 0.5)}, x=CELL, y=CELL]
+        \fill[bg#3] (-0.5, -0.5) rectangle (0.5, 0.5);
+        \fill[bg#4] (-0.5, -0.5) -- (0.5, -0.5) -- (0.5, 0.5) -- cycle;
+        \draw[white, line width=0.8pt] (-0.5, -0.5) rectangle (0.5, 0.5);
+    \end{scope}
+}
+\def\bgtarget#1#2{\node[anchor=east, font=\footnotesize, inner sep=2pt] at (0.5 - 0.5 * CELL / COLUMN, -#1 - 0.5) {#2};}
+\def\bgeta#1#2{\node[anchor=base, font=\footnotesize, inner sep=0pt] at (#1 + 0.5, 0.35) {#2};}
+\def\bgtitle#1#2{
+    \node[anchor=base east, font=\footnotesize, inner sep=2pt] at (0.5 - 0.5 * CELL / COLUMN, 0.35) {$\eta$};
+    \draw[black!50] (0.1, 1.45) -- (#1 - 0.1, 1.45);
+    \node[anchor=south, font=\footnotesize, inner sep=2pt] at (#1 / 2, 1.45) {#2};
+}""".replace(
+    "CELL", GRID_CELL
+).replace(
+    "COLUMN", GRID_COLUMN
+)
+
+GRID_LEGEND = r"""\begin{tikzpicture}[x=CELL, y=CELL, baseline=0pt, font=\footnotesize]
+    \draw[black!50] (0, -2) rectangle (2, 0) (0, -2) -- (2, 0);
+    \node[anchor=base, inner sep=0pt] at (1, 0.35) {CAPAL};
+    \node[anchor=center, inner sep=0pt] at (1, -2.5) {\ours{}};
+    \foreach \kind/\name/\row in {solved/solved/3, failed/not solved/4} {
+        \fill[bg\kind] (0, -\row - 1) rectangle +(1, 1);
+        \draw[white, line width=0.8pt] (0, -\row - 1) rectangle +(1, 1);
+        \node[anchor=west, inner sep=2pt] at (1, -\row - 0.5) {\name};
+    }
+\end{tikzpicture}""".replace(
+    "CELL", GRID_CELL
+)
+
+
+def target_label(name: str) -> str:
+    if name in OUR_LABELS:
+        return OUR_LABELS[name]
+    match = re.fullmatch(r"([A-Za-z]+)(\d+)", name)
+    assert match, name
+    return f"{match.group(1)} {int(match.group(2))}"
+
+
+def target_order(name: str) -> tuple:
+    kinds = [i for i, kind in enumerate(DIFFICULTY_ORDER) if name.startswith(kind)]
+    return (kinds[0] if kinds else 0, name)
+
+
+def grid_panel(cells: Sequence[dict], title: str) -> str:
+    """One suite's targets E-L* admits as rows, eta as columns."""
+    excluded = {c["benchmark"] for c in cells if not applicable(c)}
+    targets = sorted({c["benchmark"] for c in cells} - excluded, key=target_order)
+    etas = sorted({c["eta"] for c in cells})
+    idx = {(c["benchmark"], c["learner"], c["eta"]): c for c in cells}
+
+    def outcome(target: str, learner: str, eta: float) -> str:
+        return "solved" if succeeded(idx[(target, learner, eta)]) else "failed"
+
+    lines = [f"\\bgtitle{{{len(etas)}}}{{{title}}}"]
+    lines += [f"\\bgeta{{{col}}}{{{eta:g}}}" for col, eta in enumerate(etas)]
+    for row, target in enumerate(targets):
+        lines.append(f"\\bgtarget{{{row}}}{{{target_label(target)}}}")
+        for col, eta in enumerate(etas):
+            capal = outcome(target, LEARNER_CAPAL, eta)
+            elstar = outcome(target, LEARNER_ELSTAR, eta)
+            lines.append(f"\\bgcell{{{col}}}{{{row}}}{{{capal}}}{{{elstar}}}")
+    body = "\n".join("    " + line for line in lines)
+    return (
+        f"\\begin{{tikzpicture}}[x={GRID_COLUMN}, y={GRID_CELL}, baseline=0pt]\n"
+        + body
+        + "\n\\end{tikzpicture}"
     )
-    with tempfile.TemporaryDirectory() as tmp:
-        tex = Path(tmp) / "table.tex"
-        tex.write_text(document)
-        subprocess.run(
-            ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", tex.name],
-            cwd=tmp,
-            check=True,
-            capture_output=True,
-        )
-        subprocess.run(
-            [
-                "pdftoppm",
-                "-png",
-                "-r",
-                "300",
-                "-singlefile",
-                "table.pdf",
-                png_path.stem,
-            ],
-            cwd=tmp,
-            check=True,
-            capture_output=True,
-        )
-        shutil.move(str(Path(tmp) / f"{png_path.stem}.png"), png_path)
-    return True
+
+
+def grid_fragment() -> str:
+    """Whether each learner solves each target E-L* admits, at each eta."""
+    panels = [grid_panel(load_experiment(name), title) for name, title in GRID_PANELS]
+    return GRID_MACROS + "\n" + "\n\\quad\n".join(panels + [GRID_LEGEND])
 
 
 TABLES: List[Dict[str, Any]] = [
@@ -295,8 +373,8 @@ TABLES: List[Dict[str, Any]] = [
             "Benchmark source",
             r"$\eta$",
             "CAPAL success",
-            "E-L* success",
-            "E-L* applicable",
+            r"\ours{} success",
+            r"\ours{} applicable",
         ],
         "align": "llrrr",
         "rows": success_rows,
@@ -306,13 +384,11 @@ TABLES: List[Dict[str, Any]] = [
         "headers": [
             "Benchmark source",
             r"$\eta$",
-            "$n$",
             "CAPAL MQ",
             "CAPAL EQ",
-            "E-L* MQ",
-            "Ratio",
+            r"\ours{} MQ",
         ],
-        "align": "llrrrrr",
+        "align": "llrrr",
         "rows": cost_rows,
     },
     {
@@ -326,12 +402,12 @@ TABLES: List[Dict[str, Any]] = [
         "name": "matched_budget",
         "headers": [
             "Target",
-            "Budget (E-L* MQ)",
+            r"Budget (\ours{} MQ)",
             "matched",
             "stalled",
             "CAPAL (matched)",
             "CAPAL (stalled)",
-            "E-L*",
+            r"\ours{}",
         ],
         "align": "lrrrrrr",
         "rows": budget_rows,
@@ -342,21 +418,15 @@ TABLES: List[Dict[str, Any]] = [
 def main() -> None:
     cells = load_cells()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    fragments = {}
     for spec in TABLES:
-        rows: Callable[[Sequence[dict]], List[List[str]]] = spec["rows"]
-        fragment = tabular(spec["headers"], spec["align"], rows(cells))
-        tex_path = OUT_DIR / f"{spec['name']}.tex"
-        png_path = OUT_DIR / f"{spec['name']}.png"
+        rows: Callable[[Sequence[dict]], List[Union[List[str], str]]] = spec["rows"]
+        fragments[spec["name"]] = tabular(spec["headers"], spec["align"], rows(cells))
+    fragments["benchmark_grid"] = grid_fragment()
+    for name, fragment in fragments.items():
+        tex_path = OUT_DIR / f"{name}.tex"
         tex_path.write_text(fragment + "\n")
-        rendered = render(fragment, png_path)
-        print(
-            f"wrote {tex_path}"
-            + (
-                f" and {png_path}"
-                if rendered
-                else " (no LaTeX toolchain; skipped the PNG)"
-            )
-        )
+        print(f"wrote {tex_path}")
 
 
 if __name__ == "__main__":

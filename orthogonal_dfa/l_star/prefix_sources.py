@@ -1,31 +1,15 @@
-"""Drawing the prefixes that belong to one state.
+"""Sources of the prefixes a round's populations draw from."""
 
-A source belongs to the round that made it: it closes over that round's tree,
-which says where a string rests, and its hypothesis, which says where to aim
-one.  Only the tree's answer counts.
-"""
+from dataclasses import dataclass
+from typing import Callable, List, Tuple
 
-from math import isqrt
+import numpy as np
 
-from .dfa_utils import (
-    count_paths_to_state,
-    sample_string_reaching_state,
-    uniform_weights,
-)
+from .counterexample_probe import Charges
+from .counterexample_search import CounterexampleSearch
+from .fallbacks.score_patience import SCORE_STALLED, ScorePatience
 from .rejection_source import RejectionSource, proving_attempts
-from .sifting import PROBE_BLOCK, anchored_walk, first_disagreeing_edge
-
-#: A leaf landing at least this share of its aims is one worth asking again.
-GOOD_YIELD = 0.5
-#: One landing at most this share is one to stop asking.  Nothing decides
-#: anything between the two bars, which is what keeps the count that tells them
-#: apart affordable.
-POOR_YIELD = 0.25
-
-#: A probe turning up a boundary string at least this often is worth drawing on.
-GOOD_BOUNDARY_YIELD = 0.2
-#: One turning up at most this often is not.
-POOR_BOUNDARY_YIELD = 0.1
+from .round_end import HARVEST_ENDS, HARVEST_STARTS, HARVEST_STUCK, Ending
 
 
 class UniformSource:
@@ -44,140 +28,89 @@ class UniformSource:
         return True
 
 
-class BoundarySource(RejectionSource):
-    """Strings the round's tree cannot place, asked about along a probe's walk.
+class HarvestSource(RejectionSource):
+    """More of a round's boundary population, found the way its strings were:
+    each attempt reads a fresh draw by one of their provenances, chosen in
+    proportion to how many of them it found."""
 
-    Only prefixes at least half the sampler's length are kept.  There are at least
-
-        sqrt(alphabet_size ** length)
-
-    of those, so a family straddling any share worth drawing on has more than a
-    round can exhaust; the short prefixes are asked about by every probe and run
-    out at once.
-    """
-
-    proving = proving_attempts(GOOD_BOUNDARY_YIELD, POOR_BOUNDARY_YIELD)
-    poor = POOR_BOUNDARY_YIELD
-
-    def __init__(self, pst, sifter, transitions, *, known):
+    def __init__(self, provenances, rng, *, known, acc_threshold, retirable):
+        """``provenances`` maps each provenance to how many strings it found.
+        Worth drawing on where an attempt turns up a boundary string at least
+        ``1 - acc_threshold`` of the time, and not at half that: only a read that
+        disagrees or cannot be placed turns one up, and a round the gate refuses
+        can disagree on no more than that share of them.  A ``retirable`` source
+        that runs dry has its population retired rather than ending the run."""
         super().__init__()
+        self.retirable = retirable
+        assert acc_threshold < 1, acc_threshold
+        self._good = 1 - acc_threshold
         self._served.update(known)
-        self._pst = pst
-        self._sifter = sifter
-        self._transitions = transitions
-        self._long_enough = -(-pst.sampler.length // 2)
         self._seen = set(known)
-        self._probes = []
-
-    def _sift(self, seq):
-        leaf, boundary = self._sifter.sift_and_boundary(seq)
-        if (
-            leaf is None
-            and len(seq) >= self._long_enough
-            and boundary not in self._seen
-        ):
-            self._seen.add(boundary)
-            self._pool.append(boundary)
-        return leaf
+        self._provenances = list(provenances)
+        counts = np.array([provenances[p] for p in self._provenances], dtype=float)
+        self._weights = counts / counts.sum()
+        self._rng = rng
 
     def attempt_draw(self) -> bool:
-        before = len(self._seen)
-        if not self._probes:
-            self._probes = [
-                self._pst.sampler.sample(
-                    self._pst.rng, alphabet_size=self._pst.alphabet_size
-                )
-                for _ in range(PROBE_BLOCK)
-            ]
-            self._sifter.prefill(self._probes)
-        probe = self._probes.pop()
-        start, states = anchored_walk(probe, self._sift, self._transitions)
-        if start is not None:
-            landed = self._sift(probe)
-            if landed is not None and landed != states[-1]:
-                # Called for the sifts it makes on the way; the edge it returns
-                # is the round's, not this source's.
-                first_disagreeing_edge(probe, states, self._sift, start, len(probe))
-        return len(self._seen) > before
+        provenance = self._provenances[
+            self._rng.choice(len(self._provenances), p=self._weights)
+        ]
+        found = False
+        strings, start = provenance.sample_from()
+        for string in strings:
+            if string in self._seen:
+                # A repeat is not drawn again: its walk start is spelled out instead.
+                provenance.round.spell_out_starts({start})
+            else:
+                self._seen.add(string)
+                self._pool.append(string)
+                found = True
+        return found
+
+    @property
+    def proving(self) -> tuple:
+        return proving_attempts(self._good, self._good / 2)
+
+    @property
+    def poor(self) -> float:
+        return self._good / 2
 
     def source_repr(self) -> str:
         return "boundary"
 
 
-def aim_at(pst, dfa, leaf):
-    """
-    Attempt to aim at a leaf, returning a source that draws on it or ``None`` if the leaf is
-    unreachable from the starting state, or if too few strings of the sampler's
-    length reach it to draw from without redrawing what it has already drawn.
-
-    Aims are drawn with replacement, so a leaf that holds
-
-        sqrt(alphabet_size ** length)
-
-    of the strings of that length repeats one only after the fourth root of
-    them have been drawn.  Scaled to the space rather than to the draws asked
-    for: a leaf is thin compared to what the sampler could have put there.
-    """
-    weights = pst.sampler.symbol_weights(pst.alphabet_size)
-    length = pst.sampler.length
-    # Counted evenly rather than off the mass below: the sampler's weights are
-    # read as ratios, so its mass is on no scale a threshold could name.
-    reaching = count_paths_to_state(dfa, leaf, length, uniform_weights(dfa))
-    if reaching[length][dfa.initial_state] < isqrt(pst.alphabet_size**length):
-        return None
-    mass = count_paths_to_state(dfa, leaf, length, weights)
-    # A symbol the sampler never places can leave a well-reached leaf with none.
-    if mass[length][dfa.initial_state] == 0:
-        return None
-    return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
+def harvest_reader(
+    ending: Ending, search: CounterexampleSearch
+) -> Callable[[Charges], List[bytes]]:
+    """What a probe of ``search`` reads undecided where ``ending`` harvested."""
+    if ending.kind == HARVEST_ENDS:
+        return lambda charged: charged.ends
+    if ending.kind == HARVEST_STARTS:
+        return lambda charged: charged.starts
+    if ending.kind == HARVEST_STUCK:
+        if search.member_fallback is not None:
+            return search.member_fallback.stuck_harvest
+        return lambda charged: charged.stuck
+    if ending.kind == SCORE_STALLED:
+        return ScorePatience.stalled_harvest
+    return lambda charged: charged.middle
 
 
-def state_source(resolver, leaf, aim, *, wanted):
-    """
-    A source that draws on `aim` and guarantees (up to the misread chance in
-    `proving_attempts`) that at least POOR_YIELD (25%) of the strings it draws
-    will land at the given leaf, according to the tree in `resolver`.
+@dataclass(frozen=True, eq=False)
+class Replay:
+    """Fresh probes of a round's last hypothesis, kept as ``read`` reads them."""
 
-    If this guarantee cannot be made, returns None
-    """
-    source = StateSource(resolver, leaf, aim, wanted=wanted)
-    return source if source.worth_drawing() else None
+    round: CounterexampleSearch
+    read: Callable[[Charges], List[bytes]]
+    draw: Callable[[], bytes]
 
+    def sample(self) -> List[bytes]:
+        return self.sample_from()[0]
 
-class StateSource(RejectionSource):
-    """Prefixes the tree places at one leaf."""
-
-    proving = proving_attempts(GOOD_YIELD, POOR_YIELD)
-    poor = POOR_YIELD
-
-    def __init__(self, resolver, leaf, aim, *, wanted):
-        super().__init__()
-        self._population = resolver.population
-        self._path = resolver.tree.path_of(leaf)
-        # A split replaces a leaf with a node holding both ids, so every id the
-        # tree reports has a path to it.
-        assert self._path is not None, leaf
-        self._aim = aim
-        #: Resting at the leaf and not yet handed out.  Reading a leaf pushes
-        #: strings down to it, so the count is work rather than a cap: ask for
-        #: what this source is being built to serve.
-        self._pool.extend(self._population.members(self._path, wanted))
-
-    def attempt_draw(self) -> bool:
-        """Aim one string, let the tree place it, and say whether it rested here.
-
-        One that does joins the pool.  One that does not belongs to the leaf it
-        did rest at, which is the answer that counts.
-        """
-        aimed = self._aim()
-        # Where it rests, not where it was aimed.
-        if self._population.settle(aimed, self._path):
-            self._pool.append(aimed)
-            return True
-        return False
-
-    def source_repr(self) -> str:
-        return f"leaf {self._path}"
+    def sample_from(self) -> Tuple[List[bytes], bytes]:
+        """``sample``, and the walk start of the probe it read."""
+        x = self.draw()
+        return self.read(self.round.probe(x)[1]), x[: self.round.walk_start(x)]
 
 
 def draw_many(source, wanted: int) -> list:

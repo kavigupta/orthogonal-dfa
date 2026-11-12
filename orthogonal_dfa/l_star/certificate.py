@@ -28,42 +28,40 @@ def look_level(alpha, look) -> float:
 
 def error_bound(masses, rates, accepting, gap) -> float:
     """The largest sum_S m_S e_S, which worst_contributions spells out by state."""
-    return float(worst_contributions(masses, rates, accepting, gap).sum())
+    return float(worst_contributions(masses, rates, rates, accepting, gap).sum())
 
 
-def worst_contributions(masses, rates, accepting, gap) -> np.ndarray:
+def worst_contributions(masses, rates, frame, accepting, gap) -> np.ndarray:
     """The m_S e_S of each state S at the masses, rates and offset that make
 
         sum_S m_S e_S
 
     largest over every m with sum_S m_S = 1 and m_S in
-    [mass_low_S, mass_high_S], every r_S in [low_S, high_S], and every p_0 with
-    each c_S = (r_S - p_0) / band in [0, 1], for masses = (mass_low, mass_high)
-    and rates = (low, high),
+    [mass_low_S, mass_high_S], every r_S in [low_S, high_S], and every p_0 in
+    [max_S frame_low_S - band, min_S frame_high_S], for masses =
+    (mass_low, mass_high), rates = (low, high), frame = (frame_low, frame_high),
+    c_S = (r_S - p_0) / band and
 
-        band = max(gap, max_S low_S - min_S high_S),
+        band = max(gap, max_S frame_low_S - min_S frame_high_S),
 
-    the narrowest band at least gap that the rates fit.
+    the narrowest band at least gap that the frame fits.  c_S is not held to
+    [0, 1]: a state read past the band counts for more than its mass, as it does
+    against E[O | h accepts] - E[O | h rejects].
 
     For a fixed p_0 each state's worst e_S is apart from the others', and the
-    mass free of the lower bounds goes to the worst states first.  For fixed m
-    that is piecewise linear in p_0, kinked where a state's worst rate meets a
-    bound, so the largest over p_0 is at those kinks or at the ends of the p_0
-    that fit."""
-    mass_low, mass_high, low, high = (
-        np.asarray(v, dtype=float) for v in (*masses, *rates)
+    mass free of the lower bounds goes to the worst states first.  That is the
+    largest of functions linear in p_0, so the largest over p_0 is at an end."""
+    mass_low, mass_high, low, high, frame_low, frame_high = (
+        np.asarray(v, dtype=float) for v in (*masses, *rates, *frame)
     )
     accepting = np.asarray(accepting, dtype=bool)
-    band = max(gap, float(low.max() - high.min()))
-    least = max(0.0, float(low.max()) - band)
-    # Equal to least where band was set by the rates, up to rounding.
-    most = max(least, min(1.0 - band, float(high.min())))
+    band = max(gap, float(frame_low.max() - frame_high.min()))
+    least = max(0.0, float(frame_low.max()) - band)
+    # Equal to least where band was set by the frame, up to rounding.
+    most = max(least, min(1.0 - band, float(frame_high.min())))
 
     def error(offset):
-        rate = np.where(
-            accepting, np.maximum(low, offset), np.minimum(high, offset + band)
-        )
-        share = (rate - offset) / band
+        share = (np.where(accepting, low, high) - offset) / band
         worst = np.where(accepting, 1 - share, share)
         weight = mass_low.copy()
         spare = 1 - weight.sum()
@@ -73,11 +71,10 @@ def worst_contributions(masses, rates, accepting, gap) -> np.ndarray:
             spare -= added
         return weight * worst
 
-    corners = np.concatenate([[least, most], high - band, low])
-    return max((error(p) for p in corners if least <= p <= most), key=lambda e: e.sum())
+    return max((error(least), error(most)), key=lambda e: e.sum())
 
 
-def _intervals(hits, trials, level):
+def clopper_pearson(hits, trials, level):
     """Per entry, the success probabilities (p_low, p_high) solving
 
         P(Binomial(trials, p_low) >= hits) = level / 2,
@@ -113,7 +110,14 @@ def certifies(pst, dfa, *, alpha) -> Verdict:
         P(certifies and sum_S m_S e_S > e) <= alpha,   e = certified_error,
 
     m_S the share of the sampler's strings reaching S, where the oracle's signal
-    is min_signal_strength s exactly; nothing is guaranteed where p_1 - p_0 > 2 s.
+    is min_signal_strength s exactly.  Whatever the signal, with m_A the share h
+    accepts and m_R = 1 - m_A,
+
+        P(certifies, m_A m_R >= e and Delta < 2 s (1 - e / (m_A m_R))) <= alpha,
+        Delta = E[O | h accepts] - E[O | h rejects]:
+
+    h reads apart by as much as a DFA that errs on e of the strings would at
+    signal s exactly.
 
     Look k reads n_k strings of the sampler, doubling, and certifies when the
     error_bound at gap 2 s, over Clopper-Pearson intervals on each state's share
@@ -137,12 +141,19 @@ def certifies(pst, dfa, *, alpha) -> Verdict:
         np.add.at(drawn, reached, 1)
         np.add.at(ones, reached, pst.oracle.membership_queries(strings))
         level = look_level(alpha, look) / (2 * len(states))
-        masses = _intervals(drawn, np.full(len(states), size), level)
-        rates = _intervals(ones, drawn, level)
+        masses = clopper_pearson(drawn, np.full(len(states), size), level)
+        rates = clopper_pearson(ones, drawn, level)
         bound = error_bound(masses, rates, accepting, gap)
         shares, read = drawn / size, ones / np.maximum(drawn, 1)
+        # Framed by the intervals, not the rates read: a state drawn a handful of
+        # times reads near 0 or 1, which would stretch the band past every other
+        # state's rate.
         blame = worst_contributions(
-            (shares, shares), (read, np.where(drawn > 0, read, 1.0)), accepting, gap
+            (shares, shares),
+            (read, np.where(drawn > 0, read, 1.0)),
+            rates,
+            accepting,
+            gap,
         )
         at_rates = float(blame.sum())
         worst = int(np.argmax(blame))

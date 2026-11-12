@@ -8,6 +8,10 @@ from orthogonal_dfa.l_star.structures import Oracle
 from .target import super_target_dfa
 from .vocabulary import KmerVocabulary
 
+#: Strings compiled per base-oracle call.  Each holds an rng and a compiled list
+#: until its call returns, ~2.5KB, and the learner asks for millions at once.
+_CHUNK = 20_000
+
 
 def _compilation_seed(string: bytes, seed: int) -> int:
     """Deterministic in its arguments, so a query can be cached."""
@@ -48,8 +52,16 @@ class LiftedOracle(Oracle):
     def membership_queries(self, strings: List[bytes]) -> np.ndarray:
         if not strings:
             return np.array([], dtype=bool)
-        # One batch for all of them: the base oracle may be a model that is far
-        # cheaper called once.
+        return np.concatenate(
+            [
+                self._chunk_queries(strings[i : i + _CHUNK])
+                for i in range(0, len(strings), _CHUNK)
+            ]
+        )
+
+    def _chunk_queries(self, strings: List[bytes]) -> np.ndarray:
+        # Batched rather than per string: the base oracle may be a model that is
+        # far cheaper called once.
         rngs = [
             np.random.default_rng(_compilation_seed(string, self._seed))
             for string in strings

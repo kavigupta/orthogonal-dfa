@@ -11,8 +11,10 @@ from orthogonal_dfa.l_star.learn import (
     learn_dfa,
 )
 from orthogonal_dfa.l_star.mask_table import UNIFORM
+from orthogonal_dfa.l_star.prefix_suffix_tracker import SearchConfig
+from orthogonal_dfa.l_star.round_end import OUT_OF_PROBES
 from orthogonal_dfa.l_star.sampler import UniformSampler
-from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
+from orthogonal_dfa.l_star.statistics import rate_side
 from orthogonal_dfa.l_star.structures import (
     AsymmetricBernoulli,
     NoisyOracle,
@@ -200,11 +202,12 @@ def _split_states(cuts):
     return [
         (state, accepted, rejected)
         for state, (accepted, rejected) in cuts.items()
-        if binomial_side_of_boundary(
-            min(accepted, rejected),
-            accepted + rejected,
+        if rate_side(
             round_verify_fpr,
-            failure_prob=round_verify_alpha,
+            round_verify_alpha,
+            0,
+            accepted + rejected,
+            min(accepted, rejected),
         )
     ]
 
@@ -244,11 +247,12 @@ def assert_rounds_accept_preserving(classifiers, true_dfa, max_coverage_error):
             )
 
         against, decided = _miscut(cuts, true_dfa)
-        if binomial_side_of_boundary(
-            against,
-            decided,
+        if rate_side(
             max_coverage_error,
-            failure_prob=round_check_run_fpr / len(per_round),
+            round_check_run_fpr / len(per_round),
+            0,
+            decided,
+            against,
         ):
             raise AssertionError(
                 f"a synthesis round decided {against} of {decided} prefixes against "
@@ -257,8 +261,19 @@ def assert_rounds_accept_preserving(classifiers, true_dfa, max_coverage_error):
             )
 
 
+def assert_searches_end_inside_the_proofs_budget(endings):
+    """No round's counterexample search ran out of probes."""
+    assert endings, "no rounds recorded -- did the tracker reach synthesis?"
+    for ending in endings:
+        assert ending.kind != OUT_OF_PROBES, (
+            f"a counterexample search ended {ending.kind}: if this assertion fires, it's "
+            "evidence that the gap between reality and the proof is less egregious "
+            "than we thought (the proof's huge probe budget is binding in practice)"
+        )
+
+
 def learn_dfa_verified(oracle_creator, **kwargs):
-    """``learn_dfa``, asserting the per-round accept-preserving invariant."""
+    """``learn_dfa``, asserting the per-round invariants."""
     tracker = RecordingTracker()
     dfa = learn_dfa(oracle_creator, tracker=tracker, **kwargs)
     truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
@@ -267,6 +282,7 @@ def learn_dfa_verified(oracle_creator, **kwargs):
         truth_oracle.target_dfa(),
         kwargs.get("max_coverage_error", DEFAULT_MAX_COVERAGE_ERROR),
     )
+    assert_searches_end_inside_the_proofs_budget(tracker.endings)
     return dfa
 
 
@@ -292,6 +308,8 @@ class _ClusterTable:
     def __init__(self, masks):
         self._masks = masks
         self.representative = np.ones(masks.shape[1], dtype=bool)
+        #: Each prefix is its column.
+        self.prefixes = tuple(range(masks.shape[1]))
 
     def observed_masks(self, rows, prefixes):
         return self._masks[np.asarray(rows)][:, prefixes]
@@ -299,12 +317,20 @@ class _ClusterTable:
     def population_masks(self):
         return {UNIFORM: self.representative}
 
+    def seed_scoring(self):
+        return self.representative
 
-def cluster_pst(masks, min_signal_strength):
+
+def cluster_pst(masks, min_signal_strength, *, seed):
     return SimpleNamespace(
         table=_ClusterTable(masks),
         suffix_pool=list(range(masks.shape[0])),
-        config=SimpleNamespace(min_signal_strength=min_signal_strength),
+        config=SimpleNamespace(
+            min_signal_strength=min_signal_strength,
+            min_suffix_frequency=SearchConfig.min_suffix_frequency,
+            screening_alpha=SearchConfig.screening_alpha,
+        ),
+        rng=np.random.default_rng(seed),
     )
 
 

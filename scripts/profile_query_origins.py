@@ -77,7 +77,7 @@ COL_SITES = ("_query", "intern_suffix", "_ensure", "observed_masks", "column")
 # falls to "other".
 CLASSIFY_PHASES = [
     "estimate_agreement_rate",
-    "counterexample_pass",
+    "_counterexample_search",
     "_grow_representative_pool",
     "build",
     "export",

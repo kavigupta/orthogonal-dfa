@@ -3,10 +3,10 @@
 The `.taf` file is the source of truth; `to_automata_dfa` ports it to the
 automata-lib DFA that `DFAOracle` (and hence E-L*) reads.
 
-E-L* is in regime on a minority of these; the rest fail acceptance imbalance,
-class-preservation or the covered-accuracy ceiling and are recorded as
-exclusions rather than run. CAPAL is measured on all of them, so the two
-learners' columns cover different target sets unless read per cell.
+E-L* is in regime on a minority of these; the rest fail the acceptance-rate or
+class-preservation precondition and are recorded as exclusions rather than run.
+CAPAL is measured on all of them, so the two learners' columns cover different
+target sets unless read per cell.
 """
 
 from __future__ import annotations
@@ -21,6 +21,14 @@ from orthogonal_dfa.capal_official import (
 from orthogonal_dfa.l_star.structures import NoisyOracle
 
 from .benchmark import FAMILY_CAPAL, Benchmark
+
+#: The stems of upstream's `dataset/*.taf`, known here so that a finished sweep
+#: needs no checkout.
+CAPAL_BENCHMARK_NAMES = [
+    f"{level}{i:02}"
+    for level, count in (("Difficult", 13), ("Normal", 9), ("Simple", 6))
+    for i in range(1, count + 1)
+]
 
 
 def capal_benchmarks() -> List[Benchmark]:

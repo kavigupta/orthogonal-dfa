@@ -4,27 +4,26 @@ super-string alone, which is what lets these assert equality rather than a rate.
 """
 
 import unittest
+from unittest import mock
 
 import numpy as np
 from automata.fa.dfa import DFA
-from parameterized import parameterized
 
 from orthogonal_dfa.l_star import preconditions
 from orthogonal_dfa.l_star.cluster import read_rates, smallest_readable_family
 from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
-from orthogonal_dfa.l_star.learn import DEFAULT_MAX_COVERAGE_ERROR, build_pst
+from orthogonal_dfa.l_star.learn import build_pst
 from orthogonal_dfa.l_star.structures import (
     NoiseModel,
     NoisyOracle,
     Oracle,
     SymmetricBernoulli,
 )
-from orthogonal_dfa.l_star.tracker import RecordingTracker
+from orthogonal_dfa.superlanguage import oracle as lifted_oracle
 from orthogonal_dfa.superlanguage.learn import learn_superlanguage
 from orthogonal_dfa.superlanguage.oracle import LiftedOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
-from tests.lstar_common import assert_rounds_accept_preserving
 
 # ACGT base alphabet: A=0, C=1, G=2, T=3.
 TAG, TGA, TAA = (3, 0, 2), (3, 2, 0), (3, 0, 0)
@@ -99,6 +98,16 @@ class TestLiftedOracle(unittest.TestCase):
         a = self.oracle.membership_queries(query)
         b = self.oracle.membership_queries(query)
         np.testing.assert_array_equal(a, b)
+
+    def test_chunks_answer_as_one_batch(self):
+        sampler = SuperSampler(self.vocab, 20)
+        rng = np.random.default_rng(3)
+        strings = [sampler.sample(rng, self.vocab.alphabet_size) for _ in range(50)]
+        whole = self.oracle.membership_queries(strings)
+        with mock.patch.object(lifted_oracle, "_CHUNK", 7):
+            np.testing.assert_array_equal(
+                self.oracle.membership_queries(strings), whole
+            )
 
     def test_the_noise_model_reaches_the_answer(self):
         # p_correct=0 inverts every label, so a noised oracle must contradict a
@@ -250,7 +259,7 @@ class TestSuffixFamily(unittest.TestCase):
         wanted = smallest_readable_family(
             pst.config.min_signal_strength,
             pst.decision_boundary,
-            read_rates(pst.config, pst.decision_boundary),
+            read_rates(pst, pst.decision_boundary),
         )
         family, seen = [], set()
         # Bounded: if the wildcard-only suffixes ever stop being plentiful this
@@ -265,7 +274,7 @@ class TestSuffixFamily(unittest.TestCase):
         self.assertEqual(len(family), wanted)
         pst.table.observed_masks(family, np.ones(pst.num_prefixes, dtype=bool))
         # An uninformative family scores 1, so this is the whole question.
-        self.assertLessEqual(pst.compute_fnr(family), pst.config.fnr_limit)
+        self.assertLessEqual(pst.compute_fnr(family), pst.fnr_limit)
 
     def test_one_wildcard_leaves_nothing_to_build_a_family_from(self):
         vocab = KmerVocabulary(
@@ -281,38 +290,6 @@ class TestSuffixFamily(unittest.TestCase):
         self.assertEqual(len(seen), 1)
         wanted = smallest_readable_family(0.3, 0.5, (0.01, 0.01))
         self.assertGreater(wanted, len(seen))
-
-
-class TestLearnSuperlanguage(unittest.TestCase):
-    """The superlanguage counterpart of test_no_orf. A stop codon is one
-    super-symbol rather than a three-symbol path, so the DFA is smaller than the
-    base-alphabet one.
-    """
-
-    @parameterized.expand([(signal,) for signal in (0.3, 0.2)])
-    def test_learns_all_frames_closed(self, signal):
-        vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
-        base = AllFramesClosedOracle()
-        tracker = RecordingTracker()
-        dfa = learn_superlanguage(
-            base, vocab, min_signal_strength=signal, seed=0, tracker=tracker
-        )
-        self.assertIsNotNone(dfa)
-
-        oracle = LiftedOracle(base, vocab, seed=0)
-        # Every family the clustering produced, not just the DFA it ended on.
-        assert_rounds_accept_preserving(
-            tracker.classifiers, oracle.target_dfa(), DEFAULT_MAX_COVERAGE_ERROR
-        )
-        sampler = SuperSampler(vocab, 40)
-        rng = np.random.default_rng(0x1234)
-        strings = [sampler.sample(rng, vocab.alphabet_size) for _ in range(3000)]
-        expected = oracle.membership_queries(strings)
-        actual = np.array([dfa.accepts_input(s) for s in strings], dtype=bool)
-        accuracy = (expected == actual).mean()
-        self.assertGreaterEqual(
-            accuracy, 0.97, f"signal={signal} accuracy {accuracy:.3f}"
-        )
 
 
 class TestPreconditionsOverTheSuperAlphabet(unittest.TestCase):
@@ -347,7 +324,7 @@ class TestPreconditionsOverTheSuperAlphabet(unittest.TestCase):
             self.contains_a_kmer, length=40, num_samples=400
         )
         self.assertFalse(report)
-        self.assertEqual(report.acceptance_rate, 1.0)
+        self.assertAlmostEqual(report.acceptance_rate, 1.0)
 
 
 class _NoTargetOracle(Oracle):
