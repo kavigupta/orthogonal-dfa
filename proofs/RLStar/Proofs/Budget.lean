@@ -932,8 +932,8 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
     (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit) (hεcov : 0 < εcov)
     (hζ : 0 < crossLimit) (hζ1 : crossLimit ≤ 1) :
     (famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1
-      ≤ 25 * max (4 * Real.log (20 / budgetScale η indecisionLimit εcov))
-          (Real.log (1 / crossLimit)) / (8 * sig η ^ 2) + 5 / sig η + 7 := by
+      ≤ 25 * (max (4 * Real.log (20 / budgetScale η indecisionLimit εcov))
+          (Real.log (1 / crossLimit)) + 12) / (8 * sig η ^ 2) + 5 / sig η + 7 := by
   have hfcval := famHoeff_eq (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η populations εcov δ
   have hle : (famCount η populations indecisionLimit εcov δ crossLimit : ℝ)
@@ -961,29 +961,24 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
   set Z : ℝ := Real.log (1 / crossLimit) with hZdef
   have hZ0 : 0 ≤ Z := Real.log_nonneg (by rw [le_div_iff₀ hζ]; linarith only [hζ1])
   have hs2pos : (0 : ℝ) < s ^ 2 := pow_pos hsig 2
-  set M : ℝ := max (4 * G) Z with hMdef
-  have hM0 : 0 ≤ M := le_max_of_le_right hZ0
+  set M : ℝ := max (4 * G) Z + 12 with hMdef
+  have hM0 : 0 ≤ M := by have := le_max_right (4 * G) Z; linarith
   have hMs : 0 ≤ 25 * M / (16 * s ^ 2) := by positivity
   have hvote : voteSlack η ^ 2 = 16 * s ^ 2 / 25 := by
     simp only [voteSlack, ← hsdef]; ring
+  have hGM : G ≤ M := by have := le_max_left (4 * G) Z; linarith
   have hzA : Real.log (2 / cut) / voteSlack η ^ 2 ≤ 25 * M / (16 * s ^ 2) := by
     calc Real.log (2 / cut) / voteSlack η ^ 2 ≤ G / voteSlack η ^ 2 :=
           div_le_div_of_nonneg_right hcutG (by positivity)
       _ = 25 * G / (16 * s ^ 2) := by rw [hvote]; field_simp
-      _ ≤ 25 * M / (16 * s ^ 2) := by
-          gcongr; exact le_trans (by linarith only [hG0]) (le_max_left _ _)
-  have hG2 : Real.log 2 ≤ G :=
-    Real.log_le_log (by norm_num) (by rw [le_div_iff₀ hBpos]; linarith only [hB2])
-  have hZ4 : Z + 4 ≤ 4 * M := by
-    have h1 : 4 * G ≤ M := le_max_left _ _
-    have h2 : Z ≤ M := le_max_right _ _
-    linarith only [h1, h2, hG2, half_le_log_two]
-  have hzC : (Z + 4) / (4 * voteSlack η ^ 2) ≤ 25 * M / (16 * s ^ 2) := by
-    calc (Z + 4) / (4 * voteSlack η ^ 2) = 25 * (Z + 4) / (64 * s ^ 2) := by
-          rw [hvote]; field_simp; ring
-      _ ≤ 25 * (4 * M) / (64 * s ^ 2) := by gcongr
-      _ = 25 * M / (16 * s ^ 2) := by field_simp; ring
-  have hzS : 1 / voteSlack η ≤ 5 / (2 * s) := by
+      _ ≤ 25 * M / (16 * s ^ 2) := by gcongr
+  have hZ12 : max Z 0 + 12 ≤ M := by
+    rw [max_eq_left hZ0]; have := le_max_right (4 * G) Z; linarith
+  have hzC : (max Z 0 + 12) / voteSlack η ^ 2 ≤ 25 * M / (16 * s ^ 2) := by
+    calc (max Z 0 + 12) / voteSlack η ^ 2 = 25 * (max Z 0 + 12) / (16 * s ^ 2) := by
+          rw [hvote]; field_simp
+      _ ≤ 25 * M / (16 * s ^ 2) := by gcongr
+  have hzS : 2 / voteSlack η ≤ 5 / (2 * s) := by
     simp only [voteSlack, ← hsdef]
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith only [hsig]
@@ -1003,13 +998,13 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
     (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) (hζ : 0 < crossLimit) (hζ1 : crossLimit ≤ 1) :
     (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
-      ≤ 2 * (25 * max (4 * Real.log (20 / budgetScale η indecisionLimit εcov))
-            (Real.log (1 / crossLimit)) / (8 * sig η ^ 2) + 5 / sig η + 7) / pAP
+      ≤ 2 * (25 * (max (4 * Real.log (20 / budgetScale η indecisionLimit εcov))
+            (Real.log (1 / crossLimit)) + 12) / (8 * sig η ^ 2) + 5 / sig η + 7) / pAP
         + 60 * Real.log (3 / δ) / pAP := by
   have hf := famCount_succ_le populations η indecisionLimit εcov δ crossLimit hsig hη hind hεcov
     hζ hζ1
-  set P : ℝ := 25 * max (4 * Real.log (20 / budgetScale η indecisionLimit εcov))
-    (Real.log (1 / crossLimit)) / (8 * sig η ^ 2) + 5 / sig η + 7 with hPdef
+  set P : ℝ := 25 * (max (4 * Real.log (20 / budgetScale η indecisionLimit εcov))
+    (Real.log (1 / crossLimit)) + 12) / (8 * sig η ^ 2) + 5 / sig η + 7 with hPdef
   have hPnn : 0 ≤ P := le_trans (by positivity) hf
   have hA : 2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / pAP
       ≤ 2 * P / pAP := div_le_div_of_nonneg_right (by linarith only [hf]) hpAP.le
@@ -1200,29 +1195,16 @@ theorem kappa_of_mem_schedule {η₀ indecisionLimit εcov εs δ α pAP crossLi
     (hp0 : 0 ≤ p) (hp1 : p ≤ 1) (hr0 : 0 ≤ r) (hr1 : r ≤ 1) :
     RarerBounded N B.lo (B.hi + 1) p r κ := by
   obtain ⟨hBk, hBlo, hBhi⟩ := band_of_mem_schedule hB
-  have hκ4 := famCount_kappa (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
-    (δ := δ) η₀ populations hη0 hη₀ hcross hε hind
   have hev := famCount_even (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ
-  have h4 := famCount_ge_four (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
-    η₀ populations εcov δ hη₀
+  obtain ⟨q, c, hq0, hq1, hlc, hch, hcn, hκ4⟩ := famCount_kappa (indecisionLimit := indecisionLimit)
+    (crossLimit := crossLimit) (δ := δ) η₀ populations hη0 hη₀ hcross hε hind _
+    (half_mem_centres η₀ hev hη0)
   set κc : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκc
-  obtain ⟨hlo, hhi⟩ := loAt_hiAt η₀ hev h4 hη0 hη₀
-  have hb0 : (0 : ℝ) ≤ bandAt η₀ κc := Nat.cast_nonneg _
-  have hκ2 : ((κc / 2 : ℕ) : ℝ) = (κc : ℝ) / 2 := by
-    obtain ⟨m, hm⟩ := hev
-    rw [hm, show (m + m) / 2 = m by omega]; push_cast; ring
-  have hlo2 : loAt η₀ κc < κc / 2 := by
-    have : (loAt η₀ κc : ℝ) < ((κc / 2 : ℕ) : ℝ) := by rw [hκ2, hlo]; linarith
-    exact_mod_cast this
-  have hhi2 : κc / 2 < hiAt η₀ κc + 1 := by
-    have : ((κc / 2 : ℕ) : ℝ) < ((hiAt η₀ κc + 1 : ℕ) : ℝ) := by push_cast; rw [hκ2, hhi]; linarith
-    exact_mod_cast this
-  have hκ1 : bandKappa κc (1 / 2) (loAt η₀ κc) (κc / 2) (hiAt η₀ κc + 1) ≤ κ :=
+  have hκ1 : bandKappa κc q (loAt η₀ κc (κc / 2)) c (hiAt η₀ κc (κc / 2) + 1) ≤ κ :=
     le_of_pow_le_pow_left₀ (by norm_num : (4 : ℕ) ≠ 0) hκ (hκ4.trans hcκ)
   rw [hBlo, hBhi]
-  exact (bandKappaBound_holds N κc _ _ _ (1 / 2) p r (by omega) hlo2 hhi2 (Nat.div_le_self _ _)
-    (by norm_num) (by norm_num) hp0 hp1
+  exact (bandKappaBound_holds N κc _ c _ q p r (by omega) hlc hch hcn hq0 hq1 hp0 hp1
     hr0 hr1).mono hκ1 hp0 hp1 hr0 hr1
 
 open MeasureTheory ProbabilityTheory in

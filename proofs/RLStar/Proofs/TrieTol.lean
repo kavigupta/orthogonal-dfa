@@ -114,7 +114,7 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
   set K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1 with hK₁d
   set W₀ : ℝ := loopW₀ Q A δ with hW₀d
   set P₀ : ℝ :=
-    (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
+    (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 5) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP with hP₀d
   set R₀ : ℝ := 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
     + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2) with hR₀d
@@ -131,7 +131,7 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
   set τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with hτd
   set J : ℝ := Q + 2 with hJd
   set W : ℝ := max (2 * Real.exp 2 * Wm) 1 with hWd
-  set PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+  set PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP with hPBd
   set RB : ℝ := 2 ^ 20 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
     + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2 with hRBd
@@ -183,7 +183,7 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
   obtain ⟨hPB1, hPB⟩ := pb_le (W := W) (W₀ := W₀) hτ0 hτ1 hinvτ hΘ1 hℓ1 hW1 hWW
     hδ'0 hδ'1 hs0 hs1 hpAP hp1
   have hP₀1 : 1 ≤ P₀ := pool_ge_one hs0 hs1 hpAP hp1 hΘ1 hW₀1 hδ'0 hδ'1
-  have hPBJ : PB = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+  have hPBJ : PB = (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP := rfl
   obtain ⟨hRB0, hRB⟩ := rb_le (Q := Q) (PB := PB) (P₀ := P₀) hQ0 hι0 hinvι hτ0 hτ1 hinvτ hΘ1
     hℓ1 (by rw [hPBJ]; exact hPB1) (by rw [hPBJ]; exact hPB) hP₀1 hδ'0 hδ'1 hs0 hpAP hp1
@@ -316,16 +316,16 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
   -- the family's misreads
   have hm0 : 0 ≤ max (Real.log (20 / τ)) (Real.log (8 * W / δ')) :=
     le_max_of_le_left (Real.log_nonneg (by rw [le_div_iff₀ hτ0]; linarith only [hτ1]))
-  have hX0 : 0 ≤ 50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28 := by
+  have hX0 : 0 ≤ 50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28 := by
     positivity
-  have hFVc0 : 0 ≤ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28)
+  have hFVc0 : 0 ≤ (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28)
       / 4 := by positivity
   have hPB' : PB ≤ P₀ * ℓ := by rw [hPBJ]; exact hPB
   have hlp : 0 ≤ 120 * Real.log (3 / (δ' / 2)) / pAP :=
     div_nonneg (mul_nonneg (by norm_num) (Real.log_nonneg (by
       rw [le_div_iff₀ (by positivity)]; linarith only [hδ'1]))) hpAP.le
   have hFVcT := tol_FV hX0 hpAP hp1 hlp hPBd hPB' hP₀E hℓ0 (by linarith only [hE₁1]) hlℓ hTlE
-  have hFT : ((⌊(50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28)
+  have hFT : ((⌊(50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28)
       / 4⌋₊ : ℕ) : ℝ) ≤ T := (Nat.floor_le hFVc0).trans hFVcT
   have hAT : A ≤ T := by
     have : Ae ≤ aε := by
@@ -438,10 +438,10 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
     show _ ≤ 384 * (4 * (Ae + 1) * ℓ / c)
       * ((Q + 1) * loopSH ℓ Q A Ae δ c ξ pAP η₀ * Real.log 2 + Real.log (2 / δ')) + 1
     linarith only [this]
-  have hFV : ((50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / 4) ≤ loopFam ℓ Q A Ae δ c ξ η₀ := fam_le hτ0 hinvτ hΘ1 hℓ1 hW1 hWW hδ'0 hs0
+  have hFV : ((50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / 4) ≤ loopFam ℓ Q A Ae δ c ξ η₀ := fam_le hτ0 hinvτ hΘ1 hℓ1 hW1 hWW hδ'0 hs0
   have hPB0' : (0 : ℝ) ≤ PB + 1 := by rw [hPBJ]; linarith only [hPB1]
   have hReads : learnerReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1)
-        ((50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / 4) B₃ Q (⌈384 / ε * ((Q + 1)
+        ((50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / 4) B₃ Q (⌈384 / ε * ((Q + 1)
         * (24 * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2) * Real.log 2
         + Real.log (2 / δ')) + 1⌉₊ : ℝ) ((3 + Nat.clog 2 L₁ : ℕ) : ℝ) A 0
       ≤ learnerReads (Q + 1) (6 * (Q + 2) * loopCount (L + Q + 4) Q A Ae δ c ξ pAP η₀)

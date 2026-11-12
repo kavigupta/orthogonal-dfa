@@ -83,7 +83,7 @@ lemma rel_sc_ge {L Q A Ae iδ R iξ ip is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (
 lemma loopFam_inv (ℓ Q A Ae iδ ic iξ is : ℝ) :
     loopFam ℓ Q A Ae (1 / iδ) (1 / ic) (1 / iξ) (1 / 2 - 1 / is)
       = (50 * (max (log (20 * loopΘ Q Ae (1 / ic) (1 / iξ) (1 / 2 - 1 / is)))
-          (log (8 * loopW₀ Q A (1 / iδ) * (8 * (Q + 1) * iδ))) + 2 * log ℓ) * is ^ 2
+          (log (8 * loopW₀ Q A (1 / iδ) * (8 * (Q + 1) * iδ))) + (2 * log ℓ + 3)) * is ^ 2
           + 20 * is + 28) / 4 := by
   unfold loopFam
   dsimp only
@@ -107,9 +107,9 @@ lemma rel_fam_le {L Q A Ae iδ R iξ is : ℝ} (hL : 0 ≤ L) (hQ : 1 ≤ Q) (hA
     (log (8 * loopW₀ Q A (1 / iδ) * (8 * (Q + 1) * iδ))) with hmx
   have hmx0 : 0 ≤ mx := le_max_of_le_left (Real.log_nonneg (by linarith))
   have hlℓ : 0 ≤ log (L + Q + 4) := Real.log_nonneg (by linarith)
-  set F := 50 * (mx + 2 * log (L + Q + 4)) * is ^ 2 + 20 * is + 28 with hF
+  set F := 50 * (mx + (2 * log (L + Q + 4) + 3)) * is ^ 2 + 20 * is + 28 with hF
   have hF0 : 0 ≤ F := by
-    have : 0 ≤ 50 * (mx + 2 * log (L + Q + 4)) * is ^ 2 :=
+    have : 0 ≤ 50 * (mx + (2 * log (L + Q + 4) + 3)) * is ^ 2 :=
       mul_nonneg (mul_nonneg (by norm_num) (by linarith)) (sq_nonneg _)
     linarith
   refine ⟨by linarith, ?_⟩

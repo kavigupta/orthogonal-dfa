@@ -21,7 +21,7 @@ open MeasureTheory
 
 /-- A bound on the suffix pool, the clustering's `crossLimit` at `exp (-cLog)`. -/
 def capPB (η₀ ι εcov δ pAP cLog Jm : ℝ) : ℝ :=
-  2 * (25 * max (4 * Real.log (20 / budgetScale η₀ ι εcov)) cLog / (8 * (1 / 2 - η₀) ^ 2)
+  2 * (25 * (max (4 * Real.log (20 / budgetScale η₀ ι εcov)) cLog + 12) / (8 * (1 / 2 - η₀) ^ 2)
       + 5 / (1 / 2 - η₀) + 7) / pAP
     + 60 * Real.log (3 / (δ / 2)) / pAP
 
@@ -346,9 +346,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     let B₃ : ℝ := 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S + 1
     let Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
     let W : ℝ := max (2 * Real.exp 2 * Wm) 1
-    let PB : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+    let PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
-    let FV : ℝ := (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / 4
+    let FV : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / 4
     let RB : ℝ := 2 ^ 20 * J * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
       + 2 ^ 27 * Real.log ((J + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
     let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
@@ -454,7 +454,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     rw [min_eq_left (by linarith : εcov / 2 ≤ 1 / 2)]
     rfl
   have hPBe : capPB η₀ ι (εcov / 2) δ' (pAP / 2) cLog J = PB := by
-    show _ = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / (1 / 2 - η₀) ^ 2 + 20 / (1 / 2 - η₀) + 28) / pAP
+    show _ = (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / (1 / 2 - η₀) ^ 2 + 20 / (1 / 2 - η₀) + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     unfold capPB
     rw [hτb, hcLog, ← mul_max_of_nonneg _ _ (by norm_num : (0 : ℝ) ≤ 4)]
@@ -488,10 +488,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       (by linarith) (Real.exp_pos _) (Real.exp_le_one_iff.2 (by linarith))
     have e1 : Real.log (1 / Real.exp (-cLog)) = cLog := by
       rw [one_div, ← Real.exp_neg, neg_neg, Real.log_exp]
-    have e : 25 * max (4 * Real.log (20 / budgetScale η₀ ι (εcov / 2)))
-        (Real.log (1 / Real.exp (-cLog))) / (8 * sig η₀ ^ 2) + 5 / sig η₀ + 7 = FV := by
+    have e : 25 * (max (4 * Real.log (20 / budgetScale η₀ ι (εcov / 2)))
+        (Real.log (1 / Real.exp (-cLog))) + 12) / (8 * sig η₀ ^ 2) + 5 / sig η₀ + 7 = FV := by
       rw [e1, hτb, hcLog, ← mul_max_of_nonneg _ _ (by norm_num : (0 : ℝ) ≤ 4)]
-      show _ = (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / (1 / 2 - η₀) ^ 2
+      show _ = (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / (1 / 2 - η₀) ^ 2
         + 20 / (1 / 2 - η₀) + 28) / 4
       unfold sig
       field_simp

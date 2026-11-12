@@ -232,9 +232,9 @@ lemma far_le {B K Q c Am ε aε ℓ : ℝ} (hB : B ≤ K * ℓ) (hB0 : 0 ≤ B) 
 lemma pool_le {τ Θ ℓ W W₀ δ' s pAP : ℝ} (hτ0 : 0 < τ) (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ)
     (hℓ : 1 ≤ ℓ) (hW1 : 1 ≤ W) (hWW : W ≤ W₀ * ℓ ^ 2) (hδ'0 : 0 < δ') (hs0 : 0 < s)
     (hp : 0 < pAP) :
-    (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+    (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
         + 120 * Real.log (3 / (δ' / 2)) / pAP
-      ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2 * Real.log ℓ) / s ^ 2
+      ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + (2 * Real.log ℓ + 3)) / s ^ 2
           + 20 / s + 28) / pAP
         + 120 * Real.log (3 / (δ' / 2)) / pAP := by
   have hℓ0 : 0 < ℓ := by linarith
@@ -260,12 +260,19 @@ lemma pool_le {τ Θ ℓ W W₀ δ' s pAP : ℝ} (hτ0 : 0 < τ) (hinvτ : 1 / �
       linarith
     · have := le_max_right (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ'))
       linarith
-  gcongr
+  have key : 50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2
+      ≤ 50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + (2 * Real.log ℓ + 3)) / s ^ 2 :=
+    div_le_div_of_nonneg_right (by linarith) (sq_nonneg s)
+  have := div_le_div_of_nonneg_right
+    (show 50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28
+      ≤ 50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + (2 * Real.log ℓ + 3)) / s ^ 2
+        + 20 / s + 28 by linarith) hp.le
+  linarith
 
 lemma fam_le {τ Θ ℓ W W₀ δ' s : ℝ} (hτ0 : 0 < τ) (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ)
     (hℓ : 1 ≤ ℓ) (hW1 : 1 ≤ W) (hWW : W ≤ W₀ * ℓ ^ 2) (hδ'0 : 0 < δ') (hs0 : 0 < s) :
-    (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / 4
-      ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2 * Real.log ℓ) / s ^ 2
+    (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / 4
+      ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + (2 * Real.log ℓ + 3)) / s ^ 2
           + 20 / s + 28) / 4 := by
   have h := pool_le (pAP := 4) hτ0 hinvτ hΘ hℓ hW1 hWW hδ'0 hs0 (by norm_num)
   linarith
@@ -334,11 +341,11 @@ lemma pb_le {τ Θ ℓ W W₀ δ' s pAP : ℝ} (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
     (hinvτ : 1 / τ ≤ Θ * ℓ) (hΘ : 1 ≤ Θ) (hℓ : 1 ≤ ℓ) (hW1 : 1 ≤ W) (hWW : W ≤ W₀ * ℓ ^ 2)
     (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hs0 : 0 < s) (hs1 : s ≤ 1 / 2) (hp : 0 < pAP)
     (hp1 : pAP ≤ 1) :
-    1 ≤ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+    1 ≤ (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
         + 120 * Real.log (3 / (δ' / 2)) / pAP
-      ∧ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28) / pAP
+      ∧ (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP
         + 120 * Real.log (3 / (δ' / 2)) / pAP
-      ≤ ((50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
+      ≤ ((50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 5) / s ^ 2 + 20 / s + 28) / pAP
         + 120 * Real.log (3 / (δ' / 2)) / pAP) * ℓ := by
   have hZ : 0 ≤ 120 * Real.log (3 / (δ' / 2)) / pAP :=
     div_nonneg (mul_nonneg (by norm_num) (Real.log_nonneg (by
@@ -348,9 +355,9 @@ lemma pb_le {τ Θ ℓ W W₀ δ' s pAP : ℝ} (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
   · have h20τ : 0 ≤ Real.log (20 / τ) :=
       Real.log_nonneg (by rw [le_div_iff₀ hτ0]; linarith)
     have hm0 : 0 ≤ max (Real.log (20 / τ)) (Real.log (8 * W / δ')) := le_max_of_le_left h20τ
-    have hN0 : 0 ≤ 50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 :=
-      div_nonneg (mul_nonneg (by norm_num) hm0) hs2.le
-    have h1 : 1 ≤ (50 * max (Real.log (20 / τ)) (Real.log (8 * W / δ')) / s ^ 2 + 20 / s + 28)
+    have hN0 : 0 ≤ 50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 :=
+      div_nonneg (mul_nonneg (by norm_num) (by linarith)) hs2.le
+    have h1 : 1 ≤ (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28)
         / pAP := by
       rw [le_div_iff₀ hp]
       have : 0 ≤ 20 / s := by positivity
@@ -358,19 +365,19 @@ lemma pb_le {τ Θ ℓ W W₀ δ' s pAP : ℝ} (hτ0 : 0 < τ) (hτ1 : τ ≤ 1)
     linarith
   set m := max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ'))
   have hm₀ : 0 ≤ m := le_max_of_le_left (Real.log_nonneg (by linarith))
-  have hX : 0 ≤ 50 * m / s ^ 2 + 20 / s + 28 := by
-    have : 0 ≤ 50 * m / s ^ 2 := div_nonneg (mul_nonneg (by norm_num) hm₀) hs2.le
+  have hX : 0 ≤ 50 * (m + 3) / s ^ 2 + 20 / s + 28 := by
+    have : 0 ≤ 50 * (m + 3) / s ^ 2 := div_nonneg (mul_nonneg (by norm_num) (by linarith)) hs2.le
     have : 0 ≤ 20 / s := by positivity
     linarith
-  have hsum : 50 * (m + 2 * Real.log ℓ) / s ^ 2 + 20 / s + 28
-      ≤ (50 * (m + 2) / s ^ 2 + 20 / s + 28) * ℓ := by
+  have hsum : 50 * (m + (2 * Real.log ℓ + 3)) / s ^ 2 + 20 / s + 28
+      ≤ (50 * (m + 5) / s ^ 2 + 20 / s + 28) * ℓ := by
     have h := add_log_le hX hℓ (show (0 : ℝ) ≤ 100 / s ^ 2 by positivity)
-    rw [show 50 * m / s ^ 2 + 20 / s + 28 + 100 / s ^ 2
-      = 50 * (m + 2) / s ^ 2 + 20 / s + 28 by ring] at h
-    linarith [show 50 * (m + 2 * Real.log ℓ) / s ^ 2
-      = 50 * m / s ^ 2 + 100 / s ^ 2 * Real.log ℓ by ring]
-  have hterm : (50 * (m + 2 * Real.log ℓ) / s ^ 2 + 20 / s + 28) / pAP
-      ≤ (50 * (m + 2) / s ^ 2 + 20 / s + 28) / pAP * ℓ := by
+    rw [show 50 * (m + 3) / s ^ 2 + 20 / s + 28 + 100 / s ^ 2
+      = 50 * (m + 5) / s ^ 2 + 20 / s + 28 by ring] at h
+    linarith [show 50 * (m + (2 * Real.log ℓ + 3)) / s ^ 2
+      = 50 * (m + 3) / s ^ 2 + 100 / s ^ 2 * Real.log ℓ by ring]
+  have hterm : (50 * (m + (2 * Real.log ℓ + 3)) / s ^ 2 + 20 / s + 28) / pAP
+      ≤ (50 * (m + 5) / s ^ 2 + 20 / s + 28) / pAP * ℓ := by
     rw [div_mul_eq_mul_div]
     gcongr
   linarith [le_mul_of_one_le_right hZ hℓ]
@@ -765,17 +772,17 @@ lemma log_count_nonneg {Q P₀ Θ δ' pAP : ℝ} (hQ : 0 ≤ Q) (hP₀ : 1 ≤ P
 lemma pool_ge_one {s pAP Θ W₀ δ' : ℝ} (hs0 : 0 < s) (hs1 : s ≤ 1 / 2)
     (hp : 0 < pAP) (hp1 : pAP ≤ 1) (hΘ : 1 ≤ Θ) (hW₀ : 1 ≤ W₀) (hδ'0 : 0 < δ')
     (hδ'1 : δ' ≤ 1) :
-    1 ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28) / pAP
+    1 ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 5) / s ^ 2 + 20 / s + 28) / pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP := by
   have h1 : 0 ≤ Real.log (20 * Θ) := Real.log_nonneg (by linarith)
   have hm : 0 ≤ max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) := le_max_of_le_left h1
   have h3 : 0 ≤ 120 * Real.log (3 / (δ' / 2)) / pAP :=
     div_nonneg (mul_nonneg (by norm_num) (Real.log_nonneg (by
       rw [le_div_iff₀ (by positivity)]; linarith))) (by positivity)
-  have h5 : 0 ≤ 50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 :=
+  have h5 : 0 ≤ 50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 5) / s ^ 2 :=
     div_nonneg (mul_nonneg (by norm_num) (by linarith)) (by positivity)
   have h6 : 0 ≤ 20 / s := by positivity
-  have h4 : 1 ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s + 28)
+  have h4 : 1 ≤ (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 5) / s ^ 2 + 20 / s + 28)
       / pAP := by
     rw [le_div_iff₀ hp]; linarith
   linarith
@@ -909,7 +916,7 @@ def loopPool (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
   let δ' := δ / (8 * (Q + 1))
   let s := 1 / 2 - η₀
   (50 * (max (Real.log (20 * loopΘ Q Ae c ξ η₀)) (Real.log (8 * loopW₀ Q A δ / δ'))
-      + 2 * Real.log ℓ) / s ^ 2 + 20 / s + 28) / pAP
+      + (2 * Real.log ℓ + 3)) / s ^ 2 + 20 / s + 28) / pAP
     + 120 * Real.log (3 / (δ' / 2)) / pAP
 
 /-- Bounds the family size `FV` at `ℓ = L₁ + 1`, edges crossed at rate `Ae`. -/
@@ -917,7 +924,7 @@ def loopFam (ℓ Q A Ae δ c ξ η₀ : ℝ) : ℝ :=
   let δ' := δ / (8 * (Q + 1))
   let s := 1 / 2 - η₀
   (50 * (max (Real.log (20 * loopΘ Q Ae c ξ η₀)) (Real.log (8 * loopW₀ Q A δ / δ'))
-      + 2 * Real.log ℓ) / s ^ 2 + 20 / s + 28) / 4
+      + (2 * Real.log ℓ + 3)) / s ^ 2 + 20 / s + 28) / 4
 
 /-- Bounds `LearnerLoopDFASimple`'s prefix count `RB` at `ℓ = L₁ + 1`. -/
 def loopCount (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
@@ -934,7 +941,7 @@ def loopR₀ (Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
   let s := 1 / 2 - η₀
   let Θι := loopΘι Q Ae c ξ
   let Θ := loopΘ Q Ae c ξ η₀
-  let P₀ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * loopW₀ Q A δ / δ')) + 2) / s ^ 2
+  let P₀ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * loopW₀ Q A δ / δ')) + 5) / s ^ 2
       + 20 / s + 28) / pAP + 120 * Real.log (3 / (δ' / 2)) / pAP
   2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
     + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2)
@@ -957,7 +964,7 @@ def loopMassTerms (Q A Ae : ℝ) (nQ nA : ℕ) (δ c ξ pAP η₀ : ℝ) : ℝ �
   let Θa : ℝ := loopΘa Q Ae c ξ η₀
   let K₁ : ℝ := 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1
   let W₀ : ℝ := loopW₀ Q A δ
-  let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 2) / s ^ 2 + 20 / s
+  let P₀ : ℝ := (50 * (max (Real.log (20 * Θ)) (Real.log (8 * W₀ / δ')) + 5) / s ^ 2 + 20 / s
       + 28) / pAP + 120 * Real.log (3 / (δ' / 2)) / pAP
   let R₀ : ℝ := 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
     + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2)
