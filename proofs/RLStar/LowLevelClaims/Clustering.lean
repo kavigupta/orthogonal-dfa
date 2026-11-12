@@ -104,11 +104,11 @@ def ClusteringGuarantee : Prop :=
   crossLimit ≤ 1 →
   ∃ states : Finset State,
     (∀ B ∈ states, (B.npref : ℝ) ≤
-      2 ^ 20
+      2 ^ 22
       * (populations.card : ℝ)
       * Real.log (64 * ((B.nsuff : ℝ) + 1) / δ)
       / ((1 / 2 - η₀) ^ 4 * min εcov indecisionLimit ^ 2)
-      + 2 ^ 26
+      + 3 * 2 ^ 25
       * Real.log (
         ((populations.card : ℝ) + 2) * B.nsuff
         / (δ * α * pAP * rateScale η₀ indecisionLimit εcov)

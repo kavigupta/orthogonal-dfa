@@ -57,7 +57,7 @@ lemma tol_T_le {ℓ Λ E E₁ aε lg T : ℝ} (hℓ : 1 ≤ ℓ) (hΛ : 1 ≤ Λ
 lemma tol_K₁ {Q S aε Θι δ' P₀ s R₀ K₁ : ℝ} (hQ : 0 ≤ Q) (hS : 1 ≤ S) (haε : 1 ≤ aε)
     (hSΘ : S ≤ Θι) (hδ'0 : 0 < δ') (hδ'1 : δ' ≤ 1) (hP₀ : 1 ≤ P₀) (hs0 : 0 < s)
     (hs1 : s ≤ 1 / 2) (hK₁ : K₁ = 36 * S * aε * Real.log (16 * S * (S + 1) / δ') + S + 1)
-    (hR₀ : 2 ^ 20 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4 ≤ R₀) :
+    (hR₀ : 2 ^ 22 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4 ≤ R₀) :
     K₁ ≤ aε * R₀ := by
   set Lg := Real.log (256 * P₀ / δ') with hLgd
   have hS0 : 0 < S := by linarith only [hS]
