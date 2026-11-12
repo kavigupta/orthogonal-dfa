@@ -408,6 +408,12 @@ class AcceptPreservingGate:
                 for label in labels
             }
             self._drawn = {label: held for label, held in drawn.items() if held}
+        # A population retired since the draw can neither be read further nor grown,
+        # so blaming it would refuse every family that follows.
+        live = set(population_labels(self._state))
+        self._drawn = {
+            label: held for label, held in self._drawn.items() if label in live
+        }
         return self._drawn
 
     def _certify_further(self, pst, counts, label, voters):

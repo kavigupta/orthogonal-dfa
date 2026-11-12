@@ -149,7 +149,8 @@ def population_labels(state) -> list:
 def prefixes_for_split(pst, state, label, wanted: int) -> list:
     """Prefixes for one population, to read the split on and not to keep.
 
-    Empty where nothing draws for it, so the split goes ahead without it.
+    Fewer, or none, where its source is unproven or runs dry, so the split goes
+    ahead on what there is.
     """
     source = UniformSource(pst) if label == UNIFORM else state.sources.get(label)
     # Not proved here: proving costs a round's worth of probes, which the
@@ -163,8 +164,11 @@ def prefixes_for_split(pst, state, label, wanted: int) -> list:
     # Table-side draws are discarded: they are in no table.
     fresh = []
     tabled = state.tabled()
-    while len(taken) + len(fresh) < wanted:
-        string = source.draw()
-        if state.in_reserve(string) and string not in tabled:
-            fresh.append(string)
+    try:
+        while len(taken) + len(fresh) < wanted:
+            string = source.draw()
+            if state.in_reserve(string) and string not in tabled:
+                fresh.append(string)
+    except SourceDry:
+        pass
     return taken + sorted(fresh)

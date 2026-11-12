@@ -9,7 +9,6 @@ class TestTheShippedConfig(unittest.TestCase):
     def test_it_derives_the_rest_from_the_family_and_the_level(self):
         config = counterexample_search_config(0.98, 0.01)
         derived = (
-            config.k,
             config.ends_rate(2),
             config.ends_rate(9),
             config.middle_rate(4),
@@ -24,7 +23,6 @@ class TestTheShippedConfig(unittest.TestCase):
         )
         self.assertEqual(
             (
-                0,
                 0.2,
                 0.5,
                 0.2,

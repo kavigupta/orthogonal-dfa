@@ -34,6 +34,76 @@ class BernoulliParityOracle(Oracle):
 
 
 @dataclass(frozen=True)
+class BinaryDivisibleOracle(Oracle):
+    """The string read as a binary number, most significant bit first."""
+
+    modulo: int
+
+    @property
+    def alphabet_size(self) -> int:
+        return 2
+
+    def membership_query(self, string: bytes) -> bool:
+        return int("0" + "".join(map(str, string)), 2) % self.modulo == 0
+
+    def target_dfa(self):
+        return DFA(
+            states=set(range(self.modulo)),
+            input_symbols={0, 1},
+            transitions={
+                q: {b: (2 * q + b) % self.modulo for b in (0, 1)}
+                for q in range(self.modulo)
+            },
+            initial_state=0,
+            final_states={0},
+            allow_partial=False,
+        )
+
+
+@dataclass(frozen=True)
+class PrefixMajorityOracle(Oracle):
+    """More than prefix_length / 2 ones among the first prefix_length symbols, so a
+    string shorter than prefix_length can already pass."""
+
+    prefix_length: int
+
+    @property
+    def alphabet_size(self) -> int:
+        return 2
+
+    def membership_query(self, string: bytes) -> bool:
+        return 2 * sum(string[: self.prefix_length]) > self.prefix_length
+
+    def target_dfa(self):
+        needed = self.prefix_length // 2 + 1
+
+        def step(state, b):
+            if state in ("accept", "reject"):
+                return state
+            zeros, ones = state[0] + (b == 0), state[1] + (b == 1)
+            if ones >= needed:
+                return "accept"
+            if zeros > self.prefix_length - needed:
+                return "reject"
+            return zeros, ones
+
+        undecided = [
+            (zeros, ones)
+            for zeros in range(self.prefix_length - needed + 1)
+            for ones in range(needed)
+        ]
+        states = undecided + ["accept", "reject"]
+        return DFA(
+            states=set(states),
+            input_symbols={0, 1},
+            transitions={q: {b: step(q, b) for b in (0, 1)} for q in states},
+            initial_state=(0, 0),
+            final_states={"accept"},
+            allow_partial=False,
+        ).minify()
+
+
+@dataclass(frozen=True)
 class BernoulliRegex(Oracle):
     regex: str
     alphabet_size: int = 2

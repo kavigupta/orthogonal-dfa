@@ -76,7 +76,7 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
           (∀ B ∈ schedule pops, ∀ j ∈ pops, ∀ t,
             4 * (pops.card : ℝ) * (B.npref : ℝ) * (D j).real {t} ≤ slack) →
           (∀ B ∈ schedule pops,
-            2 ^ 14 * (B.nsuff : ℝ) * collisionMass Dsf ≤ δc * pAP) →
+            ∀ t, 2 ^ 16 * (B.nsuff : ℝ) * Dsf.real {t} ≤ pAP) →
           (runMeasure μ D Dsf).real
             {x | ¬ ((∃ B ∈ schedule pops, streams (fun _ => ∅) none x
                 ∈ ret O.mq pops none η₀ indecisionLimit εcov gateLevel B)
@@ -434,7 +434,7 @@ def LoopCore : Prop :=
   4 * Real.log (128 * ((K : ℝ) + 1) * (3 + 2 * (Nat.log 2 NP : ℝ)) / δc) * cap
     ≤ (slack - m) ^ 2 →
   8 * ((K : ℝ) + 1) * NP * cap ≤ slack - m →
-  2 ^ 15 * NS * cap ≤ δc * (pAP - ms) →
+  2 ^ 17 * NS * cap ≤ pAP - ms →
   6 * K * (K + 1) * NP * cap ≤ m →
   K * (NS + 1) * cap ≤ ms →
   1 ≤ C.walkStart → prefixMax P.D C.walkStart ≤ cap * C.harvestRate / 2 →
@@ -592,13 +592,11 @@ theorem loop_core_holds : LoopCore := by
     have hs : settings.schedule pops = schedule₀ pops := if_pos hpops
     rw [hs]
     have hLat0 : ∀ j t, 0 ≤ (L j).real {t} := fun _ _ => measureReal_nonneg
-    have hcolS : collisionMass Lsf ≤ 2 * cap := collisionMass_le_of_atoms Lsf hLsfat
-    have hcolS0 : 0 ≤ collisionMass Lsf := tsum_nonneg fun t => sq_nonneg _
     have hNP0 : (0 : ℝ) ≤ NP := Nat.cast_nonneg _
     have hNS0 : (0 : ℝ) ≤ NS := Nat.cast_nonneg _
     refine hclust₀ pops hpops L Lsf hLp hLsfp (fun j hj => ?_) ?_ hpAPL (fun B hB j hj t => ?_)
       (fun B hB j hj t => ?_) (fun B hB j hj t => ?_) (fun B hB j hj t => ?_)
-      (fun B hB j hj t => ?_) (fun B hB => ?_)
+      (fun B hB j hj t => ?_) (fun B hB t => ?_)
     · refine measure_mono_null (fun p hp => ?_) (hLs j hj)
       simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_lt] at hp ⊢
       exact hp
@@ -681,11 +679,11 @@ theorem loop_core_holds : LoopCore := by
     · have hns : (B.nsuff : ℝ) ≤ NS := by
         rw [(hsizes pops B (by rw [hs]; exact hB)).1]
         exact_mod_cast hNSb pops hpops
-      have hcc := mul_le_mul hns hcolS hcolS0 (by positivity)
-      calc 2 ^ 14 * (B.nsuff : ℝ) * collisionMass Lsf
-          = 2 ^ 14 * ((B.nsuff : ℝ) * collisionMass Lsf) := by ring
-        _ ≤ 2 ^ 14 * (NS * (2 * cap)) := mul_le_mul_of_nonneg_left hcc (by norm_num)
-        _ = 2 ^ 15 * NS * cap := by ring
+      have hcc := mul_le_mul hns (hLsfat t) measureReal_nonneg (by positivity)
+      calc 2 ^ 16 * (B.nsuff : ℝ) * Lsf.real {t}
+          = 2 ^ 16 * ((B.nsuff : ℝ) * Lsf.real {t}) := by ring
+        _ ≤ 2 ^ 16 * (NS * (2 * cap)) := mul_le_mul_of_nonneg_left hcc (by norm_num)
+        _ = 2 ^ 17 * NS * cap := by ring
         _ ≤ _ := hq3
   -- the history's reads number at most `6 (K + 1) NP` prefixes and `NS + 1` suffixes a round
   have hcodes : ∀ (ω : Ω) (g : Fin K → RoundDraws α K settings.level3.harvestReadCap T) (r : ℕ),
