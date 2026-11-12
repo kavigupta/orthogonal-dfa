@@ -27,6 +27,7 @@ import RLStar.Proofs.SeqTest
 import RLStar.Proofs.SpurAccount
 import RLStar.Proofs.SpurCount
 import RLStar.Proofs.SuccessiveDraws
+import RLStar.Proofs.TrieMass
 import RLStar.Proofs.TripartiteSearch
 import RLStar.Proofs.Trie
 import RLStar.Proofs.TrieLoop
@@ -55,9 +56,9 @@ both. The loop runs level 5.
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
 `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
 `CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `Level3TrieRootOne`,
-`Level3TrieAgrees`, `TrieLoopAgrees`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
-`SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
-`RunsKeepEdgesAtLeaves`.
+`Level3TrieAgrees`, `TrieLoopAgrees`, `TrieMassBound`, `WalkStartMoves`, `RateTestSound`,
+`SeqRateSound`, `TripartiteSearchCorrect`, `SiftWithPathCorrect`, `SiftAndSplitCorrect`,
+`WalkCorrect`, `SplitAndLearnCorrect` and `RunsKeepEdgesAtLeaves`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`:
 `TrainFamilyClaim`, `CounterexSynthClaim`, `RLStarClaim`,
@@ -224,5 +225,13 @@ theorem level3_trie_agrees : Level3TrieAgrees := level3TrieAgrees_holds
 theorem trie_loop_agrees : TrieLoopAgrees := trieLoopAgrees_holds
 
 #print axioms trie_loop_agrees
+
+theorem trie_mass_bound : TrieMassBound := trieMassBound_holds
+
+#print axioms trie_mass_bound
+
+theorem walk_start_moves : WalkStartMoves := walkStartMoves_holds
+
+#print axioms walk_start_moves
 
 end OrthoDFA
