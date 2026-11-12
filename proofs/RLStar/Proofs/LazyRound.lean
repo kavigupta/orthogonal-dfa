@@ -54,7 +54,7 @@ private theorem harvestMass_sub_le (hW : WalkStartMoves.{u}) (read : FreeMonoid 
 
 private def RoundBad (read : FreeMonoid α → ARU) (C : Level3Settings) (D : Measure (FreeMonoid α))
     (K nQ : ℕ) (r : LazyResult α) : Prop :=
-  nQ + 2 < r.hypothesis.tree.leaves.length ∨
+  nQ + 2 < r.peak ∨
     match r.ending with
     | .consistent => C.disagreementRate < D.real (lazyDisagree read K r.expanded r.hypothesis)
     | .harvest _ _ => False
@@ -101,22 +101,22 @@ private theorem roundBad_le (read : FreeMonoid α → ARU) (C : Level3Settings)
     (hB2 : ∀ H s X ℓ, TrieOK K X → ℓ.Nodup → ℓ.length < nh →
       (Measure.pi fun _ : Fin J => Measure.pi fun _ : Fin b => D).real
         {B | TopUpBad read C D K nh H s X ℓ B} ≤ J * q) :
-    ∀ n e (X : Finset (FreeMonoid α)) (ls : Level3Site → List (FreeMonoid α)), e + n ≤ E →
-      TrieOK K X →
+    ∀ n e pk (X : Finset (FreeMonoid α)) (ls : Level3Site → List (FreeMonoid α)), e + n ≤ E →
+      pk ≤ nQ + 2 → TrieOK K X →
       (0 < nh → ∀ s, (ls s).Nodup ∧ (ls s).length < nh) →
       (K : ℝ) < trieMass D X + n * (C.harvestRate / 2) →
       (Measure.pi fun _ : Fin n => epochLaw D C.probeBudget J b)
-          {d | RoundBad read C D K nQ ((lazyEpochsQ C K nh e (List.ofFn d) X ls).eval read)}
+          {d | RoundBad read C D K nQ ((lazyEpochsQ C K nh e pk (List.ofFn d) X ls).eval read)}
         ≤ ENNReal.ofReal (C.δ / (e + 1) + n * (J * q)) := by
   intro n
   induction n with
   | zero =>
-    intro e X ls _ hX _ hK
+    intro e pk X ls _ _ hX _ hK
     have := hmass X hX
     simp only [CharP.cast_eq_zero, zero_mul, add_zero] at hK
     linarith
   | succ n ih =>
-    intro e X ls hn hX hls hK
+    intro e pk X ls hn hpk hX hls hK
     let res : EpochDraws α C.probeBudget J b → Level3Result (Option α) := fun z =>
       (epochQ (epochSettings C e) K X z.1).eval read
     let B1 : Set (EpochDraws α C.probeBudget J b) := {z | EpochBad read C D K nQ X (res z)}
@@ -165,7 +165,7 @@ private theorem roundBad_le (read : FreeMonoid α → ARU) (C : Level3Settings)
         _ = ENNReal.ofReal (J * q) := by rw [lintegral_const, measure_univ, mul_one]
     have hpt : ∀ z, (Measure.pi fun _ : Fin n => epochLaw D C.probeBudget J b)
         {t | Fin.cons z t ∈ {d : Fin (n + 1) → EpochDraws α C.probeBudget J b |
-          RoundBad read C D K nQ ((lazyEpochsQ C K nh e (List.ofFn d) X ls).eval read)}}
+          RoundBad read C D K nQ ((lazyEpochsQ C K nh e pk (List.ofFn d) X ls).eval read)}}
         ≤ B1.indicator 1 z + B2.indicator 1 z
           + ENNReal.ofReal (C.δ / (e + 2) + n * (J * q)) := by
       intro z
@@ -180,22 +180,22 @@ private theorem roundBad_le (read : FreeMonoid α → ARU) (C : Level3Settings)
       simp only [B1, B2, res, Set.mem_ofPred_eq] at h1 h2
       rcases hr : ((epochQ (epochSettings C e) K X z.1).eval read).ending with _ | s | _
       · have : {t : Fin n → EpochDraws α C.probeBudget J b | RoundBad read C D K nQ
-            ((lazyEpochsQ C K nh e (z :: List.ofFn t) X ls).eval read)} = ∅ := by
+            ((lazyEpochsQ C K nh e pk (z :: List.ofFn t) X ls).eval read)} = ∅ := by
           ext t
           simp only [lazyEpochsQ, Query.eval_bind, hr, Query.eval_pure, Set.mem_ofPred_eq,
             Set.mem_empty_iff_false, iff_false]
-          simpa [RoundBad, EpochBad, hr] using h1
+          simpa [RoundBad, EpochBad, hr, hpk] using h1
         simp [this]
       · rcases ht : (topUpQ K nh ((epochQ (epochSettings C e) K X z.1).eval read).hypothesis s
             (List.ofFn z.2) X (ls s)).eval read with _ | ⟨_ | ⟨ℓ', X'⟩, rest⟩
         · exact absurd (by simp [hr, TopUpBad, ht]) h2
         · have : {t : Fin n → EpochDraws α C.probeBudget J b | RoundBad read C D K nQ
-              ((lazyEpochsQ C K nh e (z :: List.ofFn t) X ls).eval read)} = ∅ := by
+              ((lazyEpochsQ C K nh e pk (z :: List.ofFn t) X ls).eval read)} = ∅ := by
             ext t
             simp only [lazyEpochsQ, Query.eval_bind, hr, ht, Query.eval_pure, Set.mem_ofPred_eq,
               Set.mem_empty_iff_false, iff_false]
             simp only [EpochBad, hr, not_or, not_lt] at h1
-            simpa [RoundBad] using h1.1
+            simpa [RoundBad, hpk] using h1.1
           simp [this]
         · have hnh : 0 < nh := by
             rcases Nat.eq_zero_or_pos nh with h0 | h0
@@ -207,10 +207,8 @@ private theorem roundBad_le (read : FreeMonoid α → ARU) (C : Level3Settings)
             · exact h0
           obtain ⟨hX', hXX', hnd, hlen, -, -⟩ := topUpQ_retract_inv read _ s K nh _ X (ls s) hX
             (hls hnh s).1 (hls hnh s).2 ht
-          have hy1 : C.harvestRate ≤ harvestMass read D K X
-              ((epochQ (epochSettings C e) K X z.1).eval read).hypothesis s := by
-            simp only [EpochBad, hr, not_or, not_lt] at h1
-            exact h1.2
+          simp only [EpochBad, hr, not_or, not_lt] at h1
+          obtain ⟨hleaves, hy1⟩ := h1
           have hy2 : harvestMass read D K X'
               ((epochQ (epochSettings C e) K X z.1).eval read).hypothesis s
               < C.harvestRate / 2 := by
@@ -218,13 +216,15 @@ private theorem roundBad_le (read : FreeMonoid α → ARU) (C : Level3Settings)
           have hgap := harvestMass_sub_le hW read D K
             ((epochQ (epochSettings C e) K X z.1).eval read).hypothesis s hXX'
           have hset : {t : Fin n → EpochDraws α C.probeBudget J b | RoundBad read C D K nQ
-              ((lazyEpochsQ C K nh e (z :: List.ofFn t) X ls).eval read)}
-              = {t | RoundBad read C D K nQ ((lazyEpochsQ C K nh (e + 1) (List.ofFn t) X'
-                (Function.update ls s ℓ')).eval read)} := by
+              ((lazyEpochsQ C K nh e pk (z :: List.ofFn t) X ls).eval read)}
+              = {t | RoundBad read C D K nQ ((lazyEpochsQ C K nh (e + 1)
+                (max pk
+                  ((epochQ (epochSettings C e) K X z.1).eval read).hypothesis.tree.leaves.length)
+                (List.ofFn t) X' (Function.update ls s ℓ')).eval read)} := by
             ext t
             simp only [lazyEpochsQ, Query.eval_bind, hr, ht]
           rw [hset]
-          refine (ih (e + 1) X' _ (by omega) hX' ?_ ?_).trans_eq ?_
+          refine (ih (e + 1) _ X' _ (by omega) (max_le hpk hleaves) hX' ?_ ?_).trans_eq ?_
           · intro _ s'
             by_cases hs : s' = s
             · subst hs
@@ -307,7 +307,8 @@ theorem lazyRoundCorrect_of (hE : EpochCorrect.{u, v}) (hT : TopUpCorrect.{u})
     have h1 : 2 * (K : ℝ) / C.harvestRate * C.harvestRate = 2 * K := div_mul_cancel₀ _ hy.ne'
     nlinarith [mul_le_mul_of_nonneg_right hEK' hy.le]
   have key := roundBad_le read C D K nh nQ E J b hW hδ.le hq hJ0 (fun X hX => hM D X K hX.1)
-    hB1 hB2 E 0 X₀ (fun _ => []) (by omega) hX₀ (fun h _ => ⟨List.nodup_nil, h⟩) hKE
+    hB1 hB2 E 0 0 X₀ (fun _ => []) (by omega) (Nat.zero_le _) hX₀
+    (fun h _ => ⟨List.nodup_nil, h⟩) hKE
   refine (ENNReal.toReal_le_of_le_ofReal (add_nonneg (div_nonneg hδ.le (by positivity))
     (mul_nonneg (Nat.cast_nonneg _) (mul_nonneg (Nat.cast_nonneg _) hq))) key).trans_eq ?_
   push_cast

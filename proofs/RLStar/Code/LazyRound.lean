@@ -99,6 +99,8 @@ structure LazyResult (α : Type*) where
   expanded : Finset (FreeMonoid α)
   lists : LazyLists α
   ending : LazyEnd α
+  /-- The most leaves any epoch's hypothesis had. -/
+  peak : ℕ
 
 /-- Epoch `e` tests at `δ / ((e + 1)(e + 2))`. -/
 def epochSettings (C : Level3Settings) (e : ℕ) : Level3Settings :=
@@ -108,25 +110,26 @@ def epochSettings (C : Level3Settings) (e : ℕ) : Level3Settings :=
 abbrev EpochDraws (α : Type*) (P J b : ℕ) := (Fin P → FreeMonoid α) × (Fin J → Fin b → FreeMonoid α)
 
 open scoped Classical in
-/-- The epochs in turn, from epoch `e`, the trie `X` and the lists `ls`; failed where the epochs
-or an epoch's blocks run out. -/
+/-- The epochs in turn, from epoch `e`, the most leaves `pk` an epoch has had so far, the trie `X`
+and the lists `ls`; failed where the epochs or an epoch's blocks run out. -/
 def lazyEpochsQ (C : Level3Settings) (K nh : ℕ) {J b : ℕ} :
-    ℕ → List (EpochDraws α C.probeBudget J b) → Finset (FreeMonoid α) → LazyLists α →
+    ℕ → ℕ → List (EpochDraws α C.probeBudget J b) → Finset (FreeMonoid α) → LazyLists α →
       Query (FreeMonoid α) ARU (LazyResult α)
-  | _, [], X, ls => .pure ⟨⟨.leaf, fun _ => none⟩, X, ls, .failed⟩
-  | e, d :: ds, X, ls => (epochQ (epochSettings C e) K X d.1).bind fun res =>
+  | _, pk, [], X, ls => .pure ⟨⟨.leaf, fun _ => none⟩, X, ls, .failed, pk⟩
+  | e, pk, d :: ds, X, ls => (epochQ (epochSettings C e) K X d.1).bind fun res =>
+    let pk' := max pk res.hypothesis.tree.leaves.length
     match res.ending with
-    | .consistent => .pure ⟨res.hypothesis, X, ls, .consistent⟩
-    | .failed => .pure ⟨res.hypothesis, X, ls, .failed⟩
+    | .consistent => .pure ⟨res.hypothesis, X, ls, .consistent, pk'⟩
+    | .failed => .pure ⟨res.hypothesis, X, ls, .failed, pk'⟩
     | .harvest s => (topUpQ K nh res.hypothesis s (List.ofFn d.2) X (ls s)).bind fun
-      | none => .pure ⟨res.hypothesis, X, ls, .failed⟩
-      | some (.full ℓ, _) => .pure ⟨res.hypothesis, X, Function.update ls s ℓ, .harvest s ℓ⟩
-      | some (.retract ℓ X', _) => lazyEpochsQ C K nh (e + 1) ds X' (Function.update ls s ℓ)
+      | none => .pure ⟨res.hypothesis, X, ls, .failed, pk'⟩
+      | some (.full ℓ, _) => .pure ⟨res.hypothesis, X, Function.update ls s ℓ, .harvest s ℓ, pk'⟩
+      | some (.retract ℓ X', _) => lazyEpochsQ C K nh (e + 1) pk' ds X' (Function.update ls s ℓ)
 
 /-- A round from the trie `X₀`, every list empty. -/
 def lazyRoundQ (C : Level3Settings) (K nh : ℕ) {E J b : ℕ} (X₀ : Finset (FreeMonoid α))
     (draws : Fin E → EpochDraws α C.probeBudget J b) : Query (FreeMonoid α) ARU (LazyResult α) :=
-  lazyEpochsQ C K nh 0 (List.ofFn draws) X₀ fun _ => []
+  lazyEpochsQ C K nh 0 0 (List.ofFn draws) X₀ fun _ => []
 
 /-- Every prefix shorter than `K` of the strings `P`. -/
 def prefixTrie (K : ℕ) (P : Finset (FreeMonoid α)) : Finset (FreeMonoid α) :=

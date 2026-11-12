@@ -92,8 +92,9 @@ def TopUpCorrect : Prop :=
       ≤ J * (1 - y / 4) ^ b
 
 /-- A round grows its trie by at most `K` walk starts per listed string, keeps its lists free of
-repeats, and ends consistent only with every list short of `nh`; each listed string is a string
-the round read undecided, its pads dropped. -/
+repeats, and ends consistent only with every list short of `nh`; unless it fails, its hypothesis
+has at most its peak's leaves; each listed string is a string the round read undecided, its pads
+dropped. -/
 def LazyRoundShape : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3Settings)
     (K nh E J b : ℕ) (X₀ : Finset (FreeMonoid α))
@@ -106,10 +107,11 @@ def LazyRoundShape : Prop :=
       ∧ (∀ s, (r.lists s).Nodup)
       ∧ (r.ending = .consistent → ∀ s, (r.lists s).length < nh)
       ∧ (∀ s ℓ, r.ending = .harvest s ℓ → r.lists s = ℓ ∧ nh ≤ ℓ.length)
+      ∧ (r.ending ≠ .failed → r.hypothesis.tree.leaves.length ≤ r.peak)
       ∧ ∀ s, ∀ w ∈ r.lists s, w ∈ p.reads read ∧ read w = .undecided
 
 /-- With no wrong read, a round fails, ends consistent with more than `ε` of the probes
-disagreeing, or ends past `|Q| + 2` leaves, with chance at most
+disagreeing, or has an epoch end past `|Q| + 2` leaves, with chance at most
 
     δ + E J (1 − y/4)^b,
 
@@ -133,7 +135,7 @@ def LazyRoundCorrect : Prop :=
     (Measure.pi fun _ : Fin E => (Measure.pi fun _ : Fin C.probeBudget => D).prod
         (Measure.pi fun _ : Fin J => Measure.pi fun _ : Fin b => D)).real
         {d | let r := (lazyRoundQ C K nh X₀ d).eval read
-          nQ + 2 < r.hypothesis.tree.leaves.length ∨
+          nQ + 2 < r.peak ∨
           match r.ending with
           | .consistent => ε < D.real (lazyDisagree read K r.expanded r.hypothesis)
           | .harvest _ _ => False

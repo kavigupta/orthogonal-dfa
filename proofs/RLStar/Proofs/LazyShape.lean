@@ -307,40 +307,43 @@ private def EpochsOK (read : FreeMonoid α → ARU) (K nh : ℕ) (X : Finset (Fr
     ∧ (∀ s, ls s <+: r.lists s) ∧ (∀ s, (r.lists s).Nodup)
     ∧ (r.ending = .consistent → ∀ s, (r.lists s).length < nh)
     ∧ (∀ s ℓ, r.ending = .harvest s ℓ → r.lists s = ℓ ∧ nh ≤ ℓ.length)
-    ∧ ∀ s, ∀ w ∈ r.lists s, w ∈ ls s ∨ w ∈ R ∧ read w = .undecided
+    ∧ (∀ s, ∀ w ∈ r.lists s, w ∈ ls s ∨ w ∈ R ∧ read w = .undecided)
+    ∧ (r.ending ≠ .failed → r.hypothesis.tree.leaves.length ≤ r.peak)
 
 omit [Fintype α] in
 private lemma epochsOK_stay (read : FreeMonoid α → ARU) {K nh : ℕ} {X : Finset (FreeMonoid α)}
     {ls : LazyLists α} (R : Finset (FreeMonoid α)) (H : HypothesisDFA (Option α))
     (hX : TrieOK K X) (hn : ∀ s, (ls s).Nodup) (hl : ∀ s, (ls s).length < nh)
-    {en : LazyEnd α} (hen : ∀ s ℓ, en ≠ .harvest s ℓ) :
-    EpochsOK read K nh X ls R ⟨H, X, ls, en⟩ :=
+    {en : LazyEnd α} (hen : ∀ s ℓ, en ≠ .harvest s ℓ) {pk : ℕ}
+    (hpk : en ≠ .failed → H.tree.leaves.length ≤ pk) :
+    EpochsOK read K nh X ls R ⟨H, X, ls, en, pk⟩ :=
   ⟨hX, subset_rfl, fun _ hu => Or.inl hu, fun _ => List.prefix_refl _, hn, fun _ => hl,
-    fun s ℓ h => absurd h (hen s ℓ), fun _ _ hw => Or.inl hw⟩
+    fun s ℓ h => absurd h (hen s ℓ), fun _ _ hw => Or.inl hw, hpk⟩
 
 private lemma lazyEpochsQ_ok [DecidableEq α] (read : FreeMonoid α → ARU) (C : Level3Settings)
-    (K nh : ℕ) {J b : ℕ} : ∀ (e : ℕ) (ds : List (EpochDraws α C.probeBudget J b))
+    (K nh : ℕ) {J b : ℕ} : ∀ (e pk : ℕ) (ds : List (EpochDraws α C.probeBudget J b))
       (X : Finset (FreeMonoid α)) (ls : LazyLists α),
       TrieOK K X → (∀ s, (ls s).Nodup) → (∀ s, (ls s).length < nh) →
-      EpochsOK read K nh X ls ((lazyEpochsQ C K nh e ds X ls).reads read)
-        ((lazyEpochsQ C K nh e ds X ls).eval read)
-  | _, [], X, ls, hX, hn, hl => epochsOK_stay read _ _ hX hn hl fun _ _ h => by cases h
-  | e, d :: ds, X, ls, hX, hn, hl => by
+      EpochsOK read K nh X ls ((lazyEpochsQ C K nh e pk ds X ls).reads read)
+        ((lazyEpochsQ C K nh e pk ds X ls).eval read)
+  | _, _, [], X, ls, hX, hn, hl =>
+    epochsOK_stay read _ _ hX hn hl (fun _ _ h => by cases h) fun h => absurd rfl h
+  | e, pk, d :: ds, X, ls, hX, hn, hl => by
     simp only [lazyEpochsQ, eval_bind, reads_bind]
     generalize (epochQ (epochSettings C e) K X d.1).eval read = res
     set RE := (epochQ (epochSettings C e) K X d.1).reads read
     rcases res with ⟨hyp, _ | s | _⟩
-    · exact epochsOK_stay read _ _ hX hn hl fun _ _ h => by cases h
+    · exact epochsOK_stay read _ _ hX hn hl (fun _ _ h => by cases h) fun _ => le_max_right _ _
     · simp only [eval_bind, reads_bind]
       have hT := topUpQ_ok read hyp s K nh (List.ofFn d.2) X (ls s) hX (hn s)
       generalize (topUpQ K nh hyp s (List.ofFn d.2) X (ls s)).eval read = o at hT ⊢
       set RT := (topUpQ K nh hyp s (List.ofFn d.2) X (ls s)).reads read
       rcases o with _ | ⟨_ | _, rest⟩ <;> dsimp only [eval_pure, reads_pure]
-      · exact epochsOK_stay read _ _ hX hn hl fun _ _ h => by cases h
+      · exact epochsOK_stay read _ _ hX hn hl (fun _ _ h => by cases h) fun h => absurd rfl h
       · rename_i ℓ
         obtain ⟨g1, g2, g3, g4⟩ := hT
         refine ⟨hX, subset_rfl, fun _ hu => Or.inl hu, fun s' => ?_, fun s' => ?_,
-          fun h => ?_, fun s' ℓ' h => ?_, fun s' w hw => ?_⟩
+          fun h => ?_, fun s' ℓ' h => ?_, fun s' w hw => ?_, fun _ => le_max_right _ _⟩
         · by_cases hs : s' = s
           · subst hs; simpa only [upd_self] using g1
           · simp only [upd_ne _ _ hs, List.prefix_refl]
@@ -375,10 +378,10 @@ private lemma lazyEpochsQ_ok [DecidableEq α] (read : FreeMonoid α → ARU) (C 
           by_cases hs : s' = s
           · subst hs; rw [hs']; exact g5
           · rw [hne s' hs]
-        obtain ⟨i1, i2, i3, i4, i5, i6, i7, i8⟩ :=
-          lazyEpochsQ_ok read C K nh (e + 1) ds X' ls' g1 hn' hl'
+        obtain ⟨i1, i2, i3, i4, i5, i6, i7, i8, i9⟩ :=
+          lazyEpochsQ_ok read C K nh (e + 1) _ ds X' ls' g1 hn' hl'
         refine ⟨i1, g2.trans i2, fun u hu => ?_, fun s' => (hpre s').trans (i4 s'), i5, i6, i7,
-          fun s' w hw => ?_⟩
+          fun s' w hw => ?_, i9⟩
         · rcases i3 u hu with hu | hu
           · rcases g6 u hu with hu | ⟨w, hw, i, hi, rfl⟩
             · exact Or.inl hu
@@ -393,7 +396,7 @@ private lemma lazyEpochsQ_ok [DecidableEq α] (read : FreeMonoid α → ARU) (C 
             · rw [hne s' hs] at hw
               exact Or.inl hw
           · exact Or.inr ⟨Finset.mem_union_right _ (Finset.mem_union_right _ hw.1), hw.2⟩
-    · exact epochsOK_stay read _ _ hX hn hl fun _ _ h => by cases h
+    · exact epochsOK_stay read _ _ hX hn hl (fun _ _ h => by cases h) fun h => absurd rfl h
 
 end Random
 
@@ -401,11 +404,11 @@ open Random
 
 theorem lazyRoundShape_holds : LazyRoundShape := by
   intro α _ _ read C K nh E J b X₀ draws hnh hX₀
-  obtain ⟨h1, h2, h3, -, h5, h6, h7, h8⟩ := lazyEpochsQ_ok read C K nh 0 (List.ofFn draws) X₀
+  obtain ⟨h1, h2, h3, -, h5, h6, h7, h8, h9⟩ := lazyEpochsQ_ok read C K nh 0 0 (List.ofFn draws) X₀
     (fun _ => []) hX₀ (fun _ => List.nodup_nil) fun _ => hnh
   simp only [lazyRoundQ]
-  set r := (lazyEpochsQ C K nh 0 (List.ofFn draws) X₀ fun _ => []).eval read
-  refine ⟨h1, h2, ?_, h5, h6, h7, fun s w hw => (h8 s w hw).resolve_left List.not_mem_nil⟩
+  set r := (lazyEpochsQ C K nh 0 0 (List.ofFn draws) X₀ fun _ => []).eval read
+  refine ⟨h1, h2, ?_, h5, h6, h7, h9, fun s w hw => (h8 s w hw).resolve_left List.not_mem_nil⟩
   set L := r.lists .ends ++ r.lists .middles
   have hsub : r.expanded
       ⊆ X₀ ∪ L.toFinset.biUnion fun w => (Finset.range K).image (prefixOf w) := by
