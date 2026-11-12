@@ -93,9 +93,9 @@ PER_STATE = 50
 
 def _split_blamed(pst, dfa, vs, state, verdict, *, index):
     """Hands the next round each side of the state_split of the state the
-    certificate blames, as a population of its own."""
+    certificate blames, as a population of its own; False if there is none."""
     if not verdict.share:
-        return
+        return False
     found = state_split(
         pst,
         dfa,
@@ -105,7 +105,7 @@ def _split_blamed(pst, dfa, vs, state, verdict, *, index):
         level=SPLIT_ALPHA,
     )
     if found is None:
-        return
+        return False
     split, aim = found
     # Replaces the last round's split, as a state's members do.
     state.retire("split")
@@ -116,6 +116,7 @@ def _split_blamed(pst, dfa, vs, state, verdict, *, index):
                 split, side, aim, pst.oracle, on_side=len(group), drawn=drawn
             )
             state.hold(("split", index, verdict.blamed, int(side)), source, PER_STATE)
+    return True
 
 
 def _accumulate_harvest(strings, read, state, wanted) -> int:
@@ -224,17 +225,38 @@ class BestRound:
 
 def _certified(pst, dfa, vs, state, *, index, tracker):
     """denoise_accept_labels(dfa) if the certificate passes it, else None, with
-    the state it blames split into the next round's populations."""
+    the state it blames split into the next round's populations; and the state
+    it blames where it could not be split."""
     output = denoise_accept_labels(pst, dfa)
     # Spread over the rounds, whichever of them reach the certificate.
     verdict = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
     tracker.on_certificate_decided(verdict.certified, index)
     if verdict.certified:
         print(f"[round {index}] certified; stopping synthesis")
-        return output
+        return output, None
     print(f"[round {index}] at target, not certified; splitting {verdict.blamed}")
-    _split_blamed(pst, output, vs, state, verdict, index=index)
-    return None
+    if _split_blamed(pst, output, vs, state, verdict, index=index):
+        return None, None
+    # The blame is the worst case over the rates the certificate could not pin,
+    # so it can fall on a state with one label, which has nothing to split.
+    print(f"[round {index}] no split of {verdict.blamed}; harvesting it instead")
+    return None, verdict.blamed
+
+
+def _next_harvest(pst, search, ending, blamed):
+    """The strings the next family search is shown, and what draws more of them:
+    a success the certificate refused shows the blamed state's undecided reads."""
+    draw = UniformSource(pst).draw
+    if blamed is None or ending.harvest:
+        return ending.harvest, Replay(search, harvest_reader(ending, search), draw)
+    leaf = search.hypothesis.tree.path_of(blamed)
+
+    def at_leaf(by_edge):
+        return [z for c in range(pst.alphabet_size) for z in by_edge.get((leaf, c), [])]
+
+    return at_leaf(search.counts.edge_harvest), Replay(
+        search, lambda charged: at_leaf(charged.undecided_by_edge), draw
+    )
 
 
 def _uncertified_too_long(index, uncertified_since) -> bool:
@@ -471,9 +493,11 @@ def counterexample_driven_synthesis(
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
         # Only a round that would otherwise return is worth the certificate's reads.
-        output = None
+        output, blamed = None, None
         if true_acc >= acc_threshold:
-            output = _certified(pst, dfa, vs, state, index=index, tracker=tracker)
+            output, blamed = _certified(
+                pst, dfa, vs, state, index=index, tracker=tracker
+            )
             uncertified_since = (
                 index if uncertified_since is None else uncertified_since
             )
@@ -495,10 +519,8 @@ def counterexample_driven_synthesis(
             print(f"[round {index}] ran the {max_rounds} rounds asked for")
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-        provenance = Replay(
-            search, harvest_reader(ending, search), UniformSource(pst).draw
-        )
-        taken = _accumulate_harvest(ending.harvest, provenance, state, target)
+        strings, provenance = _next_harvest(pst, search, ending, blamed)
+        taken = _accumulate_harvest(strings, provenance, state, target)
         halved = (
             taken == 0
             and pst.fnr_limit / 2 >= pst.config.fnr_floor * pst.config.fnr_limit
