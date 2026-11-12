@@ -1,3 +1,4 @@
+import RLStar.Proofs.AdaptiveHits
 import RLStar.Proofs.AdaptiveReads
 import RLStar.Proofs.BandKappa
 import RLStar.Proofs.Allowance
@@ -54,10 +55,10 @@ both. The loop runs level 5.
 
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
 `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
-`CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `Level3TrieRootOne`,
-`Level3TrieAgrees`, `TrieLoopAgrees`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
-`SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
-`RunsKeepEdgesAtLeaves`.
+`AdaptiveHitsLower`, `CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`,
+`Level3TrieRootOne`, `Level3TrieAgrees`, `TrieLoopAgrees`, `RateTestSound`, `SeqRateSound`,
+`TripartiteSearchCorrect`, `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`,
+`SplitAndLearnCorrect` and `RunsKeepEdgesAtLeaves`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`:
 `TrainFamilyClaim`, `CounterexSynthClaim`, `RLStarClaim`,
@@ -164,6 +165,10 @@ theorem band_kappa_bound : BandKappaBound := bandKappaBound_holds
 theorem successive_draws_tails : SuccessiveDrawsTails := successiveDrawsTails_holds
 
 #print axioms successive_draws_tails
+
+theorem adaptive_hits_lower : AdaptiveHitsLower := adaptiveHitsLower_holds
+
+#print axioms adaptive_hits_lower
 
 theorem seq_rate_sound : SeqRateSound := seqRateSound
 
