@@ -54,7 +54,8 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
     let HB : ℝ := 384 / ε * ((Q + 1) * SH * Real.log 2 + Real.log (2 / δ')) + 1
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
-    ξ / 4 ≤ (prefixLaw D L).real {p | p ∈ O.L} → ξ / 4 ≤ (prefixLaw D L).real {p | p ∉ O.L} →
+    ξ ≤ (L + Q) * (prefixLaw D L).real {p | p ∈ O.L} →
+    ξ ≤ (L + Q) * (prefixLaw D L).real {p | p ∉ O.L} →
     0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
     2 ≤ Fintype.card α → A ≤ Ae → kw ≤ L → tcap ≤ kw →
     (∀ᵐ w ∂D, Ls ≤ w.toList.length) → (∀ u, D.real {w | prefixOf w kw = u} ≤ Ak⁻¹) →
@@ -379,10 +380,24 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
     have hec : εcov ≤ ξ / 8 := (min_le_right _ _).trans
       (div_le_div_of_nonneg_left hξ.le (by norm_num) (by linarith only [hN1]))
     linarith only [he, hec, hξT]
-  have hec : εcov ≤ ξ / 8 := (min_le_right _ _).trans
-    (div_le_div_of_nonneg_left hξ.le (by norm_num) (by linarith only [hN1]))
-  have hbalL : 2 * εcov ≤ (prefixLaw D L).real {p | p ∈ O.L} := by linarith only [hec, hbL]
-  have hbalN : 2 * εcov ≤ (prefixLaw D L).real {p | p ∉ O.L} := by linarith only [hec, hbN]
+  -- the clustering's balance: `2 εcov ≤ ξ/(4N)`, and `L + |Q| ≤ 4N`
+  have hLQN : (L : ℝ) + Q ≤ 4 * N := by
+    have h2k : 2 * k ≤ L + 1 := by show 2 * ((L + 1) / 2) ≤ L + 1; omega
+    have h2k' : 2 * (k : ℝ) ≤ L + 1 := by exact_mod_cast h2k
+    have hL0 : (0 : ℝ) ≤ L := Nat.cast_nonneg _
+    have hσ0 : (0 : ℝ) ≤ Fintype.card σ := Nat.cast_nonneg _
+    show (L : ℝ) + (Fintype.card σ : ℝ) ≤ 4 * (((L + Fintype.card σ + 3 : ℕ) : ℝ) + 1 - k)
+    push_cast
+    linarith only [h2k', hL0, hσ0]
+  have hN0 : 0 < N := by linarith only [hN1]
+  have hbal : ∀ m : ℝ, 0 ≤ m → ξ ≤ (L + Q) * m → 2 * εcov ≤ m := fun m hm h => by
+    have h1 : ξ ≤ 4 * N * m := h.trans (mul_le_mul_of_nonneg_right hLQN hm)
+    have h2 : ξ / (4 * N) ≤ m := by rw [div_le_iff₀ (by positivity)]; linarith only [h1]
+    have h3 : εcov ≤ ξ / (8 * N) := min_le_right _ _
+    have e : ξ / (8 * N) = ξ / (4 * N) / 2 := by ring
+    linarith only [h2, h3, e]
+  have hbalL : 2 * εcov ≤ (prefixLaw D L).real {p | p ∈ O.L} := hbal _ measureReal_nonneg hbL
+  have hbalN : 2 * εcov ≤ (prefixLaw D L).real {p | p ∉ O.L} := hbal _ measureReal_nonneg hbN
   obtain ⟨settings, hwalk, hbud, -, -, hlenT, hprob⟩ :=
     trie_loop_core M O L kw tcap η₀ c δ pAP ξ ξT c Ae Ak⁻¹ D
       hL hgap hη₀ hbalL hbalN hc hc1 hδ hδ1 hpAP hξ hA2 hAe hkw1 hkw hcapw hc.le hlong hp₀0 hpre

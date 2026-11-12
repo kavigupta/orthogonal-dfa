@@ -6,8 +6,9 @@ import RLStar.Code.LearnerLoopTrie
 /-!
 # The learner's costs, asymptotically
 
-The learner runs at `η₀ = 1/2 − s₀/4`, its clustering sized for accuracy `ξc = min(ξ, β)`, `β`
-the least share either class holds of the strings the DFA is judged on.
+The learner runs at `η₀ = 1/2 − s₀/4` and at accuracy `ξc = min(ξ, (L + |Q|) β)`, so its
+clustering's coverage, about `ξc/L`, is within `β`, the least share either class holds of the
+strings the DFA is judged on.
 -/
 
 namespace OrthoDFA
@@ -30,13 +31,13 @@ def rlStarRegion : Set RLStarInputs :=
   {x | 1 ≤ x.Q ∧ 2 ≤ x.A ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 0 < x.ξ ∧ x.ξ ≤ 1 ∧
     0 < x.pAP ∧ x.pAP ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2 ∧ 0 < x.β}
 
-noncomputable def RLStarInputs.ξc (x : RLStarInputs) : ℝ := min x.ξ x.β
-
 /-- `L` the Python's length. -/
 structure RLStarRun extends RLStarInputs where
   L : ℕ
 
 def rlStarRunRegion : Set RLStarRun := {r | r.toRLStarInputs ∈ rlStarRegion}
+
+noncomputable def RLStarRun.ξc (r : RLStarRun) : ℝ := min r.ξ ((r.L + r.Q) * r.β)
 
 def DependsOnlyOn {X Y : Type*} (f : (X → ℝ) → Y) (oracle : X → ℝ) (S : Finset X) : Prop :=
   ∀ o : X → ℝ, (∀ w ∈ S, o w = oracle w) → f o = f oracle

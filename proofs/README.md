@@ -20,6 +20,6 @@
   `totalReads` within a stated big-O shape.
 - `RLStarClaimUniform` (`Claims/RLStar.lean`): `RLStarClaim` over uniform strings, once `k` is past
   a stated big-O depth `k₀`, logarithmic in `L` and the parameters. The shapes of both claims take
-  `ξc = min(ξ, β)` where they took `ξ`.
+  `ξc = min(ξ, (L + |Q|) β)` where they took `ξ`.
 - `RLStarClaimUniformSimple` (`Claims/RLStar.lean`): `RLStarClaimUniform` with the prefix and
   suffix totals each a single product.

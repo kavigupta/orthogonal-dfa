@@ -12,9 +12,10 @@ import RLStar.Proofs.ClaimReadsArith
 any first `k` letters; but for chance `δ` the run succeeds, asking the oracle at most
 `learnerReads` strings with no held-out ones.
 The claim runs it at `η₀ = 1/2 − s₀/4`, so the gap `s₀` is `4 (1/2 − η₀)`, and at main's rates at
-`R = 1` with edges crossed at `|Σ|` and `ξ` replaced by `ξc = min(ξ, β)`: `c = ξc/2` and `ξc/4`,
-so the clustering's `2 εcov` is at most `ξc/16 ≤ β`. `ClaimRLStarArith` and `ClaimReadsArith`
-bound those shapes at `s₀/4` (`quarterRun`), each within a constant of its shape at `s₀`.
+`R = 1` with edges crossed at `|Σ|` and `ξ` replaced by `ξc = min(ξ, (L + |Q|) β)`: `c = ξc/2` and
+`ξc/4`, so the clustering's `2 εcov ≤ ξc/(16 N)` is at most `β`, `N ≥ (L + |Q|)/4` the probe
+lengths. `ClaimRLStarArith` and `ClaimReadsArith` bound those shapes at `s₀/4` (`quarterRun`), each
+within a constant of its shape at `s₀`.
 `RLStarClaimUniform` and `RLStarClaimUniformSimple` follow (`ClaimRLStarUniform`).
 -/
 
@@ -40,7 +41,7 @@ lemma ratioOne_maps :
 lemma run_coords {r : RLStarRun} (hr : r ∈ rlStarRunRegion) :
     1 ≤ (r.Q : ℝ) ∧ 2 ≤ (r.A : ℝ) ∧ 1 ≤ (r.L : ℝ) + r.Q ∧ 0 < r.δ ∧ r.δ ≤ 1 / 2 ∧ 0 < r.ξc
       ∧ r.ξc ≤ 1 ∧ 0 < r.pAP ∧ r.pAP ≤ 1 ∧ 0 < r.s₀ ∧ r.s₀ ≤ 1 / 2 := by
-  obtain ⟨hξc, hξc1, -, -⟩ := ξc_mem (x := r.toRLStarInputs) hr
+  obtain ⟨hξc, hξc1, -, -⟩ := ξc_mem hr
   obtain ⟨hQ, hA, hδ, hδ2, -, -, hp, hp1, hs, hs1, -⟩ := hr
   have hQ' : (1 : ℝ) ≤ r.Q := by exact_mod_cast hQ
   have hL : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _
@@ -330,7 +331,7 @@ lemma pref_dist : (fun r : RLStarRun => distPref (toDistRun (ratioOneRun r)))
     =O[𝓟 rlStarRunRegion] prefOf := by
   refine (isBigO_comp_on distPref_isBigO ratioOne_maps).congr' EventuallyEq.rfl
     (eventually_principal.2 fun r hr => ?_)
-  have hξ := (ξc_mem (x := r.toRLStarInputs) hr).1
+  have hξ := (ξc_mem hr).1
   obtain ⟨-, hA, hδ, -, -, -, hp, -, hs, -, -⟩ := hr
   have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
   simp only [Function.comp, toDistRun, ratioOneRun, ratioOne, toDist, one_div_one_div, prefOf,
@@ -343,7 +344,7 @@ lemma suff_dist : (fun r : RLStarRun => distSuff (toDistRun (ratioOneRun r)))
     =O[𝓟 rlStarRunRegion] suffOf := by
   refine (isBigO_comp_on distSuff_isBigO ratioOne_maps).congr' EventuallyEq.rfl
     (eventually_principal.2 fun r hr => ?_)
-  have hξ := (ξc_mem (x := r.toRLStarInputs) hr).1
+  have hξ := (ξc_mem hr).1
   obtain ⟨-, hA, hδ, -, -, -, hp, -, hs, -, -⟩ := hr
   have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
   simp only [Function.comp, toDistRun, ratioOneRun, ratioOne, toDist, suffOf, suffSh]
@@ -362,7 +363,7 @@ lemma reads_dist : (fun r : RLStarRun => distLoopReads (toDistRun (ratioOneRun r
     =O[𝓟 rlStarRunRegion] readsOf := by
   refine (isBigO_comp_on distLoopReads_isBigO ratioOne_maps).congr' EventuallyEq.rfl
     (eventually_principal.2 fun r hr => ?_)
-  have hξ := (ξc_mem (x := r.toRLStarInputs) hr).1
+  have hξ := (ξc_mem hr).1
   obtain ⟨-, hA, hδ, -, -, -, hp, -, hs, -, -⟩ := hr
   have hA' : (0 : ℝ) < r.A := by exact_mod_cast (show 0 < r.A by omega)
   simp only [Function.comp, toDistRun, ratioOneRun, ratioOne, toDist, shCluster, shSearch,
@@ -391,11 +392,20 @@ theorem rlStarClaim_holds : RLStarClaim := by
   subst hQ hA
   obtain ⟨hQ1, hA2, hδ, hδ2, hξ, hξ1, hp, hp1, hs, hs1, hβ⟩ := hx
   have hA' : (2 : ℝ) ≤ Fintype.card α := by exact_mod_cast hA2
-  set ξc : ℝ := min ξ β with hξcd
-  have hξc0 : 0 < ξc := lt_min hξ hβ
+  have hgap' : s₀ ≤ O.gap := hgap
+  have hbL' : β ≤ (prefixLaw D L).real {p | p ∈ O.L} := hbL
+  have hbN' : β ≤ (prefixLaw D L).real {p | p ∉ O.L} := hbN
+  have hLQ : (1 : ℝ) ≤ (L : ℝ) + Fintype.card σ := by
+    have : (1 : ℝ) ≤ Fintype.card σ := by exact_mod_cast hQ1
+    have : (0 : ℝ) ≤ L := Nat.cast_nonneg _
+    linarith
+  set ξc : ℝ := min ξ (((L : ℝ) + Fintype.card σ) * β) with hξcd
+  have hξc0 : 0 < ξc := lt_min hξ (mul_pos (by linarith) hβ)
   have hξc1 : ξc ≤ 1 := (min_le_left _ _).trans hξ1
   have hξcξ : ξc ≤ ξ := min_le_left _ _
-  have hξcβ : ξc ≤ β := min_le_right _ _
+  have hξcβ : ξc ≤ ((L : ℝ) + Fintype.card σ) * β := min_le_right _ _
+  have hbL'' := mul_le_mul_of_nonneg_left hbL' (by linarith : (0 : ℝ) ≤ (L : ℝ) + Fintype.card σ)
+  have hbN'' := mul_le_mul_of_nonneg_left hbN' (by linarith : (0 : ℝ) ≤ (L : ℝ) + Fintype.card σ)
   have hη₀ : 1 / 2 - s₀ / 4 < 1 / 2 := by linarith
   have hc0 : 0 < ξc / (2 * 1) := by positivity
   have hc1 : ξc / (2 * 1) ≤ 1 := by linarith
