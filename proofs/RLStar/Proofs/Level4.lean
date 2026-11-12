@@ -19,6 +19,8 @@ theorem level4RoundCorrect_holds : Level4RoundCorrect := by
   have hεw : 0 ≤ εw := measureReal_nonneg.trans (R.wrong default)
   exact level5EpsRoundCorrect_holds M side U εw 0 μ
     ⟨R.read, R.measurable, R.indep, R.undecided, fun z => by simpa using R.wrong z⟩ P C p₀ f t t'
-    hpre hδ hδ1 hy0 hyρ hρ1 hP hεw le_rfl ht ht' (by simpa using htc) (by simpa using hfin)
+    hpre hδ hδ1 hy0 hyρ hρ1 hP hεw le_rfl ht ht' (by simpa using htc)
+    (le_trans (add_le_add (pairs_min_le _ ((prefixMax_pos P.D C.walkStart).le.trans
+      (ciSup_le hpre)) _) le_rfl) (by simpa using hfin))
 
 end OrthoDFA

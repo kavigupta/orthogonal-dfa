@@ -25,7 +25,7 @@
   "converged": true,
   "queries_total": 26474,
   "equivalence_queries": 41,
-  "seconds": 17.657,
+  "seconds": 10.69,
   "error_type": null,
   "error": null
 }

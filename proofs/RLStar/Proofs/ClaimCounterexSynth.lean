@@ -9,8 +9,9 @@ import RLStar.Proofs.Level5
 The witnesses are level 5's premises read off `toVec x`, the counts and the rates' reciprocals, and
 are bounded there before being carried back to the record. Off the instances they take any value,
 the tolerances `1` out of range. It takes level 5 at `f = 0` and splits its `δ/8` into `δ/16` for
-two probes colliding and `δ/16` for the race tail, at `t = 1/W` and `t' = 2t`, `W = √δ/(4e)`: when
-`κ (m + 2) ≤ W` the tail is at most `e² W² = δ/16`.
+two probes colliding with a wrong read and `δ/16` for the race tail, at `t = 1/W` and `t' = 2t`,
+`W = δ/(16e²)`: when the probes' pairs weigh at most `1` and `κ (m + 2) ≤ W`, each is at most
+`e² W = δ/16`.
 -/
 
 noncomputable section
@@ -50,14 +51,14 @@ private def lvSlack : LevelVec → ℝ
 
 private def lvP₀ : LevelVec → ℝ
   | (Q, A, iε, iδ, L) =>
-    if 0 < iδ then 1 / (8 * ((lvProbes (Q, A, iε, iδ, L) : ℝ) ^ 2 + 1) * iδ) else 1
+    1 / ((lvProbes (Q, A, iε, iδ, L) : ℝ) ^ 2 + 1)
 
 private def lvM (Q A iδ : ℝ) : ℝ :=
   16 / 5 * lvS Q A * Real.log (8 * lvS Q A * (lvS Q A + 1) / (1 / iδ)) + 1 + (Q + 2) * A * (Q + 1)
 
 private def lvκ : LevelVec → ℝ
   | (Q, A, _, iδ, _) =>
-    if 0 ≤ Q ∧ 0 ≤ A ∧ 1 < iδ then 1 / (4 * exp 1 * (lvM Q A iδ + 2) * Real.sqrt iδ) else 1
+    if 0 ≤ Q ∧ 0 ≤ A ∧ 1 < iδ then 1 / (16 * exp 2 * (lvM Q A iδ + 2) * iδ) else 1
 
 private lemma lvS_cast (nQ nα : ℕ) : lvS nQ nα = lvSN nQ nα := by
   simp only [lvS, lvSN]; push_cast; ring
@@ -120,19 +121,19 @@ private lemma slack_le (nQ nα : ℕ) {p₀ y ε δ c L : ℝ} (hp₀ : 0 ≤ p�
         gcongr
     _ = _ := by rw [hyε]; ring
 
-private lemma collision_le {B : ℕ} {p₀ δ Q A iε L : ℝ} (hδ : 0 < δ) (hp₀0 : 0 ≤ p₀)
-    (hB : B = lvProbes (Q, A, iε, 1 / δ, L)) (hp₀ : p₀ ≤ lvP₀ (Q, A, iε, 1 / δ, L)) :
-    (B : ℝ) * ((B : ℝ) - 1) / 2 * p₀ ≤ δ / 16 := by
-  simp only [lvP₀, if_pos (one_div_pos.2 hδ), ← hB] at hp₀
+private lemma collision_le {B : ℕ} {p₀ Q A iε iδ L : ℝ} (hp₀0 : 0 ≤ p₀)
+    (hB : B = lvProbes (Q, A, iε, iδ, L)) (hp₀ : p₀ ≤ lvP₀ (Q, A, iε, iδ, L)) :
+    (B : ℝ) * ((B : ℝ) - 1) / 2 * p₀ ≤ 1 := by
+  simp only [lvP₀, ← hB] at hp₀
   have hn : (0 : ℝ) ≤ B := Nat.cast_nonneg B
-  rw [show 1 / (8 * ((B : ℝ) ^ 2 + 1) * (1 / δ)) = δ / (8 * ((B : ℝ) ^ 2 + 1)) by
-    field_simp, le_div_iff₀ (by positivity)] at hp₀
+  rw [le_div_iff₀ (by positivity)] at hp₀
   have h1 : (B : ℝ) * ((B : ℝ) - 1) ≤ (B : ℝ) ^ 2 + 1 := by nlinarith
   nlinarith [mul_le_mul_of_nonneg_right h1 hp₀0]
 
 private lemma race_le (nQ nα : ℕ) {κ δ iε L : ℝ} (hδ : 0 < δ) (hδ1 : δ < 1) (hκ0 : 0 ≤ κ)
     (hκ : κ ≤ lvκ (nQ, nα, iε, 1 / δ, L)) :
     ∃ t t' : ℝ, 0 ≤ t ∧ 0 ≤ t' ∧ t * κ ≤ 1 - Real.exp (-(t' * κ))
+      ∧ Real.exp (t' * (κ * lvMN nQ nα δ)) / (1 + t) ≤ δ / 16
       ∧ Real.exp (t' * (κ * lvMN nQ nα δ)) / (1 + t) ^ 2 ≤ δ / 16 := by
   have hm : lvM nQ nα (1 / δ) = lvMN nQ nα δ := by
     simp only [lvM, lvMN, lvS_cast, one_div_one_div]
@@ -141,29 +142,35 @@ private lemma race_le (nQ nα : ℕ) {κ δ iε L : ℝ} (hδ : 0 < δ) (hδ1 : 
   simp only [lvκ, if_pos (⟨Nat.cast_nonneg _, Nat.cast_nonneg _, one_lt_one_div hδ hδ1⟩ :
     (0 : ℝ) ≤ nQ ∧ (0 : ℝ) ≤ nα ∧ 1 < 1 / δ), hm] at hκ
   set m := lvMN nQ nα δ
-  set u := Real.sqrt δ with hud
-  have hu0 : 0 < u := Real.sqrt_pos.2 hδ
-  have hu2 : u * u = δ := Real.mul_self_sqrt hδ.le
-  have hsq : Real.sqrt (1 / δ) = 1 / u := by rw [one_div, Real.sqrt_inv, one_div]
-  set W := u / (4 * Real.exp 1) with hW
-  have he := Real.exp_pos 1
+  have he := Real.exp_pos 2
+  set W := δ / (16 * Real.exp 2) with hW
   have hW0 : 0 < W := by positivity
+  have hW1 : W ≤ 1 := by
+    rw [hW, div_le_one (by positivity)]
+    have := Real.add_one_le_exp (2 : ℝ)
+    linarith
   have hκW : κ * (m + 2) ≤ W := by
-    rw [hsq, show 4 * Real.exp 1 * (m + 2) * (1 / u) = (m + 2) / W by rw [hW]; field_simp,
+    rw [show 16 * Real.exp 2 * (m + 2) * (1 / δ) = (m + 2) / W by rw [hW]; field_simp,
       one_div_div, le_div_iff₀ (by positivity)] at hκ
     exact hκ
   have hκm : 0 ≤ κ * m := mul_nonneg hκ0 hm0
   have hl0 : 0 ≤ W - 2 * κ := by linarith [show κ * (m + 2) = κ * m + 2 * κ by ring]
   obtain ⟨ht, ht', htc, htail⟩ := race_tail_choice hl0 hκ0 (by linarith)
-  rw [show W - 2 * κ + 2 * κ = W by ring] at ht ht' htc htail
-  refine ⟨1 / W, 2 * (1 / W), ht, ht', htc, ?_⟩
+  have hone := race_tail_one hl0 hκ0 (by linarith)
+  rw [show W - 2 * κ + 2 * κ = W by ring] at ht ht' htc htail hone
   have hlam : κ * m ≤ W - 2 * κ := by linarith [show κ * (m + 2) = κ * m + 2 * κ by ring]
-  have e : Real.exp 2 * W ^ 2 = δ / 16 := by
-    rw [hW, show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add, ← hu2]; field_simp; ring
-  calc Real.exp (2 * (1 / W) * (κ * m)) / (1 + 1 / W) ^ 2
-      ≤ Real.exp (2 * (1 / W) * (W - 2 * κ)) / (1 + 1 / W) ^ 2 := by
-        gcongr
-    _ ≤ δ / 16 := htail.trans e.le
+  have e : Real.exp 2 * W = δ / 16 := by rw [hW]; field_simp
+  refine ⟨1 / W, 2 * (1 / W), ht, ht', htc, ?_, ?_⟩
+  · calc Real.exp (2 * (1 / W) * (κ * m)) / (1 + 1 / W)
+        ≤ Real.exp (2 * (1 / W) * (W - 2 * κ)) / (1 + 1 / W) := by
+          gcongr
+      _ ≤ δ / 16 := hone.trans e.le
+  · have hsq : Real.exp 2 * W ^ 2 ≤ Real.exp 2 * W := by
+      rw [sq, ← mul_assoc]; exact mul_le_of_le_one_right (by positivity) hW1
+    calc Real.exp (2 * (1 / W) * (κ * m)) / (1 + 1 / W) ^ 2
+        ≤ Real.exp (2 * (1 / W) * (W - 2 * κ)) / (1 + 1 / W) ^ 2 := by
+          gcongr
+      _ ≤ δ / 16 := (htail.trans hsq).trans e.le
 
 /-! ### Big-O over the regions -/
 
@@ -328,25 +335,25 @@ private lemma slack_pt {Q A iε iδ L : ℝ} (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hδ 
 private lemma p₀_pt {Q A iε iδ : ℝ} (L : ℝ) (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hε : 1 ≤ iε)
     (hδ : 2 ≤ iδ) :
     0 ≤ 1 / lvP₀ (Q, A, iε, iδ, L)
-      ∧ 0 ≤ (Q ^ 2 * A * iε * Real.log (Q * A * iδ)) ^ 2 * iδ
+      ∧ 0 ≤ (Q ^ 2 * A * iε * Real.log (Q * A * iδ)) ^ 2
       ∧ 1 / lvP₀ (Q, A, iε, iδ, L)
-        ≤ 8 * (3544 ^ 2 + 4) * ((Q ^ 2 * A * iε * Real.log (Q * A * iδ)) ^ 2 * iδ) := by
+        ≤ (3544 ^ 2 + 4) * (Q ^ 2 * A * iε * Real.log (Q * A * iδ)) ^ 2 := by
   obtain ⟨hn, hX1⟩ := probes_pt L hQ hA hε hδ
-  simp only [lvP₀, if_pos (by linarith : (0 : ℝ) < iδ), one_div_one_div]
+  simp only [lvP₀, one_div_one_div]
   have hn0 : (0 : ℝ) ≤ lvProbes (Q, A, iε, iδ, L) := Nat.cast_nonneg _
   refine ⟨by positivity, by positivity, ?_⟩
   set X := Q ^ 2 * A * iε * Real.log (Q * A * iδ)
   have h1 : ((lvProbes (Q, A, iε, iδ, L) : ℕ) : ℝ) ^ 2 ≤ 3544 ^ 2 * X ^ 2 := by
     rw [← mul_pow]; exact pow_le_pow_left₀ hn0 hn 2
   have h2 : 1 ≤ 4 * X ^ 2 := by nlinarith
-  calc 8 * (((lvProbes (Q, A, iε, iδ, L) : ℕ) : ℝ) ^ 2 + 1) * iδ
-      ≤ 8 * (3544 ^ 2 * X ^ 2 + 4 * X ^ 2) * iδ := by gcongr
+  calc ((lvProbes (Q, A, iε, iδ, L) : ℕ) : ℝ) ^ 2 + 1
+      ≤ 3544 ^ 2 * X ^ 2 + 4 * X ^ 2 := by gcongr
     _ = _ := by ring
 
 private lemma κ_pt {Q A iδ : ℝ} (iε L : ℝ) (hQ : 1 ≤ Q) (hA : 1 ≤ A) (hδ : 2 ≤ iδ) :
-    0 ≤ 1 / lvκ (Q, A, iε, iδ, L) ∧ 0 ≤ Q ^ 2 * A * Real.log (Q * A * iδ) * Real.sqrt iδ
+    0 ≤ 1 / lvκ (Q, A, iε, iδ, L) ∧ 0 ≤ Q ^ 2 * A * Real.log (Q * A * iδ) * iδ
       ∧ 1 / lvκ (Q, A, iε, iδ, L)
-        ≤ 4 * exp 1 * 344 * (Q ^ 2 * A * Real.log (Q * A * iδ) * Real.sqrt iδ) := by
+        ≤ 16 * exp 2 * 344 * (Q ^ 2 * A * Real.log (Q * A * iδ) * iδ) := by
   simp only [lvκ, if_pos (⟨by linarith, by linarith, by linarith⟩ : 0 ≤ Q ∧ 0 ≤ A ∧ 1 < iδ),
     one_div_one_div]
   have hS1 := lvS_ge (by linarith : (0 : ℝ) ≤ Q) (by linarith : (0 : ℝ) ≤ A)
@@ -367,10 +374,10 @@ private lemma κ_pt {Q A iδ : ℝ} (iε L : ℝ) (hQ : 1 ≤ Q) (hA : 1 ≤ A) 
     unfold lvM; rw [div_one_div']; linarith
   set X := Q ^ 2 * A * Real.log (Q * A * iδ)
   have hX : lvM Q A iδ + 2 ≤ 344 * X := by linarith
-  have hs := Real.sqrt_nonneg iδ
-  have he : 0 ≤ 4 * exp 1 := by positivity
+  have hs : 0 ≤ iδ := by linarith
+  have he : 0 ≤ 16 * exp 2 := by positivity
   refine ⟨mul_nonneg (mul_nonneg he (by linarith)) hs, mul_nonneg (by linarith) hs, ?_⟩
-  calc 4 * exp 1 * (lvM Q A iδ + 2) * Real.sqrt iδ ≤ 4 * exp 1 * (344 * X) * Real.sqrt iδ :=
+  calc 16 * exp 2 * (lvM Q A iδ + 2) * iδ ≤ 16 * exp 2 * (344 * X) * iδ :=
         mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hX he) hs
     _ = _ := by ring
 
@@ -378,14 +385,11 @@ private lemma tol_pos (v : LevelVec) : 0 < lvP₀ v ∧ 0 < lvκ v := by
   obtain ⟨Q, A, iε, iδ, L⟩ := v
   simp only [lvP₀, lvκ]
   refine ⟨?_, ?_⟩
-  · split_ifs with h
-    · positivity
-    · norm_num
+  · positivity
   · split_ifs with h
     · obtain ⟨hQ, hA, hδ⟩ := h
       have := lvM_nonneg hQ hA hδ
-      have hs : 0 < Real.sqrt iδ := Real.sqrt_pos.2 (by linarith)
-      exact div_pos one_pos (mul_pos (mul_pos (by positivity) (by linarith)) hs)
+      exact div_pos one_pos (mul_pos (mul_pos (by positivity) (by linarith)) (by linarith))
     · norm_num
 
 private lemma level_region {Q A iε iδ L : ℝ} (hb : (Q, A, iε, iδ, L) ∈ vecRegion) :
@@ -417,17 +421,17 @@ private lemma lvSlack_isBigO : lvSlack =O[𝓟 vecRegion]
   exact slack_pt (L := L) hQ hA hδ hε
 
 private lemma lvP₀_isBigO : (fun v => 1 / lvP₀ v) =O[𝓟 vecRegion]
-    (fun (Q, A, iε, iδ, _) => (Q ^ 2 * A * iε * Real.log (Q * A * iδ)) ^ 2 * iδ
+    (fun (Q, A, iε, iδ, _) => (Q ^ 2 * A * iε * Real.log (Q * A * iδ)) ^ 2
       : LevelVec → ℝ) := by
-  refine isBigO_on (8 * (3544 ^ 2 + 4)) fun b hb => ?_
+  refine isBigO_on (3544 ^ 2 + 4) fun b hb => ?_
   obtain ⟨Q, A, iε, iδ, L⟩ := b
   obtain ⟨hQ, hA, hε, hδ, -⟩ := level_region hb
   exact p₀_pt L hQ hA hε hδ
 
 private lemma lvκ_isBigO : (fun v => 1 / lvκ v) =O[𝓟 vecRegion]
-    (fun (Q, A, _, iδ, _) => Q ^ 2 * A * Real.log (Q * A * iδ) * Real.sqrt iδ
+    (fun (Q, A, _, iδ, _) => Q ^ 2 * A * Real.log (Q * A * iδ) * iδ
       : LevelVec → ℝ) := by
-  refine isBigO_on (4 * exp 1 * 344) fun b hb => ?_
+  refine isBigO_on (16 * exp 2 * 344) fun b hb => ?_
   obtain ⟨Q, A, iε, iδ, L⟩ := b
   obtain ⟨hQ, hA, -, hδ, -⟩ := level_region hb
   exact κ_pt iε L hQ hA hδ
@@ -450,7 +454,7 @@ theorem counterexSynthClaim_holds : CounterexSynthClaim := by
     transfer lvSlope_isBigO fun x => by simp only [toVec],
     transfer lvSlack_isBigO fun x => by simp only [toVec]; ring_nf,
     transfer lvP₀_isBigO fun x => by simp only [toVec]; ring_nf,
-    transfer lvκ_isBigO fun x => by simp only [toVec]; rw [one_div x.δ, Real.sqrt_inv]; ring_nf,
+    transfer lvκ_isBigO fun x => by simp only [toVec]; ring_nf,
     fun x => tol_pos _, ?_⟩
   intro α _ _ σ _ M side U κ Ω _ μ _ R P C p₀
   dsimp only
@@ -462,15 +466,22 @@ theorem counterexSynthClaim_holds : CounterexSynthClaim := by
   simp only [toVec] at hP hp₀ hκ ⊢
   have hδ1 : C.δ < 1 := by linarith
   have hp₀0 : 0 ≤ p₀ := measureReal_nonneg.trans (hpre 1)
-  obtain ⟨t, t', ht, ht', htc, hrace⟩ := race_le (Fintype.card σ) (Fintype.card α)
+  obtain ⟨t, t', ht, ht', htc, hone, hrace⟩ := race_le (Fintype.card σ) (Fintype.card α)
     (iε := 1 / C.disagreementRate) (L := P.L) hδ hδ1 hκ0 hκ
   have hfin : C.probeBudget * (C.probeBudget - 1 : ℝ) / 2 * p₀
+      * min 1 (Real.exp (t' * (κ * lvMN (Fintype.card σ) (Fintype.card α) C.δ)) / (1 + t))
       + Real.exp (t' * (κ * lvMN (Fintype.card σ) (Fintype.card α) C.δ)) / (1 + t) ^ 2
         ≤ C.δ / 8 := by
-    linarith [collision_le hδ hp₀0 hP hp₀]
+    have hpair := collision_le hp₀0 hP hp₀
+    have h0 : 0 ≤ Real.exp (t' * (κ * lvMN (Fintype.card σ) (Fintype.card α) C.δ)) / (1 + t) := by
+      positivity
+    have h1 := (mul_le_mul_of_nonneg_left (min_le_right 1 _) (pairs_nonneg _ hp₀0)).trans
+      (mul_le_mul_of_nonneg_right hpair h0)
+    linarith
   refine le_trans (lintegral_mono fun ω => measure_mono fun draws hd => ?_)
     (level5RoundCorrect_holds M side U κ μ R P C p₀ 0 t t' hpre hδ hδ1 hy hyε.le hε
-      (budget_le (Fintype.card σ) (Fintype.card α) hP) hκ0 ht ht' htc hfin)
+      (budget_le (Fintype.card σ) (Fintype.card α) hP) hκ0 ht ht' htc
+      hfin)
   exact hd.imp (fun h hw => h (endsWell_mono (slope_le _ _ hyε)
     (slack_le _ _ hp₀0 hy hyε hδ (by norm_num) le_rfl) hw)) id
 

@@ -10,6 +10,7 @@ import RLStar.LowLevelClaims.BandKappa
 import Mathlib.Probability.ProductMeasure
 import Mathlib.Probability.Independence.InfinitePi
 import Mathlib.Analysis.Complex.ExponentialBounds
+import Mathlib.Algebra.Order.Chebyshev
 
 /-!
 # The adaptive clustering loop: what a state's draws give
@@ -1961,6 +1962,9 @@ lemma cert_hits_upper (Pc : J → Measure (ℕ → S)) [∀ j, IsProbabilityMeas
 
 /-! ### Collisions between draws -/
 
+/-- The chance two independent draws coincide, `∑ₐ D({a})²`. -/
+noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {a}) ^ 2
+
 open scoped Classical in
 /-- Two fixed coordinates of an i.i.d. block coincide with exactly the collision mass. -/
 lemma pi_coord_eq (Dj : Measure S) [IsProbabilityMeasure Dj] {m : ℕ} {i i' : Fin m}
@@ -3187,15 +3191,40 @@ theorem measureReal_tabBad_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure
   have h := union_le_of_atoms Dj hρ ∅ (m + r) F hF
   simpa using h
 
+/-- `P[Bin(n, min (n·a) 1) ≥ r + 1]`: the chance that `n` draws from a law whose atoms weigh at
+most `a` repeat an earlier draw `r + 1` times. -/
+noncomputable def poolTail (n r : ℕ) (a : ℝ) : ℝ := rejTail n (n * a) r
+
+lemma poolTail_nonneg (n r : ℕ) {a : ℝ} (ha : 0 ≤ a) : 0 ≤ poolTail n r a :=
+  rejTail_nonneg _ (mul_nonneg (Nat.cast_nonneg _) ha) _
+
+/-- The pool misses `M` strings in its first `M + r` draws only when `r + 1` of them repeat an
+earlier one, each with chance at most `(M + r)ρ` whatever came before. -/
 theorem measureReal_poolBad_le (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
     [IsProbabilityMeasure Dsf] (M r : ℕ)
-    (ρ : ℝ) (hρ : collisionMass Dsf ≤ ρ) (hρ0 : 0 ≤ ρ) :
+    (ρ : ℝ) (hρ : ∀ t, Dsf.real {t} ≤ ρ) :
     (streamMeasure μ Pp Pc Dsf).real {x : Run Ω S J | ¬ poolGood M r x}
-      ≤ ((M + r : ℕ) : ℝ) ^ 2 * ρ / (2 * ((r : ℝ) + 1)) :=
-  le_trans (measureReal_mono (fun x hx => repeats_of_short _ M r hx) (measure_ne_top _ _))
-    (measureReal_repeats_le (streamMeasure μ Pp Pc Dsf) Dsf (fun i x => suffixDraw i x)
-      (fun i => measurable_sfx i) (M + r) (map_suffixBlock Pp Pc Dsf (M + r)) ρ hρ hρ0 r)
+      ≤ poolTail (M + r) r ρ := by
+  classical
+  have hY : Measurable (fun x : Run Ω S J => fun i : Fin (M + r) => suffixDraw i.val x) :=
+    measurable_pi_lambda _ (fun i => measurable_sfx i.val)
+  have hpre : {x : Run Ω S J | ¬ poolGood M r x}
+      = (fun x : Run Ω S J => fun i : Fin (M + r) => suffixDraw i.val x) ⁻¹'
+        {z : Fin (M + r) → S
+          | r + 1 + ((Finset.univ : Finset (Fin (M + r))).image z \ ∅).card ≤ M + r} := by
+    ext x
+    simp only [poolGood, Set.mem_ofPred_eq, Set.mem_preimage, acceptedAt]
+    rw [image_range_eq_image_univ]
+    omega
+  rw [hpre, measureReal_def, ← Measure.map_apply hY (Set.to_countable _).measurableSet,
+    map_suffixBlock Pp Pc Dsf (M + r), ← measureReal_def]
+  have hT' : ∀ F : Finset S, F.card < M + r →
+      Dsf.real ↑(∅ ∪ F) ≤ min (((M + r : ℕ) : ℝ) * ρ) 1 :=
+    fun F hF => le_min (by simpa using union_le_of_atoms Dsf hρ ∅ (M + r) F hF)
+      measureReal_le_one
+  exact (successiveDrawsTails_holds Dsf (M + r) ∅ (min (((M + r : ℕ) : ℝ) * ρ) 1) ∅
+    (min_le_right _ _) hT').1 (r + 1)
 
 lemma measurableSet_of_fam {fam : Ω → Finset S} {T : Finset (Finset S)}
     (hfam : ∀ ω, fam ω ∈ T) (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀})

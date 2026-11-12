@@ -73,6 +73,8 @@ class Charges:
     ends: List[bytes]
     #: The ``ends`` that are stuck.
     stuck: List[bytes]
+    #: The ``ends`` read at the walk's start.
+    starts: List[bytes]
     middle: List[bytes]
     search_queries: int
 
@@ -169,6 +171,7 @@ def charges(located: Located, k: int, x: bytes) -> Charges:
         undecided_by_edge=undecided_by_edge,
         ends=[outcome.undecided] if isinstance(outcome, (Start, End)) else [],
         stuck=[outcome.undecided] if isinstance(outcome, End) and outcome.stuck else [],
+        starts=[outcome.undecided] if isinstance(outcome, Start) else [],
         middle=[outcome.undecided] if isinstance(outcome, Middle) else [],
         search_queries=(
             located.search_queries if isinstance(outcome, (EdgeFound, Middle)) else 0

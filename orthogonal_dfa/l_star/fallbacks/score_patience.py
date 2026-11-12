@@ -43,7 +43,7 @@ def restore(hypothesis: HypothesisDFA, snap) -> None:
 class ScorePatience:
     def __init__(
         self,
-        score: Callable[[HypothesisDFA], float],
+        score: Callable[["CounterexampleSearch"], float],
         patience: int,
         *,
         harvest_tests: bool,
@@ -59,7 +59,7 @@ class ScorePatience:
 
     @classmethod
     def from_config(
-        cls, config, score: Callable[[HypothesisDFA], float]
+        cls, config, score: Callable[["CounterexampleSearch"], float]
     ) -> Optional["ScorePatience"]:
         """``None`` where ``config`` sets no patience."""
         patience = config.counterexample_score_patience
@@ -76,12 +76,13 @@ class ScorePatience:
         """Keep a snapshot of a new best hypothesis; the stalled ending once
         ``patience`` probes pass without one."""
         hypothesis = search.hypothesis
-        if hypothesis.version != self._scored_version:
-            value = self.score(hypothesis)
+        version = (hypothesis.version, search.trie.version)
+        if version != self._scored_version:
+            value = self.score(search)
             if self.best_score is None or value > self.best_score:
                 self.best_score, self._best = value, snapshot(hypothesis)
                 self._best_at = search.probes
-            self._scored_version = hypothesis.version
+            self._scored_version = version
         if search.probes - self._best_at >= self.patience:
             return Ending(SCORE_STALLED, list(self.undecided))
         return None
@@ -105,12 +106,14 @@ class ScorePatience:
             return Ending(SUCCESS, [])
         return None
 
-    def guarded(self, hypothesis: HypothesisDFA, change: Callable[[], None]) -> None:
+    def guarded(
+        self, search: "CounterexampleSearch", change: Callable[[], None]
+    ) -> None:
         """``change`` the hypothesis, undone if it lowers the score."""
-        before = snapshot(hypothesis)
+        before = snapshot(search.hypothesis)
         change()
-        if self.score(hypothesis) < self.best_score:
-            restore(hypothesis, before)
+        if self.score(search) < self.best_score:
+            restore(search.hypothesis, before)
 
     @staticmethod
     def stalled_harvest(charged: Charges) -> List[bytes]:

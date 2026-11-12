@@ -1,7 +1,8 @@
 """Each residual run's kept DFA, alone on the residual labels and in product with its
 seed's first stage on the flat labels, scored as held_out_phi scores them: accepting states
 fit on the first half of the saved strings, phi read on the second.  Writes the minimized
-products to residual_products.json.
+products to residual_products.json, with each kept residual DFA's accepting states fit as the
+figure fits a DFA's, since the figure has no residual labels.
 
     python -m orthogonal_dfa.experiments.length_oracles.residual_report"""
 
@@ -10,7 +11,7 @@ from collections import Counter
 
 import numpy as np
 
-from orthogonal_dfa.l_star.dfa_utils import phi_maximizing_states
+from orthogonal_dfa.l_star.dfa_utils import above_rate_states, phi_maximizing_states
 
 from . import label
 from .residual import (
@@ -26,13 +27,13 @@ from .residual import (
 PRODUCTS = RUNS.parent / "residual_products.json"
 
 
-def accepting(cells, y):
+def accepting(cells, y, states=phi_maximizing_states):
     half = len(y) // 2
     counts = Counter(cells[:half].tolist())
     accepts = Counter()
     for c, v in zip(cells[:half].tolist(), y[:half]):
         accepts[c] += int(v)
-    return phi_maximizing_states(counts, accepts)
+    return states(counts, accepts)
 
 
 def phi(cells, y):
@@ -105,6 +106,9 @@ def main():
         cells = end_states(pairs, strings)
         dfa = minimize(pairs, accepting(cells, flat))
         q = end_states(dfa, strings)
+        residual_accepts = accepting(
+            end_states(kept["dfa"], strings), residual, above_rate_states
+        )
         print(
             f"seed {seed}: first stage phi {phi(q1, flat):.3f}; kept restart "
             f"{kept['restart']}, {len(kept['dfa']['transitions'])} states; "
@@ -117,7 +121,13 @@ def main():
                 seed=seed,
                 residual_restart=kept["restart"],
                 first_stage=stage,
-                residual=kept["dfa"],
+                residual=dict(
+                    kept["dfa"],
+                    accepting=[
+                        int(s in residual_accepts)
+                        for s in range(len(kept["dfa"]["transitions"]))
+                    ],
+                ),
                 product=dfa,
                 strings_per_state=np.bincount(
                     q, minlength=len(dfa["accepting"])

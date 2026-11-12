@@ -39,8 +39,8 @@ def sample_admitted_dfas(
 ) -> List[DFA]:
     """
     The first ``count`` draws of `sample_random_dfa` that satisfy the
-    preconditions at ``length``, each draw's state count uniform in
-    ``[min_states, max_states]``.
+    preconditions at length, each draw's state count uniform in
+    [min_states, max_states].
 
     The state count is before minimisation; admitted DFAs are often smaller.
     """
@@ -290,7 +290,7 @@ def sample_minimal_admitted_dfa(
     """
     A uniformly random transition table on ``num_states`` states in which every
     state is reachable from state 0, with each state accepting with probability
-    1/2, kept if it is minimal and satisfies the preconditions at ``length``.
+    1/2, kept if it is minimal and satisfies the preconditions at length.
     """
     table = np.empty((num_states, alphabet_size), np.int64)
     while True:
