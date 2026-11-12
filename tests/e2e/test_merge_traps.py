@@ -10,7 +10,7 @@ from orthogonal_dfa.l_star import preconditions as P
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.learn import learn_dfa as learn_dfa_unchecked
 from orthogonal_dfa.l_star.sampler import UniformSampler
-from orthogonal_dfa.l_star.structures import NoisyOracle
+from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 from orthogonal_dfa.l_star.tracker import RecordingTracker
 from tests.lstar_common import (
     DEFAULT_SAMPLER,
@@ -86,6 +86,29 @@ class TestArmedMergeLearned(unittest.TestCase):
         )
         # Graded at the length it was learned at: a hypothesis that merges Q still
         # reads well on strings long enough that almost all of them reach A anyway.
+        assert_not_merged(
+            self,
+            dfa,
+            target,
+            oracle_creator=oracle_creator,
+            symbols=ARMED_ALPHABET,
+            sampler=sampler,
+        )
+
+    # Every round's family reads Q as A here, so only a split of the merged state
+    # gives a later round a population where it cannot.
+    @parameterized.expand([(seed,) for seed in range(4)])
+    def test_the_armed_state_is_not_merged_at_a_skewed_band(self, seed):
+        target = build_armed_target()
+        oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
+        sampler = UniformSampler(ARMED_LENGTH)
+        dfa = learn_dfa_unchecked(
+            oracle_creator,
+            min_signal_strength=ARMED_SIGNAL,
+            seed=seed,
+            sampler=sampler,
+            noise_model=AsymmetricBernoulli(p_0=0.35, p_1=0.95),
+        )
         assert_not_merged(
             self,
             dfa,

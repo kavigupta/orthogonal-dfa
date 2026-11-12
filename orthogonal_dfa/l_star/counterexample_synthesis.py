@@ -31,6 +31,7 @@ from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, Replay, UniformSource, harvest_reader
 from .probe_batching import warmed_draws
 from .progress import counter
+from .state_split import SplitSource, state_split
 from .suffix_family import SuffixFamily
 from .tracker import RoundSummary, SynthesisTracker
 
@@ -82,6 +83,40 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 #: P(some round certifies a DFA whose error is over certified_error), where the
 #: signal is stated exactly.
 CERTIFICATE_ALPHA = 1e-3
+
+#: Level each suffix is kept at, Bonferroni over the candidates, in a split.
+SPLIT_ALPHA = 1e-3
+
+#: Table-side members drawn for each side of a split (the value #514 removed).
+PER_STATE = 50
+
+
+def _split_blamed(pst, dfa, vs, state, verdict, *, index):
+    """Hands the next round each side of the state_split of the state the
+    certificate blames, as a population of its own; False if there is none."""
+    if not verdict.share:
+        return False
+    found = state_split(
+        pst,
+        dfa,
+        verdict.blamed,
+        vs,
+        minority_share=min(verdict.share, 1 / 2),
+        level=SPLIT_ALPHA,
+    )
+    if found is None:
+        return False
+    split, aim = found
+    # Replaces the last round's split, as a state's members do.
+    state.retire("split")
+    drawn = len(split.groups[False]) + len(split.groups[True])
+    for side, group in ((False, split.groups[False]), (True, split.groups[True])):
+        if group:
+            source = SplitSource(
+                split, side, aim, pst.oracle, on_side=len(group), drawn=drawn
+            )
+            state.hold(("split", index, verdict.blamed, int(side)), source, PER_STATE)
+    return True
 
 
 def _accumulate_harvest(strings, read, state, wanted) -> int:
@@ -188,9 +223,10 @@ class BestRound:
             self.certified = certified
 
 
-def _certified(pst, dfa, *, index, tracker):
-    """denoise_accept_labels(dfa) if the certificate passes it, else None; and the
-    state it blames."""
+def _certified(pst, dfa, vs, state, *, index, tracker):
+    """denoise_accept_labels(dfa) if the certificate passes it, else None, with
+    the state it blames split into the next round's populations; and the state
+    it blames where it could not be split."""
     output = denoise_accept_labels(pst, dfa)
     # Spread over the rounds, whichever of them reach the certificate.
     verdict = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
@@ -198,7 +234,12 @@ def _certified(pst, dfa, *, index, tracker):
     if verdict.certified:
         print(f"[round {index}] certified; stopping synthesis")
         return output, None
-    print(f"[round {index}] at target, not certified; blames {verdict.blamed}")
+    print(f"[round {index}] at target, not certified; splitting {verdict.blamed}")
+    if _split_blamed(pst, output, vs, state, verdict, index=index):
+        return None, None
+    # The blame is the worst case over the rates the certificate could not pin,
+    # so it can fall on a state with one label, which has nothing to split.
+    print(f"[round {index}] no split of {verdict.blamed}; harvesting it instead")
     return None, verdict.blamed
 
 
@@ -454,7 +495,9 @@ def counterexample_driven_synthesis(
         # Only a round that would otherwise return is worth the certificate's reads.
         output, blamed = None, None
         if true_acc >= acc_threshold:
-            output, blamed = _certified(pst, dfa, index=index, tracker=tracker)
+            output, blamed = _certified(
+                pst, dfa, vs, state, index=index, tracker=tracker
+            )
             uncertified_since = (
                 index if uncertified_since is None else uncertified_since
             )
