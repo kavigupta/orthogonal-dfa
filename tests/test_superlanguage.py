@@ -288,7 +288,7 @@ class TestSuffixFamily(unittest.TestCase):
             if all(vocab.is_unknown(y) for y in s):
                 seen.add(tuple(s))
         self.assertEqual(len(seen), 1)
-        wanted = smallest_readable_family(0.3, 0.5, (0.01, 0.01))
+        wanted = smallest_readable_family(0.3, 0.5, (0.01, 0.01, 0))
         self.assertGreater(wanted, len(seen))
 
 
