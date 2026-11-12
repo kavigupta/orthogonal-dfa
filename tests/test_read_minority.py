@@ -32,7 +32,12 @@ class TestReadMinority(unittest.TestCase):
         for N, case in ((15, TRICHOTOMY_CASE), (7, RATIO_CASE)):
             self.assertIsNone(
                 evidence_margin_for_population_size(
-                    case["signal"], case["cross_limit"], 0.33, N, center=case["center"]
+                    case["signal"],
+                    case["cross_limit"],
+                    0.33,
+                    N,
+                    center=case["center"],
+                    min_margin=0,
                 )
             )
 
@@ -57,9 +62,9 @@ class TestReadMinority(unittest.TestCase):
         # The sizes are those the cross and FNR criteria alone pick.
         for center, size in ((0.2, 126), (0.202, 122)):
             self.assertEqual(
-                population_size_and_evidence_margin(0.2, 1.5e-7, 0.01, center=center)[
-                    0
-                ],
+                population_size_and_evidence_margin(
+                    0.2, 1.5e-7, 0.01, center=center, min_margin=0
+                )[0],
                 size,
             )
 

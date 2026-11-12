@@ -38,7 +38,7 @@ def _search(fnrs, patience):
         identify_cluster_around=identify,
         judge_family=judge,
         smallest_readable_family=lambda signal, boundary, rates: FAMILY_SIZE,
-        read_rates=lambda pst, boundary: None,
+        read_rates=lambda pst: None,
         AcceptPreservingGate=lambda config, state: None,
     ), mock.patch("builtins.print"):
         return sample_suffix_family(pst, 0, None)
