@@ -327,11 +327,13 @@ noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset 
   else ∅
 
 /-- `misread_statistic` against the seed at rates centred on `c`, less what every candidate
-shares: with `x` the candidate's reads and `y` the seed's over `P`,
+shares, over the most one read can move it: with `x` the candidate's reads and `y` the seed's
+over `P`,
 
-    ∑ (x − y)² − (1 − 2c) ∑ x -/
+    (∑ (x − y)² − (1 − 2c) ∑ x) / (2 max(c, 1 − c)) -/
 noncomputable def misreadAt (mq : S → Ω → ℝ) (c : ℝ) (P : Finset S) (v : S) (ω : Ω) : ℝ :=
-  screenCount mq P v ω - (1 - 2 * c) * (P.filter (fun p => mq (p * v) ω = 1)).card
+  (screenCount mq P v ω - (1 - 2 * c) * (P.filter (fun p => mq (p * v) ω = 1)).card)
+    / (2 * max c (1 - c))
 
 /-- The seed with the `k − 1` candidates of least `misreadAt c`, ties broken by
 `leastLossSubset`'s choice. -/
@@ -376,7 +378,7 @@ class, and any other at least that, as long as `ηIn ≤ 1 − c` and `ηOut ≤
 noncomputable def apartCost (c seed ref : ℝ) : ℝ :=
   if (ref = 1 ↔ seed = 1) then 0 else if seed = 1 then 1 - c else c
 
-/-- The most an `apartCost` at centre `c` can be. -/
+/-- The most one read moves a score centred at `c`: the misread statistic or an `apartCost`. -/
 noncomputable def span (c : ℝ) : ℝ := max c (1 - c)
 
 open scoped Classical in

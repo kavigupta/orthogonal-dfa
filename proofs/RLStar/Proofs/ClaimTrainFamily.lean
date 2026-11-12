@@ -25,8 +25,8 @@ private def nsuffB (s r c pAP δ : ℝ) : ℝ :=
   2 * kB s r c / pAP + 60 * log (3 / δ) / pAP
 
 private def nprefB (s r m δ α pAP εs nJ nH n : ℝ) : ℝ :=
-  2 ^ 20 * nJ * log (max 1 (64 * (n + 1) / δ)) / (s ^ 4 * m ^ 2)
-    + 2 ^ 26 * log (max 1 ((nJ + 2) * n / (δ * α * pAP * r))) / r ^ 2
+  2 ^ 22 * nJ * log (max 1 (64 * (n + 1) / δ)) / (s ^ 4 * m ^ 2)
+    + 3 * 2 ^ 25 * log (max 1 ((nJ + 2) * n / (δ * α * pAP * r))) / r ^ 2
     + 6 * log (256 * nJ / δ) / εs + 2 ^ 11 * nH / r
 
 private lemma rs_eq {ie iu is : ℝ} (his : 0 < is) :
@@ -154,7 +154,7 @@ private lemma nprefB_bound {nJ iδ ip ie isl iu iw is nH r n : ℝ} (hJ : 1 ≤ 
     0 ≤ nprefB (1 / is) r (min (1 / ie) (1 / iu)) (1 / (2 * iδ)) (1 / (2 * iδ)) (1 / ip) (1 / isl)
       nJ nH n
     ∧ nprefB (1 / is) r (min (1 / ie) (1 / iu)) (1 / (2 * iδ)) (1 / (2 * iδ)) (1 / ip) (1 / isl)
-      nJ nH n ≤ 2 ^ 31 *
+      nJ nH n ≤ 2 ^ 32 *
       (nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is) * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
         + log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 4 + iu ^ 2)
         + isl * log (nJ * iδ) + nH * (ie * is ^ 2 + iu)) := by
@@ -272,10 +272,10 @@ private lemma nprefB_bound {nJ iδ ip ie isl iu iw is nH r n : ℝ} (hJ : 1 ≤ 
   generalize log (max 1 (64 * (n + 1) / (1 / (2 * iδ)))) = lc at *
   generalize log (256 * nJ / (1 / (2 * iδ))) = ls at *
   have hm0 : 0 < min (1 / ie) (1 / iu) := lt_min (by positivity) (by positivity)
-  rw [show 2 ^ 20 * nJ * lc / ((1 / is) ^ 4 * min (1 / ie) (1 / iu) ^ 2) + 2 ^ 26 * l / r ^ 2
+  rw [show 2 ^ 22 * nJ * lc / ((1 / is) ^ 4 * min (1 / ie) (1 / iu) ^ 2) + 3 * 2 ^ 25 * l / r ^ 2
       + 6 * ls / (1 / isl) + 2 ^ 11 * nH / r
-    = 2 ^ 20 * (nJ * lc * is ^ 4 * (1 / min (1 / ie) (1 / iu)) ^ 2) + 2 ^ 26 * (l * (1 / r) ^ 2)
-      + 6 * (ls * isl) + 2 ^ 11 * (nH * (1 / r)) by field_simp]
+    = 2 ^ 22 * (nJ * lc * is ^ 4 * (1 / min (1 / ie) (1 / iu)) ^ 2)
+      + 3 * 2 ^ 25 * (l * (1 / r) ^ 2) + 6 * (ls * isl) + 2 ^ 11 * (nH * (1 / r)) by field_simp]
   have h3 := mul_le_mul_of_nonneg_right hs (by linarith : (0 : ℝ) ≤ isl)
   have : 0 ≤ isl * log (nJ * iδ) := by positivity
   have hR0 : 0 ≤ 1 / r := by positivity
@@ -306,7 +306,7 @@ private lemma nprefB_bound {nJ iδ ip ie isl iu iw is nH r n : ℝ} (hJ : 1 ≤ 
 private lemma gn_le_pow {nJ iδ ip ie isl iu iw is nH : ℝ} (hJ : 1 ≤ nJ) (hiδ : 2 ≤ iδ)
     (hip : 1 ≤ ip) (hie : 2 ≤ ie) (hisl : 2 ≤ isl) (hiu : 2 ≤ iu) (hiw : 1 ≤ iw) (his : 2 ≤ is)
     (hnH : 0 ≤ nH) :
-    2 ^ 31 * (nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is)
+    2 ^ 32 * (nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is)
           * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
         + log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 4 + iu ^ 2)
         + isl * log (nJ * iδ) + nH * (ie * is ^ 2 + iu))
@@ -373,9 +373,9 @@ private lemma gn_le_pow {nJ iδ ip ie isl iu iw is nH : ℝ} (hJ : 1 ≤ nJ) (hi
     have : P ^ 7 ≤ P ^ 13 := pow_le_pow_right₀ hP1 (by norm_num)
     have : P ^ 9 ≤ P ^ 13 := pow_le_pow_right₀ hP1 (by norm_num)
     ring_nf; linarith
-  have h4 : 2 ^ 31 * (7 * P ^ 13) ≤ P ^ 22 := by
+  have h4 : 2 ^ 32 * (7 * P ^ 13) ≤ P ^ 22 := by
     have : (16 : ℝ) ^ 9 ≤ P ^ 9 := pow_le_pow_left₀ (by norm_num) hP 9
-    calc 2 ^ 31 * (7 * P ^ 13) ≤ P ^ 9 * P ^ 13 := by
+    calc 2 ^ 32 * (7 * P ^ 13) ≤ P ^ 9 * P ^ 13 := by
           rw [← mul_assoc]; gcongr; exact le_trans (by norm_num) this
       _ = P ^ 22 := by ring
   have : 0 ≤ P ^ 13 := by positivity
@@ -465,7 +465,7 @@ private lemma nprefW_isBigO : nprefW =O[𝓟 vecRegion]
       nJ * log (log (max (ie * is) (max iu iw)) * iδ * ip * is) * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4)
         + log (nJ * iδ * ip * ie * iu * iw * is) * (ie ^ 2 * is ^ 4 + iu ^ 2)
         + isl * log (nJ * iδ) + nH * (ie * is ^ 2 + iu) : ClusterVec → ℝ) := by
-  refine isBigO_on (2 ^ 31) fun b hb => ?_
+  refine isBigO_on (2 ^ 32) fun b hb => ?_
   obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := b
   obtain ⟨hJ, hiδ, hip, hie, hisl, hiu, hiw, his, hnH⟩ := region hb
   obtain ⟨-, hx, hP8⟩ := prods hJ hiδ hip hie hiu hiw his
@@ -490,7 +490,7 @@ private lemma atomTolW_isBigO : (fun v => 1 / atomTolW v) =O[𝓟 vecRegion]
           + nH * (ie * is ^ 2 + iu)) * (nJ * (iu + isl) + ie * is ^ 2 + iu * is)
         + nJ * log (nJ * iδ * ip * ie * isl * iu * iw * is * (nH + 1)) * isl ^ 2
       : ClusterVec → ℝ) := by
-  refine isBigO_on (2 ^ 52) fun b hb => ?_
+  refine isBigO_on (2 ^ 53) fun b hb => ?_
   obtain ⟨nJ, iδ, ip, ie, isl, iu, iw, is, nH⟩ := b
   obtain ⟨hJ, hiδ, hip, hie, hisl, hiu, hiw, his, hnH⟩ := region hb
   obtain ⟨-, hx, hP7⟩ := prods hJ hiδ hip hie hiu hiw his
@@ -549,7 +549,7 @@ private lemma atomTolW_isBigO : (fun v => 1 / atomTolW v) =O[𝓟 vecRegion]
       * (ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4) := by positivity
     have : 0 ≤ nH * (ie * is ^ 2 + iu) := by positivity
     linarith
-  have hG1 : 1 ≤ 2 ^ 31 * (G + isl * log (nJ * iδ)) := by
+  have hG1 : 1 ≤ 2 ^ 32 * (G + isl * log (nJ * iδ)) := by
     have h1 : 1 ≤ ie ^ 2 * is ^ 4 :=
       one_le_mul_of_one_le_of_one_le (one_le_pow₀ (by linarith)) (one_le_pow₀ (by linarith))
     have h2 : 1 ≤ ie ^ 2 * is ^ 4 + iu ^ 2 * is ^ 4 := by
@@ -563,7 +563,7 @@ private lemma atomTolW_isBigO : (fun v => 1 / atomTolW v) =O[𝓟 vecRegion]
     have : 0 ≤ nH * (ie * is ^ 2 + iu) := by positivity
     have : 0 ≤ isl * log (nJ * iδ) := by positivity
     linarith
-  have hM : max 1 N ≤ 2 ^ 31 * (G + isl * log (nJ * iδ)) := max_le hG1 hN
+  have hM : max 1 N ≤ 2 ^ 32 * (G + isl * log (nJ * iδ)) := max_le hG1 hN
   have hM1 : 1 ≤ max 1 N := le_max_left _ _
   have hlb0 : 0 ≤ logb 2 (max 1 N) := logb_nonneg one_lt_two hM1
   have hA0 : 0 < 1 / is * min (1 / ie * (1 / is)) (1 / iu) / (2 ^ 19 * max 1 N) := by
@@ -594,13 +594,13 @@ private lemma atomTolW_isBigO : (fun v => 1 / atomTolW v) =O[𝓟 vecRegion]
     have := one_div_min_le (x := 1 / ie * (1 / is)) (y := 1 / iu) (by positivity) (by positivity)
     rwa [one_div_one_div, show 1 / (1 / ie * (1 / is)) = ie * is by field_simp] at this
   have h1 : max 1 N * (1 / min (1 / ie * (1 / is)) (1 / iu)) * is
-      ≤ (2 ^ 31 * (G + isl * log (nJ * iδ))) * (ie * is + iu) * is := by
+      ≤ (2 ^ 32 * (G + isl * log (nJ * iδ))) * (ie * is + iu) * is := by
     gcongr
   have hm : 1 / min (1 / isl) (1 / iu) ≤ isl + iu := by
     have := one_div_min_le (x := 1 / isl) (y := 1 / iu) (by positivity) (by positivity)
     rwa [one_div_one_div, one_div_one_div] at this
   have h1e : (nJ + 3) * max 1 N * (1 / min (1 / isl) (1 / iu))
-      ≤ (4 * nJ) * (2 ^ 31 * (G + isl * log (nJ * iδ))) * (isl + iu) := by
+      ≤ (4 * nJ) * (2 ^ 32 * (G + isl * log (nJ * iδ))) * (isl + iu) := by
     gcongr; linarith
   have hm2 : (1 / min (1 / isl) (1 / iu)) ^ 2 ≤ 2 * (isl ^ 2 + iu ^ 2) :=
     (pow_le_pow_left₀ (by positivity) hm 2).trans add_sq_le
@@ -696,19 +696,19 @@ private lemma atomTolW_isBigO : (fun v => 1 / atomTolW v) =O[𝓟 vecRegion]
   have : 0 ≤ nJ * G * iu := by positivity
   have : 0 ≤ nJ * L9 * isl ^ 2 := by positivity
   have s1 : 2 ^ 19 * (max 1 N * (1 / min (1 / ie * (1 / is)) (1 / iu)) * is)
-      ≤ 2 ^ 50 * (G * (ie * is ^ 2 + iu * is)) + 2 ^ 51 * (nJ * G * isl) := by
-    have e : 2 ^ 31 * (G + isl * log (nJ * iδ)) * (ie * is + iu) * is
-        = 2 ^ 31 * (G * (ie * is ^ 2 + iu * is))
-          + 2 ^ 31 * (isl * (log (nJ * iδ) * (ie * is ^ 2 + iu * is))) := by ring
+      ≤ 2 ^ 51 * (G * (ie * is ^ 2 + iu * is)) + 2 ^ 52 * (nJ * G * isl) := by
+    have e : 2 ^ 32 * (G + isl * log (nJ * iδ)) * (ie * is + iu) * is
+        = 2 ^ 32 * (G * (ie * is ^ 2 + iu * is))
+          + 2 ^ 32 * (isl * (log (nJ * iδ) * (ie * is ^ 2 + iu * is))) := by ring
     have c1 : isl * (log (nJ * iδ) * (ie * is ^ 2 + iu * is)) ≤ isl * (2 * G) :=
       mul_le_mul_of_nonneg_left hGΛ (by linarith)
     linarith
   have s2 : 2 ^ 14 * ((nJ + 3) * max 1 N * (1 / min (1 / isl) (1 / iu)))
-      ≤ 2 ^ 49 * (nJ * G * isl) + 2 ^ 47 * (nJ * G * iu) + 2 ^ 47 * (nJ * L9 * isl ^ 2) := by
-    have e : 4 * nJ * (2 ^ 31 * (G + isl * log (nJ * iδ))) * (isl + iu)
-        = 2 ^ 33 * (nJ * G * isl) + 2 ^ 33 * (nJ * G * iu)
-          + 2 ^ 33 * (nJ * isl ^ 2 * log (nJ * iδ))
-          + 2 ^ 33 * (nJ * isl * (log (nJ * iδ) * iu)) := by ring
+      ≤ 2 ^ 50 * (nJ * G * isl) + 2 ^ 48 * (nJ * G * iu) + 2 ^ 48 * (nJ * L9 * isl ^ 2) := by
+    have e : 4 * nJ * (2 ^ 32 * (G + isl * log (nJ * iδ))) * (isl + iu)
+        = 2 ^ 34 * (nJ * G * isl) + 2 ^ 34 * (nJ * G * iu)
+          + 2 ^ 34 * (nJ * isl ^ 2 * log (nJ * iδ))
+          + 2 ^ 34 * (nJ * isl * (log (nJ * iδ) * iu)) := by ring
     have c2 : nJ * isl ^ 2 * log (nJ * iδ) ≤ nJ * isl ^ 2 * L9 :=
       mul_le_mul_of_nonneg_left hΛ9 (by positivity)
     have c3 : nJ * isl * (log (nJ * iδ) * iu) ≤ nJ * isl * (2 * G) :=
@@ -854,7 +854,7 @@ theorem trainFamilyClaim_holds : TrainFamilyClaim := by
     have hY0 : 0 ≤ 64 * ((B.nsuff : ℝ) + 1) / (δ / 2) := by positivity
     have hY : 64 * ((B.nsuff : ℝ) + 1) / (δ / 2) ≤ 64 * (nsuffW v + 1) / (δ / 2) := by
       gcongr; exact (hks B hB).2
-    have hc : (0 : ℝ) ≤ 2 ^ 20 * (populations.card : ℝ) := by positivity
+    have hc : (0 : ℝ) ≤ 2 ^ 22 * (populations.card : ℝ) := by positivity
     have hd' : (0 : ℝ) ≤ (1 / 2 - η₀) ^ 4 * min εcov ε_u ^ 2 := by positivity
     exact add_le_add (add_le_add (add_le_add (div_le_div_of_nonneg_right
       (mul_le_mul_of_nonneg_left (log_le_log_max hY0 hY) hc) hd')

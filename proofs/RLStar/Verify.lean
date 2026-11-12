@@ -31,6 +31,7 @@ import RLStar.Proofs.TrieMass
 import RLStar.Proofs.TripartiteSearch
 import RLStar.Proofs.Trie
 import RLStar.Proofs.TrieLoop
+import RLStar.Proofs.TrieTable
 
 /-!
 # The theorem
@@ -55,10 +56,10 @@ both. The loop runs level 5.
 
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
 `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`, `SuccessiveDrawsTails`,
-`CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `Level3TrieRootOne`,
-`Level3TrieAgrees`, `TrieLoopAgrees`, `TrieMassBound`, `WalkStartMoves`, `RateTestSound`,
-`SeqRateSound`, `TripartiteSearchCorrect`, `SiftWithPathCorrect`, `SiftAndSplitCorrect`,
-`WalkCorrect`, `SplitAndLearnCorrect` and `RunsKeepEdgesAtLeaves`.
+`CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `TrieTableCorrect`,
+`TrieTableReads`, `Level3TrieRootOne`, `Level3TrieAgrees`, `TrieLoopAgrees`, `TrieMassBound`,
+`WalkStartMoves`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`, `SiftWithPathCorrect`,
+`SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and `RunsKeepEdgesAtLeaves`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`:
 `TrainFamilyClaim`, `CounterexSynthClaim`, `RLStarClaim`,
@@ -213,6 +214,14 @@ theorem trie_probe_agree_correct : TrieProbeAgreeCorrect := trieProbeAgreeCorrec
 theorem trie_single_piece_correct : TrieSinglePieceCorrect := trieSinglePieceCorrect
 
 #print axioms trie_single_piece_correct
+
+theorem trie_table_correct : TrieTableCorrect := trieTableCorrect_holds
+
+#print axioms trie_table_correct
+
+theorem trie_table_reads : TrieTableReads := trieTableReads_holds
+
+#print axioms trie_table_reads
 
 theorem level3_trie_root_one : Level3TrieRootOne := level3TrieRootOne
 
