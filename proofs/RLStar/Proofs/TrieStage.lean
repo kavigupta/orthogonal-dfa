@@ -31,7 +31,8 @@ variable (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α) (Dsf : Meas
 
 /-- Round `r`'s level-3 probes, where every earlier clustering and this one returned, are not at
 least `walkStart` long with chance `0`. -/
-theorem trie_l3_round_le {NP : ℕ} (hNP : ∀ pops, ∑ B ∈ settings.schedule pops, B.npref ≤ 2 * NP)
+theorem trie_l3_round_le {NP : ℕ}
+    (hNP : ∀ pops, ∑ n ∈ (settings.schedule pops).image State.npref, n ≤ 2 * NP)
     {p₀ : ℝ} (hpre : ∀ u, P.D.real {x | prefixOf x settings.level3.walkStart = u} ≤ p₀)
     (hk : ∀ᵐ x ∂P.D, settings.level3.walkStart ≤ x.toList.length)
     (hK : ((6 * (K + 1) * NP : ℕ) : ℝ) * p₀ ≤ 1 / 2) (r : ℕ) (hr : r < K) :
@@ -135,7 +136,7 @@ theorem trie_l3_round_le {NP : ℕ} (hNP : ∀ pops, ∑ B ∈ settings.schedule
       simpa using this
     have := hNP (loopPopulations K H.pops.length)
     calc 3 * (loopPopulations K H.pops.length).card
-          * ∑ B ∈ settings.schedule (loopPopulations K H.pops.length), B.npref
+          * ∑ n ∈ (settings.schedule (loopPopulations K H.pops.length)).image State.npref, n
         ≤ 3 * (K + 1) * (2 * NP) := Nat.mul_le_mul (Nat.mul_le_mul_left 3 hpops) this
       _ = 6 * (K + 1) * NP := by ring
   show (p.1, (id (p.2 rK)).2) ∈ Bad (stage4 settings O P.D Dsf r hr p.1 p.2)
