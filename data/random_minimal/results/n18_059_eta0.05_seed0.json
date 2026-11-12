@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 4,
   "benchmark": "n18_059",
   "family": "random_minimal",
   "learner": "E-L*",
@@ -9,14 +9,16 @@
   "alphabet_size": 2,
   "learner_config": {
     "min_signal_strength": 0.45,
-    "min_suffix_frequency": 0.02
+    "min_suffix_frequency": 0.02,
+    "sample_length": 40,
+    "certified_error": 0.050000000000000044
   },
-  "learned_states": 18,
-  "accuracy": 0.9972,
+  "learned_states": 10,
+  "accuracy": 0.9854,
   "converged": false,
-  "queries_total": 515565,
+  "queries_total": 179686,
   "equivalence_queries": 0,
-  "seconds": 24.331,
+  "seconds": 7.833,
   "error_type": null,
   "error": null,
   "target": {
@@ -25,9 +27,7 @@
     "accepting_states": 15,
     "acceptance_rate": 0.9025693704215882,
     "class_preserving_fraction": 0.020915821898597642,
-    "non_start_zone_accuracy_ceiling": 0.9999999999999999,
     "unvisited_states": 0,
-    "starts": 14,
     "endpoint_mass_min": 0.00039394023133354494,
     "endpoint_mass_max": 0.1908246947114094,
     "depth_max": 6,
@@ -41,31 +41,16 @@
       "representative_prefixes": 400,
       "suffixes": 22,
       "family_size": 21,
-      "probes": 5805,
+      "probes": 2525,
       "ending": "harvest middles",
       "hypothesis_states": 2,
       "hypothesis_edges": 4,
-      "sampling_seconds": 0.6818480864167213,
-      "probing_seconds": 6.306241482496262,
-      "queries_at_search_end": 138161,
-      "certified": null,
-      "consistency": 0.8695652173913043
-    },
-    {
-      "prefixes": 631,
-      "representative_prefixes": 431,
-      "suffixes": 108,
-      "family_size": 21,
-      "probes": 876,
-      "ending": "success",
-      "hypothesis_states": 18,
-      "hypothesis_edges": 36,
-      "sampling_seconds": 2.3713021352887154,
-      "probing_seconds": 8.86189203709364,
-      "queries_at_search_end": 347404,
+      "sampling_seconds": 0.5731950178742409,
+      "probing_seconds": 3.592606760561466,
+      "queries_at_search_end": 68392,
       "certified": true,
-      "consistency": 1.0
+      "consistency": 0.983
     }
   ],
-  "chosen_round": 1
+  "chosen_round": 0
 }

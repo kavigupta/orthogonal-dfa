@@ -128,7 +128,7 @@ class MidfixTree:
     def sift_with_path(
         self, cut: Callable[[bytes], Optional[bool]], seq: bytes
     ) -> Tuple[List[bytes], Optional[Tuple[bool, ...]]]:
-        """``DTree.siftWithPath`` of OrthoDFA/Code/DTree.lean, proved by
+        """``DTree.siftWithPath`` of RLStar/Code/DTree.lean, proved by
         ``SiftWithPathCorrect``: the
         strings sifting ``seq`` reads, and its leaf's path, ``None`` where the last read
         is undecided."""

@@ -28,36 +28,37 @@ def look_level(alpha, look) -> float:
 
 def error_bound(masses, rates, accepting, gap) -> float:
     """The largest sum_S m_S e_S, which worst_contributions spells out by state."""
-    return float(worst_contributions(masses, rates, accepting, gap).sum())
+    return float(worst_contributions(masses, rates, rates, accepting, gap).sum())
 
 
-def worst_contributions(masses, rates, accepting, gap) -> np.ndarray:
+def worst_contributions(masses, rates, frame, accepting, gap) -> np.ndarray:
     """The m_S e_S of each state S at the masses, rates and offset that make
 
         sum_S m_S e_S
 
     largest over every m with sum_S m_S = 1 and m_S in
     [mass_low_S, mass_high_S], every r_S in [low_S, high_S], and every p_0 in
-    [max_S low_S - band, min_S high_S], for masses = (mass_low, mass_high),
-    rates = (low, high), c_S = (r_S - p_0) / band and
+    [max_S frame_low_S - band, min_S frame_high_S], for masses =
+    (mass_low, mass_high), rates = (low, high), frame = (frame_low, frame_high),
+    c_S = (r_S - p_0) / band and
 
-        band = max(gap, max_S low_S - min_S high_S),
+        band = max(gap, max_S frame_low_S - min_S frame_high_S),
 
-    the narrowest band at least gap that the rates fit.  c_S is not held to
+    the narrowest band at least gap that the frame fits.  c_S is not held to
     [0, 1]: a state read past the band counts for more than its mass, as it does
     against E[O | h accepts] - E[O | h rejects].
 
     For a fixed p_0 each state's worst e_S is apart from the others', and the
     mass free of the lower bounds goes to the worst states first.  That is the
     largest of functions linear in p_0, so the largest over p_0 is at an end."""
-    mass_low, mass_high, low, high = (
-        np.asarray(v, dtype=float) for v in (*masses, *rates)
+    mass_low, mass_high, low, high, frame_low, frame_high = (
+        np.asarray(v, dtype=float) for v in (*masses, *rates, *frame)
     )
     accepting = np.asarray(accepting, dtype=bool)
-    band = max(gap, float(low.max() - high.min()))
-    least = max(0.0, float(low.max()) - band)
-    # Equal to least where band was set by the rates, up to rounding.
-    most = max(least, min(1.0 - band, float(high.min())))
+    band = max(gap, float(frame_low.max() - frame_high.min()))
+    least = max(0.0, float(frame_low.max()) - band)
+    # Equal to least where band was set by the frame, up to rounding.
+    most = max(least, min(1.0 - band, float(frame_high.min())))
 
     def error(offset):
         share = (np.where(accepting, low, high) - offset) / band
@@ -144,8 +145,15 @@ def certifies(pst, dfa, *, alpha) -> Verdict:
         rates = clopper_pearson(ones, drawn, level)
         bound = error_bound(masses, rates, accepting, gap)
         shares, read = drawn / size, ones / np.maximum(drawn, 1)
+        # Framed by the intervals, not the rates read: a state drawn a handful of
+        # times reads near 0 or 1, which would stretch the band past every other
+        # state's rate.
         blame = worst_contributions(
-            (shares, shares), (read, np.where(drawn > 0, read, 1.0)), accepting, gap
+            (shares, shares),
+            (read, np.where(drawn > 0, read, 1.0)),
+            rates,
+            accepting,
+            gap,
         )
         at_rates = float(blame.sum())
         worst = int(np.argmax(blame))

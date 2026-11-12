@@ -144,9 +144,7 @@ def _boundary_source(pst, state, *, acc_threshold) -> None:
         known=state.seen,
         acc_threshold=acc_threshold,
         # Its search walked deeper because its reads repeated, so they may run out.
-        retirable=any(
-            read.round.k > read.round.config.k for read in state.harvest_reads
-        ),
+        retirable=any(read.round.trie.prefixes for read in state.harvest_reads),
     )
 
 
@@ -260,10 +258,13 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
         )
     score_patience = ScorePatience.from_config(
         pst.config,
-        lambda hypothesis: held_out_phi(_hypothesis_dfa(pst, hypothesis), *selection),
+        lambda search: held_out_phi(_hypothesis_dfa(pst, search), *selection),
     )
     search = CounterexampleSearch(
-        counterexample_search_config(acc_threshold, pst.config.acceptable_fnr),
+        counterexample_search_config(
+            acc_threshold,
+            pst.config.acceptable_fnr,
+        ),
         lambda z: family.is_accept(z, b""),
         MidfixTree([pst.table.suffix(i) for i in vs]),
         max_k=start_length(pst.sampler.length),
@@ -289,13 +290,13 @@ def _counterexample_search(pst, vs, *, acc_threshold, selection):
             fallback.close(search.hypothesis, pst.alphabet_size)
         else:
             score_patience.guarded(
-                search.hypothesis,
+                search,
                 lambda: fallback.close(search.hypothesis, pst.alphabet_size),
             )
     return search, ending
 
 
-def _best_search(pst, vs, *, acc_threshold, index, selection, reroot_pick, tracker):
+def _best_search(pst, vs, *, acc_threshold, index, selection, tracker):
     """The round's search, how it ended, and its DFA: of ``counterexample_restarts``
     searches on independent probe streams, the one with the best phi on
     ``selection.pick``."""
@@ -307,24 +308,24 @@ def _best_search(pst, vs, *, acc_threshold, index, selection, reroot_pick, track
             acc_threshold=acc_threshold,
             selection=None if selection is None else selection.search,
         )
-        dfa = _hypothesis_dfa(pst, search.hypothesis)
+        dfa = _hypothesis_dfa(pst, search)
         pick_score = None if selection is None else held_out_phi(dfa, *selection.pick)
         tracker.on_restart_ended(0, search, ending, dfa, pick_score, index)
-        return search, ending, _reroot_start(pst, search.hypothesis, dfa, reroot_pick)
+        return search, ending, dfa
     runs = []
     for i, rng in enumerate(pst.rng.spawn(restarts)):
         pst.rng = rng
         search, ending = _counterexample_search(
             pst, vs, acc_threshold=acc_threshold, selection=selection.search
         )
-        dfa = _hypothesis_dfa(pst, search.hypothesis)
+        dfa = _hypothesis_dfa(pst, search)
         phi = held_out_phi(dfa, *selection.pick)
         print(f"[round {index}] restart {i}: {ending.kind}, held-out phi {phi:.3f}")
         tracker.on_restart_ended(i, search, ending, dfa, phi, index)
         runs.append((phi, rng, search, ending, dfa))
     # The run goes on from the kept search's stream, as if it were the only one.
     _, pst.rng, search, ending, dfa = max(runs, key=lambda run: run[0])
-    return search, ending, _reroot_start(pst, search.hypothesis, dfa, reroot_pick)
+    return search, ending, dfa
 
 
 def _round_score(pst, dfa, selection, index) -> Optional[float]:
@@ -359,45 +360,21 @@ def _selection_sample(pst):
     return Selection(search=tuple(halves[:2]), pick=tuple(halves[2:]))
 
 
-def _hypothesis_dfa(pst, hypothesis):
+def _hypothesis_dfa(pst, search):
+    hypothesis = search.hypothesis
     boundary = pst.decision_boundary
     decide, _ = oracle_decider(
         pst.oracle, hypothesis.tree.base_family, boundary, boundary
     )
     initial = hypothesis.tree.classify(b"", decide)
-    return hypothesis.to_dfa(pst.alphabet_size, 0 if initial is None else initial)
-
-
-def _reroot_pick(pst, selection):
-    """The held-out ``(fit, read)`` pair re-rooting scores leaves on, or ``None`` with
-    re-rooting off. Reuses the selection's pick halves, else draws its own off a child
-    stream so the bare config can re-root without disturbing the run's draws."""
-    if not pst.config.counterexample_reroot:
-        return None
-    if selection is not None:
-        return selection.pick
-    rng = pst.rng.spawn(1)[0]
-    return tuple(
-        labelled_sample(pst.oracle, pst.sampler, pst.alphabet_size, SELECTION_HALF, rng)
-        for _ in range(2)
+    leaves = hypothesis.to_dfa(pst.alphabet_size, 0 if initial is None else initial)
+    if not pst.config.counterexample_prepend_trie:
+        return leaves
+    return search.trie.prepend(
+        leaves,
+        lambda v: hypothesis.tree.classify(v, decide),
+        lambda u: decide(u, hypothesis.tree.root[0]),
     )
-
-
-def _reroot_start(pst, hypothesis, dfa, reroot_pick):
-    """``dfa`` restarted at the leaf of best held-out phi on ``reroot_pick``, the port
-    of ``LoopDFA.lean``'s ``pickLeaf``; ``dfa``'s own start keeps ties. ``reroot_pick``
-    is ``None`` with re-rooting off."""
-    if reroot_pick is None:
-        return dfa
-    best, best_phi = dfa, held_out_phi(dfa, *reroot_pick)
-    for leaf in hypothesis.tree.leaves():
-        if leaf == dfa.initial_state:
-            continue
-        candidate = hypothesis.to_dfa(pst.alphabet_size, leaf)
-        phi = held_out_phi(candidate, *reroot_pick)
-        if phi > best_phi:
-            best, best_phi = candidate, phi
-    return best
 
 
 def _round_summary(pst, vs, search, ending, seconds) -> RoundSummary:
@@ -443,7 +420,6 @@ def counterexample_driven_synthesis(
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
     selection = _selection_sample(pst)
-    reroot_pick = _reroot_pick(pst, selection)
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
     uncertified_since = None
     index = 0
@@ -466,7 +442,6 @@ def counterexample_driven_synthesis(
             acc_threshold=acc_threshold,
             index=index,
             selection=selection,
-            reroot_pick=reroot_pick,
             tracker=tracker,
         )
         summary = _round_summary(
@@ -565,4 +540,5 @@ def do_counterexample_driven_synthesis(
         )
         dfa = denoise_accept_labels(pst, best.dfa)
     tracker.on_corrected_dfa_found(dfa, best.round_index)
-    return dfa
+    # The spelled-out prefixes' states are mostly copies of the leaves they lead to.
+    return dfa.minify()

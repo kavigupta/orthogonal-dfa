@@ -24,8 +24,8 @@ PROCESSES = ["--processes", "1"]
 ENTRY_POINTS = [
     (run_capal_bench, ["capal_benchmarks"], PROCESSES),
     (run_our_bench, ["our_benchmarks"], PROCESSES),
-    (run_wall_sweep, ["our_benchmarks"], []),
-    (run_wall_sweep, ["our_benchmarks"], ["--matched-budget"]),
+    (run_wall_sweep, ["_run_cell"], PROCESSES),
+    (run_wall_sweep, ["_run_cell"], [*PROCESSES, "--matched-budget"]),
     (random_run, ["_ensure_target", "_run_result"], PROCESSES),
     (capal_random, ["_run_result"], PROCESSES),
     (luhn_run, ["_run_result"], PROCESSES),

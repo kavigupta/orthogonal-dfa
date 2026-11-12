@@ -51,97 +51,88 @@
     "elstar_regime": {
       "Difficult01": {
         "length": 40,
-        "acceptance_rate": 0.0,
-        "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [
+        "acceptance_rate": 3.728928277269006e-11,
+        "class_preserving_fraction": 9.094947017729282e-13,
+        "unvisited_states": [
           "0",
           "1"
         ],
         "reasons": [
-          "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 3.728928277269006e-11 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Difficult02": {
         "length": 40,
-        "acceptance_rate": 0.114,
-        "class_preserving_fraction": 0.0315,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "acceptance_rate": 0.10709752936509176,
+        "class_preserving_fraction": 0.02667139482946368,
+        "unvisited_states": [],
         "reasons": []
       },
       "Difficult03": {
         "length": 40,
-        "acceptance_rate": 0.0,
+        "acceptance_rate": 1.8189894035458565e-12,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [
+        "unvisited_states": [
           "0",
           "1",
           "3"
         ],
         "reasons": [
-          "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 1.8189894035458565e-12 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Difficult04": {
         "length": 40,
-        "acceptance_rate": 1.0,
-        "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [
+        "acceptance_rate": 0.9999999999627107,
+        "class_preserving_fraction": 9.094947017729282e-13,
+        "unvisited_states": [
           "0",
           "1"
         ],
         "reasons": [
-          "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 0.9999999999627107 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Difficult05": {
         "length": 40,
-        "acceptance_rate": 1.0,
-        "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 0.996,
-        "uncovered_states": [
-          "0",
-          "1",
-          "3"
+        "acceptance_rate": 0.9999424781108246,
+        "class_preserving_fraction": 5.7521889175404795e-05,
+        "unvisited_states": [
+          "0"
         ],
         "reasons": [
-          "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 0.9999424781108246 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Difficult06": {
         "length": 40,
-        "acceptance_rate": 1.0,
+        "acceptance_rate": 0.999999999998181,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [
+        "unvisited_states": [
           "0",
           "1",
           "3"
         ],
         "reasons": [
-          "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 0.999999999998181 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Difficult07": {
         "length": 40,
-        "acceptance_rate": 1.0,
-        "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [
+        "acceptance_rate": 0.9999999992905941,
+        "class_preserving_fraction": 9.094947017729282e-13,
+        "unvisited_states": [
           "0",
           "1",
           "2"
         ],
         "reasons": [
-          "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 0.9999999992905941 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
@@ -149,62 +140,52 @@
         "length": 40,
         "acceptance_rate": 1.0,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [
+        "unvisited_states": [
           "0",
           "1"
         ],
         "reasons": [
-          "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 1.0 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Difficult09": {
         "length": 40,
-        "acceptance_rate": 0.4915,
-        "class_preserving_fraction": 0.138,
-        "covered_accuracy_ceiling": 0.4855,
-        "uncovered_states": [
+        "acceptance_rate": 0.5,
+        "class_preserving_fraction": 0.125,
+        "unvisited_states": [
           "0",
           "1",
           "2"
         ],
-        "reasons": [
-          "covered-accuracy ceiling 0.485 below 0.99 (an uncovered state carries a decision)"
-        ]
+        "reasons": []
       },
       "Difficult10": {
         "length": 40,
-        "acceptance_rate": 0.5055,
-        "class_preserving_fraction": 0.4945,
-        "covered_accuracy_ceiling": 0.4835,
-        "uncovered_states": [
+        "acceptance_rate": 0.5,
+        "class_preserving_fraction": 0.5,
+        "unvisited_states": [
           "0"
         ],
-        "reasons": [
-          "covered-accuracy ceiling 0.483 below 0.99 (an uncovered state carries a decision)"
-        ]
+        "reasons": []
       },
       "Difficult11": {
         "length": 40,
-        "acceptance_rate": 0.0,
-        "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 0.999,
-        "uncovered_states": [
-          "0",
+        "acceptance_rate": 9.5367431640625e-07,
+        "class_preserving_fraction": 9.094947017729282e-13,
+        "unvisited_states": [
           "2"
         ],
         "reasons": [
-          "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 9.5367431640625e-07 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Difficult12": {
         "length": 40,
-        "acceptance_rate": 0.3515,
+        "acceptance_rate": 0.33333333333393966,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [
+        "unvisited_states": [
           "0"
         ],
         "reasons": [
@@ -213,10 +194,9 @@
       },
       "Difficult13": {
         "length": 40,
-        "acceptance_rate": 0.2015,
+        "acceptance_rate": 0.2000000000007276,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [
+        "unvisited_states": [
           "0"
         ],
         "reasons": [
@@ -225,10 +205,9 @@
       },
       "Normal01": {
         "length": 40,
-        "acceptance_rate": 1.0,
+        "acceptance_rate": 0.9999999992160156,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [
+        "unvisited_states": [
           "0",
           "1",
           "10",
@@ -242,16 +221,15 @@
           "9"
         ],
         "reasons": [
-          "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 0.9999999992160156 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Normal02": {
         "length": 40,
-        "acceptance_rate": 0.0,
+        "acceptance_rate": 7.09405867382884e-10,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [
+        "unvisited_states": [
           "0",
           "1",
           "2",
@@ -263,16 +241,15 @@
           "9"
         ],
         "reasons": [
-          "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 7.09405867382884e-10 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Normal03": {
         "length": 40,
-        "acceptance_rate": 0.0,
-        "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 0.9995,
-        "uncovered_states": [
+        "acceptance_rate": 7.09405867382884e-10,
+        "class_preserving_fraction": 9.094947017729282e-13,
+        "unvisited_states": [
           "0",
           "1",
           "2",
@@ -281,133 +258,114 @@
           "6"
         ],
         "reasons": [
-          "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 7.09405867382884e-10 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Normal04": {
         "length": 40,
-        "acceptance_rate": 0.0,
-        "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 0.994,
-        "uncovered_states": [
-          "0",
-          "2",
-          "3"
-        ],
+        "acceptance_rate": 7.529713002440985e-05,
+        "class_preserving_fraction": 2.8760944587702397e-05,
+        "unvisited_states": [],
         "reasons": [
-          "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 7.529713002440985e-05 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Normal05": {
         "length": 40,
-        "acceptance_rate": 0.0,
+        "acceptance_rate": 3.637978807091713e-11,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [
+        "unvisited_states": [
           "0",
           "1",
           "2"
         ],
         "reasons": [
-          "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label",
+          "acceptance rate 3.637978807091713e-11 degenerate: almost every string of length 40 has the same label",
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Normal06": {
         "length": 40,
-        "acceptance_rate": 0.273,
+        "acceptance_rate": 0.25,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "unvisited_states": [],
         "reasons": [
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Normal07": {
         "length": 40,
-        "acceptance_rate": 0.522,
-        "class_preserving_fraction": 0.478,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "acceptance_rate": 0.5,
+        "class_preserving_fraction": 0.5,
+        "unvisited_states": [],
         "reasons": []
       },
       "Normal08": {
         "length": 40,
-        "acceptance_rate": 0.248,
+        "acceptance_rate": 0.25,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 0.7275,
-        "uncovered_states": [
+        "unvisited_states": [
           "0"
         ],
         "reasons": [
-          "class-preserving fraction 0.000 below 0.02",
-          "covered-accuracy ceiling 0.728 below 0.99 (an uncovered state carries a decision)"
+          "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Normal09": {
         "length": 40,
-        "acceptance_rate": 0.2385,
+        "acceptance_rate": 0.25,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "unvisited_states": [],
         "reasons": [
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Simple01": {
         "length": 40,
-        "acceptance_rate": 0.478,
-        "class_preserving_fraction": 0.478,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "acceptance_rate": 0.5,
+        "class_preserving_fraction": 0.5,
+        "unvisited_states": [],
         "reasons": []
       },
       "Simple02": {
         "length": 40,
-        "acceptance_rate": 0.522,
-        "class_preserving_fraction": 0.478,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "acceptance_rate": 0.5,
+        "class_preserving_fraction": 0.5,
+        "unvisited_states": [],
         "reasons": []
       },
       "Simple03": {
         "length": 40,
-        "acceptance_rate": 0.265,
+        "acceptance_rate": 0.25,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "unvisited_states": [],
         "reasons": [
           "class-preserving fraction 0.000 below 0.02"
         ]
       },
       "Simple04": {
         "length": 40,
-        "acceptance_rate": 0.4945,
-        "class_preserving_fraction": 0.5055,
-        "covered_accuracy_ceiling": 0.4835,
-        "uncovered_states": [
+        "acceptance_rate": 0.5,
+        "class_preserving_fraction": 0.5,
+        "unvisited_states": [
           "0"
         ],
-        "reasons": [
-          "covered-accuracy ceiling 0.483 below 0.99 (an uncovered state carries a decision)"
-        ]
+        "reasons": []
       },
       "Simple05": {
         "length": 40,
-        "acceptance_rate": 0.926,
-        "class_preserving_fraction": 0.02,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "acceptance_rate": 0.9221062452061233,
+        "class_preserving_fraction": 0.022352467928612896,
+        "unvisited_states": [],
         "reasons": []
       },
       "Simple06": {
         "length": 40,
-        "acceptance_rate": 0.479,
+        "acceptance_rate": 0.5,
         "class_preserving_fraction": 0.0,
-        "covered_accuracy_ceiling": 1.0,
-        "uncovered_states": [],
+        "unvisited_states": [],
         "reasons": [
           "class-preserving fraction 0.000 below 0.02"
         ]
@@ -442,7 +400,7 @@
       "converged": true,
       "queries_total": 1062,
       "equivalence_queries": 6,
-      "seconds": 0.046,
+      "seconds": 0.021,
       "error_type": null,
       "error": null
     },
@@ -462,7 +420,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 3.728928277269006e-11 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult01",
@@ -490,7 +448,7 @@
       "converged": true,
       "queries_total": 1062,
       "equivalence_queries": 6,
-      "seconds": 0.045,
+      "seconds": 0.025,
       "error_type": null,
       "error": null
     },
@@ -510,7 +468,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 3.728928277269006e-11 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult01",
@@ -538,7 +496,7 @@
       "converged": true,
       "queries_total": 1062,
       "equivalence_queries": 6,
-      "seconds": 0.051,
+      "seconds": 0.028,
       "error_type": null,
       "error": null
     },
@@ -558,7 +516,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 3.728928277269006e-11 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult01",
@@ -586,7 +544,7 @@
       "converged": true,
       "queries_total": 1069,
       "equivalence_queries": 7,
-      "seconds": 0.068,
+      "seconds": 0.036,
       "error_type": null,
       "error": null
     },
@@ -606,7 +564,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 3.728928277269006e-11 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult02",
@@ -634,7 +592,7 @@
       "converged": true,
       "queries_total": 1704,
       "equivalence_queries": 6,
-      "seconds": 0.125,
+      "seconds": 0.065,
       "error_type": null,
       "error": null
     },
@@ -648,14 +606,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.45,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 197792,
+      "queries_total": 248414,
       "equivalence_queries": 0,
-      "seconds": 21.868,
+      "seconds": 8.538,
       "error_type": null,
       "error": null
     },
@@ -685,7 +645,7 @@
       "converged": true,
       "queries_total": 2093,
       "equivalence_queries": 7,
-      "seconds": 0.303,
+      "seconds": 0.094,
       "error_type": null,
       "error": null
     },
@@ -699,14 +659,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.4,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 237324,
+      "queries_total": 348135,
       "equivalence_queries": 0,
-      "seconds": 28.015,
+      "seconds": 10.285,
       "error_type": null,
       "error": null
     },
@@ -736,7 +698,7 @@
       "converged": true,
       "queries_total": 3254,
       "equivalence_queries": 9,
-      "seconds": 0.618,
+      "seconds": 0.215,
       "error_type": null,
       "error": null
     },
@@ -750,14 +712,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.3,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 1604957,
+      "queries_total": 1023463,
       "equivalence_queries": 0,
-      "seconds": 185.696,
+      "seconds": 27.03,
       "error_type": null,
       "error": null
     },
@@ -783,11 +747,11 @@
         "eta_hat": 0.3
       },
       "learned_states": 29,
-      "accuracy": 0.5072,
+      "accuracy": 0.1666,
       "converged": false,
       "queries_total": 18075,
       "equivalence_queries": 200,
-      "seconds": 397.928,
+      "seconds": 96.115,
       "error_type": null,
       "error": null
     },
@@ -801,14 +765,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.2,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 7401117,
+      "queries_total": 6586039,
       "equivalence_queries": 0,
-      "seconds": 559.152,
+      "seconds": 144.363,
       "error_type": null,
       "error": null
     },
@@ -838,7 +804,7 @@
       "converged": true,
       "queries_total": 1552,
       "equivalence_queries": 8,
-      "seconds": 0.052,
+      "seconds": 0.047,
       "error_type": null,
       "error": null
     },
@@ -858,7 +824,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 1.8189894035458565e-12 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult03",
@@ -886,7 +852,7 @@
       "converged": true,
       "queries_total": 1552,
       "equivalence_queries": 8,
-      "seconds": 0.056,
+      "seconds": 0.034,
       "error_type": null,
       "error": null
     },
@@ -906,7 +872,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 1.8189894035458565e-12 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult03",
@@ -934,7 +900,7 @@
       "converged": true,
       "queries_total": 1552,
       "equivalence_queries": 8,
-      "seconds": 0.052,
+      "seconds": 0.037,
       "error_type": null,
       "error": null
     },
@@ -954,7 +920,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 1.8189894035458565e-12 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult03",
@@ -982,7 +948,7 @@
       "converged": true,
       "queries_total": 1807,
       "equivalence_queries": 11,
-      "seconds": 0.087,
+      "seconds": 0.074,
       "error_type": null,
       "error": null
     },
@@ -1002,7 +968,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 1.8189894035458565e-12 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult04",
@@ -1030,7 +996,7 @@
       "converged": true,
       "queries_total": 831,
       "equivalence_queries": 6,
-      "seconds": 0.027,
+      "seconds": 0.016,
       "error_type": null,
       "error": null
     },
@@ -1050,7 +1016,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999999999627107 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult04",
@@ -1078,7 +1044,7 @@
       "converged": true,
       "queries_total": 831,
       "equivalence_queries": 6,
-      "seconds": 0.025,
+      "seconds": 0.024,
       "error_type": null,
       "error": null
     },
@@ -1098,7 +1064,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999999999627107 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult04",
@@ -1126,7 +1092,7 @@
       "converged": true,
       "queries_total": 1698,
       "equivalence_queries": 10,
-      "seconds": 0.083,
+      "seconds": 0.075,
       "error_type": null,
       "error": null
     },
@@ -1146,7 +1112,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999999999627107 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult04",
@@ -1174,7 +1140,7 @@
       "converged": true,
       "queries_total": 1771,
       "equivalence_queries": 13,
-      "seconds": 0.1,
+      "seconds": 0.077,
       "error_type": null,
       "error": null
     },
@@ -1194,7 +1160,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999999999627107 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult05",
@@ -1222,7 +1188,7 @@
       "converged": true,
       "queries_total": 1431,
       "equivalence_queries": 8,
-      "seconds": 0.052,
+      "seconds": 0.037,
       "error_type": null,
       "error": null
     },
@@ -1242,7 +1208,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999424781108246 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult05",
@@ -1270,7 +1236,7 @@
       "converged": true,
       "queries_total": 1310,
       "equivalence_queries": 7,
-      "seconds": 0.046,
+      "seconds": 0.027,
       "error_type": null,
       "error": null
     },
@@ -1290,7 +1256,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999424781108246 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult05",
@@ -1318,7 +1284,7 @@
       "converged": true,
       "queries_total": 1551,
       "equivalence_queries": 8,
-      "seconds": 0.067,
+      "seconds": 0.04,
       "error_type": null,
       "error": null
     },
@@ -1338,7 +1304,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999424781108246 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult05",
@@ -1366,7 +1332,7 @@
       "converged": true,
       "queries_total": 2324,
       "equivalence_queries": 14,
-      "seconds": 0.17,
+      "seconds": 0.155,
       "error_type": null,
       "error": null
     },
@@ -1386,7 +1352,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999424781108246 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult06",
@@ -1414,7 +1380,7 @@
       "converged": true,
       "queries_total": 1552,
       "equivalence_queries": 8,
-      "seconds": 0.052,
+      "seconds": 0.046,
       "error_type": null,
       "error": null
     },
@@ -1434,7 +1400,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.999999999998181 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult06",
@@ -1462,7 +1428,7 @@
       "converged": true,
       "queries_total": 1552,
       "equivalence_queries": 8,
-      "seconds": 0.056,
+      "seconds": 0.049,
       "error_type": null,
       "error": null
     },
@@ -1482,7 +1448,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.999999999998181 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult06",
@@ -1510,7 +1476,7 @@
       "converged": true,
       "queries_total": 1552,
       "equivalence_queries": 8,
-      "seconds": 0.051,
+      "seconds": 0.05,
       "error_type": null,
       "error": null
     },
@@ -1530,7 +1496,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.999999999998181 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult06",
@@ -1558,7 +1524,7 @@
       "converged": true,
       "queries_total": 1807,
       "equivalence_queries": 11,
-      "seconds": 0.086,
+      "seconds": 0.05,
       "error_type": null,
       "error": null
     },
@@ -1578,7 +1544,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.999999999998181 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult07",
@@ -1606,7 +1572,7 @@
       "converged": true,
       "queries_total": 580,
       "equivalence_queries": 5,
-      "seconds": 0.011,
+      "seconds": 0.007,
       "error_type": null,
       "error": null
     },
@@ -1626,7 +1592,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999999992905941 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult07",
@@ -1654,7 +1620,7 @@
       "converged": true,
       "queries_total": 1068,
       "equivalence_queries": 7,
-      "seconds": 0.032,
+      "seconds": 0.017,
       "error_type": null,
       "error": null
     },
@@ -1674,7 +1640,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999999992905941 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult07",
@@ -1702,7 +1668,7 @@
       "converged": true,
       "queries_total": 1068,
       "equivalence_queries": 7,
-      "seconds": 0.029,
+      "seconds": 0.019,
       "error_type": null,
       "error": null
     },
@@ -1722,7 +1688,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999999992905941 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult07",
@@ -1750,7 +1716,7 @@
       "converged": true,
       "queries_total": 1571,
       "equivalence_queries": 8,
-      "seconds": 0.061,
+      "seconds": 0.037,
       "error_type": null,
       "error": null
     },
@@ -1770,7 +1736,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999999992905941 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult08",
@@ -1798,7 +1764,7 @@
       "converged": true,
       "queries_total": 461,
       "equivalence_queries": 4,
-      "seconds": 0.007,
+      "seconds": 0.004,
       "error_type": null,
       "error": null
     },
@@ -1818,7 +1784,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 1.0 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult08",
@@ -1846,7 +1812,7 @@
       "converged": true,
       "queries_total": 461,
       "equivalence_queries": 4,
-      "seconds": 0.007,
+      "seconds": 0.004,
       "error_type": null,
       "error": null
     },
@@ -1866,7 +1832,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 1.0 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult08",
@@ -1894,7 +1860,7 @@
       "converged": true,
       "queries_total": 461,
       "equivalence_queries": 4,
-      "seconds": 0.007,
+      "seconds": 0.008,
       "error_type": null,
       "error": null
     },
@@ -1914,7 +1880,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 1.0 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult08",
@@ -1942,7 +1908,7 @@
       "converged": true,
       "queries_total": 586,
       "equivalence_queries": 5,
-      "seconds": 0.01,
+      "seconds": 0.006,
       "error_type": null,
       "error": null
     },
@@ -1962,7 +1928,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 1.0 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult09",
@@ -1990,7 +1956,7 @@
       "converged": true,
       "queries_total": 1303,
       "equivalence_queries": 5,
-      "seconds": 0.052,
+      "seconds": 0.044,
       "error_type": null,
       "error": null
     },
@@ -2002,15 +1968,20 @@
       "seed": 0,
       "target_states": 5,
       "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.485 below 0.99 (an uncovered state carries a decision)"
+      "learner_config": {
+        "min_signal_strength": 0.45,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
+      },
+      "learned_states": 7,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 44861,
+      "equivalence_queries": 0,
+      "seconds": 2.54,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "Difficult09",
@@ -2038,7 +2009,7 @@
       "converged": true,
       "queries_total": 1196,
       "equivalence_queries": 6,
-      "seconds": 0.09,
+      "seconds": 0.049,
       "error_type": null,
       "error": null
     },
@@ -2050,15 +2021,20 @@
       "seed": 0,
       "target_states": 5,
       "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.485 below 0.99 (an uncovered state carries a decision)"
+      "learner_config": {
+        "min_signal_strength": 0.4,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
+      },
+      "learned_states": 7,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 48335,
+      "equivalence_queries": 0,
+      "seconds": 2.8,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "Difficult09",
@@ -2086,7 +2062,7 @@
       "converged": true,
       "queries_total": 1551,
       "equivalence_queries": 7,
-      "seconds": 0.056,
+      "seconds": 0.033,
       "error_type": null,
       "error": null
     },
@@ -2098,15 +2074,20 @@
       "seed": 0,
       "target_states": 5,
       "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.485 below 0.99 (an uncovered state carries a decision)"
+      "learner_config": {
+        "min_signal_strength": 0.3,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
+      },
+      "learned_states": 5,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 101954,
+      "equivalence_queries": 0,
+      "seconds": 3.714,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "Difficult09",
@@ -2134,7 +2115,7 @@
       "converged": true,
       "queries_total": 1678,
       "equivalence_queries": 8,
-      "seconds": 0.068,
+      "seconds": 0.04,
       "error_type": null,
       "error": null
     },
@@ -2146,15 +2127,20 @@
       "seed": 0,
       "target_states": 5,
       "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.485 below 0.99 (an uncovered state carries a decision)"
+      "learner_config": {
+        "min_signal_strength": 0.2,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
+      },
+      "learned_states": 7,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 299524,
+      "equivalence_queries": 0,
+      "seconds": 8.036,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "Difficult10",
@@ -2182,7 +2168,7 @@
       "converged": true,
       "queries_total": 463,
       "equivalence_queries": 1,
-      "seconds": 0.005,
+      "seconds": 0.003,
       "error_type": null,
       "error": null
     },
@@ -2194,15 +2180,20 @@
       "seed": 0,
       "target_states": 3,
       "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.483 below 0.99 (an uncovered state carries a decision)"
+      "learner_config": {
+        "min_signal_strength": 0.45,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
+      },
+      "learned_states": 3,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 39430,
+      "equivalence_queries": 0,
+      "seconds": 2.236,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "Difficult10",
@@ -2230,7 +2221,7 @@
       "converged": true,
       "queries_total": 463,
       "equivalence_queries": 1,
-      "seconds": 0.005,
+      "seconds": 0.003,
       "error_type": null,
       "error": null
     },
@@ -2242,15 +2233,20 @@
       "seed": 0,
       "target_states": 3,
       "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.483 below 0.99 (an uncovered state carries a decision)"
+      "learner_config": {
+        "min_signal_strength": 0.4,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
+      },
+      "learned_states": 3,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 44275,
+      "equivalence_queries": 0,
+      "seconds": 2.691,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "Difficult10",
@@ -2278,7 +2274,7 @@
       "converged": true,
       "queries_total": 709,
       "equivalence_queries": 5,
-      "seconds": 0.02,
+      "seconds": 0.017,
       "error_type": null,
       "error": null
     },
@@ -2290,15 +2286,20 @@
       "seed": 0,
       "target_states": 3,
       "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.483 below 0.99 (an uncovered state carries a decision)"
+      "learner_config": {
+        "min_signal_strength": 0.3,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
+      },
+      "learned_states": 3,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 129218,
+      "equivalence_queries": 0,
+      "seconds": 5.292,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "Difficult10",
@@ -2326,7 +2327,7 @@
       "converged": true,
       "queries_total": 827,
       "equivalence_queries": 5,
-      "seconds": 0.022,
+      "seconds": 0.018,
       "error_type": null,
       "error": null
     },
@@ -2338,15 +2339,20 @@
       "seed": 0,
       "target_states": 3,
       "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.483 below 0.99 (an uncovered state carries a decision)"
+      "learner_config": {
+        "min_signal_strength": 0.2,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
+      },
+      "learned_states": 3,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 299740,
+      "equivalence_queries": 0,
+      "seconds": 8.176,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "Difficult11",
@@ -2374,7 +2380,7 @@
       "converged": true,
       "queries_total": 463,
       "equivalence_queries": 3,
-      "seconds": 0.007,
+      "seconds": 0.004,
       "error_type": null,
       "error": null
     },
@@ -2394,7 +2400,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 9.5367431640625e-07 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult11",
@@ -2422,7 +2428,7 @@
       "converged": true,
       "queries_total": 463,
       "equivalence_queries": 3,
-      "seconds": 0.007,
+      "seconds": 0.004,
       "error_type": null,
       "error": null
     },
@@ -2442,7 +2448,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 9.5367431640625e-07 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult11",
@@ -2470,7 +2476,7 @@
       "converged": true,
       "queries_total": 463,
       "equivalence_queries": 3,
-      "seconds": 0.007,
+      "seconds": 0.004,
       "error_type": null,
       "error": null
     },
@@ -2490,7 +2496,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 9.5367431640625e-07 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult11",
@@ -2518,7 +2524,7 @@
       "converged": true,
       "queries_total": 708,
       "equivalence_queries": 5,
-      "seconds": 0.017,
+      "seconds": 0.015,
       "error_type": null,
       "error": null
     },
@@ -2538,7 +2544,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 9.5367431640625e-07 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Difficult12",
@@ -2566,7 +2572,7 @@
       "converged": true,
       "queries_total": 585,
       "equivalence_queries": 3,
-      "seconds": 0.01,
+      "seconds": 0.009,
       "error_type": null,
       "error": null
     },
@@ -2614,7 +2620,7 @@
       "converged": true,
       "queries_total": 585,
       "equivalence_queries": 3,
-      "seconds": 0.01,
+      "seconds": 0.006,
       "error_type": null,
       "error": null
     },
@@ -2662,7 +2668,7 @@
       "converged": true,
       "queries_total": 585,
       "equivalence_queries": 3,
-      "seconds": 0.01,
+      "seconds": 0.006,
       "error_type": null,
       "error": null
     },
@@ -2710,7 +2716,7 @@
       "converged": true,
       "queries_total": 1193,
       "equivalence_queries": 7,
-      "seconds": 0.04,
+      "seconds": 0.025,
       "error_type": null,
       "error": null
     },
@@ -2758,7 +2764,7 @@
       "converged": true,
       "queries_total": 1853,
       "equivalence_queries": 11,
-      "seconds": 0.128,
+      "seconds": 0.092,
       "error_type": null,
       "error": null
     },
@@ -2806,7 +2812,7 @@
       "converged": true,
       "queries_total": 1689,
       "equivalence_queries": 8,
-      "seconds": 0.081,
+      "seconds": 0.05,
       "error_type": null,
       "error": null
     },
@@ -2854,7 +2860,7 @@
       "converged": true,
       "queries_total": 3479,
       "equivalence_queries": 18,
-      "seconds": 0.383,
+      "seconds": 0.615,
       "error_type": null,
       "error": null
     },
@@ -2902,7 +2908,7 @@
       "converged": true,
       "queries_total": 1925,
       "equivalence_queries": 9,
-      "seconds": 0.088,
+      "seconds": 0.053,
       "error_type": null,
       "error": null
     },
@@ -2950,7 +2956,7 @@
       "converged": true,
       "queries_total": 6073,
       "equivalence_queries": 20,
-      "seconds": 0.804,
+      "seconds": 0.963,
       "error_type": null,
       "error": null
     },
@@ -2970,7 +2976,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999999992160156 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal01",
@@ -2998,7 +3004,7 @@
       "converged": true,
       "queries_total": 6426,
       "equivalence_queries": 24,
-      "seconds": 1.039,
+      "seconds": 1.194,
       "error_type": null,
       "error": null
     },
@@ -3018,7 +3024,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999999992160156 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal01",
@@ -3046,7 +3052,7 @@
       "converged": true,
       "queries_total": 9413,
       "equivalence_queries": 41,
-      "seconds": 4.18,
+      "seconds": 4.129,
       "error_type": null,
       "error": null
     },
@@ -3066,7 +3072,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999999992160156 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal01",
@@ -3090,11 +3096,11 @@
         "eta_hat": 0.3
       },
       "learned_states": 10,
-      "accuracy": 0.1608,
+      "accuracy": 0.0,
       "converged": false,
       "queries_total": 2706,
       "equivalence_queries": 200,
-      "seconds": 5.669,
+      "seconds": 5.567,
       "error_type": null,
       "error": null
     },
@@ -3114,7 +3120,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 1.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 0.9999999992160156 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal02",
@@ -3142,7 +3148,7 @@
       "converged": true,
       "queries_total": 3677,
       "equivalence_queries": 16,
-      "seconds": 0.302,
+      "seconds": 0.409,
       "error_type": null,
       "error": null
     },
@@ -3162,7 +3168,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 7.09405867382884e-10 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal02",
@@ -3190,7 +3196,7 @@
       "converged": true,
       "queries_total": 4147,
       "equivalence_queries": 15,
-      "seconds": 0.387,
+      "seconds": 0.374,
       "error_type": null,
       "error": null
     },
@@ -3210,7 +3216,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 7.09405867382884e-10 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal02",
@@ -3238,7 +3244,7 @@
       "converged": true,
       "queries_total": 4871,
       "equivalence_queries": 21,
-      "seconds": 0.758,
+      "seconds": 0.939,
       "error_type": null,
       "error": null
     },
@@ -3258,7 +3264,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 7.09405867382884e-10 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal02",
@@ -3286,7 +3292,7 @@
       "converged": true,
       "queries_total": 5628,
       "equivalence_queries": 25,
-      "seconds": 0.878,
+      "seconds": 0.918,
       "error_type": null,
       "error": null
     },
@@ -3306,7 +3312,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 7.09405867382884e-10 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal03",
@@ -3334,7 +3340,7 @@
       "converged": true,
       "queries_total": 2699,
       "equivalence_queries": 12,
-      "seconds": 0.156,
+      "seconds": 0.115,
       "error_type": null,
       "error": null
     },
@@ -3354,7 +3360,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 7.09405867382884e-10 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal03",
@@ -3382,7 +3388,7 @@
       "converged": true,
       "queries_total": 3149,
       "equivalence_queries": 16,
-      "seconds": 0.249,
+      "seconds": 0.488,
       "error_type": null,
       "error": null
     },
@@ -3402,7 +3408,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 7.09405867382884e-10 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal03",
@@ -3430,7 +3436,7 @@
       "converged": true,
       "queries_total": 8576,
       "equivalence_queries": 38,
-      "seconds": 3.397,
+      "seconds": 3.606,
       "error_type": null,
       "error": null
     },
@@ -3450,7 +3456,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 7.09405867382884e-10 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal03",
@@ -3474,11 +3480,11 @@
         "eta_hat": 0.3
       },
       "learned_states": 40,
-      "accuracy": 0.9976,
+      "accuracy": 1.0,
       "converged": false,
       "queries_total": 22200,
       "equivalence_queries": 200,
-      "seconds": 287.503,
+      "seconds": 174.595,
       "error_type": null,
       "error": null
     },
@@ -3498,7 +3504,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 7.09405867382884e-10 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal04",
@@ -3526,7 +3532,7 @@
       "converged": true,
       "queries_total": 2655,
       "equivalence_queries": 8,
-      "seconds": 0.112,
+      "seconds": 0.198,
       "error_type": null,
       "error": null
     },
@@ -3546,7 +3552,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 7.529713002440985e-05 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal04",
@@ -3574,7 +3580,7 @@
       "converged": true,
       "queries_total": 1925,
       "equivalence_queries": 7,
-      "seconds": 0.073,
+      "seconds": 0.072,
       "error_type": null,
       "error": null
     },
@@ -3594,7 +3600,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 7.529713002440985e-05 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal04",
@@ -3622,7 +3628,7 @@
       "converged": true,
       "queries_total": 3358,
       "equivalence_queries": 19,
-      "seconds": 0.367,
+      "seconds": 0.508,
       "error_type": null,
       "error": null
     },
@@ -3642,7 +3648,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 7.529713002440985e-05 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal04",
@@ -3670,7 +3676,7 @@
       "converged": true,
       "queries_total": 2326,
       "equivalence_queries": 10,
-      "seconds": 0.119,
+      "seconds": 0.097,
       "error_type": null,
       "error": null
     },
@@ -3690,7 +3696,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 7.529713002440985e-05 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal05",
@@ -3718,7 +3724,7 @@
       "converged": true,
       "queries_total": 833,
       "equivalence_queries": 7,
-      "seconds": 0.026,
+      "seconds": 0.021,
       "error_type": null,
       "error": null
     },
@@ -3738,7 +3744,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 3.637978807091713e-11 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal05",
@@ -3766,7 +3772,7 @@
       "converged": true,
       "queries_total": 833,
       "equivalence_queries": 7,
-      "seconds": 0.026,
+      "seconds": 0.078,
       "error_type": null,
       "error": null
     },
@@ -3786,7 +3792,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 3.637978807091713e-11 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal05",
@@ -3814,7 +3820,7 @@
       "converged": true,
       "queries_total": 827,
       "equivalence_queries": 7,
-      "seconds": 0.026,
+      "seconds": 0.017,
       "error_type": null,
       "error": null
     },
@@ -3834,7 +3840,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 3.637978807091713e-11 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal05",
@@ -3862,7 +3868,7 @@
       "converged": true,
       "queries_total": 1694,
       "equivalence_queries": 9,
-      "seconds": 0.081,
+      "seconds": 0.043,
       "error_type": null,
       "error": null
     },
@@ -3882,7 +3888,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "acceptance rate 0.0 degenerate: every sampled string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
+      "error": "acceptance rate 3.637978807091713e-11 degenerate: almost every string of length 40 has the same label; class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal06",
@@ -3910,7 +3916,7 @@
       "converged": true,
       "queries_total": 457,
       "equivalence_queries": 4,
-      "seconds": 0.008,
+      "seconds": 0.007,
       "error_type": null,
       "error": null
     },
@@ -3958,7 +3964,7 @@
       "converged": true,
       "queries_total": 457,
       "equivalence_queries": 4,
-      "seconds": 0.01,
+      "seconds": 0.005,
       "error_type": null,
       "error": null
     },
@@ -4006,7 +4012,7 @@
       "converged": true,
       "queries_total": 457,
       "equivalence_queries": 4,
-      "seconds": 0.008,
+      "seconds": 0.005,
       "error_type": null,
       "error": null
     },
@@ -4054,7 +4060,7 @@
       "converged": true,
       "queries_total": 1420,
       "equivalence_queries": 7,
-      "seconds": 0.039,
+      "seconds": 0.027,
       "error_type": null,
       "error": null
     },
@@ -4102,7 +4108,7 @@
       "converged": true,
       "queries_total": 956,
       "equivalence_queries": 3,
-      "seconds": 0.022,
+      "seconds": 0.014,
       "error_type": null,
       "error": null
     },
@@ -4116,14 +4122,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.45,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 4,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 55653,
       "equivalence_queries": 0,
-      "seconds": 2.186,
+      "seconds": 3.059,
       "error_type": null,
       "error": null
     },
@@ -4153,7 +4161,7 @@
       "converged": true,
       "queries_total": 827,
       "equivalence_queries": 2,
-      "seconds": 0.018,
+      "seconds": 0.016,
       "error_type": null,
       "error": null
     },
@@ -4167,14 +4175,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.4,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 4,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 71663,
       "equivalence_queries": 0,
-      "seconds": 2.718,
+      "seconds": 3.317,
       "error_type": null,
       "error": null
     },
@@ -4204,7 +4214,7 @@
       "converged": true,
       "queries_total": 704,
       "equivalence_queries": 5,
-      "seconds": 0.016,
+      "seconds": 0.07,
       "error_type": null,
       "error": null
     },
@@ -4218,14 +4228,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.3,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 4,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 155082,
+      "queries_total": 167530,
       "equivalence_queries": 0,
-      "seconds": 6.074,
+      "seconds": 6.225,
       "error_type": null,
       "error": null
     },
@@ -4255,7 +4267,7 @@
       "converged": true,
       "queries_total": 1186,
       "equivalence_queries": 7,
-      "seconds": 0.037,
+      "seconds": 0.045,
       "error_type": null,
       "error": null
     },
@@ -4269,14 +4281,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.2,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 4,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 415798,
+      "queries_total": 408392,
       "equivalence_queries": 0,
-      "seconds": 16.309,
+      "seconds": 11.002,
       "error_type": null,
       "error": null
     },
@@ -4306,7 +4320,7 @@
       "converged": true,
       "queries_total": 704,
       "equivalence_queries": 5,
-      "seconds": 0.023,
+      "seconds": 0.015,
       "error_type": null,
       "error": null
     },
@@ -4326,7 +4340,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "class-preserving fraction 0.000 below 0.02; covered-accuracy ceiling 0.728 below 0.99 (an uncovered state carries a decision)"
+      "error": "class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal08",
@@ -4354,7 +4368,7 @@
       "converged": true,
       "queries_total": 704,
       "equivalence_queries": 5,
-      "seconds": 0.023,
+      "seconds": 0.015,
       "error_type": null,
       "error": null
     },
@@ -4374,7 +4388,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "class-preserving fraction 0.000 below 0.02; covered-accuracy ceiling 0.728 below 0.99 (an uncovered state carries a decision)"
+      "error": "class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal08",
@@ -4402,7 +4416,7 @@
       "converged": true,
       "queries_total": 582,
       "equivalence_queries": 5,
-      "seconds": 0.015,
+      "seconds": 0.014,
       "error_type": null,
       "error": null
     },
@@ -4422,7 +4436,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "class-preserving fraction 0.000 below 0.02; covered-accuracy ceiling 0.728 below 0.99 (an uncovered state carries a decision)"
+      "error": "class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal08",
@@ -4450,7 +4464,7 @@
       "converged": true,
       "queries_total": 582,
       "equivalence_queries": 5,
-      "seconds": 0.017,
+      "seconds": 0.01,
       "error_type": null,
       "error": null
     },
@@ -4470,7 +4484,7 @@
       "equivalence_queries": null,
       "seconds": 0.0,
       "error_type": "ExcludedOutOfRegime",
-      "error": "class-preserving fraction 0.000 below 0.02; covered-accuracy ceiling 0.728 below 0.99 (an uncovered state carries a decision)"
+      "error": "class-preserving fraction 0.000 below 0.02"
     },
     {
       "benchmark": "Normal09",
@@ -4498,7 +4512,7 @@
       "converged": true,
       "queries_total": 463,
       "equivalence_queries": 3,
-      "seconds": 0.006,
+      "seconds": 0.005,
       "error_type": null,
       "error": null
     },
@@ -4546,7 +4560,7 @@
       "converged": true,
       "queries_total": 463,
       "equivalence_queries": 3,
-      "seconds": 0.006,
+      "seconds": 0.003,
       "error_type": null,
       "error": null
     },
@@ -4594,7 +4608,7 @@
       "converged": true,
       "queries_total": 463,
       "equivalence_queries": 3,
-      "seconds": 0.006,
+      "seconds": 0.004,
       "error_type": null,
       "error": null
     },
@@ -4642,7 +4656,7 @@
       "converged": true,
       "queries_total": 827,
       "equivalence_queries": 5,
-      "seconds": 0.015,
+      "seconds": 0.014,
       "error_type": null,
       "error": null
     },
@@ -4690,7 +4704,7 @@
       "converged": true,
       "queries_total": 338,
       "equivalence_queries": 1,
-      "seconds": 0.003,
+      "seconds": 0.002,
       "error_type": null,
       "error": null
     },
@@ -4704,14 +4718,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.45,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 32467,
       "equivalence_queries": 0,
-      "seconds": 1.36,
+      "seconds": 2.331,
       "error_type": null,
       "error": null
     },
@@ -4741,7 +4757,7 @@
       "converged": true,
       "queries_total": 338,
       "equivalence_queries": 1,
-      "seconds": 0.003,
+      "seconds": 0.002,
       "error_type": null,
       "error": null
     },
@@ -4755,14 +4771,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.4,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 50972,
       "equivalence_queries": 0,
-      "seconds": 1.977,
+      "seconds": 2.839,
       "error_type": null,
       "error": null
     },
@@ -4792,7 +4810,7 @@
       "converged": true,
       "queries_total": 338,
       "equivalence_queries": 1,
-      "seconds": 0.003,
+      "seconds": 0.002,
       "error_type": null,
       "error": null
     },
@@ -4806,14 +4824,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.3,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 109284,
+      "queries_total": 109134,
       "equivalence_queries": 0,
-      "seconds": 4.387,
+      "seconds": 4.576,
       "error_type": null,
       "error": null
     },
@@ -4857,14 +4877,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.2,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 294928,
+      "queries_total": 292354,
       "equivalence_queries": 0,
-      "seconds": 12.618,
+      "seconds": 8.444,
       "error_type": null,
       "error": null
     },
@@ -4894,7 +4916,7 @@
       "converged": true,
       "queries_total": 338,
       "equivalence_queries": 1,
-      "seconds": 0.003,
+      "seconds": 0.002,
       "error_type": null,
       "error": null
     },
@@ -4908,14 +4930,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.45,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 36708,
       "equivalence_queries": 0,
-      "seconds": 1.549,
+      "seconds": 2.446,
       "error_type": null,
       "error": null
     },
@@ -4945,7 +4969,7 @@
       "converged": true,
       "queries_total": 338,
       "equivalence_queries": 1,
-      "seconds": 0.003,
+      "seconds": 0.002,
       "error_type": null,
       "error": null
     },
@@ -4959,14 +4983,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.4,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 42120,
       "equivalence_queries": 0,
-      "seconds": 1.715,
+      "seconds": 2.481,
       "error_type": null,
       "error": null
     },
@@ -4996,7 +5022,7 @@
       "converged": true,
       "queries_total": 338,
       "equivalence_queries": 1,
-      "seconds": 0.003,
+      "seconds": 0.002,
       "error_type": null,
       "error": null
     },
@@ -5010,14 +5036,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.3,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 108890,
+      "queries_total": 108440,
       "equivalence_queries": 0,
-      "seconds": 4.35,
+      "seconds": 4.207,
       "error_type": null,
       "error": null
     },
@@ -5047,7 +5075,7 @@
       "converged": true,
       "queries_total": 338,
       "equivalence_queries": 2,
-      "seconds": 0.003,
+      "seconds": 0.019,
       "error_type": null,
       "error": null
     },
@@ -5061,14 +5089,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.2,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 2,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 305091,
+      "queries_total": 300992,
       "equivalence_queries": 0,
-      "seconds": 12.639,
+      "seconds": 8.964,
       "error_type": null,
       "error": null
     },
@@ -5098,7 +5128,7 @@
       "converged": true,
       "queries_total": 1058,
       "equivalence_queries": 5,
-      "seconds": 0.022,
+      "seconds": 0.018,
       "error_type": null,
       "error": null
     },
@@ -5146,7 +5176,7 @@
       "converged": true,
       "queries_total": 1058,
       "equivalence_queries": 5,
-      "seconds": 0.023,
+      "seconds": 0.018,
       "error_type": null,
       "error": null
     },
@@ -5194,7 +5224,7 @@
       "converged": true,
       "queries_total": 1821,
       "equivalence_queries": 9,
-      "seconds": 0.085,
+      "seconds": 0.062,
       "error_type": null,
       "error": null
     },
@@ -5242,7 +5272,7 @@
       "converged": true,
       "queries_total": 824,
       "equivalence_queries": 5,
-      "seconds": 0.023,
+      "seconds": 0.037,
       "error_type": null,
       "error": null
     },
@@ -5302,15 +5332,20 @@
       "seed": 0,
       "target_states": 3,
       "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.483 below 0.99 (an uncovered state carries a decision)"
+      "learner_config": {
+        "min_signal_strength": 0.45,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
+      },
+      "learned_states": 3,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 42285,
+      "equivalence_queries": 0,
+      "seconds": 2.422,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "Simple04",
@@ -5338,7 +5373,7 @@
       "converged": true,
       "queries_total": 463,
       "equivalence_queries": 1,
-      "seconds": 0.005,
+      "seconds": 0.004,
       "error_type": null,
       "error": null
     },
@@ -5350,15 +5385,20 @@
       "seed": 0,
       "target_states": 3,
       "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.483 below 0.99 (an uncovered state carries a decision)"
+      "learner_config": {
+        "min_signal_strength": 0.4,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
+      },
+      "learned_states": 3,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 44378,
+      "equivalence_queries": 0,
+      "seconds": 2.851,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "Simple04",
@@ -5386,7 +5426,7 @@
       "converged": true,
       "queries_total": 586,
       "equivalence_queries": 3,
-      "seconds": 0.014,
+      "seconds": 0.011,
       "error_type": null,
       "error": null
     },
@@ -5398,15 +5438,20 @@
       "seed": 0,
       "target_states": 3,
       "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.483 below 0.99 (an uncovered state carries a decision)"
+      "learner_config": {
+        "min_signal_strength": 0.3,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
+      },
+      "learned_states": 3,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 123662,
+      "equivalence_queries": 0,
+      "seconds": 4.706,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "Simple04",
@@ -5434,7 +5479,7 @@
       "converged": true,
       "queries_total": 949,
       "equivalence_queries": 5,
-      "seconds": 0.023,
+      "seconds": 0.013,
       "error_type": null,
       "error": null
     },
@@ -5446,15 +5491,20 @@
       "seed": 0,
       "target_states": 3,
       "alphabet_size": 2,
-      "learner_config": {},
-      "learned_states": null,
-      "accuracy": null,
-      "converged": null,
-      "queries_total": null,
-      "equivalence_queries": null,
-      "seconds": 0.0,
-      "error_type": "ExcludedOutOfRegime",
-      "error": "covered-accuracy ceiling 0.483 below 0.99 (an uncovered state carries a decision)"
+      "learner_config": {
+        "min_signal_strength": 0.2,
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
+      },
+      "learned_states": 3,
+      "accuracy": 1.0,
+      "converged": true,
+      "queries_total": 295956,
+      "equivalence_queries": 0,
+      "seconds": 8.066,
+      "error_type": null,
+      "error": null
     },
     {
       "benchmark": "Simple05",
@@ -5482,7 +5532,7 @@
       "converged": true,
       "queries_total": 1202,
       "equivalence_queries": 3,
-      "seconds": 0.047,
+      "seconds": 0.121,
       "error_type": null,
       "error": null
     },
@@ -5496,14 +5546,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.45,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 186227,
+      "queries_total": 171828,
       "equivalence_queries": 0,
-      "seconds": 7.657,
+      "seconds": 6.646,
       "error_type": null,
       "error": null
     },
@@ -5533,7 +5585,7 @@
       "converged": true,
       "queries_total": 1202,
       "equivalence_queries": 6,
-      "seconds": 0.072,
+      "seconds": 0.073,
       "error_type": null,
       "error": null
     },
@@ -5547,14 +5599,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.4,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 603948,
+      "queries_total": 578302,
       "equivalence_queries": 0,
-      "seconds": 26.446,
+      "seconds": 18.887,
       "error_type": null,
       "error": null
     },
@@ -5584,7 +5638,7 @@
       "converged": true,
       "queries_total": 1219,
       "equivalence_queries": 6,
-      "seconds": 0.065,
+      "seconds": 0.058,
       "error_type": null,
       "error": null
     },
@@ -5598,14 +5652,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.3,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 2262539,
+      "queries_total": 1898464,
       "equivalence_queries": 0,
-      "seconds": 91.032,
+      "seconds": 46.528,
       "error_type": null,
       "error": null
     },
@@ -5635,7 +5691,7 @@
       "converged": true,
       "queries_total": 3213,
       "equivalence_queries": 13,
-      "seconds": 0.17,
+      "seconds": 0.161,
       "error_type": null,
       "error": null
     },
@@ -5649,14 +5705,16 @@
       "alphabet_size": 2,
       "learner_config": {
         "min_signal_strength": 0.2,
-        "min_suffix_frequency": 0.02
+        "min_suffix_frequency": 0.02,
+        "sample_length": 40,
+        "certified_error": 0.050000000000000044
       },
       "learned_states": 5,
       "accuracy": 1.0,
       "converged": true,
-      "queries_total": 16104263,
+      "queries_total": 12107860,
       "equivalence_queries": 0,
-      "seconds": 715.985,
+      "seconds": 257.199,
       "error_type": null,
       "error": null
     },
@@ -5686,7 +5744,7 @@
       "converged": true,
       "queries_total": 338,
       "equivalence_queries": 3,
-      "seconds": 0.004,
+      "seconds": 0.003,
       "error_type": null,
       "error": null
     },
@@ -5734,7 +5792,7 @@
       "converged": true,
       "queries_total": 338,
       "equivalence_queries": 3,
-      "seconds": 0.005,
+      "seconds": 0.003,
       "error_type": null,
       "error": null
     },
@@ -5830,7 +5888,7 @@
       "converged": true,
       "queries_total": 463,
       "equivalence_queries": 4,
-      "seconds": 0.006,
+      "seconds": 0.005,
       "error_type": null,
       "error": null
     },
