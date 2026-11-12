@@ -102,8 +102,8 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
   have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg _
   have hN1 : 1 ≤ N := by show (1 : ℝ) ≤ (L₁ : ℝ) + 1 - k; linarith only [hkr]
   have hNℓ : N ≤ (L₁ : ℝ) + 1 := by show (L₁ : ℝ) + 1 - k ≤ _; linarith only [hk0]
-  have hℓ1 : (1 : ℝ) ≤ (L₁ : ℝ) + 1 := by have : (0 : ℝ) ≤ L₁ := Nat.cast_nonneg _; linarith only
-      [this]
+  have hℓ1 : (1 : ℝ) ≤ (L₁ : ℝ) + 1 :=
+      by have : (0 : ℝ) ≤ L₁ := Nat.cast_nonneg _; linarith only [this]
   have hδ'0 : 0 < δ' := by show 0 < δ / (8 * (Q + 1)); positivity
   have hδ'1 : δ' ≤ 1 := by
     show δ / (8 * (Q + 1)) ≤ 1
@@ -196,8 +196,8 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
     hℓ1 (by rw [hPBJ]; exact hPB1) (by rw [hPBJ]; exact hPB) hP₀1 hδ'0 hδ'1 hs0 hpAP hp1
   have hR₀ : 0 ≤ R₀ := by
     have := log_count_nonneg hQ0 hP₀1 hΘ1 hδ'0 hδ'1 hpAP hp1
-    have : 0 ≤ Real.log (256 * P₀ / δ') := Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; linarith only
-        [hP₀1, hδ'1])
+    have : 0 ≤ Real.log (256 * P₀ / δ') := Real.log_nonneg
+        (by rw [le_div_iff₀ hδ'0]; linarith only [hP₀1, hδ'1])
     show 0 ≤ 2 ^ 22 * (Q + 2) * Θι ^ 2 * (Real.log (256 * P₀ / δ') + 1) / s ^ 4
       + 2 ^ 27 * Θ ^ 2 * (Real.log (16 * (Q + 4) * P₀ * Θ / (δ' ^ 2 * pAP)) + 2)
     positivity
@@ -205,8 +205,8 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
     lt_min (mul_pos (div_pos (lt_min (by positivity) (by positivity)) (by norm_num)) hs0) hι0
   have hlR₀ : 0 ≤ Real.logb 2 (R₀ + 1) := Real.logb_nonneg (by norm_num) (by linarith only [hR₀])
   have hcap := cap_ge (Q := Q) (RB := RB) (R₀ := R₀) (PB := PB) (P₀ := P₀) (E₁ := E₁) hQ0 hι0
-    hinvι hmA0 hinvA hΘι1 hΘιΘa hℓ1 hRB0 (by rw [hRBd]; exact hRB) (by rw [hPBJ]; linarith only
-        [hPB1])
+    hinvι hmA0 hinvA hΘι1 hΘιΘa hℓ1 hRB0
+        (by rw [hRBd]; exact hRB) (by rw [hPBJ]; linarith only [hPB1])
     (by rw [hPBJ]; exact hPB) (by linarith only [hP₀1]) hR₀ hδ'0 hδ'1 hpAP hp1 hs0 hs1 rfl
   have hKc1 : (1 : ℝ) ≤ Kc := kc_ge_one hQ0 (by linarith only [hA])
   have hlg : 0 ≤ Real.log (16 * (Q + 1) * Kc / δ') :=
@@ -300,8 +300,8 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
     have h1 : 4 * (Ae + 1) ≤ 4 * (Ae + 1) / c := le_div_self (by positivity) hc hc1
     have h2 : 0 ≤ 8 * (10 / c + 8 / ξ) := by positivity
     have h3 : Q * ((Q + 2) * A + 1) + 2 * A + 1 ≤ 3 * (Q + 1) * (Q + 1) * (A + 1) := by
-      nlinarith only [hQ0, hA, mul_nonneg (mul_nonneg hQ0 hQ0) (by linarith only [hA] : (0 : ℝ) ≤
-          A),
+      nlinarith only [hQ0, hA, mul_nonneg (mul_nonneg hQ0 hQ0)
+          (by linarith only [hA] : (0 : ℝ) ≤ A),
         mul_nonneg hQ0 (by linarith only [hA] : (0 : ℝ) ≤ A)]
     have h4 : 3 * (Q + 1) * (Q + 1) * (A + 1) ≤ 3 * (Q + 1) * (2 * Q) * (Ae + 1) := by
       gcongr <;> linarith only [hQ1, hAe]

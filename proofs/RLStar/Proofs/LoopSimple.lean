@@ -430,8 +430,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     have : 0 ≤ Q * ((Q + 2) * A + 1) := by positivity
     linarith
   have hlogS : 0 ≤ Real.log (16 * S * (S + 1) / δ') :=
-    Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2
-        hS1) (sub_nonneg.2 hS1)])
+    Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)])
   set budget : ℕ := ⌈36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S⌉₊ with hbudd
   have hbud : (budget : ℝ) ≤ B₃ := by
     have := Nat.ceil_lt_add_one (show 0 ≤ 36 * S / ε * Real.log (16 * S * (S + 1) / δ') + S by
@@ -796,8 +795,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       (ε / (64 * Q)) ≤ δ' / 4 := by
     have hB₃ε : 34 * S ≤ B₃ * ε := by
       set lg := Real.log (16 * S * (S + 1) / δ')
-      have hx : (32 : ℝ) ≤ 16 * S * (S + 1) / δ' := by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1,
-          hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)]
+      have hx : (32 : ℝ) ≤ 16 * S * (S + 1) / δ' := by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)]
       have hl := Real.one_sub_inv_le_log_of_pos (show 0 < 16 * S * (S + 1) / δ' by linarith)
       have hinv : (16 * S * (S + 1) / δ')⁻¹ ≤ 1 / 32 := by
         rw [inv_eq_one_div]; exact one_div_le_one_div_of_le (by norm_num) hx
@@ -812,8 +810,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       linarith only [h3, h2, hS1]
     have hWm : (Q + 2) * A * (Q + 1) ≤ Wm := by
       have : 0 ≤ Real.log (8 * S * (S + 1) / δ') :=
-        Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg
-            (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)])
+        Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith only [hδ'1, hS1, mul_nonneg (sub_nonneg.2 hS1) (sub_nonneg.2 hS1)])
       show (Q + 2) * A * (Q + 1) ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3
         + (Q + 2) * A * (Q + 1)
       have : 0 ≤ 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') := by positivity

@@ -1457,8 +1457,8 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
       linarith)
   refine le_trans (clustering_correct O populations tame uni H D Dsf Pre Suf η₀
     indecisionLimit εcov εs α δ ρ₀ pAP crossLimit (3 * 2 ^ 25) εg hgap hη₀ huni hbalL hbalN htame
-    hflat hH hsupp hsuppSf hcaps hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov (by linarith)
-        hεs
+    hflat hH hsupp hsuppSf hcaps hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov
+        (by linarith) hεs
     hεsc hεg hδ hbudget
     le_rfl hcapsf)
     (measureReal_mono ?_ (measure_ne_top _ _))

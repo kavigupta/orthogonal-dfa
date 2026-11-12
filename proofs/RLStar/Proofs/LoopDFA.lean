@@ -592,8 +592,8 @@ theorem learner_loop_dfa_dist_core {α : Type*} [Fintype α] [DecidableEq α] [N
       le_max_of_le_left (Real.log_nonneg (by rw [le_div_iff₀ hτ0]; linarith))
     have hl : 0 ≤ Real.log (3 / (δ' / 2)) :=
       Real.log_nonneg (by rw [le_div_iff₀ (by positivity)]; linarith)
-    have h1 : 0 ≤ 50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 := by
-        positivity
+    have h1 : 0 ≤ 50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 :=
+        by positivity
     show 0 ≤ (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) /
         pAP
       + 120 * Real.log (3 / (δ' / 2)) / pAP

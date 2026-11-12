@@ -296,10 +296,10 @@ theorem le_mul_wrongCap (n k ag : ℕ) (ap : ℝ) (hk : k ≤ n) {x y yb d s : �
     set μ : ℝ := (((n : ℝ) - k) * x + k * (1 - y)) / n with hμ
     have hid := spread_identity (n : ℝ) k hnR x y c
     rw [← hμ] at hid
-    have hμlo : ((ag : ℝ) - d) / n ≤ μ := by rw [hμ]; exact div_le_div_of_nonneg_right (by linarith)
-        hnR.le
-    have hμhi : μ ≤ ((ag : ℝ) + d) / n := by rw [hμ]; exact div_le_div_of_nonneg_right (by linarith)
-        hnR.le
+    have hμlo : ((ag : ℝ) - d) / n ≤ μ :=
+        by rw [hμ]; exact div_le_div_of_nonneg_right (by linarith) hnR.le
+    have hμhi : μ ≤ ((ag : ℝ) + d) / n :=
+        by rw [hμ]; exact div_le_div_of_nonneg_right (by linarith) hnR.le
     have hmid : (1 - 2 * c) * (μ - c)
         ≤ max ((1 - 2 * c) * (((ag : ℝ) - d) / n - c)) ((1 - 2 * c) * (((ag : ℝ) + d) / n -
             c)) := by
