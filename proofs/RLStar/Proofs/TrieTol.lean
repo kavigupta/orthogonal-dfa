@@ -128,7 +128,7 @@ theorem trie_loop_tol (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L 
   set ℓ : ℝ := (L₁ : ℝ) + 1 with hℓd
   set Wm : ℝ := 16 / 5 * S * Real.log (8 * S * (S + 1) / δ') + 3 + (Q + 2) * A * (Q + 1)
   set ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1))) with hιd
-  set τ : ℝ := min ((εcov / 2) * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) ι with hτd
+  set τ : ℝ := min ((εcov / 2) * (1 - 2 * η₀) ^ 2) ι with hτd
   set J : ℝ := Q + 2 with hJd
   set W : ℝ := max (2 * Real.exp 2 * Wm) 1 with hWd
   set PB : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / pAP

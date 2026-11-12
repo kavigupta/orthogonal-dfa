@@ -589,9 +589,8 @@ theorem prefCount_le_split (populations : Finset J)
   have hB16 : B ≤ 16 * s ^ 2 * mn := by
     have ha0 := gateA_pos hη hηlt
     have ha4 : gateA η ≤ 4 * s := by
-      have hne : (0 : ℝ) < 1 - η := by linarith only [hηlt]
-      rw [gateA, div_le_iff₀ hne, hsval]
-      nlinarith only [sq_nonneg (1 - 2 * η)]
+      rw [gateA, hsval]
+      linarith only [hηlt]
     have h := pow_le_pow_left₀ ha0.le ha4 2
     nlinarith only [hBa, h, hmn0]
   have hB8 : B ^ 2 ≤ 8 * s ^ 2 * B' := by
@@ -1221,7 +1220,6 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   set hz : ℕ := (allHarvest H).card with hhz
   have hpop : populations.Nonempty := ⟨uni, htame huni⟩
   simp only [ret_eq, familyAt_eq]
-  set rule : Clusterer S := nearestClusterer with hrule
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
   have hcard : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
@@ -1395,10 +1393,10 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     linarith
   rintro x ⟨hex, hall⟩
   have huni' : ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP
-      crossLimit hz ρ₀}, streams H uni x ∈ retBy rule O.mq populations uni η₀ indecisionLimit
+      crossLimit hz ρ₀}, streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit
         εcov α B.val →
       1 - εcov - εs ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-        (familyBy rule O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)} :=
+        (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise x.1)} :=
     fun B hB => by
       have h := (hall B hB uni huni).1
       simp only [gateLimit, if_pos rfl, if_true, sub_zero] at h

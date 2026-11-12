@@ -36,16 +36,21 @@ with both suffixes drawn forces `p = p'` on length alone.  Against the seed `ε`
 def Flat (Pre Suf : Set S) : Prop :=
   ∀ p ∈ Pre, ∀ p' ∈ Pre, ∀ v ∈ insert 1 Suf, ∀ v' ∈ insert 1 Suf, p * v = p' * v' → p = p'
 
+/-- The rates sit at least `½ − η₀` either side of `c`: the language reads accept at least that
+far above it, the rest at most that far below. -/
+def Oracle.Straddles (O : Oracle μ S) (c η₀ : ℝ) : Prop :=
+  O.ηIn ≤ η₀ + 1 / 2 - c ∧ O.ηOut ≤ η₀ - 1 / 2 + c
+
 /-! ## The theorem -/
 
 /-- The rate the family's cut budget resolves:
 
-    min(εcov·a², indecisionLimit),   a = (1 − 2η₀)/(1 − η₀)
+    min(εcov·a², indecisionLimit),   a = 1 − 2η₀
 
 The gate charges each wrongly cut prefix at most `7/(3a²)` of a read, so the share a family may
 cut wrongly is held at a multiple of `εcov·a²`. -/
 noncomputable def rateScale (η₀ indecisionLimit εcov : ℝ) : ℝ :=
-  min (εcov * ((1 - 2 * η₀) / (1 - η₀)) ^ 2) indecisionLimit
+  min (εcov * (1 - 2 * η₀) ^ 2) indecisionLimit
 
 /-- The E-L\* clustering algorithm is correct at a polynomial cost.  With probability
 `≥ 1 − δ − α` the loop stops at one of `states`, and whenever it stops, the family it returns

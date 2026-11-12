@@ -471,9 +471,9 @@ theorem loop_round_le_persist (E : σ → Set (FreeMonoid α)) (Ls NP : ℕ) (m 
       apply FreeMonoid.toList.injective
       exact hsuf.eq_of_length ((hlenF v hv).trans (hlenF v' hv').symm)
     · obtain ⟨-, hk2, -⟩ := hband _ B hBs
-      have h1 := clusterAt_card_add_one (rule := nearestClusterer) O
+      have h1 := clusterAt_card_add_one (rule := nearestClusterer B.centre) O
         (loopPopulations K H.pops.length) B (idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap H cd)
-      have h2 := nearestClusterer.card_le (fun w => O.mq w (oracleNoise (idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap H cd))
+      have h2 := (nearestClusterer B.centre).card_le (fun w => O.mq w (oracleNoise (idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap H cd))
         = 1)
         (prefixesAt (loopPopulations K H.pops.length) B.npref (idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap H cd))
         (screenedAt O.mq (loopPopulations K H.pops.length) B (idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap H cd)) B.k

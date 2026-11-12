@@ -439,7 +439,7 @@ lemma sig_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < sig η₀ := by
 lemma cutBudget_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov)
     (hind : 0 < indecisionLimit) : 0 < cutBudget η₀ indecisionLimit εcov := by
   rw [cutBudget]
-  have ha : 0 < gateA η₀ := by unfold gateA; exact div_pos (by linarith) (by linarith)
+  have ha : 0 < gateA η₀ := by unfold gateA; linarith
   have : 0 < min εcov (1 / 2) := lt_min hε (by norm_num)
   exact lt_min (div_pos hε (by norm_num))
     (lt_min (div_pos (sig_pos η₀ hsig) (by norm_num)) (lt_min (by linarith) (by positivity)))
