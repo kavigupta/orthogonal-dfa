@@ -34,11 +34,14 @@ theorem learner_loop_dfa_relative_simple_holds : LearnerLoopDFARelativeSimple :=
   have hwS : windowLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
       ((L + 1) / 2) (L + Fintype.card σ + 3)
       = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
+  have hεc : ∀ x : ℝ, min (ξ / (2 * R) / (10 * x)) (ξ / 4 / (8 * x))
+      = min (ξ / (20 * R * x)) (ξ / (32 * x)) := fun x => by
+    rw [div_div, div_div]; congr 1 <;> ring
   have h := learner_loop_dfa_dist_core M O L
     (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ (ξ / (2 * R))
     (γ + 3 * ξ / 4) δ pAP (ξ / 4) A (A ^ k)⁻¹ hL hgap hη₀
-    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalL; simp only [εcov, N, L₁, k]; ring_nf)
-    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalN; simp only [εcov, N, L₁, k]; ring_nf)
+    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalL; rw [hεc]; try rfl)
+    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalN; rw [hεc]; try rfl)
     (by positivity) hc1 hδ hδ1 hpAP
     (by positivity) hA2 (by linarith) (uniformStrings_long _)
     (fun u => uniformStrings_prefix_le (by omega) u) (by rw [hpS]; exact hpAPu)
@@ -102,6 +105,9 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   have hwS : windowLaw (uniformStrings (α := α) (L + Fintype.card σ + 3 + Fintype.card σ + 3))
       ((L + 1) / 2) (L + Fintype.card σ + 3)
       = windowStrings ((L + 1) / 2) (L + Fintype.card σ + 3) := windowLaw_uniformStrings (by omega)
+  have hεc : ∀ x : ℝ, min (ξ / (2 * R) / (10 * x)) (ξ / 4 / (8 * x))
+      = min (ξ / (20 * R * x)) (ξ / (32 * x)) := fun x => by
+    rw [div_div, div_div]; congr 1 <;> ring
   have hR₀ : loopR₀ Q A A δ (ξ / (2 * R)) (ξ / 4) pAP η₀ = R₀ := by
     unfold loopR₀ loopΘ loopΘι
     rw [show 4 * (A + 1) / (ξ / (2 * R)) = aε by
@@ -112,8 +118,8 @@ theorem learner_loop_dfa_relative_holds : LearnerLoopDFARelative := by
   obtain ⟨settings, h1, h2, h3, h5, h6, -, -, h4⟩ := learner_loop_dfa_dist_tol M O L
     (uniformStrings (L + Fintype.card σ + 3 + Fintype.card σ + 3)) η₀ (ξ / (2 * R))
     (γ + 3 * ξ / 4) δ pAP (ξ / 4) A (A ^ k)⁻¹ hL hgap hη₀
-    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalL; simp only [εcov, N, L₁, k]; ring_nf)
-    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalN; simp only [εcov, N, L₁, k]; ring_nf)
+    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalL; rw [hεc]; try rfl)
+    (by rw [hwS]; refine le_trans (le_of_eq ?_) hbalN; rw [hεc]; try rfl)
     hc0 hc1 hδ hδ1 hpAP
     (by positivity) hA2 (by linarith) (uniformStrings_long _)
     (fun u => uniformStrings_prefix_le (by show (L + 1) / 2 ≤ _; omega) u)
