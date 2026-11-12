@@ -32,6 +32,7 @@ import RLStar.Proofs.TripartiteSearch
 import RLStar.Proofs.Trie
 import RLStar.Proofs.TrieLoop
 import RLStar.Proofs.TrieTable
+import RLStar.Proofs.UnaskedFresh
 
 /-!
 # The theorem
@@ -55,11 +56,12 @@ wrong, and level 5's wrong at most `κ` times as often as undecided, a few wrong
 both. The loop runs level 5.
 
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
-`RaceTailBound`, `QueryBadTail`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`,
-`SuccessiveDrawsTails`, `CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`,
-`TrieTableCorrect`, `TrieTableReads`, `Level3TrieRootOne`, `Level3TrieAgrees`, `TrieLoopAgrees`,
-`RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`, `SiftWithPathCorrect`,
-`SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and `RunsKeepEdgesAtLeaves`.
+`UnaskedFresh`, `RaceTailBound`, `QueryBadTail`, `Level3AllowanceCorrect`, `BitSumTails`,
+`BandKappaBound`, `SuccessiveDrawsTails`, `CoveredStartCorrect`, `TrieProbeAgreeCorrect`,
+`TrieSinglePieceCorrect`, `TrieTableCorrect`, `TrieTableReads`, `Level3TrieRootOne`,
+`Level3TrieAgrees`, `TrieLoopAgrees`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
+`SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
+`RunsKeepEdgesAtLeaves`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`:
 `TrainFamilyClaim`, `CounterexSynthClaim`, `RLStarClaim`,
@@ -178,6 +180,10 @@ theorem level2_round_correct : Level2RoundCorrect := Level2.level2RoundCorrect_h
 theorem adaptive_reads_bound : AdaptiveReadsBound := adaptiveReadsBound_holds
 
 #print axioms adaptive_reads_bound
+
+theorem unasked_fresh : UnaskedFresh := unaskedFresh_holds
+
+#print axioms unasked_fresh
 
 theorem level3_round_correct : Level3RoundCorrect := Random.level3RoundCorrect_holds
 

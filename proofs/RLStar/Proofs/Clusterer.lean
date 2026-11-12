@@ -204,6 +204,8 @@ def gateAt (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
     (gateLevel α populations B) B.lo B.hi
     (clusterBy rule mq populations x B) (refsBy rule mq populations x B)
     (certOf (prefixesAt populations B.npref x) j (B.npref + e) x) (oracleNoise x)
+  ∧ centreFits mq η₀ (gateLevel α populations B) B (clusterBy rule mq populations x B)
+    (certOf (prefixesAt populations B.npref x) uni B.npref x) (oracleNoise x)
 
 open scoped Classical in
 /-- `ret` with the family picked by `rule`. -/
@@ -231,6 +233,24 @@ noncomputable def retAll (rule : Clusterer S) (mq : S → Ω → ℝ) (populatio
         ≤ indecisionLimit * (certOf (prefixesAt populations B.npref x) j B.npref x).card)
     ∧ ∀ j ∈ populations, keptAt populations j B.npref x →
       gateAt rule mq populations uni η₀ εcov α B j 0 x}
+
+lemma gateAt_mono (rule : Clusterer S) (mq : S → Ω → ℝ) {populations : Finset J} {uni : J}
+    {η₀ εcov εg α : ℝ} (h : εcov ≤ εg) {B : State} {j : J} {e : ℕ} {x : Run Ω S J}
+    (hx : gateAt rule mq populations uni η₀ εcov α B j e x) :
+    gateAt rule mq populations uni η₀ εg α B j e x := by
+  obtain ⟨⟨hp, hc⟩, hf⟩ := hx
+  refine ⟨⟨hp, hc.trans ?_⟩, hf⟩
+  have hl : gateLimit uni εcov j ≤ gateLimit uni εg j := by
+    unfold gateLimit; split_ifs <;> linarith
+  have := mul_le_mul_of_nonneg_left hl (Nat.cast_nonneg
+    (certOf (prefixesAt populations B.npref x) j (B.npref + e) x).card)
+  linarith
+
+lemma retAll_mono (rule : Clusterer S) (mq : S → Ω → ℝ) {populations : Finset J} {uni : J}
+    {η₀ indecisionLimit εcov εg α : ℝ} (h : εcov ≤ εg) (B : State) :
+    retAll rule mq populations uni η₀ indecisionLimit εcov α B
+      ⊆ retAll rule mq populations uni η₀ indecisionLimit εg α B :=
+  fun _ ⟨h1, h2, h3⟩ => ⟨h1, h2, fun j hj hk => gateAt_mono rule mq h (h3 j hj hk)⟩
 
 lemma retAll_subset_retBy (rule : Clusterer S) (mq : S → Ω → ℝ) {populations : Finset J}
     {uni : J} (η₀ indecisionLimit εcov α : ℝ) (B : State) :

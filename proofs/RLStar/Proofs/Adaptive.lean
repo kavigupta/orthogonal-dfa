@@ -108,10 +108,6 @@ lemma mq_mean_centred (O : Oracle μ S) (w : S) :
 lemma eta_nonneg (O : Oracle μ S) : 0 ≤ O.η :=
   le_trans (O.rate_nonneg (1 : S)) (O.rate_le_eta 1)
 
-/-- How far a flip moves a read's mean, `1 − ηIn − ηOut`.  A class no string is in leaves its
-rate unconstrained, hence the clamps. -/
-noncomputable def Oracle.gap (O : Oracle μ S) : ℝ := 1 - max O.ηIn 0 - max O.ηOut 0
-
 lemma gap_ge (O : Oracle μ S) : 1 - 2 * O.η ≤ O.gap := by
   have h0 := eta_nonneg O
   unfold Oracle.gap
@@ -317,53 +313,131 @@ the loop has passed through, and the guarantee is uniform over *all* histories a
 budgets — whatever the algorithm chooses, it is covered.  Histories are countable, so the
 union bound still closes. -/
 
-/-- The budget the loop is heading for: the top of the ladder. -/
+/-- The budget the loop is heading for: the top of the ladder, at the family's middle count. -/
 noncomputable def solvedState (η₀ : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : State :=
   solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
     (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
+    (famCount η₀ populations indecisionLimit εcov δ crossLimit / 2)
 
 lemma ladderLen_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
     0 < ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
   rw [ladderLen]; omega
 
-lemma solvedState_mem_schedule (η₀ : ℝ) (populations : Finset J)
-    (εcov δ α pAP : ℝ) :
-    solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
-      ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
-  rw [schedule, solvedState]
-  refine Finset.mem_image.2 ⟨0, Finset.mem_range.2 (ladderLen_pos _ _ _ _ _ _), ?_⟩
-  norm_num
+lemma mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State} :
+    B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
+      ↔ ∃ i < ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz,
+        ∃ m ∈ centreSet η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit),
+          B = solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
+            (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ i)
+                m := by
+  rw [schedule, Finset.mem_image]
+  constructor
+  · rintro ⟨⟨i, m⟩, him, rfl⟩
+    obtain ⟨hi, hm⟩ := Finset.mem_product.1 him
+    exact ⟨i, Finset.mem_range.1 hi, m, hm, rfl⟩
+  · rintro ⟨i, hi, m, hm, rfl⟩
+    exact ⟨(i, m), Finset.mem_product.2 ⟨Finset.mem_range.2 hi, hm⟩, rfl⟩
 
 /-- Every rung draws the same pool: only the prefix count halves along the ladder. -/
 lemma nsuff_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
     (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
     B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := by
-  rw [schedule] at hB
-  obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
+  obtain ⟨i, -, m, -, rfl⟩ := mem_schedule.1 hB
   rfl
+
+lemma k_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    B.k = famCount η₀ populations indecisionLimit εcov δ crossLimit + 1 := by
+  obtain ⟨i, -, m, -, rfl⟩ := mem_schedule.1 hB
+  rfl
+
+lemma npref_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    ∃ i < ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz,
+      B.npref = prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^
+          i := by
+  obtain ⟨i, hi, m, -, rfl⟩ := mem_schedule.1 hB
+  exact ⟨i, hi, rfl⟩
 
 lemma prefCount_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
     0 < prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
   rw [prefCount]; omega
 
+omit [Fintype J] in
+/-- The pool holds a family: `2(κ + 1)/pAP` is at least `κ + 1`. -/
+lemma poolCount_ge_famCount (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) {pAP : ℝ}
+    (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) :
+    famCount η₀ populations indecisionLimit εcov δ crossLimit + 1
+      ≤ poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := by
+  set κ := famCount η₀ populations indecisionLimit εcov δ crossLimit
+  have h1 : (κ : ℝ) + 1 ≤ 2 * ((κ : ℝ) + 1) / pAP := by
+    rw [le_div_iff₀ hpAP]; nlinarith [(Nat.cast_nonneg κ : (0 : ℝ) ≤ κ)]
+  have h2 : ((κ + 1 : ℕ) : ℝ) ≤ (⌈2 * ((κ : ℝ) + 1) / pAP⌉₊ : ℝ) := by
+    push_cast; exact h1.trans (Nat.le_ceil _)
+  have h3 : κ + 1 ≤ ⌈2 * ((κ : ℝ) + 1) / pAP⌉₊ := by exact_mod_cast h2
+  have e : poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit
+      = ⌈2 * ((κ : ℝ) + 1) / pAP⌉₊ + ⌈800 * Real.log (128 / δ) / (81 * pAP)⌉₊ := rfl
+  omega
+
+/-- The states of the schedule at one prefix count are its centres. -/
+lemma schedule_fibre_card_le {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} (n : ℕ)
+    (s : Finset State)
+    (hs : s ⊆ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    (s.filter (fun B => B.npref = n)).card
+      ≤ famCount η₀ populations indecisionLimit εcov δ crossLimit + 1 := by
+  classical
+  set κ := famCount η₀ populations indecisionLimit εcov δ crossLimit
+  have hsub : s.filter (fun B => B.npref = n)
+      ⊆ (centreSet η₀ κ).image
+        (fun m => solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit n m) := by
+    intro B hB
+    obtain ⟨hBs, hBn⟩ := Finset.mem_filter.1 hB
+    obtain ⟨i, -, m, hm, rfl⟩ := mem_schedule.1 (hs hBs)
+    refine Finset.mem_image.2 ⟨m, hm, ?_⟩
+    rw [← hBn]
+    rfl
+  refine le_trans (Finset.card_le_card hsub) (le_trans Finset.card_image_le ?_)
+  rw [centreSet]
+  exact le_trans (Finset.card_filter_le _ _) (by simp)
+
+/-- A sum over states of what depends only on the prefix count is at most `k` times the sum over
+the counts. -/
+lemma sum_le_fibre {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} (s : Finset State)
+    (hs : s ⊆ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
+    (f : ℕ → ℝ) (hf : ∀ n, 0 ≤ f n) :
+    ∑ B ∈ s, f B.npref
+      ≤ ((famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) + 1)
+        * ∑ n ∈ s.image State.npref, f n := by
+  classical
+  rw [Finset.sum_comp, Finset.mul_sum]
+  refine Finset.sum_le_sum (fun n _ => ?_)
+  rw [nsmul_eq_mul]
+  refine mul_le_mul_of_nonneg_right ?_ (hf n)
+  exact_mod_cast schedule_fibre_card_le (εs := εs) (hsz := hsz) (α := α) n s hs
+
 /-- The ladder's prefix counts halve, so they sum to under twice the top rung's however long
 the ladder is.  This is what lets the rungs be paid in proportion to their counts. -/
-lemma schedule_npref_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    ∑ B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz, (B.npref : ℝ)
+lemma schedule_npref_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ)
+    (s : Finset State)
+    (hs : s ⊆ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
+    ∑ n ∈ s.image State.npref, (n : ℝ)
       ≤ 2 * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ) := by
   classical
   set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
   set L : ℕ := ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hLdef
-  calc ∑ B ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz, (B.npref : ℝ)
-      ≤ ∑ i ∈ Finset.range L,
-          ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
-            (m / 2 ^ i)).npref : ℝ) := by
-        rw [schedule, ← hmdef, ← hLdef]
-        exact sum_image_le_sum _ (fun B => Nat.cast_nonneg _) _ _
+  have hsub : s.image State.npref ⊆ (Finset.range L).image (fun i : ℕ => (m / 2 ^ i : ℕ)) := by
+    intro n hn
+    obtain ⟨B, hB, rfl⟩ := Finset.mem_image.1 hn
+    obtain ⟨i, hi, he⟩ := npref_of_mem_schedule (hs hB)
+    exact Finset.mem_image.2 ⟨i, Finset.mem_range.2 hi, he.symm⟩
+  calc ∑ n ∈ s.image State.npref, (n : ℝ)
+      ≤ ∑ n ∈ (Finset.range L).image (fun i : ℕ => (m / 2 ^ i : ℕ)), (n : ℝ) :=
+        Finset.sum_le_sum_of_subset_of_nonneg hsub (fun _ _ _ => Nat.cast_nonneg _)
+    _ ≤ ∑ i ∈ Finset.range L, ((m / 2 ^ i : ℕ) : ℝ) :=
+        sum_image_le_sum _ (fun n => Nat.cast_nonneg n) _ _
     _ ≤ ∑ i ∈ Finset.range L, (m : ℝ) * (1 / 2) ^ i := by
         refine Finset.sum_le_sum (fun i _ => ?_)
-        show ((m / 2 ^ i : ℕ) : ℝ) ≤ (m : ℝ) * (1 / 2) ^ i
         have h2 : ((2 ^ i : ℕ) : ℝ) = (2 : ℝ) ^ i := by push_cast; ring
         refine le_trans Nat.cast_div_le (le_of_eq ?_)
         rw [h2, div_pow, one_pow, mul_one_div]
@@ -413,23 +487,26 @@ lemma ladder_inv_sum_le (m V : ℕ) (n : ℕ) :
     · rw [if_neg h]
       exact ⟨by linarith [ih.1], fun h' => absurd h' h⟩
 
-/-- `ladder_inv_sum_le` over the rungs themselves. -/
+/-- `ladder_inv_sum_le` over the rungs' counts. -/
 lemma schedule_inv_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) (V : ℕ)
     (s : Finset State)
     (hs : s ⊆ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz) :
-    ∑ B ∈ s, (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0) ≤ 2 := by
+    ∑ n ∈ s.image State.npref, (if V ≤ n then (V : ℝ) / (n : ℝ) else 0) ≤ 2 := by
   classical
-  have hnn : ∀ B : State, 0 ≤ (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0) := by
-    intro B; split_ifs <;> positivity
-  refine le_trans (Finset.sum_le_sum_of_subset_of_nonneg hs (fun B _ _ => hnn B)) ?_
-  rw [schedule]
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hmdef
+  set L : ℕ := ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz with hLdef
+  have hnn : ∀ n : ℕ, 0 ≤ (if V ≤ n then (V : ℝ) / (n : ℝ) else 0) := by
+    intro n; split_ifs <;> positivity
+  have hsub : s.image State.npref ⊆ (Finset.range L).image (fun i : ℕ => (m / 2 ^ i : ℕ)) := by
+    intro n hn
+    obtain ⟨B, hB, rfl⟩ := Finset.mem_image.1 hn
+    obtain ⟨i, hi, he⟩ := npref_of_mem_schedule (hs hB)
+    exact Finset.mem_image.2 ⟨i, Finset.mem_range.2 hi, he.symm⟩
+  refine le_trans (Finset.sum_le_sum_of_subset_of_nonneg hsub (fun n _ _ => hnn n)) ?_
   refine le_trans (sum_image_le_sum _ hnn _ _) ?_
   have hL := ladderLen_pos (εs := εs) (indecisionLimit := indecisionLimit)
-    (crossLimit := crossLimit)
-    (hsz := hsz) η₀ populations εcov δ α pAP
-  obtain ⟨n, hn⟩ :
-      ∃ n, ladderLen η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz = n + 1 :=
-    ⟨_, (Nat.succ_pred_eq_of_pos hL).symm⟩
+    (crossLimit := crossLimit) (hsz := hsz) η₀ populations εcov δ α pAP
+  obtain ⟨n, hn⟩ : ∃ n, L = n + 1 := ⟨_, (Nat.succ_pred_eq_of_pos hL).symm⟩
   rw [hn]
   exact (ladder_inv_sum_le _ V n).1
 
@@ -636,9 +713,11 @@ lemma famHoeff_terms (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
   have h1 := Nat.le_ceil (Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2)
   have h2 := Nat.le_ceil ((max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2)
   have h3 := Nat.le_ceil (2 / voteSlack η₀)
-  have m1 := le_max_left (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
+  have m1 := le_max_left (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ :
+      ℝ)
     (⌈(max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2⌉₊ : ℝ)
-  have m2 := le_max_right (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
+  have m2 := le_max_right (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ :
+      ℝ)
     (⌈(max (Real.log (1 / crossLimit)) 0 + 12) / voteSlack η₀ ^ 2⌉₊ : ℝ)
   constructor <;> linarith
 
@@ -820,12 +899,12 @@ lemma famHoeff_ge_four (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (
   omega
 
 omit [Fintype J] in
-/-- `famHoeff` is at least 32 and its band spans five counts: the cut budget is under `1/8`, and
+/-- `famHoeff` is at least 32 and its band spans eight counts: the cut budget is under `1/8`, and
 the vote's slack under `2/5`. -/
 lemma famHoeff_ge (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
     (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit) :
     (32 : ℝ) ≤ famHoeff η₀ populations indecisionLimit εcov δ crossLimit
-      ∧ 5 ≤ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
+      ∧ 8 ≤ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
   have hcutpos := cutBudget_pos η₀ hsig hε hind
   have hcut8 : cutBudget η₀ indecisionLimit εcov ≤ 1 / 8 := by
     have := (cutBudget_le η₀ indecisionLimit εcov).2.1
@@ -868,7 +947,8 @@ lemma famHoeff_band_one (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} 
 omit [Fintype J] in
 /-- Hoeffding's crossing tail at `famHoeff`, read at the band's full width, at any centre. -/
 lemma famHoeff_crossTail (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
-    (hsig : η₀ < 1 / 2) (hζ : 0 < crossLimit) {m : ℕ} (hm : m ∈ centres η₀ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit)) :
+    (hsig : η₀ < 1 / 2) (hζ : 0 < crossLimit) {m : ℕ} (hm : m ∈ centres η₀ (famHoeff η₀ populations
+        indecisionLimit εcov δ crossLimit)) :
     crossTail η₀ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit) m ≤ crossLimit := by
   have hL := famHoeff_cross (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hsig
@@ -1138,6 +1218,22 @@ lemma famCount_ge_four (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (
   · rw [h]; exact famHoeff_ge_four η₀ populations εcov δ hsig
 
 omit [Fintype J] in
+lemma half_mem_centreSet (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hη0 : 0 ≤ η₀) :
+    famCount η₀ populations indecisionLimit εcov δ crossLimit / 2
+      ∈ centreSet η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit) := by
+  classical
+  rw [centreSet, Finset.mem_filter, Finset.mem_range]
+  exact ⟨by omega, half_mem_centres η₀ (famCount_even η₀ populations εcov δ) hη0⟩
+
+lemma solvedState_mem_schedule (η₀ : ℝ) (populations : Finset J)
+    (εcov δ α pAP : ℝ) (hη0 : 0 ≤ η₀) :
+    solvedState η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz
+      ∈ schedule η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz := by
+  refine mem_schedule.2 ⟨0, ladderLen_pos _ _ _ _ _ _, _,
+    half_mem_centreSet η₀ populations εcov δ hη0, ?_⟩
+  rw [solvedState, pow_zero, Nat.div_one]
+
+omit [Fintype J] in
 /-- The family is at least 32 strong, whatever `crossLimit`. -/
 lemma famCount_ge (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
     (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit) :
@@ -1148,10 +1244,10 @@ lemma famCount_ge (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 
   · rw [h]; exact (famHoeff_ge η₀ populations hη0 hsig hε hind).1
 
 omit [Fintype J] in
-/-- A band at least five counts wide, whatever `crossLimit`. -/
+/-- A band at least eight counts wide, whatever `crossLimit`. -/
 lemma famCount_wide (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hη0 : 0 ≤ η₀)
     (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit) :
-    5 ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
+    8 ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
   rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
     populations εcov δ with h | h
   · exact h.2.2.1
@@ -1164,13 +1260,34 @@ lemma famCount_misfire (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (
     (∀ m ∈ centres η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit),
       misfireTail η₀ (famCount η₀ populations indecisionLimit εcov δ crossLimit) m
         ≤ cutBudget η₀ indecisionLimit εcov / 2)
-      ∧ 5 ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
+      ∧ 8 ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ := by
   refine ⟨fun m hm => ?_, famCount_wide η₀ populations hη0 hsig hε hind⟩
   rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
     populations εcov δ with h | h
-  · exact (h.2.2.2 m hm).1
+  · exact (h.2.2.2.2 m hm).1
   · rw [h] at hm ⊢
     exact famHoeff_misfire η₀ populations hη0 hsig hε hind hm
+
+omit [Fintype J] in
+/-- The family is large enough that a vote `2sig/5` from its mean misses at most `cut/2`. -/
+lemma famCount_hoeff (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hsig : η₀ < 1 / 2) :
+    Real.log (2 / cutBudget η₀ indecisionLimit εcov)
+      ≤ 8 * (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * sig η₀ ^ 2 / 25 := by
+  rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
+    populations εcov δ with h | h
+  · exact h.2.2.2.1
+  · rw [h]
+    have hT := (famHoeff_terms (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+      η₀ populations εcov δ).1
+    have hv := voteSlack_pos η₀ hsig
+    have hv2 : 0 < voteSlack η₀ ^ 2 := by positivity
+    have h0 : 0 ≤ 2 / voteSlack η₀ := by positivity
+    have h1 : Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2
+        ≤ (famHoeff η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2 := by linarith
+    rw [div_le_iff₀ hv2] at h1
+    have e : voteSlack η₀ ^ 2 = 16 * sig η₀ ^ 2 / 25 := by rw [voteSlack]; ring
+    rw [e] at h1
+    linarith
 
 omit [Fintype J] in
 /-- The crossing tail at the family, at any centre, and a band at least one count wide. -/
@@ -1183,7 +1300,7 @@ lemma famCount_cross (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (h�
   refine ⟨fun m hm => ?_, ?_⟩
   · rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
       populations εcov δ with h | h
-    · exact (h.2.2.2 m hm).2.1
+    · exact (h.2.2.2.2 m hm).2.1
     · rw [h] at hm ⊢
       exact famHoeff_crossTail η₀ populations hη0 hsig hζ hm
   · rw [bandHalf]
@@ -1207,7 +1324,7 @@ lemma famCount_kappa (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (h�
   intro m hm
   rcases famCount_spec (indecisionLimit := indecisionLimit) (crossLimit := crossLimit) η₀
     populations εcov δ with h | h
-  · exact (h.2.2.2 m hm).2.2
+  · exact (h.2.2.2.2 m hm).2.2
   · rw [h] at hm ⊢
     exact famHoeff_bandChecked η₀ populations hη0 hsig hζ hε hind hm
 
@@ -1495,7 +1612,8 @@ lemma clusterAt_congr (O : Oracle μ S) (populations : Finset J) (B : State)
   have hcands : screenedAt O.mq populations B (ω, d) = screenedAt O.mq populations B (ω', d) :=
     screenedAt_congr O populations B d hbit
   unfold clusterBy
-  rw [show oracleNoise ((ω, d) : Run Ω S J) = ω from rfl, show oracleNoise ((ω', d) : Run Ω S J) = ω' from rfl,
+  rw [show oracleNoise ((ω, d) : Run Ω S J) = ω from rfl, show oracleNoise ((ω', d) : Run Ω S J) =
+      ω' from rfl,
     ← hcands]
   refine congrArg (fun t : Finset S => t.erase 1) ?_
   exact rule.congr _ _ _ _ _ (one_mem_screenedAt O populations B (ω, d))
@@ -2019,16 +2137,6 @@ lemma pi_coord_eq (Dj : Measure S) [IsProbabilityMeasure Dj] {m : ℕ} {i i' : F
     ENNReal.tsum_toReal_eq (fun a => by
       rw [hbox a]; exact ENNReal.mul_ne_top (measure_ne_top _ _) (measure_ne_top _ _))]
   exact tsum_congr (fun a => by rw [hbox a, ENNReal.toReal_mul, sq, measureReal_def])
-
-lemma stoppable_npref_sum_le (η₀ : ℝ) (populations : Finset J)
-    (εcov δ α pAP ρ : ℝ) :
-    ∑ B ∈ stoppable η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz ρ, (B.npref : ℝ)
-      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ) := by
-  classical
-  refine le_trans (Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun _ _ _ => Nat.cast_nonneg _))
-    (schedule_npref_sum_le η₀ populations εcov δ α pAP)
-  rw [stoppable]
-  exact Finset.filter_subset _ _
 
 lemma capped_of_mem_stoppable {η₀ : ℝ} {populations : Finset J}
     {εcov δ α pAP ρ : ℝ} {B : State}
@@ -2832,7 +2940,8 @@ lemma streamMeasure_prefix_apply (Pp Pc : J → Measure (ℕ → S)) (Dsf : Meas
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
     [IsProbabilityMeasure Dsf] (C : Set (J → ℕ → S)) (hC : MeasurableSet C) :
     streamMeasure μ Pp Pc Dsf {x : Run Ω S J | prefixStreams x ∈ C} = (Measure.pi Pp) C := by
-  have hpre : {x : Run Ω S J | prefixStreams x ∈ C} = (draws : Run Ω S J → _) ⁻¹' (Prod.snd ⁻¹' C) :=
+  have hpre : {x : Run Ω S J | prefixStreams x ∈ C} = (draws : Run Ω S J → _) ⁻¹' (Prod.snd ⁻¹'
+      C) :=
     rfl
   rw [hpre, ← Measure.map_apply (by fun_prop) (measurable_snd hC), map_drawBlock Pp Pc Dsf,
     ← Measure.map_apply measurable_snd hC, Measure.map_snd_prod]
@@ -2900,7 +3009,8 @@ open scoped Classical in
 of which there are countably many. -/
 lemma measurableSet_of_run_data (populations : Finset J) (B : State)
     (R : Finset S → Finset S → Set (Run Ω S J)) (hR : ∀ P C, MeasurableSet (R P C)) :
-    MeasurableSet {x : Run Ω S J | x ∈ R (prefixesAt populations B.npref x) (poolAt B.nsuff x)} := by
+    MeasurableSet {x : Run Ω S J | x ∈ R (prefixesAt populations B.npref x) (poolAt B.nsuff
+        x)} := by
   classical
   have hcov : {x : Run Ω S J | x ∈ R (prefixesAt populations B.npref x) (poolAt B.nsuff x)}
       = ⋃ z : Finset S × Finset S, (({x : Run Ω S J | prefixesAt populations B.npref x = z.1}
@@ -2932,7 +3042,8 @@ lemma summable_singleton_real (Dj : Measure S) [IsProbabilityMeasure Dj] :
 lemma summable_singleton_sq (Dj : Measure S) [IsProbabilityMeasure Dj] :
     Summable (fun a : S => Dj.real {a} ^ 2) := by
   refine Summable.of_nonneg_of_le (fun a => sq_nonneg _) (fun a => ?_) (summable_singleton_real Dj)
-  nlinarith [measureReal_nonneg (μ := Dj) (s := ({a} : Set S)), measureReal_le_one' Dj ({a} : Set S)]
+  nlinarith [measureReal_nonneg (μ := Dj) (s := ({a} : Set S)), measureReal_le_one' Dj ({a} : Set
+      S)]
 
 lemma map_suffixBlock (Pp Pc : J → Measure (ℕ → S)) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (Pp j)] [∀ j, IsProbabilityMeasure (Pc j)]
@@ -3105,7 +3216,8 @@ lemma measureReal_repeats_le {β : Type*} [MeasurableSpace β] (ν : Measure β)
   classical
   set I : Finset (ℕ × ℕ) :=
     ((Finset.range n) ×ˢ (Finset.range n)).filter (fun q => q.1 < q.2) with hI
-  have hrep : ∀ x, repeatPairs (fun i => y i x) n = I.filter (fun q => x ∈ {x | y q.1 x = y q.2 x}) := by
+  have hrep : ∀ x, repeatPairs (fun i => y i x) n = I.filter (fun q => x ∈ {x | y q.1 x = y q.2
+      x}) := by
     intro x
     ext q
     simp only [repeatPairs, hI, Finset.mem_filter, Set.mem_setOf_eq, and_assoc]
@@ -3545,7 +3657,8 @@ noncomputable def clusterOf (rule : Clusterer S) (O : Oracle μ S) (sc scd : ℕ
 lemma clusterAt_eq_clusterOf (O : Oracle μ S) (populations : Finset J) (B : State)
     (x : Run Ω S J) :
     clusterBy rule O.mq populations x B
-      = clusterOf rule O B.sc B.scd (prefixesAt populations B.npref x) (poolAt B.nsuff x) B.k (oracleNoise x) :=
+      = clusterOf rule O B.sc B.scd (prefixesAt populations B.npref x) (poolAt B.nsuff x) B.k
+          (oracleNoise x) :=
   rfl
 
 lemma clusterOf_subset (O : Oracle μ S) (sc scd : ℕ) (P cands : Finset S) (k : ℕ) (ω : Ω)
