@@ -9,11 +9,9 @@ import Mathlib.Probability.Independence.InfinitePi
 defined here and there, and `RarerBounded` (`RLStar.LowLevelClaims.FamilyRead`).  Each
 definition's doc names the Python it models.
 
-Known modelling gap.  `prefixes_for_split` draws the uniform pool's certification prefixes with
-`draw_many`, which on a `UniformSource` redraws neither a repeat nor a prefix the table holds, and
-a named population's from its reserve and then its reserve-side draws, which skip the strings a
-named population's table holds but keep repeats and the uniform pool's prefixes.  `certOf`
-redraws both.  The pool's draws merge with the seed `ε` when one is `ε`, where `_draw_cohort`
+Known modelling gap.  `prefixes_for_split` draws a named population's certification prefixes from
+its reserve and then its reserve-side draws, which skip the strings a named population's table
+holds but keep repeats and the uniform pool's prefixes.  `certOf` redraws both.  The pool's draws merge with the seed `ε` when one is `ε`, where `_draw_cohort`
 would redraw it.
 
 Known modelling gap.  A named population's table here skips every string any population
