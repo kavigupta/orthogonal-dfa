@@ -69,7 +69,25 @@ theorem measurePreserving_idealDraws {μ : Measure Ω} [IsProbabilityMeasure μ]
     MeasurePreserving (idealDraws (Ω := Ω) (K := K) D Dsf h) (clusterLaw μ α K)
       (runMeasure μ (fun j => offLaw (loopDistributions D h.pops j) h.prefs)
         (offLaw Dsf h.suffs)) := by
-  sorry -- closes by: main's proof, measurePreserving_streams
+  set L : Option (Fin K) → Measure (FreeMonoid α) :=
+    fun j => offLaw (loopDistributions D h.pops j) h.prefs
+  have hS := measurePreserving_stream
+    (⟨measurable_drawFrom _, map_drawFrom _⟩ : MeasurePreserving (drawFrom (offLaw Dsf h.suffs))
+      volume (offLaw Dsf h.suffs))
+  have hP := measurePreserving_streams (ρ := (volume : Measure unitInterval)) L _
+    fun j => (⟨measurable_drawFrom _, map_drawFrom _⟩ : MeasurePreserving (drawFrom (L j))
+      volume (L j))
+  set US := Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)
+  set UP := Measure.pi fun _ : Option (Fin K) =>
+    Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)
+  set C := Measure.infinitePi fun _ : FreeMonoid α => fairCoin
+  have e2 := (measurePreserving_prodAssoc US UP (UP.prod C)).symm
+  have e3 := (measurePreserving_prodAssoc (US.prod UP) UP C).symm
+  have hin := (((hS.prod hP).prod hP).prod (MeasurePreserving.id C)).comp (e3.comp e2)
+  have hall := (MeasurePreserving.id μ).prod hin
+  exact (measurePreserving_prodAssoc μ (((Measure.infinitePi fun _ : ℕ => offLaw Dsf h.suffs).prod
+      (Measure.pi fun j => Measure.infinitePi fun _ : ℕ => L j)).prod
+      (Measure.pi fun j => Measure.infinitePi fun _ : ℕ => L j)) C).symm.comp hall
 
 lemma measurable_idealDraws (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (h : SpecHist α) : Measurable (idealDraws (Ω := Ω) (K := K) D Dsf h) := by
