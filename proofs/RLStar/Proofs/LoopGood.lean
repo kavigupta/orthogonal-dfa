@@ -86,7 +86,116 @@ theorem loop_good_round_le_persist (cap m : ℝ) {T NP : ℕ} (hm : m ≤ 1 / 2)
               (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))}
       ≤ (K + 1) * (2 * (settings.scanCap.choose T * (T * (2 * cap)) ^ (settings.scanCap - T))
           + 2 * Real.exp (-(T / 8 : ℝ))) := by
-  sorry -- closes by: main's scan half, clusterLaw_scanShort_le, offLaw_atom_le, persistence
+  classical
+  set M := settings.scanCap
+  set A := (K + 3) * NP
+  set dec := decodeHist (α := α) with hdec
+  set b : ℝ := (K + 1) * (2 * (M.choose T * (T * (2 * cap)) ^ (M - T))
+    + 2 * Real.exp (-(T / 8 : ℝ)))
+  have hcap0 : 0 ≤ cap := le_trans measureReal_nonneg (hDat 1)
+  have hb0 : 0 ≤ b := by positivity
+  obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ
+  set ν := settings.roundLaw α
+  have hσ : MeasurePreserving (fun d : settings.RoundDraws α => ((() : Unit), d)) ν
+      ((Measure.dirac ()).prod ν) :=
+    ⟨measurable_const.prodMk measurable_id, by rw [Measure.dirac_prod]⟩
+  set Y := Option (List (HarvestCode α))
+  set W : Y → (Fin K → settings.RoundDraws α) → Finset (FreeMonoid α) := fun y x => match y with
+    | some c => histReads settings P.D Dsf c x r ω₀
+    | none => ∅
+  set G : Y → Prop := fun y => ∃ c, y = some c ∧ c.length = r
+  set Good : List (HarvestCode α) → Prop := fun c => c.length = r
+    ∧ (∀ ℓ ∈ (dec c).pops, ∀ t, (listLaw ℓ).real {t} ≤ cap)
+    ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D (dec c).pops j).real ↑(dec c).prefs ≤ m)
+  set Bad : Y → Set (Ω × settings.RoundDraws α) := fun y => match y with
+    | some c => {q | Good c
+        ∧ ScanShort (loopPopulations K r) M T A (idealDraws P.D Dsf (dec c) (q.1, q.2.1))}
+    | none => ∅
+  have hmarg : MeasurePreserving (fun q : Ω × settings.RoundDraws α =>
+      ((q.1, q.2.1) : ClusterDraws Ω α K)) (μ.prod ν) (clusterLaw μ α K) :=
+    (MeasurePreserving.id μ).prod measurePreserving_fst
+  have hmid : ∀ c : List (HarvestCode α), Measurable
+      fun q : Ω × settings.RoundDraws α => idealDraws P.D Dsf (dec c) (q.1, q.2.1) := fun c =>
+    (measurable_idealDraws P.D Dsf (dec c)).comp hmarg.measurable
+  have hmain := persist_stage_le O ν (Measure.dirac ()) ν (fun d => ((() : Unit), d)) hσ Prod.snd
+    measurable_snd (fun w => Prod.ext rfl rfl) ⟨r, hr⟩ (stageH settings O P.D Dsf r)
+    (fun ω x x' hxx' _ => stageH_congr_draws settings O P.D Dsf r ω x x' fun i hi => hxx' i hi)
+    (measurableSet_stageH settings O P.D Dsf r) W G
+    (fun y x ω ω' hG hs h => by
+      obtain ⟨c, rfl, -⟩ := hG
+      exact stageH_stop settings O P.D Dsf r c x ω ω' ω₀ hs h)
+    Bad (fun y hy => by
+      rcases y with _ | c
+      · rfl
+      · exact Set.eq_empty_of_forall_notMem fun q hq => hy ⟨c, rfl, hq.1.1⟩)
+    (fun y => by
+      rcases y with _ | c
+      · exact MeasurableSet.empty
+      · exact (MeasurableSet.const _).inter
+          (hmid c (measurableSet_scanShort (loopPopulations K r) M T A)))
+    (fun _ _ => ∅) (fun y d ω ω' _ hq => by
+      rcases y with _ | c
+      · exact hq
+      · exact ⟨hq.1, (scanShort_noise _ _ _ _ _ _ _ _ _ _ rfl rfl).1 hq.2⟩)
+    (fun _ => Set.univ) (fun _ => MeasurableSet.univ)
+    (fun y x _ _ => Finset.disjoint_empty_right _)
+    (ENNReal.ofReal b) (fun y => by
+      rcases y with _ | c
+      · show (μ.prod ν) ∅ ≤ _
+        simp
+      · by_cases hH : Good c
+        swap
+        · have : Bad (some c) = ∅ := Set.eq_empty_of_forall_notMem fun q hq => hH hq.1
+          rw [this, measure_empty]; exact zero_le
+        obtain ⟨hcr, hpg, hpm⟩ := hH
+        set h := dec c
+        have hlen : h.pops.length = r := by
+          simp only [h, dec, decodeHist, List.length_map, hcr]
+        -- each population off the earlier prefixes holds at most `2 cap` on a string
+        have hat : ∀ j ∈ loopPopulations K r, ∀ t,
+            (offLaw (loopDistributions P.D h.pops j) h.prefs).real {t} ≤ 2 * cap := by
+          intro j hj t
+          refine (offLaw_atom_le ((hpm j hj).trans hm) t).trans ?_
+          have : (loopDistributions P.D h.pops j).real {t} ≤ cap := by
+            cases j with
+            | none => exact hDat t
+            | some i =>
+              have hi : i.val < h.pops.length := by rw [hlen]; exact lt_of_some_mem_loopPops hj
+              simp only [loopDistributions, List.getElem?_eq_getElem hi]
+              exact hpg _ (List.getElem_mem _) t
+          linarith
+        have hscan := clusterLaw_scanShort_le (μ := μ) P.D Dsf h (loopPopulations K r)
+          (M := M) (T := T) (A := A) hat hA hT
+        have hcard : ((loopPopulations K r).card : ℝ) ≤ K + 1 := by
+          exact_mod_cast card_loopPopulations_le K r
+        have hscanE : (μ.prod ν) {q : Ω × settings.RoundDraws α |
+            ScanShort (loopPopulations K r) M T A (idealDraws P.D Dsf h (q.1, q.2.1))}
+            = clusterLaw μ α K
+              {c | ScanShort (loopPopulations K r) M T A (idealDraws P.D Dsf h c)} :=
+          hmarg.measure_preimage (((measurable_idealDraws P.D Dsf h)
+            (measurableSet_scanShort (loopPopulations K r) M T A)).nullMeasurableSet)
+        calc (μ.prod ν) (Bad (some c))
+            ≤ (μ.prod ν) {q : Ω × settings.RoundDraws α |
+                ScanShort (loopPopulations K r) M T A (idealDraws P.D Dsf h (q.1, q.2.1))} :=
+              measure_mono fun q hq => hq.2
+          _ = ENNReal.ofReal ((clusterLaw μ α K).real
+                {c | ScanShort (loopPopulations K r) M T A (idealDraws P.D Dsf h c)}) := by
+              rw [hscanE, ofReal_measureReal (measure_ne_top _ _)]
+          _ ≤ ENNReal.ofReal b := by
+              refine ENNReal.ofReal_le_ofReal (hscan.trans ?_)
+              have hq0 : 0 ≤ 2 * (M.choose T * (T * (2 * cap)) ^ (M - T))
+                  + 2 * Real.exp (-(T / 8 : ℝ)) := by positivity
+              exact mul_le_mul_of_nonneg_right hcard hq0)
+  refine ENNReal.toReal_le_of_le_ofReal hb0 ((measure_mono ?_).trans hmain)
+  rintro p ⟨hok, hlen, hpg, hpm, hbad⟩
+  have hst : stageH settings O P.D Dsf r p.1 p.2
+      = some (histCodes settings O P.D Dsf p.1 p.2 r) := by
+    simp only [stageH, if_pos hok]
+  show (p.1, p.2 ⟨r, hr⟩) ∈ Bad (stageH settings O P.D Dsf r p.1 p.2)
+    ∧ p.2 ∈ (fun _ : Y => (Set.univ : Set (Fin K → settings.RoundDraws α)))
+      (stageH settings O P.D Dsf r p.1 p.2)
+  rw [hst]
+  exact ⟨⟨⟨hlen, hpg, hpm⟩, hbad⟩, Set.mem_univ _⟩
 
 omit [IsProbabilityMeasure μ] [IsProbabilityMeasure Dsf] in
 /-- Where every round the filled draws run is good, the loop runs those rounds. -/
