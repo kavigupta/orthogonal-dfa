@@ -61,6 +61,8 @@ section Zone
 
 open Random Query
 
+/-- An answer other than `a`: a read changed by `rot` off a set agrees with the old one exactly on
+the set, so `step_reads_agree` puts every read in it. -/
 private def rot : ARU → ARU
   | .accept => .reject
   | .reject => .undecided
@@ -319,6 +321,181 @@ private theorem lazyRoundQ_zone (read : FreeMonoid α → ARU) (C : Level3Settin
     obtain ⟨e, rfl⟩ := List.mem_ofFn.1 hd'
     exact hd e
 
+omit [Fintype α] [DecidableEq α] in
+private theorem length_padIn_le (K : ℕ) (X : Finset (FreeMonoid α)) (x : FreeMonoid α) :
+    (padIn K X x).toList.length ≤ x.toList.length + K := by
+  simp only [padIn, FreeMonoid.toList_ofList, List.length_append, List.length_replicate,
+    List.length_map]
+  omega
+
+private theorem card_reads_epochQ_le (read : FreeMonoid α → ARU) (C : Level3Settings) (K : ℕ)
+    (X : Finset (FreeMonoid α)) {P : ℕ} (xs : Fin P → FreeMonoid α) (nQ Lp : ℕ)
+    (hL : ∀ i, (xs i).toList.length ≤ Lp)
+    (hn : ((epochQ C K X xs).eval read).hypothesis.tree.leaves.length ≤ nQ + 2) :
+    ((epochQ C K X xs).reads read).card ≤ P * (Kappa.probeSifts (Lp + K) * (nQ + 1))
+      + nQ * ((nQ + 2) * (Fintype.card α + 1) * (nQ + 2)) := by
+  rw [epochQ, eval_subst] at hn
+  rw [epochQ]
+  refine (card_reads_subst_le _ _ _ (n := 1) fun q _ => by simp [unpadQ]).trans ?_
+  rw [mul_one]
+  have h := card_reads_level3Q_le (padRead read) { C with walkStart := K } nQ
+    (fun i => padIn K X (xs i)) (L := Lp + K)
+    (fun i => (length_padIn_le K X (xs i)).trans (by have := hL i; omega)) hn
+  rw [Fintype.card_option] at h
+  exact h
+
+omit [DecidableEq α] in
+private theorem card_reads_harvest_le (read : FreeMonoid α → ARU) (K Lp nQ : ℕ)
+    (H : HypothesisDFA (Option α)) (hH : (mids H.tree).card ≤ nQ + 1) (s : Level3Site)
+    (X : Finset (FreeMonoid α)) {x : FreeMonoid α} (hx : x.toList.length ≤ Lp) :
+    (((siteHarvestQ K H s (padIn K X x)).subst unpadQ).reads read).card
+      ≤ Kappa.probeSifts (Lp + K) * (nQ + 1) := by
+  refine (card_reads_subst_le _ _ _ (n := 1) fun q _ => by simp [unpadQ]).trans ?_
+  rw [mul_one]
+  refine (Finset.card_le_card (reads_siteHarvestQ_sub _ K H s _)).trans ?_
+  refine (Spur.probeReads_card_mids _ (L := Lp + K)
+    ((length_padIn_le K X x).trans (by omega))).trans ?_
+  exact Nat.mul_le_mul_left _ hH
+
+omit [DecidableEq α] in
+private theorem card_reads_blockQ_le (read : FreeMonoid α → ARU) (K Lp nQ : ℕ)
+    (H : HypothesisDFA (Option α)) (hH : (mids H.tree).card ≤ nQ + 1) (s : Level3Site)
+    (X : Finset (FreeMonoid α)) :
+    ∀ xs : List (FreeMonoid α), (∀ x ∈ xs, x.toList.length ≤ Lp) →
+      ((blockQ K H s X xs).reads read).card ≤ xs.length * (Kappa.probeSifts (Lp + K) * (nQ + 1))
+  | [], _ => by simp [blockQ]
+  | x :: xs, hxs => by
+    simp only [blockQ, reads_bind, reads_map, List.length_cons]
+    refine (Finset.card_union_le _ _).trans ?_
+    have h1 := card_reads_harvest_le read K Lp nQ H hH s X (hxs x (by simp))
+    have h2 := card_reads_blockQ_le read K Lp nQ H hH s X xs fun y hy => hxs y (by simp [hy])
+    generalize Kappa.probeSifts (Lp + K) * (nQ + 1) = A at h1 h2 ⊢
+    calc _ ≤ A + xs.length * A := Nat.add_le_add h1 h2
+      _ = (xs.length + 1) * A := by ring
+
+omit [DecidableEq α] in
+private theorem card_reads_topUpQ_le (read : FreeMonoid α → ARU) (K nh Lp nQ : ℕ)
+    (H : HypothesisDFA (Option α)) (hH : (mids H.tree).card ≤ nQ + 1) (s : Level3Site) {b : ℕ} :
+    ∀ (Bs : List (Fin b → FreeMonoid α)) (X : Finset (FreeMonoid α)) (ℓ : List (FreeMonoid α)),
+      (∀ B ∈ Bs, ∀ t, (B t).toList.length ≤ Lp) →
+      ((topUpQ K nh H s Bs X ℓ).reads read).card
+        ≤ Bs.length * (b * (Kappa.probeSifts (Lp + K) * (nQ + 1)))
+  | [], _, _, _ => by simp [topUpQ]
+  | B :: Bs, X, ℓ, hB => by
+    have hblk := card_reads_blockQ_le read K Lp nQ H hH s X (List.ofFn B) fun x hx => by
+      obtain ⟨t, rfl⟩ := List.mem_ofFn.1 hx
+      exact hB B (by simp) t
+    rw [List.length_ofFn] at hblk
+    simp only [topUpQ, reads_bind, List.length_cons]
+    refine (Finset.card_union_le _ _).trans ?_
+    generalize (blockQ K H s X (List.ofFn B)).eval read = ws
+    have hrest : ∀ X' ℓ', ((topUpQ K nh H s Bs X' ℓ').reads read).card
+        ≤ Bs.length * (b * (Kappa.probeSifts (Lp + K) * (nQ + 1))) := fun X' ℓ' =>
+      card_reads_topUpQ_le read K nh Lp nQ H hH s Bs X' ℓ' fun B' hB' => hB B' (by simp [hB'])
+    generalize b * (Kappa.probeSifts (Lp + K) * (nQ + 1)) = A at hblk hrest ⊢
+    have hle : ∀ n, n ≤ Bs.length * A → ((blockQ K H s X (List.ofFn B)).reads read).card + n
+        ≤ (Bs.length + 1) * A := fun n hn => by
+      calc _ ≤ A + Bs.length * A := Nat.add_le_add hblk hn
+        _ = (Bs.length + 1) * A := by ring
+    split_ifs
+    · exact hle 0 (Nat.zero_le _)
+    · exact hle 0 (Nat.zero_le _)
+    · exact hle _ (hrest _ _)
+
+private theorem epoch_arith (P J b PS nQ q l3 tu : ℕ) (h3 : l3 ≤ P * (PS * (nQ + 1)) + nQ * q)
+    (ht : tu ≤ J * (b * (PS * (nQ + 1)))) :
+    l3 + tu ≤ (P + J * b) * (PS * (nQ + 3)) + (nQ + 2) * q := by
+  nlinarith
+
+private theorem lazyEpochsQ_card (read : FreeMonoid α → ARU) (C : Level3Settings) (K nh : ℕ)
+    {J b : ℕ} (Lp nQ : ℕ) :
+    ∀ (e pk : ℕ) (ds : List (EpochDraws α C.probeBudget J b)) (X : Finset (FreeMonoid α))
+      (ls : LazyLists α), (∀ d ∈ ds, (∀ i, (d.1 i).toList.length ≤ Lp)
+        ∧ ∀ j t, (d.2 j t).toList.length ≤ Lp) →
+      pk ≤ ((lazyEpochsQ C K nh e pk ds X ls).eval read).peak
+        ∧ (((lazyEpochsQ C K nh e pk ds X ls).eval read).peak ≤ nQ + 2 →
+          ((lazyEpochsQ C K nh e pk ds X ls).reads read).card
+            ≤ ds.length * ((C.probeBudget + J * b) * (Kappa.probeSifts (Lp + K) * (nQ + 3))
+              + (nQ + 2) * ((nQ + 2) * (Fintype.card α + 1) * (nQ + 2))))
+  | _, _, [], X, ls, _ => by simp [lazyEpochsQ]
+  | e, pk, d :: ds, X, ls, hd => by
+    obtain ⟨hd1, hd2⟩ := hd d (by simp)
+    have hl3 := card_reads_epochQ_le read (epochSettings C e) K X d.1 nQ Lp hd1
+    simp only [lazyEpochsQ, eval_bind, reads_bind, List.length_cons]
+    generalize (epochQ (epochSettings C e) K X d.1).reads read = RE at hl3 ⊢
+    generalize (epochQ (epochSettings C e) K X d.1).eval read = res at hl3 ⊢
+    have key : ∀ (hyp : HypothesisDFA (Option α)) (tu n : ℕ),
+        (hyp.tree.leaves.length ≤ nQ + 2 → RE.card ≤ C.probeBudget
+          * (Kappa.probeSifts (Lp + K) * (nQ + 1))
+          + nQ * ((nQ + 2) * (Fintype.card α + 1) * (nQ + 2))) →
+        hyp.tree.leaves.length ≤ nQ + 2 →
+        tu ≤ J * (b * (Kappa.probeSifts (Lp + K) * (nQ + 1))) →
+        n ≤ ds.length * ((C.probeBudget + J * b) * (Kappa.probeSifts (Lp + K) * (nQ + 3))
+          + (nQ + 2) * ((nQ + 2) * (Fintype.card α + 1) * (nQ + 2))) →
+        RE.card + tu + n ≤ (ds.length + 1)
+          * ((C.probeBudget + J * b) * (Kappa.probeSifts (Lp + K) * (nQ + 3))
+            + (nQ + 2) * ((nQ + 2) * (Fintype.card α + 1) * (nQ + 2))) := by
+      intro hyp tu n h3 hlv ht hn
+      have := epoch_arith _ _ _ _ _ _ _ _ (h3 hlv) ht
+      rw [add_one_mul]
+      omega
+    have hstop : ∀ (hyp : HypothesisDFA (Option α)) (R : Finset (FreeMonoid α)) (tu : ℕ),
+        (hyp.tree.leaves.length ≤ nQ + 2 → RE.card ≤ C.probeBudget
+          * (Kappa.probeSifts (Lp + K) * (nQ + 1))
+          + nQ * ((nQ + 2) * (Fintype.card α + 1) * (nQ + 2))) →
+        (hyp.tree.leaves.length ≤ nQ + 2 → R.card ≤ tu) →
+        (hyp.tree.leaves.length ≤ nQ + 2 →
+          tu ≤ J * (b * (Kappa.probeSifts (Lp + K) * (nQ + 1)))) →
+        max pk hyp.tree.leaves.length ≤ nQ + 2 →
+        (RE ∪ R).card ≤ (ds.length + 1)
+          * ((C.probeBudget + J * b) * (Kappa.probeSifts (Lp + K) * (nQ + 3))
+            + (nQ + 2) * ((nQ + 2) * (Fintype.card α + 1) * (nQ + 2))) := by
+      intro hyp R tu h3 hR ht hp
+      have hlv := (le_max_right _ _).trans hp
+      have := key hyp tu 0 h3 hlv (ht hlv) (Nat.zero_le _)
+      have := Finset.card_union_le RE R
+      have := hR hlv
+      omega
+    rcases res with ⟨hyp, _ | s | _⟩
+    · dsimp only at hl3 ⊢
+      simp only [eval_pure, reads_pure, Finset.union_empty]
+      exact ⟨le_max_left _ _, fun hp => by
+        simpa using hstop hyp ∅ 0 hl3 (fun _ => Finset.card_empty.le) (fun _ => Nat.zero_le _) hp⟩
+    · dsimp only at hl3 ⊢
+      simp only [eval_bind, reads_bind]
+      have hT : hyp.tree.leaves.length ≤ nQ + 2 →
+          ((topUpQ K nh hyp s (List.ofFn d.2) X (ls s)).reads read).card
+            ≤ J * (b * (Kappa.probeSifts (Lp + K) * (nQ + 1))) := fun hlv => by
+        have := card_reads_topUpQ_le read K nh Lp nQ hyp
+          (by have := mids_card hyp.tree; omega) s (List.ofFn d.2) X (ls s) fun B hB t => by
+            obtain ⟨j, rfl⟩ := List.mem_ofFn.1 hB
+            exact hd2 j t
+        rwa [List.length_ofFn] at this
+      generalize (topUpQ K nh hyp s (List.ofFn d.2) X (ls s)).reads read = RT at hT ⊢
+      generalize (topUpQ K nh hyp s (List.ofFn d.2) X (ls s)).eval read = o
+      rcases o with _ | ⟨_ | ⟨ℓ, X'⟩, rest⟩
+      · dsimp only
+        simp only [eval_pure, reads_pure, Finset.union_empty]
+        exact ⟨le_max_left _ _, hstop hyp RT _ hl3 (fun h => le_refl _) hT⟩
+      · dsimp only
+        simp only [eval_pure, reads_pure, Finset.union_empty]
+        exact ⟨le_max_left _ _, hstop hyp RT _ hl3 (fun h => le_refl _) hT⟩
+      · dsimp only
+        have hds := fun d' hd' => hd d' (List.mem_cons_of_mem d hd')
+        refine ⟨(le_max_left _ _).trans
+          (lazyEpochsQ_card read C K nh Lp nQ (e + 1) _ ds X' _ hds).1, fun hp => ?_⟩
+        have ih1 := (lazyEpochsQ_card read C K nh Lp nQ (e + 1) _ ds X' _ hds).1.trans hp
+        have ih2 := (lazyEpochsQ_card read C K nh Lp nQ (e + 1) _ ds X' _ hds).2 hp
+        have := key hyp _ _ hl3 ((le_max_right _ _).trans ih1)
+          (hT ((le_max_right _ _).trans ih1)) ih2
+        refine (Finset.card_union_le _ _).trans
+          ((Nat.add_le_add_left (Finset.card_union_le _ _) _).trans ?_)
+        omega
+    · dsimp only at hl3 ⊢
+      simp only [eval_pure, reads_pure, Finset.union_empty]
+      exact ⟨le_max_left _ _, fun hp => by
+        simpa using hstop hyp ∅ 0 hl3 (fun _ => Finset.card_empty.le) (fun _ => Nat.zero_le _) hp⟩
+
 end Zone
 
 /-- Over probes at least `k` long whose first `k` letters avoid `CP`'s, the round from `CP`'s trie
@@ -350,7 +527,13 @@ theorem card_reads_lazyRoundQ_le (C : Random.Level3Settings) (k nh : ℕ) {E J b
     (hpk : ((Random.lazyRoundQ C k nh X₀ d).eval read).peak ≤ nQ + 2) :
     ((Random.lazyRoundQ C k nh X₀ d).reads read).card
       ≤ lazyReadCap C E J b Lp nQ (Fintype.card α) := by
-  sorry -- closes by: card_reads_level3Q_le over Option α per epoch, reads_siteHarvestQ_sub
+  subst hk
+  have h := (lazyEpochsQ_card read C C.walkStart nh Lp nQ 0 0 (List.ofFn d) X₀ (fun _ => [])
+    fun d' hd' => by
+      obtain ⟨e, rfl⟩ := List.mem_ofFn.1 hd'
+      exact hL e).2 hpk
+  rw [List.length_ofFn] at h
+  exact h
 
 /-- Unless it fails, a round's listed strings are at most `probes + 1 + T + 2` long. -/
 theorem length_lazy_list_le (C : Random.Level3Settings) (k nh : ℕ) {E J b : ℕ}
