@@ -260,7 +260,51 @@ theorem popCode_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
     (hr : ∀ w ∈ roundReads settings D Dsf h ω d, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
     popCode (idealRound settings O D Dsf h (ω, d))
       = popCode (idealRound settings O D Dsf h (ω', d)) := by
-  sorry -- closes by: main's proof to hFpool, then Query.eval_congr on reads_lazyRoundQ_keyOff
+  classical
+  set pops := loopPopulations K h.pops.length
+  set sched := settings.schedule pops
+  have hs : ∀ w ∈ schedReads sched pops (idealRun D Dsf h (ω, d.1)),
+      (O.mq w ω = 1 ↔ O.mq w ω' = 1) := fun w hw => hr w (Finset.mem_union_left _ hw)
+  have hst := roundState_congr settings O D Dsf h d.1 hs
+  have hmem : roundState settings O D Dsf h (ω, d.1) ∈ sched :=
+    (Classical.epsilon_spec (p := fun B => B ∈ sched ∧ idealRun D Dsf h (ω, d.1) ∈ ret O.mq pops
+      none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B) (by
+        obtain ⟨B, hB, hrB⟩ := hret; exact ⟨B, hB, hrB⟩)).1
+  set B := roundState settings O D Dsf h (ω, d.1)
+  have hF := clusterAt_congr_sched O sched pops hmem (runOf settings D Dsf h d.1) hs
+  set F := clusterAt O.mq pops (idealRun D Dsf h (ω, d.1)) B
+  rw [idealRound_eq_mkRound, idealRound_eq_mkRound]
+  simp only []
+  rw [← hst]
+  change popCode (roundAt settings O B F _ _ (ω, _)) = popCode (roundAt settings O B
+    (clusterAt O.mq pops (idealRun D Dsf h (ω', d.1)) B) _ _ (ω', _))
+  rw [← show F = clusterAt O.mq pops (idealRun D Dsf h (ω', d.1)) B from hF]
+  have hroundKeys : roundKeys settings D Dsf h (ω', d.1) = roundKeys settings D Dsf h (ω, d.1) :=
+    rfl
+  have hroundSets : roundSets settings D Dsf h (ω', d.1) = roundSets settings D Dsf h (ω, d.1) :=
+    rfl
+  rw [hroundKeys, hroundSets]
+  set xs := probesOf settings D (roundKeys settings D Dsf h (ω, d.1)) d.2
+  -- the family is among the pool's suffixes
+  have hFpool : F ⊆ (roundSuffs sched (idealRun D Dsf h (ω, d.1))).erase 1 := by
+    intro v hv
+    have hv1 : v ≠ 1 := (Finset.mem_erase.1 hv).1
+    unfold F at hv
+    rw [clusterAt_eq, clusterAt_eq_clusterOf] at hv
+    have := poolAt_sub_roundSuffs hmem _ (clusterOf_subset O B.sc B.scd _ _ B.k ω
+      (Finset.mem_insert_self _ _) hv)
+    rcases Finset.mem_insert.1 this with h1 | h1
+    · exact absurd h1 hv1
+    · exact Finset.mem_erase.2 ⟨hv1, h1⟩
+  have h1 : ∀ p ∈ readStrings (shortStrings (lazyProbesLen xs + 1 + settings.level3.probeBudget
+      + 2)) F, (O.mq p ω = 1 ↔ O.mq p ω' = 1) := fun p hp =>
+    hr p (Finset.mem_union_right _ (readStrings_mono subset_rfl hFpool hp))
+  have hres := lazyRound_result_congr O settings.level3 settings.level3.walkStart settings.listSize
+    (Random.prefixTrie settings.level3.walkStart (roundSets settings D Dsf h (ω, d.1)).1) F B.lo
+    (B.hi + 1) xs h1
+  unfold popCode SpecRound.population roundAt
+  dsimp only
+  rw [hres]
 
 end Round
 
