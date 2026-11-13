@@ -221,7 +221,217 @@ theorem loop_cluster_round_le_persist (Ls : ℕ) (εcov δc slack cap capSf m ms
             (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 r) p.2 r hr}
       ≤ δc := by
-  sorry -- closes by: main's proof with settings.roundLaw; list atoms for samplerLaws
+  classical
+  set dec := decodeHist (α := α) with hdec
+  obtain ⟨ω₀⟩ := nonempty_of_isProbabilityMeasure μ
+  have : IsProbabilityMeasure (lazyLaw settings.epochs settings.level3.probeBudget
+      settings.blocks settings.blockSize) := by
+    unfold lazyLaw; infer_instance
+  set ν := settings.roundLaw α
+  have hσ : MeasurePreserving (fun d : settings.RoundDraws α => ((() : Unit), d)) ν
+      ((Measure.dirac ()).prod ν) :=
+    ⟨measurable_const.prodMk measurable_id, by rw [Measure.dirac_prod]⟩
+  set Y := Option (List (HarvestCode α))
+  set W : Y → (Fin K → settings.RoundDraws α) → Finset (FreeMonoid α) := fun y x => match y with
+    | some c => histReads settings P.D Dsf c x r ω₀
+    | none => ∅
+  set G : Y → Prop := fun y => ∃ c, y = some c ∧ c.length = r
+  set Good : List (HarvestCode α) → Prop := fun c => c.length = r
+    ∧ (∀ ℓ ∈ (dec c).pops,
+        (∀ t, (listLaw ℓ).real {t} ≤ cap) ∧ listLaw ℓ {q | Ls ≤ q.toList.length} = 0)
+    ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D (dec c).pops j).real ↑(dec c).prefs ≤ m)
+    ∧ Dsf.real ↑(dec c).suffs ≤ ms
+  set Bad : Y → Set (Ω × settings.RoundDraws α) := fun y => match y with
+    | some c => {q | Good c
+        ∧ ¬ ClusterSpec settings O P.D εcov slack (dec c).pops
+          (idealRun P.D Dsf (dec c) (q.1, q.2.1))}
+    | none => ∅
+  set Z : Y → settings.RoundDraws α → Finset (FreeMonoid α) := fun y d => match y with
+    | some c => schedReads (settings.schedule (loopPopulations K (dec c).pops.length))
+        (loopPopulations K (dec c).pops.length) (idealRun P.D Dsf (dec c) (ω₀, d.1))
+    | none => ∅
+  set Dj : Y → Set (Fin K → settings.RoundDraws α) := fun y => match y with
+    | some c => {x | NoColl settings P.D Dsf Ls c x r hr}
+    | none => Set.univ
+  have hcl : ∀ c : List (HarvestCode α), Measurable (fun q : Ω × settings.RoundDraws α =>
+      idealRun P.D Dsf (dec c) ((q.1, q.2.1) : ClusterDraws Ω α K)) := fun c =>
+    (measurable_idealRun P.D Dsf (dec c)).comp
+      (measurable_fst.prodMk (measurable_fst.comp measurable_snd))
+  have hmain := persist_stage_le O ν (Measure.dirac ()) ν (fun d => ((() : Unit), d)) hσ Prod.snd
+    measurable_snd (fun w => Prod.ext rfl rfl) ⟨r, hr⟩ (stageH settings O P.D Dsf r)
+    (fun ω x x' hxx' _ => stageH_congr_draws settings O P.D Dsf r ω x x' fun i hi => hxx' i hi)
+    (measurableSet_stageH settings O P.D Dsf r) W G
+    (fun y x ω ω' hG hs h => by
+      obtain ⟨c, rfl, -⟩ := hG
+      exact stageH_stop settings O P.D Dsf r c x ω ω' ω₀ hs h)
+    Bad (fun y hy => by
+      rcases y with _ | c
+      · rfl
+      · exact Set.eq_empty_of_forall_notMem fun q hq => hy ⟨c, rfl, hq.1.1⟩)
+    (fun y => by
+      rcases y with _ | c
+      · exact MeasurableSet.empty
+      · exact (MeasurableSet.const _).inter
+          (hcl c (measurableSet_clusterSpec settings O P.D εcov slack (dec c).pops)).compl)
+    Z (fun y d ω ω' h hq => by
+      rcases y with _ | c
+      · exact hq
+      · refine ⟨hq.1, fun hs => hq.2 ?_⟩
+        exact (clusterSpec_congr settings O P.D P.D Dsf εcov slack (dec c) d.1 h).2 hs)
+    Dj (fun y => by
+      rcases y with _ | c
+      · exact MeasurableSet.univ
+      · exact measurableSet_noColl settings P.D Dsf Ls c r hr)
+    (fun y x hG hx => by
+      obtain ⟨c, rfl, hcr⟩ := hG
+      have e : histAt c r = dec c := by
+        simp only [histAt, List.take_of_length_le (le_of_eq hcr), hdec]
+      have := disjoint_hist_round settings P.D Dsf Ls c x r hr ω₀ hx
+      rw [e] at this
+      exact this)
+    (ENNReal.ofReal δc) (fun y => by
+      rcases y with _ | c
+      · show (μ.prod ν) ∅ ≤ _
+        simp
+      · by_cases hH : Good c
+        swap
+        · have : Bad (some c) = ∅ := Set.eq_empty_of_forall_notMem fun q hq => hH hq.1
+          rw [this, measure_empty]; exact zero_le
+        obtain ⟨hcr, hpg, hpm, hsm⟩ := hH
+        set h := dec c
+        have hlen : h.pops.length = r := by
+          simp only [h, dec, decodeHist, List.length_map, hcr]
+        have hgetD : ∀ i : Fin K, some i ∈ loopPopulations K h.pops.length →
+            ∃ ℓ ∈ h.pops, loopDistributions P.D h.pops (some i) = listLaw ℓ := by
+          intro i hi
+          have hi' := lt_of_some_mem_loopPops hi
+          refine ⟨h.pops[i.val], List.getElem_mem _, ?_⟩
+          simp only [loopDistributions, List.getElem?_eq_getElem hi']
+        set pops := loopPopulations K h.pops.length
+        have hpm' : ∀ j ∈ pops, (loopDistributions P.D h.pops j).real ↑h.prefs ≤ m :=
+          fun j hj => hpm j (by rw [← hlen]; exact hj)
+        have hsupp : ∀ j ∈ pops,
+            loopDistributions P.D h.pops j {p | Ls ≤ p.toList.length} = 0 := by
+          intro j hj
+          cases j with
+          | none =>
+            refine measure_mono_null (fun x hx => ?_) (ae_iff.1 P.length_le)
+            simp only [Set.mem_ofPred_eq, not_le] at hx ⊢
+            omega
+          | some i =>
+            obtain ⟨ℓ, hℓ, e⟩ := hgetD i hj
+            rw [e]; exact (hpg ℓ hℓ).2
+        have hat : ∀ j ∈ pops, ∀ t, (loopDistributions P.D h.pops j).real {t} ≤ cap := by
+          intro j hj t
+          cases j with
+          | none => exact hDat t
+          | some i =>
+            obtain ⟨ℓ, hℓ, e⟩ := hgetD i hj
+            rw [e]; exact (hpg ℓ hℓ).1 t
+        set L : Option (Fin K) → Measure (FreeMonoid α) := fun j =>
+          offLaw (loopDistributions P.D h.pops j) h.prefs
+        have hsm' : Dsf.real ↑h.suffs ≤ 1 / 2 := hsm.trans hms
+        have hc := hclust pops (Finset.mem_insert_self _ _) L (offLaw Dsf h.suffs)
+          (fun j => inferInstance) inferInstance
+          (fun j hj => offLaw_null (compl_ne_zero ((hpm' j hj).trans hm)) (hsupp j hj))
+          (fun j hj t => (offLaw_atom_le ((hpm' j hj).trans hm) t).trans (by
+            linarith [hat j hj t]))
+          (by
+            have hle := le_offLaw_real ((hpm' none (Finset.mem_insert_self _ _)).trans hm)
+              {p : FreeMonoid α | p ∈ O.L}
+            have := hpm' none (Finset.mem_insert_self _ _)
+            change 2 * settings.εcov ≤ (offLaw P.D h.prefs).real {p | p ∈ O.L}
+            change P.D.real {p | p ∈ O.L} - P.D.real ↑h.prefs
+              ≤ (offLaw P.D h.prefs).real {p | p ∈ O.L} at hle
+            change P.D.real ↑h.prefs ≤ m at this
+            linarith)
+          (by
+            have hle := le_offLaw_real ((hpm' none (Finset.mem_insert_self _ _)).trans hm)
+              {p : FreeMonoid α | p ∉ O.L}
+            have := hpm' none (Finset.mem_insert_self _ _)
+            change 2 * settings.εcov ≤ (offLaw P.D h.prefs).real {p | p ∉ O.L}
+            change P.D.real {p | p ∉ O.L} - P.D.real ↑h.prefs
+              ≤ (offLaw P.D h.prefs).real {p | p ∉ O.L} at hle
+            change P.D.real ↑h.prefs ≤ m at this
+            linarith)
+          (offLaw_null (compl_ne_zero hsm') hDsf)
+          (by linarith [le_offLaw_real hsm' {v : FreeMonoid α | ∀ p, p * v ∈ O.L ↔ p ∈ O.L}])
+          (fun t => (offLaw_atom_le hsm' t).trans (by linarith [hsfat t]))
+        have hcr' := measurePreserving_idealDraws (μ := μ) (K := K) P.D Dsf h
+        set Tset := {x : Run Ω (FreeMonoid α) (Option (Fin K)) |
+          ¬ ClusterSpec settings O P.D εcov slack h.pops x}
+        have hTm : MeasurableSet (streams (Ω := Ω) (fun _ => ∅) none ⁻¹' Tset) :=
+          measurable_streams _ none
+            (measurableSet_clusterSpec settings O P.D εcov slack h.pops).compl
+        have hmarg : MeasurePreserving (fun q : Ω × settings.RoundDraws α =>
+            ((q.1, q.2.1) : ClusterDraws Ω α K)) (μ.prod ν) (clusterLaw μ α K) :=
+          (MeasurePreserving.id μ).prod measurePreserving_fst
+        have hsub : streams (Ω := Ω) (fun _ => ∅) none ⁻¹' Tset
+            ⊆ {x | ¬ ((∃ B ∈ settings.schedule pops, streams (fun _ => ∅) none x
+                ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+                  settings.gateLevel B)
+            ∧ ∀ B ∈ settings.schedule pops, streams (fun _ => ∅) none x
+              ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+                settings.gateLevel B →
+              ∫ p, miscutProb O B.lo (B.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p ∂(L none)
+                  ≤ εcov + (slack - m)
+                ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p
+                  ∂(L j) ≤ 2 * settings.indecisionLimit + (slack - m))} := by
+          intro y hx hs
+          set x := streams (fun _ => ∅) none y
+          apply hx
+          refine ⟨hs.1, fun B hB hret => ⟨?_, fun j hj => ?_⟩⟩
+          · have h1 := integral_le_offLaw (loopDistributions (K := K) P.D h.pops none) h.prefs
+              (f := miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B))
+              (fun p => measureReal_nonneg) (fun p => measureReal_le_one)
+            have h2 := (hs.2 B hB hret).1
+            have h3 := hpm' none (Finset.mem_insert_self _ _)
+            show ∫ p, miscutProb O B.lo (B.hi + 1) (familyAt O.mq pops x B) p
+              ∂(loopDistributions (K := K) P.D h.pops none) ≤ εcov + slack
+            linarith
+          · have h1 := integral_le_offLaw (loopDistributions P.D h.pops j) h.prefs
+              (f := undecidedProb O B.lo (B.hi + 1) (familyAt O.mq pops x B))
+              (fun p => measureReal_nonneg) (fun p => measureReal_le_one)
+            have h2 := (hs.2 B hB hret).2 j hj
+            have h3 := hpm' j hj
+            linarith
+        calc (μ.prod ν) (Bad (some c))
+            ≤ (μ.prod ν) ((fun q : Ω × settings.RoundDraws α =>
+                ((q.1, q.2.1) : ClusterDraws Ω α K)) ⁻¹'
+                (idealDraws P.D Dsf h ⁻¹' (streams (fun _ => ∅) none ⁻¹' Tset))) :=
+              measure_mono fun q hq => hq.2
+          _ = clusterLaw μ α K (idealDraws P.D Dsf h ⁻¹' (streams (fun _ => ∅) none ⁻¹' Tset)) :=
+              hmarg.measure_preimage (hcr'.measurable hTm).nullMeasurableSet
+          _ = runMeasure μ L (offLaw Dsf h.suffs) (streams (fun _ => ∅) none ⁻¹' Tset) :=
+              hcr'.measure_preimage hTm.nullMeasurableSet
+          _ ≤ runMeasure μ L (offLaw Dsf h.suffs)
+              {x | ¬ ((∃ B ∈ settings.schedule pops, streams (fun _ => ∅) none x
+                ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+                  settings.gateLevel B)
+            ∧ ∀ B ∈ settings.schedule pops, streams (fun _ => ∅) none x
+              ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+                settings.gateLevel B →
+              ∫ p, miscutProb O B.lo (B.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p ∂(L none)
+                  ≤ εcov + (slack - m)
+                ∧ ∀ j ∈ pops, ∫ p, undecidedProb O B.lo (B.hi + 1)
+                  (familyAt O.mq pops (streams (fun _ => ∅) none x) B) p
+                  ∂(L j) ≤ 2 * settings.indecisionLimit + (slack - m))} :=
+              measure_mono hsub
+          _ ≤ ENNReal.ofReal δc := by
+              rw [← ofReal_measureReal]
+              exact ENNReal.ofReal_le_ofReal hc)
+  refine ENNReal.toReal_le_of_le_ofReal hδc ((measure_mono ?_).trans hmain)
+  rintro p ⟨hok, hlen, hgood, hpm, hsm, hspec, hnc⟩
+  have hst : stageH settings O P.D Dsf r p.1 p.2
+      = some (histCodes settings O P.D Dsf p.1 p.2 r) := by
+    simp only [stageH, if_pos hok]
+  show (p.1, p.2 ⟨r, hr⟩) ∈ Bad (stageH settings O P.D Dsf r p.1 p.2)
+    ∧ p.2 ∈ Dj (stageH settings O P.D Dsf r p.1 p.2)
+  rw [hst]
+  exact ⟨⟨⟨hlen, hgood, hpm, hsm⟩, hspec⟩, hnc⟩
 
 end Round
 
