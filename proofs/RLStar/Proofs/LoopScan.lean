@@ -7,11 +7,8 @@ import RLStar.Proofs.RawWindow
 Where every scheduled state finds its samples among the first `n j` draws of each population `j`'s
 streams (`ScanWithin`), two round's draws agreeing on those draws (`AgreeTo`) give the clustering
 the same samples at every scheduled state (`sameReads_of_scan`), so the same round
-(`roundOf_congr`).  A harvested population's table lies on the table side of the hash
-(`prefixesOf_onSide`), so a harvested population's draws holding every scheduled state's samples
-(`DrawsHold`) scan within themselves (`scanWithin_of_drawsHold`).  Where the filled draws' first
-`scanCap` hit, scan within `scanCap` and return at a scheduled state, the round is the one on the
-filled draws (`loopRound_eq_some`).
+(`roundOf_congr`).  Where the streams scan within `scanCap` and return at a scheduled state, the
+round is the one on the streams (`loopRound_eq_some`).
 -/
 
 noncomputable section
@@ -21,6 +18,12 @@ namespace OrthoDFA
 open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {K : ℕ}
+
+/-- Two round's draws agree on the noise, the suffixes, the hash, the first `n j` draws of each
+population `j`'s stream and the first `n uni` of the probes' certification stream. -/
+def AgreeTo {J : Type*} (uni : J) (n : J → ℕ) (x y : Draws Ω (FreeMonoid α) J) : Prop :=
+  x.1.1 = y.1.1 ∧ x.1.2.1.1 = y.1.2.1.1 ∧ x.2 = y.2
+    ∧ (∀ j, ∀ m < n j, x.1.2.1.2 j m = y.1.2.1.2 j m) ∧ ∀ m < n uni, x.1.2.2 uni m = y.1.2.2 uni m
 
 /-! ## Streams agreeing on a stretch -/
 
@@ -267,45 +270,6 @@ lemma AgreeTo.symm {J : Type*} {uni : J} {n : J → ℕ} {x y : Draws Ω (FreeMo
   ⟨h.1.symm, h.2.1.symm, h.2.2.1.symm, fun j m hm => (h.2.2.2.1 j m hm).symm,
     fun m hm => (h.2.2.2.2 m hm).symm⟩
 
-omit [DecidableEq α] [MeasurableSpace Ω] in
-/-- Where the first `M` draws of each population hold every scheduled state's samples, so do the
-first `c j`: all `M` of the probes' population's, and a harvested population's where they number
-`M` or hold every scheduled state's samples (`DrawsHold`) off `U`, the probes' population's
-table. -/
-lemma scanWithin_of_drawsHold {sched : Finset State} {pops : Finset (Option (Fin K))} {M : ℕ}
-    {x : Draws Ω (FreeMonoid α) (Option (Fin K))} {c : Option (Fin K) → ℕ}
-    {U : ℕ → Finset (FreeMonoid α)} (hs : ScanWithin sched pops (fun _ => M) x)
-    (hnone : c none = M)
-    (hU : ∀ B ∈ sched, U B.npref = prefixesOf none B.npref (streams (fun _ => ∅) none x))
-    (hpop : ∀ i, some i ∈ pops → c (some i) = M
-      ∨ DrawsHold sched x.2 U ((List.range (c (some i))).map (x.1.2.1.2 (some i)))) :
-    ScanWithin sched pops c x := by
-  classical
-  intro B hB j hj
-  rcases j with _ | i
-  · have e : seqsOf c x none = seqsOf (fun _ => M) x none := by simp only [seqsOf, hnone]
-    rw [e]
-    exact hs B hB none hj
-  rcases hpop i hj with hM | hD
-  · have e : seqsOf c x (some i) = seqsOf (fun _ => M) x (some i) := by simp only [seqsOf, hM]
-    rw [e]
-    exact hs B hB (some i) hj
-  obtain ⟨h1, h2⟩ := hD B hB
-  refine ⟨h1, fun e he => le_trans (by omega) (h2.trans (Finset.card_le_card ?_))⟩
-  intro s hs'
-  rw [Finset.mem_sdiff] at hs' ⊢
-  refine ⟨hs'.1, fun hT => hs'.2 ?_⟩
-  have hside : x.2 s = false := by
-    have := (List.mem_filter.1 (List.mem_toFinset.1 hs'.1)).2
-    simpa using this
-  obtain ⟨j', hj', hsj⟩ := Finset.mem_biUnion.1 hT
-  rcases j' with _ | i'
-  · rw [hU B hB]
-    exact hsj
-  · have := prefixesOf_onSide (n := fun _ => M) x i' (hs B hB (some i') hj').1 s hsj
-    rw [hside] at this
-    exact absurd this (by simp)
-
 section Congr
 
 variable {sched : Finset State} {pops : Finset (Option (Fin K))}
@@ -381,7 +345,7 @@ theorem roundOf_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
     (hret : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
       r ∈ ret O.mq (loopPopulations K h.pops.length) none settings.η₀ settings.indecisionLimit
         settings.εcov settings.gateLevel B)
-    (u : Fin settings.level3.probeBudget → unitInterval) :
+    (u : settings.Uniforms) :
     roundOf settings O D h r u = roundOf settings O D h r' u := by
   set ps := loopPopulations K h.pops.length
   set sched := settings.schedule ps
@@ -407,71 +371,39 @@ lemma exists_getElem_of_mem_loopPopulations {h : SpecHist α} {i : Fin K}
   obtain ⟨a, ha, rfl⟩ := hi
   exact ⟨_, List.getElem?_eq_getElem ha⟩
 
-/-- Where the filled draws' first `scanCap` after the history `h` hit, scan within `scanCap` and
-return at a scheduled state, the round is the one on the filled draws. -/
+/-- Where the draws after the history `h` scan within `scanCap` and return at a scheduled state,
+the round is the one on the streams. -/
 theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
-    (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
-    (hhit : (clusterDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap
-      settings.scanCap h (d.1, d.2.1)).isSome)
+    (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α) (d : LoopRoundDraws Ω α settings)
     (hscan : ScanWithin (settings.schedule (loopPopulations K h.pops.length))
       (loopPopulations K h.pops.length) (fun _ => settings.scanCap)
-      (idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)))
+      (idealDraws D Dsf h (d.1, d.2.1)))
     (hret : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
-      idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)
+      idealRun D Dsf h (d.1, d.2.1)
         ∈ ret O.mq (loopPopulations K h.pops.length) none settings.η₀ settings.indecisionLimit
           settings.εcov settings.gateLevel B) :
-    loopRound settings O D Dsf h d = some (roundOf settings O D h
-      (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))
+    loopRound settings O D Dsf h d = some (roundOf settings O D h (idealRun D Dsf h (d.1, d.2.1))
       d.2.2) := by
   classical
   set ps := loopPopulations K h.pops.length
   set sched := settings.schedule ps
   set M := settings.scanCap
-  set I := idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)
-    with hI
-  obtain ⟨tabs, hdl, hag, hnone, hpop⟩ := drawLists_of_hit (sched := sched) hhit
-  set dr := drawsOf d.1 D Dsf M h.prefs h.suffs d.2.1 tabs
-  have hdl' : drawLists D settings.level3.walkStart settings.level3.harvestReadCap M sched h d.2.1
-      = some tabs := hdl
-  have hag' : AgreeTo none (fun j => (tabs j).length) dr I := hag
-  have hlen : (tabs none).length = M := by rw [hnone, uniDraws, List.length_ofFn]
-  have hU : ∀ B ∈ sched, uniTable D M h.prefs (d.2.1.2.1 none) B.npref
-      = prefixesOf none B.npref (streams (fun _ => ∅) none I) := by
-    intro B hB
-    refine (prefixesOf_none_eq (n := fun _ => M)
-      (w := padList (uniDraws D M h.prefs (d.2.1.2.1 none))) I (fun k hk => ?_)
-      (hscan B hB none (Finset.mem_insert_self _ _)).1).symm
-    simp only [hI, idealDraws, fillDraw, padList, uniDraws]
-    rw [List.getD_eq_getElem _ _ (by simpa using hk), List.getElem_ofFn]
-  have hsc : ScanWithin sched ps (fun j => (tabs j).length) I := by
-    refine scanWithin_of_drawsHold (U := uniTable D M h.prefs (d.2.1.2.1 none)) hscan hlen hU
-      fun i hi => ?_
-    obtain ⟨s, hs⟩ := exists_getElem_of_mem_loopPopulations hi
-    obtain ⟨-, hD, -⟩ := hpop i s hs
-    rcases hD with hD | hM
-    · right
-      have hl : (List.range (tabs (some i)).length).map (I.1.2.1.2 (some i)) = tabs (some i) := by
-        refine List.ext_getElem (by simp) fun n h1 h2 => ?_
-        rw [List.getElem_map, List.getElem_range, ← hag'.2.2.2.1 (some i) n h2]
-        simp only [dr, drawsOf, padList]
-        rw [List.getD_eq_getElem _ _ h2]
-      rw [hl]
-      exact hD
-    · exact Or.inl hM
-  have hsr := sameReads_of_scan hag'.symm hsc
-  have hsc' := scanWithin_agree hag'.symm hsc
-  have hsr' := sameReads_of_scan hag' hsc'
+  set I := idealDraws D Dsf h (d.1, d.2.1)
+  set dr := drawsOf d.1 D Dsf M h.prefs h.suffs d.2.1 (popTables D M h d.2.1)
+  have hag : AgreeTo none (fun _ => M) dr I := by
+    refine ⟨rfl, rfl, rfl, fun j n hn => ?_, fun n hn => ?_⟩
+    · simp only [dr, I, drawsOf, idealDraws, padList, popTables, uniDraws]
+      rw [List.getD_eq_getElem _ _ (by simpa using hn), List.getElem_ofFn]
+    · simp only [dr, I, drawsOf, idealDraws, padDraws, dif_pos hn, loopDistributions]
+  have hscan' := scanWithin_agree hag.symm hscan
+  have hsr := sameReads_of_scan hag.symm hscan
   have hret' : ∃ B ∈ sched, streams (fun _ => ∅) none dr ∈ ret O.mq ps none settings.η₀
       settings.indecisionLimit settings.εcov settings.gateLevel B := by
     obtain ⟨B, hB, hx⟩ := hret
     exact ⟨B, hB, (hsr.ret O.mq none (Finset.mem_insert_self _ _) _ _ _ _ hB).1 hx⟩
-  have hro := roundOf_congr settings O D h hsr' hret' d.2.2
+  have hro := roundOf_congr settings O D h (sameReads_of_scan hag hscan') hret' d.2.2
   unfold loopRound
-  change (drawLists D settings.level3.walkStart settings.level3.harvestReadCap M sched h
-    d.2.1).bind _ = _
-  rw [hdl', Option.bind_some]
-  rw [if_pos ⟨hsc', hret'⟩]
+  rw [if_pos ⟨hscan', hret'⟩]
   exact congrArg some hro
 
 end OrthoDFA

@@ -1,5 +1,4 @@
 import RLStar.Code.Level3
-import RLStar.Code.LoopDFA
 import RLStar.Proofs.Query
 
 /-! The equations of the `Code/` functions defined as their programs' evals. -/
@@ -340,20 +339,6 @@ end Random
 section PickLeaf
 
 variable [Fintype α]
-
-theorem pickLeaf_eq (H : HypothesisDFA α) (read : FreeMonoid α → ARU) {n : ℕ}
-    (xs : Fin n → FreeMonoid α) :
-    pickLeaf H read xs = (H.tree.leaves.argmax (leafScore H read xs)).getD [] := by
-  change (pickLeafQ H xs).eval read = _
-  unfold pickLeafQ
-  rw [eval_map]
-  have : leafScore H ((Query.table (List.ofFn xs)).eval read) xs = leafScore H read xs := by
-    funext s
-    unfold leafScore
-    congr 2
-    funext i
-    rw [eval_table_of_mem _ (List.mem_ofFn.2 ⟨i, rfl⟩)]
-  rw [this]
 
 end PickLeaf
 

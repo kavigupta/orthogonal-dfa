@@ -14,10 +14,14 @@ import RLStar.Proofs.FamilyOracle
 import RLStar.Proofs.FamilyRead
 import RLStar.Proofs.HypothesisDFA
 import RLStar.Proofs.Level2Round
+import RLStar.Proofs.LazyEpoch
+import RLStar.Proofs.LazyRound
+import RLStar.Proofs.LazyTable
+import RLStar.Proofs.LazyTopUp
+import RLStar.Proofs.Level3NoWrong
+import RLStar.Proofs.ListSlope
 import RLStar.Proofs.LoopRuns
 import RLStar.Proofs.Probe
-import RLStar.Proofs.LoopDFA
-import RLStar.Proofs.LoopDFARelative
 import RLStar.Proofs.Level4
 import RLStar.Proofs.Level5
 import RLStar.Proofs.RandomCorrect
@@ -32,43 +36,39 @@ import RLStar.Proofs.SuccessiveDraws
 import RLStar.Proofs.TrieMass
 import RLStar.Proofs.TripartiteSearch
 import RLStar.Proofs.Trie
-import RLStar.Proofs.TrieLoop
 import RLStar.Proofs.TrieTable
 import RLStar.Proofs.UnaskedFresh
 
 /-!
 # The theorem
 
-The headline: `LearnerLoopDFA`, stated in `RLStar.LowLevelClaims.LoopDFA`, holds: the learner's
-loop outputs a hypothesis that agrees with the target DFA, with every round's tree within `|Q| + 2`
-leaves and each round's harvested draws within `⌈HB⌉₊` probes (`HarvestProbesWithin`), but for
-chance `δ`.
+The headline: `RLStarClaim`, stated in `RLStar.Claims.RLStar`, holds: the learner's lazy loop
+outputs a hypothesis that, its walk starts' sifts read off the last round's table, misclassifies
+at most `ξ` of the strings, with every epoch's tree within `|Q| + 2` leaves, its trie, reads and
+probes within the stated shapes, but for chance `δ`. `RLStarClaimUniform` and `RLStarClaimUniformSimple`
+are the same claim over uniform strings.
 
 The claims it rests on are `ClusteringGuarantee`, stated in `RLStar.LowLevelClaims.Clustering`,
 `ClusteringQualityGuarantee`, stated in `RLStar.LowLevelClaims.ClusteringQuality`, the family-read
 claims, stated in `RLStar.LowLevelClaims.FamilyRead`, `ProbeCorrect`, stated in
-`RLStar.LowLevelClaims.Probe`, `Level2RoundCorrect`, stated in
-`RLStar.LowLevelClaims.Level2Claim`, `Level3RoundCorrect`, `Level4RoundCorrect` and
-`Level5RoundCorrect`, stated in `RLStar.LowLevelClaims.Level3Claim`,
-`RLStar.LowLevelClaims.Level4Claim` and `RLStar.LowLevelClaims.Level5Claim`, and
-`FamilyKappaOracle`, stated in `RLStar.LowLevelClaims.FamilyOracle`. `LearnerLoopDFASimple` is the
-same claim with the simpler premises, and `LearnerLoopDFADist` the simpler one over strings drawn
-from an input distribution. Level 3's reads are randomly indecisive; level 4's are rarely
-wrong, and level 5's wrong at most `κ` times as often as undecided, a few wrong reads tolerated at
-both. The loop runs level 5.
+`RLStar.LowLevelClaims.Probe`, `Level2RoundCorrect`, `Level3RoundCorrect`, `Level4RoundCorrect`
+and `Level5RoundCorrect`, stated in `RLStar.LowLevelClaims.Level2Claim` and its siblings, and
+`FamilyKappaOracle`, stated in `RLStar.LowLevelClaims.FamilyOracle`.
 
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
 `UnaskedFresh`, `RaceTailBound`, `QueryBadTail`, `Level3AllowanceCorrect`, `BitSumTails`,
 `BandKappaBound`, `SuccessiveDrawsTails`, `BlockMiss`, `CoveredStartCorrect`,
 `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `TrieTableCorrect`, `TrieTableReads`,
-`Level3TrieRootOne`, `Level3TrieAgrees`, `TrieLoopAgrees`, `TrieMassBound`, `WalkStartMoves`,
-`RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`, `SiftWithPathCorrect`,
-`SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and `RunsKeepEdgesAtLeaves`.
+`Level3TrieRootOne`, `Level3NoWrongCorrect`, `EpochCorrect`, `TopUpCorrect`,
+`LazyRoundShape`, `LazyRoundCorrect`, `LazyTableCorrect`, `LazyTableReads`, `ListSlope`,
+`TrieMassBound`, `WalkStartMoves`, `RateTestSound`, `SeqRateSound`,
+`TripartiteSearchCorrect`, `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`,
+`SplitAndLearnCorrect` and `RunsKeepEdgesAtLeaves`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`:
 `TrainFamilyClaim`, `CounterexSynthClaim`, `RLStarClaim`,
-`RLStarClaimUniform` and `RLStarClaimUniformSimple`. The `RLStar` claims are of the learner with
-local walk starts (`indecisiveLStarTrieLoop`).
+`RLStarClaimUniform` and `RLStarClaimUniformSimple`. The `RLStar` claims are of the lazy learner
+(`indecisiveLStarLoop`, `learnerQ`).
 -/
 
 namespace OrthoDFA
@@ -121,27 +121,6 @@ theorem sift_and_split_correct : SiftAndSplitCorrect := siftAndSplitCorrect
 theorem walk_correct : WalkCorrect := walkCorrect
 
 #print axioms walk_correct
-
-theorem learner_loop_dfa_simple : LearnerLoopDFASimple := learner_loop_dfa_simple_holds
-
-#print axioms learner_loop_dfa_simple
-
-theorem learner_loop_dfa : LearnerLoopDFA := learner_loop_dfa_holds
-
-#print axioms learner_loop_dfa
-
-theorem learner_loop_dfa_dist : LearnerLoopDFADist := learner_loop_dfa_dist_holds
-
-#print axioms learner_loop_dfa_dist
-
-theorem learner_loop_dfa_relative_simple : LearnerLoopDFARelativeSimple :=
-  learner_loop_dfa_relative_simple_holds
-
-#print axioms learner_loop_dfa_relative_simple
-
-theorem learner_loop_dfa_relative : LearnerLoopDFARelative := learner_loop_dfa_relative_holds
-
-#print axioms learner_loop_dfa_relative
 
 theorem split_and_learn_correct : SplitAndLearnCorrect := splitAndLearnCorrect
 
@@ -243,13 +222,9 @@ theorem level3_trie_root_one : Level3TrieRootOne := level3TrieRootOne
 
 #print axioms level3_trie_root_one
 
-theorem level3_trie_agrees : Level3TrieAgrees := level3TrieAgrees_holds
+theorem level3_no_wrong_correct : Level3NoWrongCorrect := level3NoWrongCorrect_holds
 
-#print axioms level3_trie_agrees
-
-theorem trie_loop_agrees : TrieLoopAgrees := trieLoopAgrees_holds
-
-#print axioms trie_loop_agrees
+#print axioms level3_no_wrong_correct
 
 theorem trie_mass_bound : TrieMassBound := trieMassBound_holds
 
@@ -258,5 +233,35 @@ theorem trie_mass_bound : TrieMassBound := trieMassBound_holds
 theorem walk_start_moves : WalkStartMoves := walkStartMoves_holds
 
 #print axioms walk_start_moves
+
+theorem epoch_correct : EpochCorrect := epochCorrect_holds
+
+#print axioms epoch_correct
+
+theorem top_up_correct : TopUpCorrect := topUpCorrect_holds
+
+#print axioms top_up_correct
+
+theorem lazy_round_shape : LazyRoundShape := lazyRoundShape_holds
+
+#print axioms lazy_round_shape
+
+theorem lazy_round_correct : LazyRoundCorrect :=
+  lazyRoundCorrect_of epochCorrect_holds topUpCorrect_holds trieMassBound_holds
+    walkStartMoves_holds
+
+#print axioms lazy_round_correct
+
+theorem lazy_table_correct : LazyTableCorrect := lazyTableCorrect_holds
+
+#print axioms lazy_table_correct
+
+theorem lazy_table_reads : LazyTableReads := lazyTableReads_holds
+
+#print axioms lazy_table_reads
+
+theorem list_slope : ListSlope := listSlope_holds
+
+#print axioms list_slope
 
 end OrthoDFA
