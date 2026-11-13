@@ -29,7 +29,7 @@ private theorem unpad_padIn (K : ℕ) (X : Finset (FreeMonoid α)) (x : FreeMono
   simp [List.reduceOption]
 
 omit [Fintype α] [DecidableEq α] in
-private theorem le_length_padIn (K : ℕ) (X : Finset (FreeMonoid α)) (x : FreeMonoid α) :
+theorem le_length_padIn (K : ℕ) (X : Finset (FreeMonoid α)) (x : FreeMonoid α) :
     K ≤ (padIn K X x).toList.length := by
   have := walkStartIn_le X x
   simp only [padIn, FreeMonoid.toList_ofList, List.length_append, List.length_replicate,
@@ -76,7 +76,7 @@ private theorem eval_lazyTableQ_of_mem (read : FreeMonoid α → ARU) (K : ℕ)
   rfl
 
 omit [DecidableEq α] in
-private theorem lazyClassifies_iff (read : FreeMonoid α → ARU) (H : HypothesisDFA (Option α))
+theorem lazyClassifies_iff (read : FreeMonoid α → ARU) (H : HypothesisDFA (Option α))
     {K : ℕ} {X : Finset (FreeMonoid α)} (hX : ∀ u ∈ X, u.toList.length < K) {x : FreeMonoid α}
     (hx : K ≤ x.toList.length) (b : Prop) :
     H.LazyClassifies ((lazyTableQ K H.tree X).eval read) X x b

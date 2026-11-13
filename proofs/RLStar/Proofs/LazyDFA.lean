@@ -1,4 +1,5 @@
 import RLStar.Proofs.TrieTable
+import RLStar.Proofs.LazyTable
 import RLStar.LowLevelClaims.LazyRound
 import RLStar.LowLevelClaims.Trie
 
@@ -20,14 +21,15 @@ theorem lazyClassifies_iff (read : FreeMonoid α → ARU) (K : ℕ) (H : Hypothe
     (X : Finset (FreeMonoid α)) (hX : Random.TrieOK K X) (x : FreeMonoid α) (b : Prop) :
     H.LazyClassifies ((Random.lazyTableQ K H.tree X).eval read) X x b
       ↔ H.TrieClassifies (Random.padRead read) (Random.completeTrie K) (Random.padIn K X x) b := by
-  sorry -- closes by: eval_piList, eval_subst, prefixOf_walkStartIn_mem_trieFrontier, padIn algebra
+  sorry -- false at x ∈ X; given K ≤ |x| it is Random.lazyClassifies_iff read H hX.1 hx b
 
 theorem mem_lazyDisagree_iff (read : FreeMonoid α → ARU) (K : ℕ) (X : Finset (FreeMonoid α))
     (H : HypothesisDFA (Option α)) (x : FreeMonoid α) :
     x ∈ Random.lazyDisagree read K X H
       ↔ Random.padIn K X x
         ∈ Random.trieDisagreeSet (Random.padRead read) (Random.completeTrie K) H := by
-  sorry -- closes by: walkStartIn of completeTrie at a padded string is K
+  simp only [Random.lazyDisagree, Random.trieDisagreeSet, Set.mem_ofPred_eq]
+  rw [Random.walkStartIn_completeTrie (Random.le_length_padIn K X x)]
 
 end OrthoDFA
 
