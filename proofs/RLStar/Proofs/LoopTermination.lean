@@ -320,7 +320,173 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
       ∧ ∃ o ∈ (idealRounds settings O P.D Dsf draws K).getLast?,
         o.Checks M O P.D k (εcov + 2 * settings.indecisionLimit + 2 * slack)
           (2 * settings.indecisionLimit + slack) εd := by
-  sorry -- closes by: main's proof on listLaw, exists_heavy_state, good_of_heavy
+  classical
+  set L := idealRounds settings O P.D Dsf draws K with hLdef
+  set c := 2 * settings.indecisionLimit + slack with hcd
+  -- each round, as the clustering's claim has it
+  have hround : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
+      L[i].state.lo ≤ L[i].state.hi ∧ 1 ∉ L[i].family
+      ∧ ∫ p, miscutProb O L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p ∂P.D
+          ≤ εcov + slack
+      ∧ ∀ j ∈ loopPopulations K (specHistOf (L.take i)).pops.length,
+        ∫ p, undecidedProb O L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p
+          ∂(loopDistributions P.D (specHistOf (L.take i)).pops j) ≤ c := by
+    intro i hi hiσ
+    obtain ⟨hiK, e⟩ := getElem_idealRounds settings O P.D Dsf draws K i hi
+    have hs := (hspec i hi hiK hiσ).1
+    rw [idealRunAt, ← take_idealRounds settings O P.D Dsf draws hiK.le] at hs
+    rw [e]
+    obtain ⟨hmem, hq⟩ := idealRound_quality settings O P.D Dsf (specHistOf (L.take i))
+      (draws ⟨i, hiK⟩) (D' := P.D) hs
+    exact ⟨hsched _ _ hmem, one_notMem_idealRound_family settings O P.D Dsf
+      (specHistOf (L.take i)) (draws ⟨i, hiK⟩), hq⟩
+  -- a round that does not harvest agrees
+  have hagree : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
+      ¬ L[i].result.ending.IsHarvest →
+      L[i].Checks M O P.D k (εcov + 2 * settings.indecisionLimit + 2 * slack) c εd := by
+    intro i hi hiσ hn
+    obtain ⟨hlh, h1, hmis, hund⟩ := hround i hi hiσ
+    obtain ⟨h4, hpeak⟩ := (hspec i hi (by omega) hiσ).2
+    have hcons : L[i].result.ending = .consistent ∧ P.D.real
+        (Random.lazyDisagree L[i].read k L[i].result.expanded L[i].result.hypothesis) ≤ εd := by
+      rcases hE : L[i].result.ending with _ | ⟨s, ℓ⟩ | _
+      · rw [hE] at h4; exact ⟨rfl, h4⟩
+      · rw [hE] at hn; exact absurd trivial hn
+      · rw [hE] at h4; exact h4.elim
+    have hnone : none ∈ loopPopulations K (specHistOf (L.take i)).pops.length := by
+      simp [loopPopulations]
+    have hund' := hund none hnone
+    simp only [loopDistributions] at hund'
+    have hb := (integrable_of_unit P.D (fun p => miscutProb O L[i].state.lo
+      (L[i].state.hi + 1) (insert 1 L[i].family) p) (fun _ => measureReal_nonneg)
+      (fun _ => measureReal_le_one)).add (integrable_of_unit P.D (fun p => undecidedProb O
+        L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p)
+        (fun _ => measureReal_nonneg) (fun _ => measureReal_le_one))
+    refine ⟨⟨hcons.1, ?_, ?_⟩, hcons.2, hpeak⟩
+    · calc ∫ p, misreadProb O L[i].family L[i].state.lo (L[i].state.hi + 1) p ∂P.D
+          ≤ ∫ p, (miscutProb O L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p
+              + undecidedProb O L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p)
+            ∂P.D :=
+            integral_mono (integrable_of_unit P.D _ (fun _ => measureReal_nonneg)
+              (fun _ => measureReal_le_one)) hb (fun p => misreadProb_le O h1 hlh p)
+        _ = ∫ p, miscutProb O L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p ∂P.D
+            + ∫ p, undecidedProb O L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p
+              ∂P.D :=
+            integral_add (integrable_of_unit P.D _ (fun _ => measureReal_nonneg)
+              (fun _ => measureReal_le_one)) (integrable_of_unit P.D _
+                (fun _ => measureReal_nonneg) (fun _ => measureReal_le_one))
+        _ ≤ εcov + 2 * settings.indecisionLimit + 2 * slack := by linarith
+    · calc ∫ p, readProb O L[i].family L[i].state.lo (L[i].state.hi + 1) p .undecided ∂P.D
+          ≤ ∫ p, undecidedProb O L[i].state.lo (L[i].state.hi + 1) (insert 1 L[i].family) p
+            ∂P.D :=
+            integral_mono (integrable_of_unit P.D _ (fun _ => measureReal_nonneg)
+              (fun _ => measureReal_le_one)) (integrable_of_unit P.D _
+                (fun _ => measureReal_nonneg) (fun _ => measureReal_le_one))
+              (fun p => readProb_undecided_le O h1 _ _ p)
+        _ ≤ c := hund'
+  -- some round among the first `|Q| + 1` does not harvest
+  have hstop : ∃ i, ∃ hi : i < L.length, i ≤ Fintype.card σ
+      ∧ ¬ L[i].result.ending.IsHarvest := by
+    by_contra hno
+    push Not at hno
+    by_cases hlen : Fintype.card σ + 1 ≤ L.length
+    · -- `|Q| + 1` harvests, each forcing a new state good
+      have hall : ∀ j ≤ Fintype.card σ, AllHarvested (L.take j) := by
+        intro j hj o ho
+        obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ho
+        rw [List.getElem_take]
+        exact hno i (by simp at hi; omega) (by simp at hi; omega)
+      have hzs : ∀ i (hi : i ≤ Fintype.card σ), ∃ s ℓ,
+          (L[i]'(by omega)).result.ending = .harvest s ℓ := by
+        intro i hi
+        have h := hno i (by omega) hi
+        revert h
+        cases (L[i]'(by omega)).result.ending <;> simp [Random.LazyEnd.IsHarvest]
+      choose s ℓ he using hzs
+      have hpop : ∀ i (hi : i ≤ Fintype.card σ), (L[i]'(by omega)).population = some (ℓ i hi) :=
+        fun i hi => by simp [SpecRound.population, he i hi]
+      have hQ : (0 : ℝ) < Fintype.card σ := by
+        have : Nonempty σ := ⟨M.start⟩
+        exact_mod_cast Fintype.card_pos
+      have hbad : ∀ i (hi : i ≤ Fintype.card σ), ∃ q,
+          ¬ familyReadDist O M (L[i]'(by omega)).family (L[i]'(by omega)).state.lo
+            ((L[i]'(by omega)).state.hi + 1) q .undecided ≤ T
+          ∧ c < T * (listLaw (ℓ i hi)).real {z | M.eval z.toList = q} := by
+        intro i hi
+        have h4 := (hspec i (by omega) (by omega) hi).2.1
+        rw [he i hi] at h4
+        set ν := listLaw (ℓ i hi)
+        set U := fun q => familyReadDist O M (L[i]'(by omega)).family
+          (L[i]'(by omega)).state.lo ((L[i]'(by omega)).state.hi + 1) q .undecided
+        set bad := fun q => ¬ U q ≤ T
+        have hlow : ν.real {z | U (M.eval z.toList) ≤ T} ≤ A * T + sl := h4 T hT.le
+        have hsplit : ν.real {z | bad (M.eval z.toList)}
+            = 1 - ν.real {z | U (M.eval z.toList) ≤ T} := by
+          have hc' : {z : FreeMonoid α | bad (M.eval z.toList)}
+              = {z | U (M.eval z.toList) ≤ T}ᶜ := by ext z; simp [bad]
+          rw [hc', probReal_compl_eq_one_sub (measurableSet_of_countable _)]
+        have hpb : Fintype.card σ * c / T < ν.real {z | bad (M.eval z.toList)} := by
+          rw [hsplit]
+          linarith
+        have hQc : 0 < Fintype.card σ * c := mul_pos hQ hc
+        have hpb' : 1 < T / (Fintype.card σ * c) * ν.real {z | bad (M.eval z.toList)} := by
+          calc (1 : ℝ) = T / (Fintype.card σ * c) * (Fintype.card σ * c / T) := by
+                field_simp
+            _ < _ := mul_lt_mul_of_pos_left hpb (by positivity)
+        obtain ⟨q, hqb, hq⟩ := exists_heavy_state M bad ν (by positivity) hpb'
+        refine ⟨q, hqb, ?_⟩
+        have e : T / (Fintype.card σ * c) * Fintype.card σ * ν.real {z | M.eval z.toList = q}
+            = T * ν.real {z | M.eval z.toList = q} / c := by
+          field_simp
+        rw [e, lt_div_iff₀ hc] at hq
+        linarith
+      choose q hq using hbad
+      have hgood : ∀ i j (hi : i ≤ Fintype.card σ) (hj : j ≤ Fintype.card σ), i < j →
+          familyReadDist O M (L[j]'(by omega)).family (L[j]'(by omega)).state.lo
+            ((L[j]'(by omega)).state.hi + 1) (q i hi) .undecided ≤ T := by
+        intro i j hi hj hij
+        obtain ⟨-, h1, -, hund⟩ := hround j (by omega) hj
+        have hlenj : (specHistOf (L.take j)).pops.length = j := by
+          rw [length_specHistOf_pops (hall j hj), List.length_take]; omega
+        have hiK : i < K := by omega
+        have hmem : some ⟨i, hiK⟩ ∈ loopPopulations K (specHistOf (L.take j)).pops.length := by
+          simp [loopPopulations, hlenj, hij]
+        have hg := hund _ hmem
+        have hgd := pops_take_getD (rounds := L) hij (by omega) (hall j hj) (hpop i hi)
+        have hsome : (specHistOf (L.take j)).pops[i]? = some (ℓ i hi) := by
+          rw [← hgd, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega),
+            Option.getD_some]
+        simp only [loopDistributions, hsome] at hg
+        exact good_of_heavy M O hL h1 _ _ (listLaw (ℓ i hi)) (q i hi) (hq i hi).2 hg
+      have hinj : Function.Injective fun i : Fin (Fintype.card σ + 1) =>
+          q i.val (Nat.lt_succ_iff.1 i.isLt) := by
+        intro a b hab
+        simp only at hab
+        by_contra hne
+        rcases lt_or_gt_of_ne (Fin.val_ne_of_ne hne) with h | h
+        · have := hgood a b (Nat.lt_succ_iff.1 a.isLt) (Nat.lt_succ_iff.1 b.isLt) h
+          rw [hab] at this
+          exact (hq b _).1 this
+        · have := hgood b a (Nat.lt_succ_iff.1 b.isLt) (Nat.lt_succ_iff.1 a.isLt) h
+          rw [← hab] at this
+          exact (hq a _).1 this
+      have := Fintype.card_le_of_injective _ hinj
+      simp at this
+    · -- fewer than `|Q| + 1` rounds, so the last did not harvest
+      have hst := idealRounds_stops settings O P.D Dsf draws
+      rw [← hLdef] at hst
+      rcases hst with h | ⟨o, ho, hn⟩
+      · omega
+      · rw [List.getLast?_eq_getElem?] at ho
+        obtain ⟨hlt, rfl⟩ := List.getElem?_eq_some_iff.1 ho
+        exact hn (hno _ hlt (by omega))
+  obtain ⟨i, hi, hiσ, hn⟩ := hstop
+  have hlast : i + 1 = L.length := by
+    by_contra hne
+    exact hn (harvested_of_lt settings O P.D Dsf draws K i (by rw [← hLdef]; omega))
+  refine ⟨by omega, L[i], ?_, hagree i hi hiσ hn⟩
+  rw [List.getLast?_eq_getElem?, ← hlast]
+  simp
 
 end OrthoDFA
 
