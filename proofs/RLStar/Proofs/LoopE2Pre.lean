@@ -1,5 +1,4 @@
 import RLStar.Proofs.LazyFail
-import RLStar.Proofs.LoopRuns
 import RLStar.Proofs.TrieTable
 import Mathlib.Data.List.ReduceOption
 
