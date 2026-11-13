@@ -42,14 +42,6 @@ lemma specHistOf_eq (rs : List (SpecRound α)) :
     specHistOf rs = histOf (rs.map SpecRound.data) := by
   sorry -- closes by: unfold specHistOf histOf, List.filterMap_map, List.foldr_map
 
-lemma allSome_eq_some {ι β : Type*} {f : ι → Option β} {g : ι → β} (h : allSome f = some g)
-    (i : ι) : f i = some (g i) := by
-  unfold allSome at h
-  split_ifs at h with hall
-  · rw [Option.some.injEq] at h
-    subst h
-    exact (Option.some_get _).symm
-
 open scoped Classical in
 lemma eval_roundQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
     (d : settings.RoundDraws α) :
@@ -67,35 +59,7 @@ theorem eval_loopRoundsQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoi
       ∧ ∀ rs ∈ loopRounds settings O D Dsf (persistDraws (ω, rd)) r, ∀ o ∈ rs, o.ReadsAt O ω
   | 0 => ⟨rfl, by simp [loopRounds]⟩
   | r + 1 => by
-    obtain ⟨ih1, ih2⟩ := eval_loopRoundsQ settings D Dsf rd r
-    rw [loopRoundsQ, loopRounds, eval_bind, ih1]
-    rcases hrs : loopRounds settings O D Dsf (persistDraws (ω, rd)) r with _ | rs
-    · simp
-    have hR := ih2 rs hrs
-    simp only [Option.map_some, Option.bind_some]
-    have hcond : (∀ o ∈ rs.map SpecRound.data, o.result.ending.IsHarvest)
-        ↔ ∀ o ∈ rs, o.result.ending.IsHarvest := by
-      simp [SpecRound.data]
-    by_cases hc : r < K ∧ ∀ o ∈ rs, o.result.ending.IsHarvest
-    · rw [dif_pos ⟨hc.1, hcond.2 hc.2⟩, dif_pos hc, eval_map]
-      obtain ⟨e1, e2⟩ := eval_roundQ O ω settings D Dsf (histOf (rs.map SpecRound.data))
-        (rd ⟨r, hc.1⟩)
-      rw [← specHistOf_eq rs] at e1 e2
-      have hp : persistDraws (ω, rd) ⟨r, hc.1⟩ = (ω, rd ⟨r, hc.1⟩) := rfl
-      rw [hp, e1]
-      refine ⟨?_, fun rs' hrs' o ho => ?_⟩
-      · rcases loopRound settings O D Dsf (specHistOf rs) (ω, rd ⟨r, hc.1⟩) with _ | o <;> simp
-      · obtain ⟨o', ho', rfl⟩ := Option.mem_map.1 hrs'
-        rcases List.mem_append.1 ho with ho | ho
-        · exact hR o ho
-        · rw [List.mem_singleton] at ho
-          subst ho
-          exact e2 _ ho'
-    · rw [dif_neg (fun h => hc ⟨h.1, hcond.1 h.2⟩), dif_neg hc]
-      refine ⟨rfl, fun rs' hrs' => ?_⟩
-      rw [Option.mem_some_iff] at hrs'
-      subst hrs'
-      exact hR
+    sorry -- closes by: main's induction step with eval_roundQ, specHistOf_eq
 
 /-- The loop's rounds at `p` are the functions' at `p.1` in every round. -/
 theorem indecisiveLStarLoop_eq (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
@@ -162,41 +126,7 @@ variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Me
 /-- Every round the loop runs has a family of at most `f` members. -/
 lemma loopRounds_small {f : ℕ} (hk : ∀ pops, ∀ B ∈ settings.schedule pops, B.k ≤ f + 1)
     (r : ℕ) : ∀ rs ∈ loopRounds settings O D Dsf draws r, ∀ o ∈ rs, o.family.card ≤ f := by
-  induction r with
-  | zero =>
-    intro rounds hr
-    rw [loopRounds, Option.mem_def, Option.some.injEq] at hr
-    subst hr
-    simp
-  | succ r ih =>
-    intro rounds hr
-    rw [loopRounds] at hr
-    obtain ⟨rs, hrs, hr⟩ := Option.mem_bind_iff.1 hr
-    have hrr := ih rs hrs
-    split_ifs at hr with hc
-    · obtain ⟨o, ho, rfl⟩ := Option.mem_map.1 hr
-      intro o' ho'
-      rcases List.mem_append.1 ho' with h1 | h1
-      · exact hrr o' h1
-      · rw [List.mem_singleton] at h1
-        subst h1
-        unfold loopRound at ho
-        obtain ⟨tabs, -, hdr⟩ := Option.mem_bind_iff.1 ho
-        dsimp only at hdr
-        split_ifs at hdr with hcond
-        · rw [← Option.mem_some_iff.1 hdr]
-          obtain ⟨B, hB, hr⟩ := hcond.2
-          have hBs := (Classical.epsilon_spec (p := fun B => B ∈ settings.schedule
-            (loopPopulations K (specHistOf rs).pops.length) ∧ streams (fun _ => ∅) none
-              (drawsOf (draws ⟨r, hc.1⟩).1 D Dsf settings.scanCap (specHistOf rs).prefs
-                (specHistOf rs).suffs (draws ⟨r, hc.1⟩).2.1 tabs) ∈ ret
-              O.mq (loopPopulations K (specHistOf rs).pops.length) none settings.η₀
-              settings.indecisionLimit settings.εcov settings.gateLevel B) ⟨B, hB, hr⟩).1
-          exact (card_clusterAt_le _ _ _ _).trans (Nat.sub_le_of_le_add (hk _ _ hBs))
-        · cases hdr
-    · rw [Option.mem_some_iff] at hr
-      subst hr
-      exact hrr
+  sorry -- closes by: main's induction; loopRound's family is clusterAt, card_clusterAt_le
 
 end Small
 

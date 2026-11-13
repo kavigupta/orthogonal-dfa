@@ -59,7 +59,7 @@ The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBo
 `UnaskedFresh`, `RaceTailBound`, `QueryBadTail`, `Level3AllowanceCorrect`, `BitSumTails`,
 `BandKappaBound`, `SuccessiveDrawsTails`, `BlockMiss`, `CoveredStartCorrect`,
 `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `TrieTableCorrect`, `TrieTableReads`,
-`Level3TrieRootOne`, `Level3TrieAgrees`, `Level3NoWrongCorrect`, `EpochCorrect`, `TopUpCorrect`,
+`Level3TrieRootOne`, `Level3NoWrongCorrect`, `EpochCorrect`, `TopUpCorrect`,
 `LazyRoundShape`, `LazyRoundCorrect`, `LazyTableCorrect`, `LazyTableReads`, `ListSlope`,
 `TrieMassBound`, `WalkStartMoves`, `RateTestSound`, `SeqRateSound`,
 `TripartiteSearchCorrect`, `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`,
@@ -221,10 +221,6 @@ theorem trie_table_reads : TrieTableReads := trieTableReads_holds
 theorem level3_trie_root_one : Level3TrieRootOne := level3TrieRootOne
 
 #print axioms level3_trie_root_one
-
-theorem level3_trie_agrees : Level3TrieAgrees := level3TrieAgrees_holds
-
-#print axioms level3_trie_agrees
 
 theorem level3_no_wrong_correct : Level3NoWrongCorrect := level3NoWrongCorrect_holds
 

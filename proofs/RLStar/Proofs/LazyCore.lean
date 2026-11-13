@@ -110,11 +110,6 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     hL hgap hη₀ hbalL hbalN hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL ht hlong hp₀0 hpreD hpAPu
     hk1 hk3 hk6 hι0 hι8 hW1 hnh hnhc hnhp hE hJ hb hNr hNrW htwW htw hTu hslope hξT
   classical
-        ≤ δ := by
-  intro Q A kN L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB capP Kc SC HN FV SH HB
-    hL hgap hη₀ hbalL hbalN hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL hcap ht hlong hp₀0 hpreD hpAPu
-    hk1 hk2 hk3 hk4 hk6 hξT
-  classical
   have hη0 : 0 ≤ η₀ := by have := gap_le_one O; linarith
   have hA2' : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
   have hA0 : (0 : ℝ) < A := by linarith

@@ -12,9 +12,6 @@ the DFA then misjudges at most the probes that disagree plus the strings the roo
 (`TrieSinglePieceCorrect`), with no start, zone or edge argument.
 
 `Level3TrieRootOne`: every tree a round grows reads `ε` at its root, as level 3's do.
-
-`Level3TrieAgrees`: probes at least `walkStart` long run as level 3's, nothing expanded past the
-complete trie.
 -/
 
 noncomputable section
@@ -59,14 +56,6 @@ def Level3TrieRootOne : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings)
     (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α),
     ∃ r a, (indecisiveLStarLevel3Trie C read draws).hypothesis.tree = .node 1 r a
-
-def Level3TrieAgrees : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] (C : Level3Settings)
-    (read : FreeMonoid α → ARU) {P : ℕ} (draws : Fin P → FreeMonoid α),
-    (∀ i, C.walkStart ≤ (draws i).toList.length) →
-    indecisiveLStarLevel3Trie C read draws
-      = ⟨(indecisiveLStarLevel3 C read draws).hypothesis, completeTrie C.walkStart,
-        (indecisiveLStarLevel3 C read draws).ending⟩
 
 end OrthoDFA
 

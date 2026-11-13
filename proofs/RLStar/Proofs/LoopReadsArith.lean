@@ -5,10 +5,8 @@ import RLStar.Proofs.LoopQuery
 # The strings the learner asks, as a real bound
 
 `lazyReads` is `K` rounds of `roundCallBound` and the last round's table (`reads_le_lazyReads`).
-`learnerReads` is main's count, split by source, which the asymptotic files still bound.
-`loopSC` and `loopHB` bound `LearnerLoopDFASimple`'s scan cap and the probes a round's harvested draws walk at
-`ℓ = L₁ + 1`, the prefix count `RB` at `loopCount`, and `loopSH` the draws a harvested
-population makes in a round.
+`learnerReads`, `loopSC`, `loopSH` and `loopHB` are main's counts, which the asymptotic files
+still bound.
 -/
 
 noncomputable section
