@@ -247,7 +247,7 @@ private lemma lazyEpochsQ_eval_congr {r r' : FreeMonoid α → ARU} (C : Level3S
 end LazyCongr
 
 /-- Reads agreeing on every string at most `probes + T` long give the same lazy round. -/
-private theorem lazyRound_eval_congr (C : Random.Level3Settings) (K nh : ℕ) {E J b : ℕ}
+theorem lazyRound_eval_congr (C : Random.Level3Settings) (K nh : ℕ) {E J b : ℕ}
     (X₀ : Finset (FreeMonoid α)) (d : Fin E → Random.EpochDraws α C.probeBudget J b)
     {r r' : FreeMonoid α → ARU}
     (h : ∀ z : FreeMonoid α, z.toList.length ≤ lazyProbesLen d + C.probeBudget → r z = r' z) :
