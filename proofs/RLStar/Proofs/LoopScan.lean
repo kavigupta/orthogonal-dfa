@@ -384,7 +384,7 @@ theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
           settings.εcov settings.gateLevel B) :
     loopRound settings O D Dsf h d = some (roundOf settings O D h (idealRun D Dsf h (d.1, d.2.1))
       d.2.2) := by
-  sorry -- closes by: AgreeTo none (fun _ => scanCap) between drawsOf (popTables) and idealDraws (List.getElem_ofFn), then sameReads_of_scan, scanWithin_agree, roundOf_congr
+  sorry -- closes by: AgreeTo of drawsOf, idealDraws; sameReads_of_scan, roundOf_congr
 
 end OrthoDFA
 

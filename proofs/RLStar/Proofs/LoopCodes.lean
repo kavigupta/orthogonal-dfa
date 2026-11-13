@@ -181,7 +181,7 @@ def codesOf (rounds : List (SpecRound α)) : List (HarvestCode α) :=
 theorem decodeHist_codesOf (rounds : List (SpecRound α))
     (hall : ∀ o ∈ rounds, o.result.ending.IsHarvest) :
     decodeHist (codesOf rounds) = specHistOf rounds := by
-  sorry -- closes by: induction on rounds, unfolding popCode, SpecRound.population on each harvest
+  sorry -- closes by: induction on rounds, popCode, SpecRound.population
 
 /-- The least `L` with `D`'s strings almost surely at most `L` long; `0` where none is. -/
 noncomputable def lenBound (D : Measure (FreeMonoid α)) : ℕ :=

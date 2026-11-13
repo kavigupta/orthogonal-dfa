@@ -70,12 +70,10 @@ lemma measurable_persist :
       fun i => ((p.1, p.2 i) : LoopRoundDraws Ω α settings)) :=
   measurable_pi_lambda _ fun i => measurable_fst.prodMk ((measurable_pi_apply i).comp measurable_snd)
 
-lemma measurableSet_histCodes [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (r : ℕ)
-    (c : List (HarvestCode α)) :
+lemma measurableSet_histCodes [IsProbabilityMeasure D] (r : ℕ) (c : List (HarvestCode α)) :
     MeasurableSet {p : Ω × (Fin K → settings.RoundDraws α) |
       histCodes settings O D Dsf p.1 p.2 r = c} :=
-  measurable_persist settings (measurableSet_codesOf settings O D Dsf (ae_lenBound hlen) (N := codeLen settings D) le_rfl r c)
+  measurable_persist settings (measurableSet_codesOf settings O D Dsf r c)
 
 omit [IsProbabilityMeasure μ] in
 lemma measurable_idealRun_at [IsProbabilityMeasure D] (h : SpecHist α) (i : Fin K) :
@@ -84,15 +82,14 @@ lemma measurable_idealRun_at [IsProbabilityMeasure D] (h : SpecHist α) (i : Fin
   (measurable_idealRun D Dsf h).comp (measurable_fst.prodMk (measurable_fst.comp
     ((measurable_pi_apply i).comp measurable_snd)))
 
-lemma measurableSet_histOK [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    :
+lemma measurableSet_histOK [IsProbabilityMeasure D] :
     ∀ r : ℕ, MeasurableSet {p : Ω × (Fin K → settings.RoundDraws α) |
       HistOK settings O D Dsf p.1 p.2 r}
   | 0 => by simp only [HistOK, Set.setOf_true]; exact MeasurableSet.univ
   | r + 1 => by
     classical
     simp only [HistOK, Set.setOf_and]
-    refine (measurableSet_histOK hlen r).inter ?_
+    refine (measurableSet_histOK r).inter ?_
     by_cases hr : r < K
     · have hset : {p : Ω × (Fin K → settings.RoundDraws α) |
           ∀ h : r < K, (histCodes settings O D Dsf p.1 p.2 r).length = r →
@@ -128,7 +125,7 @@ lemma measurableSet_histOK [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
           exact ⟨B, hB, hrB⟩
       rw [hset]
       refine MeasurableSet.iUnion fun c =>
-        (measurableSet_histCodes settings O D Dsf hlen r c).inter ?_
+        (measurableSet_histCodes settings O D Dsf r c).inter ?_
       split_ifs
       · exact Finset.measurableSet_biUnion _ fun B _ =>
           measurable_idealRun_at settings D Dsf _ ⟨r, hr⟩ (measurableSet_ret O _ none _ _ _ _ B)
@@ -148,7 +145,7 @@ lemma measurableSet_histOK [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
       rw [this]
       exact MeasurableSet.univ
 
-lemma measurableSet_stageH [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+lemma measurableSet_stageH [IsProbabilityMeasure D]
     (r : ℕ)
     (y : Option (List (HarvestCode α))) :
     MeasurableSet {p : Ω × (Fin K → settings.RoundDraws α) |
@@ -161,7 +158,7 @@ lemma measurableSet_stageH [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
       simp only [stageH, Set.mem_setOf_eq, Set.mem_compl_iff]
       split_ifs with h <;> simp [h]
     rw [this]
-    exact (measurableSet_histOK settings O D Dsf hlen r).compl
+    exact (measurableSet_histOK settings O D Dsf r).compl
   · have : {p : Ω × (Fin K → settings.RoundDraws α) |
         stageH settings O D Dsf r p.1 p.2 = some c}
         = {p | HistOK settings O D Dsf p.1 p.2 r}
@@ -170,12 +167,12 @@ lemma measurableSet_stageH [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
       simp only [stageH, Set.mem_setOf_eq, Set.mem_inter_iff]
       split_ifs with h <;> simp [h]
     rw [this]
-    exact (measurableSet_histOK settings O D Dsf hlen r).inter
-      (measurableSet_histCodes settings O D Dsf hlen r c)
+    exact (measurableSet_histOK settings O D Dsf r).inter
+      (measurableSet_histCodes settings O D Dsf r c)
 
 /-- Where every earlier clustering returned, the answers at the strings the earlier rounds read
 fix the stage. -/
-lemma stageH_stop [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+lemma stageH_stop [IsProbabilityMeasure D]
     (r : ℕ)
     (c : List (HarvestCode α)) (g : Fin K → settings.RoundDraws α)
     (ω ω' ω₀ : Ω) (hs : stageH settings O D Dsf r ω g = some c)
@@ -185,7 +182,7 @@ lemma stageH_stop [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.to
   unfold stageH at hs ⊢
   split_ifs at hs with hok
   obtain rfl := Option.some.inj hs
-  obtain ⟨hok', hc⟩ := hist_congr settings O D Dsf hlen g r ω ω' hok h
+  obtain ⟨hok', hc⟩ := hist_congr settings O D Dsf g r ω ω' hok h
   rw [if_pos hok', hc]
 
 end Stage

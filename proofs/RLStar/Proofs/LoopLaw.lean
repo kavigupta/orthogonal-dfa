@@ -69,7 +69,7 @@ theorem measurePreserving_idealDraws {μ : Measure Ω} [IsProbabilityMeasure μ]
     MeasurePreserving (idealDraws (Ω := Ω) (K := K) D Dsf h) (clusterLaw μ α K)
       (runMeasure μ (fun j => offLaw (loopDistributions D h.pops j) h.prefs)
         (offLaw Dsf h.suffs)) := by
-  sorry -- closes by: main's proof (LoopLaw.lean:246) with hP from measurePreserving_streams over volume
+  sorry -- closes by: main's proof, measurePreserving_streams
 
 lemma measurable_idealDraws (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (h : SpecHist α) : Measurable (idealDraws (Ω := Ω) (K := K) D Dsf h) := by

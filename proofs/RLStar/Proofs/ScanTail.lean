@@ -10,7 +10,8 @@ at most `C(M, T) (Tρ)^(M-T)` (`measureReal_card_image_lt`): some `T` of the dra
 value the draws take.  Where each population's two sides offer `(2 + |pops|) NP` distinct strings
 among the first `M` draws, every state reading at most `NP` prefixes scans within `M`
 (`scanWithin_of_not_scanShort`). A population's sides split its one stream by the hash, which
-past `T ≥ 4A` distinct strings leaves a side short of `A` with chance at most `2 exp(-T/8)`.  Some population falls short with the chance of `runMeasure_scanShort_le`.
+past `T ≥ 4A` distinct strings leaves a side short of `A` with chance at most `2 exp(-T/8)`.
+Some population falls short with the chance of `runMeasure_scanShort_le`.
 -/
 
 noncomputable section

@@ -148,6 +148,6 @@ lemma pops_take_getD {rounds : List (SpecRound α)} {j i : ℕ} (hij : i < j)
     (hj : j ≤ rounds.length) (hall : AllHarvested (rounds.take j)) {ℓ : List (FreeMonoid α)}
     (hℓ : (rounds[i]'(by omega)).population = some ℓ) :
     (specHistOf (rounds.take j)).pops.getD i [] = ℓ := by
-  sorry -- closes by: main's harvestsOf_take_getD (LoopRounds.lean:166), induction on rounds
+  sorry -- closes by: main's harvestsOf_take_getD, induction on rounds
 
 end OrthoDFA

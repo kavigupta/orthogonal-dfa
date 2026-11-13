@@ -6,8 +6,8 @@ import RLStar.Proofs.LoopOff
 
 Over its draws, a round's clustering reads the oracle only at its prefixes followed by its pool's
 suffixes or by nothing, `schedReads`: at every state of the schedule its tests read no further,
-since the gate's pool is capped. Its level 3 run and the harvest data it hands on read only short
-strings followed by the pool's suffixes. So a round's harvest data are fixed by the answers at
+since the gate's pool is capped. Its lazy round reads only short strings followed by the pool's
+suffixes. So a round's harvest data are fixed by the answers at
 `roundReads` (`popCode_congr`), and the earlier rounds' harvest data by the answers at the union of
 their rounds' sets, `histReads` (`codes_congr`).
 -/
@@ -185,36 +185,32 @@ def runOf (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : Spe
     (c : ClusterRest α K) :
     ((ℕ → FreeMonoid α) × (Option (Fin K) → ℕ → FreeMonoid α))
       × (Option (Fin K) → ℕ → FreeMonoid α) :=
-  (idealRun (Ω := Unit) D Dsf settings.level3.walkStart settings.level3.harvestReadCap h
-    ((), c)).2
+  (idealRun (Ω := Unit) D Dsf h ((), c)).2
 
 /-- Every string a round after the history `h` reads: its clustering's, and through its pool's
-suffixes the strings at most `max N (probes + 1 + T + 2)` long, which its level 3 over its
-probes and the data it hands on read. -/
-def roundReads (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (N : ℕ)
+suffixes the strings at most `probes + 1 + T + 2` long, which its lazy round reads. -/
+def roundReads (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
     (h : SpecHist α) (ω : Ω) (d : settings.RoundDraws α) :
     Finset (FreeMonoid α) :=
   schedReads (settings.schedule (loopPopulations K h.pops.length))
       (loopPopulations K h.pops.length) ((ω, runOf settings D Dsf h d.1) :
         Run Ω (FreeMonoid α) (Option (Fin K)))
-    ∪ readStrings (shortStrings (max N (probesLen (probesOf settings D
+    ∪ readStrings (shortStrings (lazyProbesLen (probesOf settings D
         (clusterKeys (settings.schedule (loopPopulations K h.pops.length))
           (loopPopulations K h.pops.length) settings.level3.walkStart
           ((ω, runOf settings D Dsf h d.1) : Run Ω (FreeMonoid α) (Option (Fin K))))
-        d.2) + 1 + settings.level3.probeBudget + 2)))
+        d.2) + 1 + settings.level3.probeBudget + 2))
       ((roundSuffs (settings.schedule (loopPopulations K h.pops.length))
         ((ω, runOf settings D Dsf h d.1) : Run Ω (FreeMonoid α) (Option (Fin K)))).erase 1)
 
 theorem clusterSpec_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D' D Dsf : Measure (FreeMonoid α)) (εcov slack : ℝ) (h : SpecHist α)
-    (k : ℕ)
-    {ω ω' : Ω} (c : ClusterRest α K)
+    (D' D Dsf : Measure (FreeMonoid α)) (εcov slack : ℝ) (h : SpecHist α) {ω ω' : Ω} (c : ClusterRest α K)
     (hr : ∀ w ∈ schedReads (settings.schedule (loopPopulations K h.pops.length))
       (loopPopulations K h.pops.length) (idealRun D Dsf h (ω, c)),
       (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
-    ClusterSpec settings O D' k εcov slack h.pops
+    ClusterSpec settings O D' εcov slack h.pops
       (idealRun D Dsf h (ω, c))
-      ↔ ClusterSpec settings O D' k εcov slack h.pops
+      ↔ ClusterSpec settings O D' εcov slack h.pops
       (idealRun D Dsf h (ω', c)) := by
   set pops := loopPopulations K h.pops.length
   set sched := settings.schedule pops
@@ -255,71 +251,15 @@ theorem roundState_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid 
   rw [hp]
 
 theorem popCode_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) (N : ℕ)
-    (h : SpecHist α) {ω ω' : Ω} (d : settings.RoundDraws α)
+    (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α) {ω ω' : Ω} (d : settings.RoundDraws α)
     (hret : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
       idealRun D Dsf h (ω, d.1) ∈ ret O.mq
           (loopPopulations K h.pops.length) none
         settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
-    (hr : ∀ w ∈ roundReads settings D Dsf N h ω d, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
-    popCode N (idealRound settings O D Dsf h (ω, d))
-      = popCode N (idealRound settings O D Dsf h (ω', d)) := by
-  classical
-  set pops := loopPopulations K h.pops.length
-  set sched := settings.schedule pops
-  have hs : ∀ w ∈ schedReads sched pops (idealRun D Dsf h (ω, d.1)),
-      (O.mq w ω = 1 ↔ O.mq w ω' = 1) := fun w hw => hr w (Finset.mem_union_left _ hw)
-  have hst := roundState_congr settings O D Dsf h d.1 hs
-  have hmem : roundState settings O D Dsf h (ω, d.1) ∈ sched :=
-    (Classical.epsilon_spec (p := fun B => B ∈ sched ∧ idealRun D Dsf h (ω, d.1) ∈ ret O.mq pops
-      none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B) (by
-        obtain ⟨B, hB, hrB⟩ := hret; exact ⟨B, hB, hrB⟩)).1
-  set B := roundState settings O D Dsf h (ω, d.1)
-  have hF := clusterAt_congr_sched O sched pops hmem (runOf settings D Dsf h d.1) hs
-  set F := clusterAt O.mq pops (idealRun D Dsf h (ω, d.1)) B
-  rw [idealRound_eq_mkRound, idealRound_eq_mkRound]
-  simp only []
-  rw [← hst]
-  change popCode N (roundAt settings O B F _ _ (ω, _)) = popCode N (roundAt settings O B
-    (clusterAt O.mq pops (idealRun D Dsf h
-        (ω', d.1)) B) _ _ (ω', _))
-  rw [← show F = clusterAt O.mq pops (idealRun D Dsf h (ω', d.1)) B from hF]
-  have hroundKeys : roundKeys settings D Dsf h (ω', d.1) = roundKeys settings D Dsf h (ω, d.1) :=
-    rfl
-  have hroundSets : roundSets settings D Dsf h (ω', d.1) = roundSets settings D Dsf h (ω, d.1) :=
-    rfl
-  rw [hroundKeys, hroundSets]
-  set xs := probesOf settings D (roundKeys settings D Dsf h (ω, d.1)) d.2
-  -- the family is among the pool's suffixes
-  have hFpool : F ⊆ (roundSuffs sched (idealRun D Dsf h (ω, d.1))).erase 1 := by
-    intro v hv
-    have hv1 : v ≠ 1 := (Finset.mem_erase.1 hv).1
-    unfold F at hv
-    rw [clusterAt_eq, clusterAt_eq_clusterOf] at hv
-    have := poolAt_sub_roundSuffs hmem _ (clusterOf_subset O B.sc B.scd _ _ B.k ω
-      (Finset.mem_insert_self _ _) hv)
-    rcases Finset.mem_insert.1 this with h1 | h1
-    · exact absurd h1 hv1
-    · exact Finset.mem_erase.2 ⟨hv1, h1⟩
-  have hsub : ∀ M, M ≤ max N (probesLen xs + 1 + settings.level3.probeBudget + 2) →
-      readStrings (shortStrings M) F ⊆ roundReads settings D Dsf N h ω d := fun M hM =>
-    ((readStrings_mono (shortStrings_mono hM) hFpool)).trans (by
-      intro w hw
-      exact Finset.mem_union_right _ hw)
-  have h1 : ∀ p ∈ readStrings (shortStrings (probesLen xs + 1 + settings.level3.probeBudget + 2)) F,
-      (O.mq p ω = 1 ↔ O.mq p ω' = 1) := fun p hp => hr p (hsub _ (le_max_right _ _) hp)
-  have h2 : ∀ p ∈ readStrings (shortStrings N) F, (O.mq p ω = 1 ↔ O.mq p ω' = 1) :=
-    fun p hp => hr p (hsub _ (le_max_left _ _) hp)
-  have hres := level3_result_congr O settings.level3 F B.lo (B.hi + 1) xs h1
-  have hgraph : readGraph N (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω)
-      = readGraph N (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω') := by
-    unfold readGraph
-    refine Finset.image_congr fun z hz => ?_
-    simp only [Prod.mk.injEq, true_and]
-    exact familyRead_congr O h2 hz
-  unfold popCode roundAt
-  dsimp only
-  rw [hres, hgraph]
+    (hr : ∀ w ∈ roundReads settings D Dsf h ω d, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
+    popCode (idealRound settings O D Dsf h (ω, d))
+      = popCode (idealRound settings O D Dsf h (ω', d)) := by
+  sorry -- closes by: main's proof to hFpool, then Query.eval_congr on reads_lazyRoundQ_keyOff
 
 end Round
 
@@ -328,14 +268,10 @@ section History
 variable [IsProbabilityMeasure μ] (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
   (D Dsf : Measure (FreeMonoid α))
 
-/-- The length up to which a round's data hold its reads: past `D`'s strings by the probe budget,
-the most a sampler's walk reads past its probe. -/
-def codeLen : ℕ := lenBound D + settings.level3.probeBudget
-
 /-- The earlier rounds' harvest data, at the noise `ω`. -/
 def histCodes (ω : Ω) (g : Fin K → settings.RoundDraws α) (r : ℕ) :
     List (HarvestCode α) :=
-  codesOf (codeLen settings D) (idealRounds settings O D Dsf (fun i => (ω, g i)) r)
+  codesOf (idealRounds settings O D Dsf (fun i => (ω, g i)) r)
 
 /-- The history the first `i` of the harvest data `c` hand on. -/
 abbrev histAt (c : List (HarvestCode α)) (i : ℕ) : SpecHist α :=
@@ -358,7 +294,7 @@ def HistOK (ω : Ω) (g : Fin K → settings.RoundDraws α) : ℕ → Prop
 def histReads (c : List (HarvestCode α)) (g : Fin K → settings.RoundDraws α)
     (r : ℕ) (ω : Ω) : Finset (FreeMonoid α) :=
   (Finset.range r).biUnion fun i => if h : i < K ∧ i ≤ c.length then
-    roundReads settings D Dsf (codeLen settings D) (histAt c i) ω
+    roundReads settings D Dsf (histAt c i) ω
       (g ⟨i, h.1⟩) else ∅
 
 omit [IsProbabilityMeasure μ] in
@@ -380,8 +316,7 @@ lemma histReads_mono {c c' : List (HarvestCode α)} {r r' : ℕ}
   · exact absurd hw (Finset.notMem_empty _)
 
 /-- The earlier rounds are fixed by the answers at the strings they read. -/
-theorem hist_congr [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
-    (g : Fin K → settings.RoundDraws α) :
+theorem hist_congr (g : Fin K → settings.RoundDraws α) :
     ∀ (r : ℕ) (ω ω' : Ω), HistOK settings O D Dsf ω g r →
       (∀ w ∈ histReads settings D Dsf (histCodes settings O D Dsf ω g r) g r ω,
         (O.mq w ω = 1 ↔ O.mq w ω' = 1)) →
@@ -401,28 +336,24 @@ theorem hist_congr [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.t
       · rw [codesOf_append_single]; exact List.prefix_append _ _
       · exact List.prefix_refl _
     have hlenle : c.length ≤ y.length := hpre.length_le
-    obtain ⟨hokω', hc'⟩ := hist_congr hlen g r ω ω' hok' fun w hw => h w
+    obtain ⟨hokω', hc'⟩ := hist_congr g r ω ω' hok' fun w hw => h w
       ((histReads_mono settings D Dsf g ω (Nat.le_succ r) hpre fun i _ hi => hi.trans hlenle) hw)
     by_cases hrK : r < K
-    · have hy : y = if c.length = r then c ++ (popCode (codeLen settings D)
+    · have hy : y = if c.length = r then c ++ (popCode
           (idealRound settings O D Dsf (dec c) (ω, g ⟨r, hrK⟩))).toList else c :=
-        codesOf_idealRounds_succ settings O D Dsf (ae_lenBound hlen) (N := codeLen settings D)
-            le_rfl (fun i => (ω, g i)) r
-          hrK
+        codesOf_idealRounds_succ settings O D Dsf (fun i => (ω, g i)) r hrK
       have hy' : histCodes settings O D Dsf ω' g (r + 1) = if c.length = r then
-          c ++ (popCode (codeLen settings D)
+          c ++ (popCode
             (idealRound settings O D Dsf (dec c) (ω', g ⟨r, hrK⟩))).toList
             else c := by
-        have := codesOf_idealRounds_succ settings O D Dsf (ae_lenBound hlen) (N := codeLen settings
-            D) le_rfl
-          (fun i => (ω', g i)) r hrK
-        rw [show codesOf (codeLen settings D)
+        have := codesOf_idealRounds_succ settings O D Dsf (fun i => (ω', g i)) r hrK
+        rw [show codesOf
             (idealRounds settings O D Dsf (fun i => (ω', g i)) r) = c from hc'] at this
         exact this
       by_cases hcl : c.length = r
       · have hr := hret hrK hcl
         -- round `r`'s reads are among the history's
-        have hround : ∀ w ∈ roundReads settings D Dsf (codeLen settings D) (dec c) ω
+        have hround : ∀ w ∈ roundReads settings D Dsf (dec c) ω
             (g ⟨r, hrK⟩), (O.mq w ω = 1 ↔ O.mq w ω' = 1) := by
           intro w hw
           refine h w (Finset.mem_biUnion.2 ⟨r, Finset.mem_range.2 (Nat.lt_succ_self r), ?_⟩)
@@ -434,7 +365,7 @@ theorem hist_congr [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.t
           simp only [dif_pos (show r < K ∧ r ≤ y.length from ⟨hrK, hry⟩), histAt]
           rw [hyt]
           exact hw
-        have hpc := popCode_congr settings O D Dsf (codeLen settings D) (dec c)
+        have hpc := popCode_congr settings O D Dsf (dec c)
           (g ⟨r, hrK⟩) hr hround
         refine ⟨⟨hokω', fun h' hl' => ?_⟩, ?_⟩
         · rw [hc'] at hl' ⊢

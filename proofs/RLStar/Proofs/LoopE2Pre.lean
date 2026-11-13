@@ -1,12 +1,12 @@
-import RLStar.Proofs.LoopRenoise
+import RLStar.Proofs.LazyFail
 
 /-!
-# Level 3's claim is fixed by the short reads
+# A lazy round's claim is fixed by the short reads
 
-Over probes at most `L` long, level 3's claim reads the family only at strings at most
-`max (L + T + 2) (probes + 1 + T + 2)` long, `T` the probes (`level3Fail_congr_up`). The clustering
-reads at most three prefixes per population per prefix the schedule draws, and at most one suffix
-more than the pool.
+Over probes at most `L` long, the lazy round's claim reads the family only at `LazyKeyOff`
+strings at most `max (L + T + 2) (probes + 1 + T + 2)` long, `T` the probe budget
+(`lazyFail_congr_up`). The clustering reads at most three prefixes per population per prefix the
+schedule draws, and at most one suffix more than the pool.
 -/
 
 noncomputable section
@@ -22,115 +22,24 @@ section Reads
 variable {σ : Type*} [Fintype σ] {Ω' : Type*} [MeasurableSpace Ω'] {μ' : Measure Ω'}
   [IsProbabilityMeasure μ']
 
-/-- Over probes at most `L` long, whether level 3 fails its claim is fixed by the family's reads
-of the strings at most `max (L + T + 2) (probes + 1 + T + 2)` long, `T` the probes. -/
-theorem level3Fail_congr_up (fam : SuffixFamily μ' α σ) (C : Random.Level3Settings)
-    (D' : Measure (FreeMonoid α)) {L : ℕ} (hlen : ∀ᵐ x ∂D', x.toList.length ≤ L) (A sl : ℝ)
-    (E : σ → Set (FreeMonoid α)) (u : ℝ) (xs : Fin C.probeBudget → FreeMonoid α) {ω ω' : Ω'}
-    (h : ∀ z, z.toList.length ≤ max (L + C.probeBudget + 2)
-      (probesLen xs + 1 + C.probeBudget + 2) → fam.read ω z = fam.read ω' z) :
-    (ω, xs) ∈ level3Fail fam C D' A sl E u → (ω', xs) ∈ level3Fail fam C D' A sl E u := by
-  classical
-  have hlenP : ∀ x : FreeMonoid α, ∀ j, j ≤ x.toList.length → ∀ m : FreeMonoid α,
-      (prefixOf x j * m).toList.length ≤ x.toList.length + m.toList.length := by
-    intro x j _ m
-    have : (prefixOf x j).toList.length ≤ x.toList.length := by simp [prefixOf]
-    simp only [FreeMonoid.toList_mul, List.length_append]
-    omega
-  have hres : Random.indecisiveLStarLevel3 C (fun z => fam.read ω z) xs
-      = Random.indecisiveLStarLevel3 C (fun z => fam.read ω' z) xs :=
-    Random.level3_congr_zone C xs fun i j _ hj m hm => h _ (by
-      have := hlenP (xs i) j hj m
-      have := le_probesLen xs i
-      omega)
-  set H := (Random.indecisiveLStarLevel3 C (fun z => fam.read ω z) xs).hypothesis with hHd
-  have hmid : Random.MidsLe C.probeBudget H.tree := by
-    have := (Random.runProbes_tree (fun z => fam.read ω z) C (List.ofFn xs)).2.2
-    rwa [List.length_ofFn, ← Random.indecisiveLStarLevel3_tree] at this
-  have hz : ∀ x : FreeMonoid α, x.toList.length ≤ L → ∀ j, j ≤ x.toList.length →
-      ∀ m ∈ Random.mids H.tree, fam.read ω (prefixOf x j * m) = fam.read ω' (prefixOf x j * m) :=
-    fun x hx j hj m hm => h _ (by
-      have := hlenP x j hj m
-      have := hmid m hm
-      omega)
-  have hnull : D' {x : FreeMonoid α | x.toList.length ≤ L}ᶜ = 0 := by
-    rw [ae_iff] at hlen; convert hlen using 2; ext x; simp
-  have hlaw := Random.harvestLaw_congr_zone (r := fun z => fam.read ω z)
-    (r' := fun z => fam.read ω' z) D' C.walkStart H {x | x.toList.length ≤ L} hnull
-    (fun x hx j _ hj m hm => hz x hx j hj m hm)
-  have hdis : disagreeSet (fun z => fam.read ω z) C.walkStart H
-      =ᵐ[D'] disagreeSet (fun z => fam.read ω' z) C.walkStart H := by
-    filter_upwards [hlen] with x hx
-    have hp : probeOrAgree (fun z => fam.read ω z) H.tree H.edges C.walkStart x
-        = probeOrAgree (fun z => fam.read ω' z) H.tree H.edges C.walkStart x :=
-      Random.probeOrAgree_congr_zone H.edges C.walkStart fun j _ hj m hm => hz x hx j hj m hm
-    apply propext
-    show x ∈ disagreeSet (fun z => fam.read ω z) C.walkStart H
-      ↔ x ∈ disagreeSet (fun z => fam.read ω' z) C.walkStart H
-    simp only [disagreeSet, Set.mem_union, Random.searchSet, Random.endsSet, Set.mem_ofPred_eq, hp]
-  -- a probe at most `L` long, and its extension by a letter, read alike past every midfix
-  have hrr : ∀ z : FreeMonoid α, z.toList.length ≤ L + 1 →
-      (z ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω z) C.walkStart H.tree
-        ↔ z ∈ rarerSet fam.M fam.readDist (fun z => fam.read ω' z) C.walkStart H.tree) := by
-    intro z hzl
-    have hr : ∀ m ∈ Random.mids H.tree, fam.read ω (z * m) = fam.read ω' (z * m) :=
-      fun m hm => h _ (by
-        have := hmid m hm
-        simp only [FreeMonoid.toList_mul, List.length_append]
-        omega)
-    constructor
-    · rintro ⟨hk, m, hm, hw⟩
-      exact ⟨hk, m, hm, by beta_reduce at hw ⊢; rw [← hr m hm]; exact hw⟩
-    · rintro ⟨hk, m, hm, hw⟩
-      exact ⟨hk, m, hm, by beta_reduce at hw ⊢; rw [hr m hm]; exact hw⟩
-  have hmis : ∀ q a, D'.real (E q ∩ misledSet fam.M fam.readDist (fun z => fam.read ω z)
-        C.walkStart H.tree a)
-      = D'.real (E q ∩ misledSet fam.M fam.readDist (fun z => fam.read ω' z)
-        C.walkStart H.tree a) := by
-    intro q a
-    refine measureReal_congr ?_
-    filter_upwards [hlen] with x hx
-    have hxa : (x * FreeMonoid.of a).toList.length ≤ L + 1 := by simp; omega
-    exact propext (and_congr_right fun _ => and_congr_right fun _ =>
-      or_congr (hrr x (by omega)) (hrr _ hxa))
-  have hsuff : ∀ E : RoundEnd Random.Level3Site,
-      EndsWell
-        { target := fam.M,
-          undecided := fun q => fam.readDist q .undecided,
-          harvestSlope := A,
-          harvestSlack := sl,
-          probes := D',
-          disagreeRate := C.disagreementRate,
-          disagree := disagreeSet (fun z => fam.read ω' z) C.walkStart H,
-          walkStart := C.walkStart,
-          harvestLaw := Random.harvestLaw (fun z => fam.read ω' z) D' C.walkStart H,
-          yield := C.harvestRate,
-          ending := E } →
-      EndsWell
-        { target := fam.M,
-          undecided := fun q => fam.readDist q .undecided,
-          harvestSlope := A,
-          harvestSlack := sl,
-          probes := D',
-          disagreeRate := C.disagreementRate,
-          disagree := disagreeSet (fun z => fam.read ω z) C.walkStart H,
-          walkStart := C.walkStart,
-          harvestLaw := Random.harvestLaw (fun z => fam.read ω z) D' C.walkStart H,
-          yield := C.harvestRate,
-          ending := E } := by
-    intro E hE
-    rcases E with _ | site | _
-    · show D'.real _ ≤ _
-      rw [measureReal_congr hdis]
-      exact hE
-    · simp only [EndsWell] at hE ⊢
-      rw [hlaw site]
-      exact hE
-    · exact (show False from hE).elim
-  intro hω
-  simp only [level3Fail, Set.mem_ofPred_eq] at hω ⊢
-  rw [← hres]
-  exact fun hg => hω ⟨hsuff _ hg.1, hg.2.1, fun q a => by rw [hmis q a]; exact hg.2.2 q a⟩
+/-- Over probes at least `k` and at most `L` long whose first `k` letters avoid `CP`'s, whether the
+lazy round from `CP`'s trie fails its claim is fixed by the family's reads of the `LazyKeyOff`
+strings at most `max (L + T + 2) (probes + 1 + T + 2)` long. -/
+theorem lazyFail_congr_up (fam : SuffixFamily μ' α σ) (s : LoopSettings K)
+    (CP : Finset (FreeMonoid α)) (D' : Measure (FreeMonoid α)) {L : ℕ}
+    (hlen : ∀ᵐ x ∂D', x.toList.length ≤ L ∧ s.level3.walkStart ≤ x.toList.length
+      ∧ Avoids s.level3.walkStart ↑(CP.image fun p => prefixOf p s.level3.walkStart) x)
+    (A sl tw : ℝ)
+    (d : Fin s.epochs → Random.EpochDraws α s.level3.probeBudget s.blocks s.blockSize)
+    (hd : LazyDrawsAll (fun x => s.level3.walkStart ≤ x.toList.length
+      ∧ Avoids s.level3.walkStart ↑(CP.image fun p => prefixOf p s.level3.walkStart) x) d)
+    {ω ω' : Ω'}
+    (h : ∀ z, LazyKeyOff s.level3.walkStart CP z →
+      z.toList.length ≤ max (L + s.level3.probeBudget + 2)
+        (lazyProbesLen d + 1 + s.level3.probeBudget + 2) → fam.read ω z = fam.read ω' z) :
+    (ω, d) ∈ lazyFail fam s (Random.prefixTrie s.level3.walkStart CP) D' A sl tw →
+      (ω', d) ∈ lazyFail fam s (Random.prefixTrie s.level3.walkStart CP) D' A sl tw := by
+  sorry -- closes by: reads_lazyRoundQ_keyOff, Query.eval_congr; lazyDisagree's reads likewise
 
 end Reads
 
