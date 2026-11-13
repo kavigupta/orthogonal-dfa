@@ -43,7 +43,17 @@ def lazyReadCap (C : Random.Level3Settings) (E J b Lp nQ nα : ℕ) : ℕ :=
 
 theorem trieOK_prefixTrie (k : ℕ) (CP : Finset (FreeMonoid α)) :
     Random.TrieOK k (Random.prefixTrie k CP) := by
-  sorry -- closes by: prefixOf_prefixOf_of_le, length_prefixOf
+  refine ⟨fun u hu => ?_, fun u hu i => ?_⟩ <;>
+    obtain ⟨p, hp, hu⟩ := Finset.mem_biUnion.1 hu <;>
+    obtain ⟨j, hj, rfl⟩ := Finset.mem_image.1 hu <;>
+    rw [Finset.mem_range, lt_min_iff] at hj
+  · rw [length_prefixOf]
+    omega
+  · have he : prefixOf (prefixOf p j) i = prefixOf p (min i j) := by
+      simp [prefixOf, List.take_take]
+    rw [he]
+    exact Finset.mem_biUnion.2 ⟨p, hp, Finset.mem_image.2
+      ⟨min i j, Finset.mem_range.2 (lt_min_iff.2 ⟨by omega, by omega⟩), rfl⟩⟩
 
 /-- Over probes at least `k` long whose first `k` letters avoid `CP`'s, the round from `CP`'s trie
 reads only `LazyKeyOff` strings at most `probes + 1 + T + 2` long. -/
