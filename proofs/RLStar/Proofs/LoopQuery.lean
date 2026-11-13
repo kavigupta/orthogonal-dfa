@@ -2,7 +2,7 @@ import RLStar.Proofs.QueryLevel3
 import RLStar.Proofs.ClusterCongr
 import RLStar.Proofs.LoopGood
 import RLStar.Proofs.LazyZone
-import RLStar.Proofs.TrieTable
+import RLStar.Proofs.LazyTable
 
 /-!
 # The loop program
@@ -72,7 +72,8 @@ lemma eval_roundQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) 
   set xc := streams (fun _ => ∅) none ((((), dr.1.2), dr.2) : Draws Unit _ _) with hxc
   have hx : xc = ((), xs.2) := rfl
   have hxs1 : xs.1 = ω := rfl
-  have hscan : ScanWithin sched ps (fun _ => settings.scanCap) ((((), dr.1.2), dr.2) : Draws Unit _ _)
+  have hscan : ScanWithin sched ps (fun _ => settings.scanCap)
+      ((((), dr.1.2), dr.2) : Draws Unit _ _)
       ↔ ScanWithin sched ps (fun _ => settings.scanCap) dr :=
     Iff.rfl
   by_cases hsc : ScanWithin sched ps (fun _ => settings.scanCap) dr
@@ -349,7 +350,6 @@ private lemma lazyEpochsQ_depth_le (read : FreeMonoid α → ARU) (C : Random.Le
       · exact lazyEpochsQ_depth_le read C k nh _ _ ds _ _
     · exact hres
 
-/-- Every round the loop runs has a tree at most as deep as its peak. -/
 private lemma loopRounds_depth (r : ℕ) : ∀ rs ∈ loopRounds settings O D Dsf draws r, ∀ o ∈ rs,
     o.result.hypothesis.tree.depth ≤ o.result.peak := by
   refine loopRounds_forall settings O D Dsf draws _ (fun h d o ho => ?_) r
@@ -446,7 +446,29 @@ theorem card_reads_loopRoundsQ_le (O : Oracle μ (FreeMonoid α)) (ω : Ω)
     (hpk : ∀ o ∈ rounds, o.result.peak ≤ n + 2) {r : ℕ} (hr : r ≤ K) :
     ((loopRoundsQ settings D Dsf rd r).reads fun w => O.mq w ω).card
       ≤ r * roundCallBound a b f Nr := by
-  sorry -- closes by: main's induction with loopRoundsQ_prefix, card_reads_roundQ_le
+  have hout' : (loopRoundsQ settings D Dsf rd K).eval (fun w => O.mq w ω) = some rounds := hout
+  induction r with
+  | zero => simp [loopRoundsQ]
+  | succ r ih =>
+    rw [loopRoundsQ, reads_bind, Nat.succ_mul]
+    refine (Finset.card_union_le _ _).trans (Nat.add_le_add (ih (by omega)) ?_)
+    obtain ⟨rs', hrs', hpre⟩ := loopRoundsQ_prefix settings D Dsf rd _ hr hout'
+    rw [loopRoundsQ, eval_bind] at hrs'
+    rcases hrs : (loopRoundsQ settings D Dsf rd r).eval (fun w => O.mq w ω) with _ | rs
+    · simp
+    rw [hrs] at hrs'
+    simp only at hrs' ⊢
+    split_ifs with hc
+    swap
+    · simp
+    rw [dif_pos hc, eval_map] at hrs'
+    obtain ⟨ro, hoo, rfl⟩ := Option.map_eq_some_iff.1 hrs'
+    rw [reads_map]
+    refine card_reads_roundQ_le _ settings D Dsf _ _ hD (fun pops x => hab pops (ω, x.2)) hk hNr
+      fun x hx => ?_
+    rw [hoo, Option.some.injEq] at hx
+    subst hx
+    exact hpk _ (hpre.subset (List.mem_append_right _ (List.mem_singleton_self _)))
 
 end Reads
 
@@ -474,7 +496,32 @@ theorem card_reads_learnerQ_le (settings : LoopSettings K) (D Dsf : Measure (Fre
     (hX : ∀ o ∈ rounds.getLast?, o.result.expanded.card ≤ nX) :
     ((learnerQ settings D Dsf p.2).reads fun w => O.mq w p.1).card
       ≤ K * roundCallBound a b f Nr + f * ((Fintype.card α * nX + 1) * (q + 2)) := by
-  sorry -- closes by: card_reads_loopRoundsQ_le, reads_piList, card_trieFrontier_le, siftQ reads
+  have hloop := card_reads_loopRoundsQ_le O p.1 settings D Dsf p.2 hD hab hk hNr hout hpk le_rfl
+  obtain ⟨rs, hrs, rfl⟩ := indecisiveLStarLoop_some O hout
+  unfold learnerQ
+  rw [reads_bind]
+  refine (Finset.card_union_le _ _).trans (Nat.add_le_add hloop ?_)
+  rw [show (loopQ settings D Dsf p.2).eval (fun w => O.mq w p.1) = some (rs.map SpecRound.data)
+    from hout]
+  dsimp only
+  rcases hl : (rs.map SpecRound.data).getLast? with _ | o
+  · simp
+  dsimp only
+  rw [reads_map]
+  have ho := List.mem_of_getLast? hl
+  obtain ⟨o', ho', rfl⟩ := List.mem_map.1 ho
+  have hT : o'.result.hypothesis.tree.depth ≤ q + 2 :=
+    (loopRounds_depth settings O D Dsf _ K rs hrs o' ho').trans (hpk _ ho)
+  refine (card_reads_subst_le _ _ _ (n := f) fun q _ => (card_reads_familyReadQ_le _ _ _ q _).trans
+    (loopRounds_small settings O D Dsf _ hk K rs hrs o' ho')).trans ?_
+  rw [Nat.mul_comm _ f]
+  refine Nat.mul_le_mul_left _ ?_
+  have ht : ((Random.lazyTableQ settings.level3.walkStart o'.result.hypothesis.tree
+      o'.result.expanded).reads fun q => (familyReadQ o'.family o'.state.lo (o'.state.hi + 1)
+        q).eval fun w => O.mq w p.1).card
+      ≤ (Fintype.card α * o'.result.expanded.card + 1) * o'.result.hypothesis.tree.depth := by
+    exact_mod_cast lazyTableReads_holds _ _ _ _
+  exact ht.trans (Nat.mul_le_mul (Nat.add_le_add_right (Nat.mul_le_mul_left _ (hX _ hl)) 1) hT)
 
 end Learner
 
