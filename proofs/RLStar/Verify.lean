@@ -2,6 +2,7 @@ import RLStar.Proofs.AdaptiveReads
 import RLStar.Proofs.BandKappa
 import RLStar.Proofs.Allowance
 import RLStar.Proofs.BitSum
+import RLStar.Proofs.BlockMiss
 import RLStar.Proofs.Budget
 import RLStar.Proofs.ClaimTrainFamily
 import RLStar.Proofs.ClaimCounterexSynth
@@ -57,9 +58,9 @@ both. The loop runs level 5.
 
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
 `UnaskedFresh`, `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`,
-`SuccessiveDrawsTails`, `CoveredStartCorrect`, `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`,
-`TrieTableCorrect`, `TrieTableReads`, `Level3TrieRootOne`, `Level3TrieAgrees`,
-`Level3NoWrongCorrect`, `TrieLoopAgrees`, `RateTestSound`, `SeqRateSound`,
+`SuccessiveDrawsTails`, `BlockMiss`, `CoveredStartCorrect`, `TrieProbeAgreeCorrect`,
+`TrieSinglePieceCorrect`, `TrieTableCorrect`, `TrieTableReads`, `Level3TrieRootOne`,
+`Level3TrieAgrees`, `Level3NoWrongCorrect`, `TrieLoopAgrees`, `RateTestSound`, `SeqRateSound`,
 `TripartiteSearchCorrect`, `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`,
 `SplitAndLearnCorrect` and `RunsKeepEdgesAtLeaves`.
 
@@ -168,6 +169,10 @@ theorem band_kappa_bound : BandKappaBound := bandKappaBound_holds
 theorem successive_draws_tails : SuccessiveDrawsTails := successiveDrawsTails_holds
 
 #print axioms successive_draws_tails
+
+theorem block_miss : BlockMiss := blockMiss_holds
+
+#print axioms block_miss
 
 theorem seq_rate_sound : SeqRateSound := seqRateSound
 
