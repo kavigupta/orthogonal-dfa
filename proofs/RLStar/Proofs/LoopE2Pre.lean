@@ -1,4 +1,7 @@
 import RLStar.Proofs.LazyFail
+import RLStar.Proofs.LoopRuns
+import RLStar.Proofs.TrieTable
+import Mathlib.Data.List.ReduceOption
 
 /-!
 # A lazy round's claim is fixed by the short reads
@@ -18,6 +21,130 @@ open MeasureTheory
 variable {α : Type*} [Fintype α] [DecidableEq α] {K : ℕ}
 
 section Reads
+
+omit [DecidableEq α] in
+lemma LooseEndsWell.of_real {σ : Type*} {M : _root_.DFA α σ} {U : σ → ℝ} {A sl : ℝ}
+    {D D' : Measure (FreeMonoid α)} {ε ε' : ℝ} {S S' : Set (FreeMonoid α)}
+    (h : D'.real S' ≤ ε' → D.real S ≤ ε) {e : Random.LazyEnd α}
+    (hw : LooseEndsWell M U A sl D' ε' S' e) : LooseEndsWell M U A sl D ε S e := by
+  cases e with
+  | consistent => exact h hw
+  | harvest _ _ => exact hw
+  | failed => exact hw
+
+omit [DecidableEq α] in
+private lemma unpad_prefixOf_padIn_mul (K : ℕ) (X : Finset (FreeMonoid α)) (x : FreeMonoid α)
+    (j : ℕ) (m : FreeMonoid (Option α)) :
+    Random.unpad (prefixOf (Random.padIn K X x) j * m)
+      = prefixOf x (j - (K - Random.walkStartIn X x)) * Random.unpad m := by
+  apply FreeMonoid.toList.injective
+  simp only [Random.unpad, prefixOf, Random.padIn, FreeMonoid.toList_mul,
+    FreeMonoid.toList_ofList, List.reduceOption_append, List.take_append, List.length_replicate,
+    List.take_replicate, List.reduceOption_replicate_none, ← List.map_take]
+  simp [List.reduceOption]
+
+omit [Fintype α] [DecidableEq α] in
+private lemma length_unpad_le (m : FreeMonoid (Option α)) :
+    (Random.unpad m).toList.length ≤ m.toList.length := by
+  simp only [Random.unpad, FreeMonoid.toList_ofList, List.reduceOption]
+  exact List.length_filterMap_le _ _
+
+/-- Over a probe whose first `k` letters avoid `CP`'s, walked from a trie holding `CP`'s, membership
+in `lazyDisagree` reads only `LazyKeyOff` strings at most `n` longer than the probe, `n` bounding
+the midfixes. -/
+theorem mem_lazyDisagree_congr {k n : ℕ} {CP X : Finset (FreeMonoid α)}
+    (hX : Random.prefixTrie k CP ⊆ X) {H : HypothesisDFA (Option α)}
+    (hH : Random.MidsLe n H.tree) {read read' : FreeMonoid α → ARU} {x : FreeMonoid α}
+    (hkx : k ≤ x.toList.length) (hx : Avoids k ↑(CP.image fun p => prefixOf p k) x)
+    (h : ∀ z, LazyKeyOff k CP z → z.toList.length ≤ x.toList.length + n → read z = read' z) :
+    x ∈ Random.lazyDisagree read k X H ↔ x ∈ Random.lazyDisagree read' k X H := by
+  classical
+  obtain ⟨hle, -, hout⟩ := Random.walkStartIn_spec X x
+  have hp : probeOrAgree (Random.padRead read) H.tree H.edges k (Random.padIn k X x)
+      = probeOrAgree (Random.padRead read') H.tree H.edges k (Random.padIn k X x) := by
+    refine Random.probeOrAgree_congr_zone H.edges k fun j hkj _ m hm => ?_
+    show read (Random.unpad _) = read' (Random.unpad _)
+    rw [unpad_prefixOf_padIn_mul]
+    set ws := Random.walkStartIn X x
+    set j' := j - (k - ws)
+    have hj' : min ws k ≤ j' := by omega
+    have hmlen : (Random.unpad m).toList.length ≤ n := (length_unpad_le m).trans (hH m hm)
+    have hlen : (prefixOf x j' * Random.unpad m).toList.length
+        = min j' x.toList.length + (Random.unpad m).toList.length := by
+      simp only [FreeMonoid.toList_mul, List.length_append, length_prefixOf]
+    refine h _ ⟨min ws k, min_le_right _ _, by omega, fun p hp hpl hpe => ?_⟩ (by omega)
+    have hpz : prefixOf (prefixOf x j' * Random.unpad m) (min ws k) = prefixOf x (min ws k) := by
+      rw [prefixOf_mul_of_le (by rw [length_prefixOf]; omega),
+        prefixOf_prefixOf_of_le x hj']
+    rw [hpz] at hpe
+    by_cases hws : ws < k
+    · rw [min_eq_left hws.le] at hpe hpl
+      refine hout (by omega) (hpe ▸ hX ?_)
+      exact Finset.mem_biUnion.2 ⟨p, hp, Finset.mem_image.2 ⟨ws, Finset.mem_range.2 (by omega),
+        rfl⟩⟩
+    · rw [min_eq_right (not_lt.1 hws)] at hpe hpl
+      exact hx hkx (Finset.mem_coe.2 (Finset.mem_image.2 ⟨p, hp, hpe⟩))
+  simp only [Random.lazyDisagree, Set.mem_ofPred_eq, Set.mem_union, Random.searchSet,
+    Random.endsSet, hp]
+
+omit [DecidableEq α] in
+private lemma topUpQ_retract_sub (read : FreeMonoid α → ARU) (H : HypothesisDFA (Option α))
+    (s : Random.Level3Site) (K nh : ℕ) {b : ℕ} :
+    ∀ (Bs : List (Fin b → FreeMonoid α)) (X : Finset (FreeMonoid α)) (ℓ : List (FreeMonoid α))
+      {ℓ' : List (FreeMonoid α)} {X' : Finset (FreeMonoid α)}
+      {rest : List (Fin b → FreeMonoid α)},
+      (Random.topUpQ K nh H s Bs X ℓ).eval read = some (.retract ℓ' X', rest) → X ⊆ X'
+  | [], _, _, _, _, _, h => by simp [Random.topUpQ] at h
+  | B :: Bs, X, ℓ, ℓ', X', rest, h => by
+    simp only [Random.topUpQ, Query.eval_bind] at h
+    split_ifs at h with hfull hret
+    · simp at h
+    · simp only [Query.eval_pure, Option.some.injEq, Prod.mk.injEq,
+        Random.TopUpEnd.retract.injEq] at h
+      exact h.1.2 ▸ subset_rfl
+    · exact Finset.subset_union_left.trans (topUpQ_retract_sub read H s K nh Bs _ _ h)
+
+private lemma lazyEpochsQ_expanded_mids (read : FreeMonoid α → ARU) (C : Random.Level3Settings)
+    (K nh : ℕ) {J b : ℕ} : ∀ (e pk : ℕ) (ds : List (Random.EpochDraws α C.probeBudget J b))
+      (X : Finset (FreeMonoid α)) (ls : Random.LazyLists α),
+      X ⊆ ((Random.lazyEpochsQ C K nh e pk ds X ls).eval read).expanded
+        ∧ Random.MidsLe C.probeBudget
+          ((Random.lazyEpochsQ C K nh e pk ds X ls).eval read).hypothesis.tree
+  | _, _, [], X, ls => ⟨subset_rfl, fun m hm => by simp [Random.lazyEpochsQ, Random.mids] at hm⟩
+  | e, pk, d :: ds, X, ls => by
+    have hmid : Random.MidsLe C.probeBudget
+        ((Random.epochQ (Random.epochSettings C e) K X d.1).eval read).hypothesis.tree := by
+      have := (Random.runProbes_tree (fun z => (Random.unpadQ z).eval read)
+        { Random.epochSettings C e with walkStart := K }
+        (List.ofFn fun i => Random.padIn K X (d.1 i))).2.2
+      rw [List.length_ofFn] at this
+      simp only [Random.epochQ, Query.eval_subst]
+      change Random.MidsLe _ (Random.indecisiveLStarLevel3 _ _ _).hypothesis.tree
+      rw [Random.indecisiveLStarLevel3_tree]
+      exact this
+    simp only [Random.lazyEpochsQ, Query.eval_bind]
+    generalize (Random.epochQ (Random.epochSettings C e) K X d.1).eval read = res at hmid ⊢
+    rcases res with ⟨hyp, _ | s | _⟩
+    · exact ⟨subset_rfl, hmid⟩
+    · simp only [Query.eval_bind]
+      have hT : ∀ ℓ' X' rest, (Random.topUpQ K nh hyp s (List.ofFn d.2) X (ls s)).eval read
+          = some (.retract ℓ' X', rest) → X ⊆ X' := fun _ _ _ h =>
+        topUpQ_retract_sub read hyp s K nh (List.ofFn d.2) X (ls s) h
+      generalize (Random.topUpQ K nh hyp s (List.ofFn d.2) X (ls s)).eval read = o at hT ⊢
+      rcases o with _ | ⟨_ | ⟨ℓ, X'⟩, rest⟩
+      · exact ⟨subset_rfl, hmid⟩
+      · exact ⟨subset_rfl, hmid⟩
+      · obtain ⟨h1, h2⟩ := lazyEpochsQ_expanded_mids read C K nh (e + 1) _ ds X' _
+        exact ⟨(hT _ _ _ rfl).trans h1, h2⟩
+    · exact ⟨subset_rfl, hmid⟩
+
+/-- A lazy round's trie holds its first, and its hypothesis's midfixes are at most `T` long. -/
+theorem lazyRoundQ_expanded_mids (read : FreeMonoid α → ARU) (C : Random.Level3Settings)
+    (K nh : ℕ) {E J b : ℕ} (X₀ : Finset (FreeMonoid α))
+    (d : Fin E → Random.EpochDraws α C.probeBudget J b) :
+    X₀ ⊆ ((Random.lazyRoundQ C K nh X₀ d).eval read).expanded
+      ∧ Random.MidsLe C.probeBudget ((Random.lazyRoundQ C K nh X₀ d).eval read).hypothesis.tree :=
+  lazyEpochsQ_expanded_mids read C K nh 0 0 (List.ofFn d) X₀ fun _ => []
 
 variable {σ : Type*} [Fintype σ] {Ω' : Type*} [MeasurableSpace Ω'] {μ' : Measure Ω'}
   [IsProbabilityMeasure μ']
@@ -39,7 +166,25 @@ theorem lazyFail_congr_up (fam : SuffixFamily μ' α σ) (s : LoopSettings K)
         (lazyProbesLen d + 1 + s.level3.probeBudget + 2) → fam.read ω z = fam.read ω' z) :
     (ω, d) ∈ lazyFail fam s (Random.prefixTrie s.level3.walkStart CP) D' A sl tw →
       (ω', d) ∈ lazyFail fam s (Random.prefixTrie s.level3.walkStart CP) D' A sl tw := by
-  sorry -- closes by: reads_lazyRoundQ_keyOff, Query.eval_congr; lazyDisagree's reads likewise
+  classical
+  set k := s.level3.walkStart
+  set X₀ := Random.prefixTrie k CP
+  have hreads := reads_lazyRoundQ_keyOff s.level3 k s.listSize CP d (fun z => fam.read ω z) rfl hd
+  have hrun : lazyRun fam s X₀ (ω', d) = lazyRun fam s X₀ (ω, d) :=
+    (Query.eval_congr (fun z => fam.read ω z) _ fun z hz =>
+      (h z (hreads z hz).1 (le_max_of_le_right (hreads z hz).2)).symm).1
+  obtain ⟨hsub, hmid⟩ := lazyRoundQ_expanded_mids (fun z => fam.read ω z) s.level3 k s.listSize X₀ d
+  set r := lazyRun fam s X₀ (ω, d)
+  have hdis : D'.real (Random.lazyDisagree (fun z => fam.read ω z) k r.expanded r.hypothesis)
+      = D'.real (Random.lazyDisagree (fun z => fam.read ω' z) k r.expanded r.hypothesis) := by
+    refine measureReal_congr ?_
+    filter_upwards [hlen] with x hx
+    exact propext (mem_lazyDisagree_congr hsub hmid hx.2.1 hx.2.2 fun z hz hzl =>
+      h z hz (le_max_of_le_left (by omega)))
+  intro hω
+  simp only [lazyFail, Set.mem_ofPred_eq] at hω ⊢
+  rw [hrun]
+  exact fun hg => hω ⟨hg.1.of_real fun h' => hdis ▸ h', hg.2⟩
 
 end Reads
 
