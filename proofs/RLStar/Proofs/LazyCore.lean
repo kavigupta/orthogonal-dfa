@@ -204,7 +204,7 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
   have hsub : {p | ¬ RLStarSucceeds settings O (prefixLaw D L) (prefixLaw D Ls)
       (prefixLaw D L) M ξT (lazyReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV Nr A nX Q) p}
       ⊆ Bloop ∪ Prod.fst ⁻¹' Bmis := by
-    sorry -- closes by: idealRounds_mem_loop, lazyClassifies_iff, trieSinglePieceCorrect, misMean
+    sorry -- closes by: idealRounds_mem_loop, lazyTableCorrect_holds, misMean
   have hBl : μL.real Bloop ≤ δ / 2 := by
     refine hD.trans (le_of_eq ?_)
     show (Q + 1) * (4 * (δ / (8 * (Q + 1)))) = δ / 2
