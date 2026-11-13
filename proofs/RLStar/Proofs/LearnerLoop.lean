@@ -327,6 +327,7 @@ private lemma mem_blockUpdate (K : ℕ) (X : Finset (FreeMonoid α)) :
           exact Or.inr List.mem_cons_self
       · exact Or.inr (List.mem_cons_of_mem _ h1)
 
+omit [DecidableEq α] in
 private lemma topUpQ_short (read : FreeMonoid α → ARU) (K nh : ℕ) (H : HypothesisDFA (Option α))
     (s : Level3Site) {L n : ℕ} (hH : MidsLe n H.tree) {b : ℕ} :
     ∀ (Bs : List (Fin b → FreeMonoid α)) (X : Finset (FreeMonoid α)) (ℓ : List (FreeMonoid α)),
