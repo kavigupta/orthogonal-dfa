@@ -4,6 +4,8 @@ import RLStar.Proofs.Trie
 import RLStar.Proofs.LoopSimple
 import RLStar.Proofs.LoopReadsArith
 import RLStar.Proofs.LazyDFA
+import RLStar.Proofs.LazyTable
+import RLStar.Proofs.LazyShape
 
 /-!
 # The lazy loop over `D`'s first `L` letters
@@ -26,7 +28,94 @@ open Random (prefixMax le_prefixMax prefixMax_pos)
 
 variable {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ]
 
-variable [Nonempty α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+section Last
+
+open Query
+
+private lemma epochQ_root (read : FreeMonoid α → ARU) (C : Random.Level3Settings) (K : ℕ)
+    (X : Finset (FreeMonoid α)) {P : ℕ} (d : Fin P → FreeMonoid α) :
+    RootOne ((Random.epochQ C K X d).eval read).hypothesis.tree := by
+  unfold Random.epochQ
+  rw [eval_subst]
+  exact rootOne_of_classSet _ _
+    (Random.Spur.tree_classSet_of_leaves _ _ _ (Nat.le_add_right _ 2))
+
+private lemma lazyEpochsQ_root (read : FreeMonoid α → ARU) (C : Random.Level3Settings)
+    (K nh : ℕ) {J b : ℕ} : ∀ (e pk : ℕ) (ds : List (Random.EpochDraws α C.probeBudget J b))
+      (X : Finset (FreeMonoid α)) (ls : Random.LazyLists α),
+      ((Random.lazyEpochsQ C K nh e pk ds X ls).eval read).ending = .consistent →
+      RootOne ((Random.lazyEpochsQ C K nh e pk ds X ls).eval read).hypothesis.tree
+  | _, _, [], X, ls, h => by simp [Random.lazyEpochsQ] at h
+  | e, pk, d :: ds, X, ls, h => by
+    simp only [Random.lazyEpochsQ, eval_bind] at h ⊢
+    have hr := epochQ_root read (Random.epochSettings C e) K X d.1
+    generalize (Random.epochQ (Random.epochSettings C e) K X d.1).eval read = res at h hr ⊢
+    rcases res with ⟨hyp, _ | s | _⟩
+    · exact hr
+    · simp only [eval_bind] at h ⊢
+      generalize (Random.topUpQ K nh hyp s (List.ofFn d.2) X (ls s)).eval read = t at h ⊢
+      rcases t with _ | ⟨_ | _, rest⟩
+      · simp at h
+      · simp at h
+      · exact lazyEpochsQ_root read C K nh _ _ ds _ _ h
+    · simp at h
+
+omit [DecidableEq α] in
+private lemma card_prefixTrie_le (K : ℕ) (P : Finset (FreeMonoid α)) :
+    (Random.prefixTrie K P).card ≤ K * P.card := by
+  unfold Random.prefixTrie
+  calc _ ≤ ∑ p ∈ P, ((Finset.range (min K (p.toList.length + 1))).image
+          fun i => prefixOf p i).card := Finset.card_biUnion_le
+    _ ≤ ∑ _p ∈ P, K := Finset.sum_le_sum fun p _ => Finset.card_image_le.trans (by simp)
+    _ = K * P.card := by rw [Finset.sum_const, smul_eq_mul, mul_comm]
+
+/-- A consistent lazy round from the prefixes `CP`'s trie keeps its trie shorter than `K`, roots
+its tree at the empty string, and grows the trie to at most `K (|CP| + 2 nh)` strings. -/
+private lemma lazyRoundQ_consistent (read : FreeMonoid α → ARU) (C : Random.Level3Settings)
+    (K nh : ℕ) {E J b : ℕ} (CP : Finset (FreeMonoid α))
+    (d : Fin E → Random.EpochDraws α C.probeBudget J b) (hnh : 0 < nh)
+    (hc : ((Random.lazyRoundQ C K nh (Random.prefixTrie K CP) d).eval read).ending
+      = .consistent) :
+    (∀ u ∈ ((Random.lazyRoundQ C K nh (Random.prefixTrie K CP) d).eval read).expanded,
+        u.toList.length < K)
+      ∧ RootOne ((Random.lazyRoundQ C K nh (Random.prefixTrie K CP) d).eval read).hypothesis.tree
+      ∧ ((Random.lazyRoundQ C K nh (Random.prefixTrie K CP) d).eval read).expanded.card
+        ≤ K * (CP.card + 2 * nh) := by
+  obtain ⟨hok, -, hcard, -, hlist, -, -, -⟩ :=
+    lazyRoundShape_holds read C K nh E J b (Random.prefixTrie K CP) d hnh (trieOK_prefixTrie K CP)
+  refine ⟨hok.1, lazyEpochsQ_root read C K nh 0 0 (List.ofFn d) (Random.prefixTrie K CP)
+    (fun _ => []) hc, ?_⟩
+  have h1 := hlist hc .ends
+  have h2 := hlist hc .middles
+  have h4 : (((Random.lazyRoundQ C K nh (Random.prefixTrie K CP) d).eval read).lists .ends).length
+      + (((Random.lazyRoundQ C K nh (Random.prefixTrie K CP) d).eval read).lists .middles).length
+      ≤ 2 * nh := by omega
+  refine hcard.trans ?_
+  calc _ ≤ K * CP.card + K * (2 * nh) :=
+        Nat.add_le_add (card_prefixTrie_le K CP) (Nat.mul_le_mul_left K h4)
+    _ = K * (CP.card + 2 * nh) := by ring
+
+private lemma lazyReads_mono {K a b f Nr A nX q K' a' b' f' A' nX' q' : ℝ} (hK0 : 0 ≤ K)
+    (ha0 : 0 ≤ a) (hb0 : 0 ≤ b) (hf0 : 0 ≤ f) (hNr : 0 ≤ Nr) (hA0 : 0 ≤ A) (hnX0 : 0 ≤ nX)
+    (hq0 : 0 ≤ q) (hK : K ≤ K') (ha : a ≤ a') (hb : b ≤ b') (hf : f ≤ f') (hA : A ≤ A')
+    (hnX : nX ≤ nX') (hq : q ≤ q') :
+    lazyReads K a b f Nr A nX q ≤ lazyReads K' a' b' f' Nr A' nX' q' := by
+  unfold lazyReads
+  have h1 : a * (b + 1) ≤ a' * (b' + 1) := mul_le_mul ha (by linarith) (by linarith) (by linarith)
+  have h2 : f * Nr ≤ f' * Nr := mul_le_mul_of_nonneg_right hf hNr
+  have h3 : K * (a * (b + 1) + f * Nr) ≤ K' * (a' * (b' + 1) + f' * Nr) :=
+    mul_le_mul hK (add_le_add h1 h2)
+      (add_nonneg (mul_nonneg ha0 (by linarith)) (mul_nonneg hf0 hNr)) (by linarith)
+  have h4 : A * nX + 1 ≤ A' * nX' + 1 := by
+    linarith [mul_le_mul hA hnX hnX0 (by linarith : 0 ≤ A')]
+  have h5 : (A * nX + 1) * (q + 2) ≤ (A' * nX' + 1) * (q' + 2) :=
+    mul_le_mul h4 (by linarith) (by linarith) (by linarith [mul_nonneg hA0 hnX0])
+  have h6 : f * ((A * nX + 1) * (q + 2)) ≤ f' * ((A' * nX' + 1) * (q' + 2)) :=
+    mul_le_mul hf h5 (mul_nonneg (by linarith [mul_nonneg hA0 hnX0]) (by linarith))
+      (by linarith)
+  linarith
+
+end Last
 
 variable [Nonempty α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 
@@ -156,8 +245,10 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     unfold prefixMax
     exact ciSup_le hpre
   have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
-  have hkD : ∀ᵐ x ∂P.D, k ≤ x.toList.length := by
-    sorry -- closes by: prefixLaw_length, k ≤ L
+  have hkD : ∀ᵐ x ∂P.D, k ≤ x.toList.length :=
+    ae_iff.2 (measure_mono_null (fun x hx => by
+      simp only [Set.mem_ofPred_eq, not_le] at hx ⊢
+      omega) hTL)
   have hnhcap : 2 ≤ (nh : ℝ) * capP := hnhc
   obtain ⟨settings, hwalk, -, hbud, hSC, hnh', hE', hJ', hb', hnp, hab, hks, hmain⟩ :=
     loop_simple_checks M O P η₀ εcov ε δ' pAP ι W Tu tw k nh E J b Nr
@@ -166,6 +257,26 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     hk0 hkD hιL (hpm.trans hk1) hι0 hι8 hW1 hnh hnhcap
     ((mul_le_mul_of_nonneg_left hpm (by positivity)).trans hnhp) hE hJ hb hNr hNrW htwW htw hTu
     hslope
+  have hs0 : 0 < s := by show 0 < 1 / 2 - η₀; linarith
+  have hs1 : s ≤ 1 / 2 := by show 1 / 2 - η₀ ≤ 1 / 2; linarith
+  have hτ0 : 0 < τ := lt_min (mul_pos (div_pos hεc0 (by norm_num))
+    (pow_pos (gateA_pos hη0 hη₀) 2)) hι0
+  have hτ1 : τ ≤ 1 := (min_le_right _ _).trans (by linarith)
+  have hδ'1 : δ' ≤ 1 := hδ'1'.le
+  have hRB0 : 0 ≤ RB := rb_nonneg hQ0 hs0 hs1 hpAP hp1 hδ'0 hδ'1 hι0 hτ0 hτ1
+    (Real.log_nonneg (by rw [le_div_iff₀ hδ'0]; nlinarith))
+  have hm0 : 0 ≤ max (Real.log (20 / τ)) (Real.log (8 * W / δ')) :=
+    le_max_of_le_left (Real.log_nonneg (by rw [le_div_iff₀ hτ0]; linarith))
+  have hPB0 : 0 ≤ PB := by
+    have hl : 0 ≤ Real.log (3 / (δ' / 2)) :=
+      Real.log_nonneg (by rw [le_div_iff₀ (by positivity)]; linarith)
+    show 0 ≤ (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) /
+        pAP
+      + 120 * Real.log (3 / (δ' / 2)) / pAP
+    positivity
+  have hFV0 : 0 ≤ FV := by
+    show 0 ≤ (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28) / 4
+    positivity
   have hcap0 : 0 < capP := by
     by_contra hc0
     push Not at hc0
@@ -198,13 +309,184 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
         rounds.length ≤ Fintype.card σ + 1
           ∧ ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ (Q + 1) * (6 * (Q + 2) * RB)
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1) := by
-    sorry -- closes by: indecisiveLStarLoop_some, length_loopRounds_le, loop_reads_le, hab
+    intro p rounds h
+    obtain ⟨rs, hrs, rfl⟩ := indecisiveLStarLoop_some O h
+    obtain ⟨hlr, hpr, hsu⟩ := loop_reads_le_op settings O (prefixLaw D L) (prefixLaw D Ls)
+      (persistDraws p) _ _ hab rs hrs
+    have hQ : Q = (Fintype.card σ : ℝ) := rfl
+    have hpr' : ((rs.map SpecRound.data).map fun o => o.prefs.card).sum
+        ≤ (Fintype.card σ + 1) * (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊) := by
+      rw [List.map_map]; exact hpr
+    have hsu' : ((rs.map SpecRound.data).map fun o => o.suffs.card).sum
+        ≤ (Fintype.card σ + 1) * (⌊PB⌋₊ + 1) := by
+      rw [List.map_map]; exact hsu
+    have e : ∀ f : LoopRound α → ℕ, ((rs.map SpecRound.data).map fun o => (f o : ℝ)).sum
+        = ((((rs.map SpecRound.data).map f).sum : ℕ) : ℝ) := fun f => by
+      rw [Nat.cast_list_sum]; simp [Function.comp_def]
+    refine ⟨by rw [List.length_map]; exact hlr, (e fun o => o.prefs.card).trans_le ?_,
+      (e fun o => o.suffs.card).trans_le ?_⟩
+    · calc ((((rs.map SpecRound.data).map fun o => o.prefs.card).sum : ℕ) : ℝ)
+          ≤ (((Fintype.card σ + 1) * (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊) : ℕ) : ℝ) :=
+            Nat.cast_le.2 hpr'
+        _ = (Q + 1) * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ)) := by rw [hQ]; push_cast; ring
+        _ ≤ (Q + 1) * (6 * (Q + 2) * RB) :=
+          mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (Nat.floor_le hRB0)
+            (by linarith only [hQ0])) (by linarith only [hQ0])
+    · calc ((((rs.map SpecRound.data).map fun o => o.suffs.card).sum : ℕ) : ℝ)
+          ≤ (((Fintype.card σ + 1) * (⌊PB⌋₊ + 1) : ℕ) : ℝ) := Nat.cast_le.2 hsu'
+        _ = (Q + 1) * ((⌊PB⌋₊ : ℝ) + 1) := by rw [hQ]; push_cast; ring
+        _ ≤ (Q + 1) * (PB + 1) :=
+          mul_le_mul_of_nonneg_left (by linarith only [Nat.floor_le hPB0]) (by linarith only [hQ0])
   refine ⟨settings, hwalk, hbud, hSC, hnh', hE', hJ', hb', hlenT, ?_⟩
   -- off both, the loop's last round classifies through its table, reading few strings
   have hsub : {p | ¬ RLStarSucceeds settings O (prefixLaw D L) (prefixLaw D Ls)
       (prefixLaw D L) M ξT (lazyReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV Nr A nX Q) p}
       ⊆ Bloop ∪ Prod.fst ⁻¹' Bmis := by
-    sorry -- closes by: idealRounds_mem_loop, lazyTableCorrect_holds, misMean
+    intro p hp
+    by_contra hn
+    simp only [Set.mem_union, Set.mem_preimage, not_or] at hn
+    obtain ⟨hnl, hnm⟩ := hn
+    obtain ⟨⟨hlen, o, ho, hch⟩, hlv, hfr, hrg⟩ := not_not.1 hnl
+    apply hp
+    have hloop : loopRounds settings O P.D Dsf (persistDraws p) (Fintype.card σ + 1)
+        = some (idealRounds settings O P.D Dsf (persistDraws p) (Fintype.card σ + 1)) :=
+      idealRounds_mem_loop settings O Dsf P.D (persistDraws p) hrg
+    have hind : indecisiveLStarLoop settings O (prefixLaw D L) (prefixLaw D Ls) p
+        = some ((idealRounds settings O P.D Dsf (persistDraws p) (Fintype.card σ + 1)).map
+          SpecRound.data) := by
+      have := indecisiveLStarLoop_eq O settings P.D Dsf p
+      rw [hloop, Option.map_some] at this
+      exact this
+    have hoK : o ∈ idealRounds settings O P.D Dsf (persistDraws p) (Fintype.card σ + 1) :=
+      List.mem_of_getLast? ho
+    have hro : o.read = o.data.read O p.1 :=
+      loopRounds_read O settings P.D Dsf p _ (Option.mem_def.2 hloop) o hoK
+    have hcons : o.result.ending = .consistent := hch.1.1
+    obtain ⟨hh, x, u, hox⟩ :=
+      (loopRounds_roundOf settings O P.D Dsf (persistDraws p) _ _ hloop).2 o hoK
+    have hres : (Random.lazyRoundQ settings.level3 settings.level3.walkStart settings.listSize
+        (Random.prefixTrie settings.level3.walkStart o.prefs)
+        (lazyProbes (avoidLaw P.D settings.level3.walkStart
+          (clusterKeys (settings.schedule (loopPopulations (Fintype.card σ + 1) hh.pops.length))
+            (loopPopulations (Fintype.card σ + 1) hh.pops.length) settings.level3.walkStart x))
+          u)).eval o.read = o.result := by
+      subst hox; rfl
+    have hfacts := lazyRoundQ_consistent o.read settings.level3 settings.level3.walkStart
+      settings.listSize o.prefs
+      (lazyProbes (avoidLaw P.D settings.level3.walkStart
+        (clusterKeys (settings.schedule (loopPopulations (Fintype.card σ + 1) hh.pops.length))
+          (loopPopulations (Fintype.card σ + 1) hh.pops.length) settings.level3.walkStart x)) u)
+      (hnh' ▸ hnh) (by rw [hres]; exact hcons)
+    rw [hres, hwalk, hnh'] at hfacts
+    obtain ⟨hXK, hroot, hXc⟩ := hfacts
+    have hpk : ∀ o' ∈ (idealRounds settings O P.D Dsf (persistDraws p)
+        (Fintype.card σ + 1)).map SpecRound.data, o'.result.peak ≤ Fintype.card σ + 2 := by
+      intro o' ho'
+      obtain ⟨o'', ho'', rfl⟩ := List.mem_map.1 ho'
+      exact hlv o'' ho''
+    have hlast : ((idealRounds settings O P.D Dsf (persistDraws p) (Fintype.card σ + 1)).map
+        SpecRound.data).getLast? = some o.data := by
+      rw [List.getLast?_map, Option.mem_def.1 ho, Option.map_some]
+    refine ⟨⟨_, hind, ⟨by simpa using hlen, o.data, hlast, hcons, ?_⟩, hpk⟩, ?_⟩
+    · show (prefixLaw D L).real {w | ¬ o.result.hypothesis.LazyClassifies
+          ((Random.lazyTableQ settings.level3.walkStart o.result.hypothesis.tree
+            o.result.expanded).eval (o.data.read O p.1)) o.result.expanded w
+            (M.eval w.toList ∈ M.accept)} ≤ ξT
+      rw [← hro, hwalk]
+      have eL : {w | ¬ o.result.hypothesis.LazyClassifies
+            ((Random.lazyTableQ k o.result.hypothesis.tree o.result.expanded).eval o.read)
+            o.result.expanded w (M.eval w.toList ∈ M.accept)}
+          = {w | ¬ o.result.hypothesis.LazyClassifies
+            ((Random.lazyTableQ k o.result.hypothesis.tree o.result.expanded).eval o.read)
+            o.result.expanded w (w ∈ O.L)} := by
+        ext w
+        simp only [Set.mem_ofPred_eq, hL]
+      rw [eL]
+      refine (lazyTableCorrect_holds o.read o.result.hypothesis k o.result.expanded hXK hroot
+        O.L (prefixLaw D L) hkD).trans ?_
+      have hdis : (prefixLaw D L).real
+          (Random.lazyDisagree o.read k o.result.expanded o.result.hypothesis)
+          ≤ ε + ε / 96 + tw := hch.2.1
+      have hmis : (prefixLaw D L).real (Random.misreadSet o.read O.L)
+          ≤ (1025 / 1024 + 3 / 8) * εcov + t := by
+        have e : (prefixLaw D L).real (Random.misreadSet o.read O.L)
+            = misFrac O o.family o.state.lo (o.state.hi + 1) (prefixLaw D L) p.1 := by
+          rw [hro]; rfl
+        rw [e]
+        obtain ⟨hlenF, -, -, -⟩ :=
+          family_of_fresh settings O P.D Dsf (P.L + Fintype.card σ + 3) p hfr o hoK
+        have hcardF : o.family.card ≤ ⌊FV⌋₊ :=
+          loopRounds_small settings O P.D Dsf (persistDraws p) hks _ _ hloop o hoK
+        have h1 : misFrac O o.family o.state.lo (o.state.hi + 1) (prefixLaw D L) p.1
+            ≤ misMean O o.family o.state.lo (o.state.hi + 1) (prefixLaw D L) + t :=
+          not_lt.1 fun h => hnm ⟨o.family, o.state.lo, o.state.hi + 1, hlenF, hcardF, h⟩
+        have h2 := hch.1.2.1
+        have h3 := hch.1.2.2
+        rw [misMean_split O _ _ _ hTL] at h1
+        change ∫ x, misreadProb O o.family o.state.lo (o.state.hi + 1) x ∂(prefixLaw D L)
+          ≤ 1025 / 1024 * εcov at h2
+        change ∫ x, readProb O o.family o.state.lo (o.state.hi + 1) x .undecided
+          ∂(prefixLaw D L) ≤ 3 / 8 * εcov at h3
+        linarith
+      linarith
+    · refine ⟨(learnerQ settings (prefixLaw D L) (prefixLaw D Ls) p.2).reads
+        (fun w => O.mq w p.1), ?_, fun o' ho' => (Query.eval_congr _ _ ho').1⟩
+      obtain ⟨nXn, hnXn⟩ : ∃ n : ℕ, n = k * (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊ + 2 * nh) :=
+        ⟨_, rfl⟩
+      have hX : ∀ o' ∈ ((idealRounds settings O P.D Dsf (persistDraws p)
+          (Fintype.card σ + 1)).map SpecRound.data).getLast?, o'.result.expanded.card ≤ nXn := by
+        intro o' ho'
+        rw [hlast, Option.mem_some_iff] at ho'
+        subst ho'
+        rw [hnXn]
+        refine hXc.trans (Nat.mul_le_mul_left _ (Nat.add_le_add_right ?_ _))
+        rw [hox]
+        exact (hab _ x).1
+      have hNrS : lazyReadCap settings.level3 settings.epochs settings.blocks settings.blockSize
+          L₁ (Fintype.card σ) (Fintype.card α) ≤ Nr := by
+        have h : (lazyReadCap settings.level3 settings.epochs settings.blocks settings.blockSize
+            L₁ (Fintype.card σ) (Fintype.card α) : ℝ) ≤ Nr := by
+          refine le_trans ?_ hNr
+          unfold lazyReadCap
+          rw [hE', hJ', hb', hwalk]
+          push_cast
+          show (E : ℝ) * (((settings.level3.probeBudget : ℝ) + J * b)
+              * (Random.Kappa.probeSifts (L₁ + k) * (Q + 3))
+              + (Q + 2) * ((Q + 2) * (A + 1) * (Q + 2)))
+            ≤ E * ((B₃ + J * b) * (Random.Kappa.probeSifts (L₁ + k) * (Q + 3))
+              + (Q + 2) * ((Q + 2) * (A + 1) * (Q + 2)))
+          exact mul_le_mul_of_nonneg_left (add_le_add (mul_le_mul_of_nonneg_right
+            (add_le_add hbud le_rfl)
+            (mul_nonneg (Nat.cast_nonneg _)
+              (show (0 : ℝ) ≤ Q + 3 from add_nonneg (Nat.cast_nonneg _) (by norm_num)))) le_rfl)
+            (Nat.cast_nonneg _)
+        exact_mod_cast h
+      have h := card_reads_learnerQ_le O settings (prefixLaw D L) (prefixLaw D Ls) p hlenL hab
+        hks hNrS hind hpk hX
+      refine ((Nat.cast_le (α := ℝ)).2 h).trans ((reads_le_lazyReads (Fintype.card σ + 1)
+        (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊) (⌊PB⌋₊ + 1) ⌊FV⌋₊ Nr (Fintype.card α) nXn
+        (Fintype.card σ)).trans ?_)
+      have hQ : Q = (Fintype.card σ : ℝ) := rfl
+      have ha : ((6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊ : ℕ) : ℝ) ≤ 6 * (Q + 2) * RB := by
+        have e : ((6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊ : ℕ) : ℝ)
+            = 6 * (Q + 2) * (⌊RB⌋₊ : ℝ) := by
+          rw [hQ]; push_cast; ring
+        rw [e]
+        exact mul_le_mul_of_nonneg_left (Nat.floor_le hRB0) (by linarith)
+      have hnX : (nXn : ℝ) ≤ nX := by
+        have e : (nXn : ℝ) = k * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ) + 2 * nh) := by
+          rw [hnXn, hQ]; push_cast; ring
+        rw [e]
+        show (k : ℝ) * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ) + 2 * nh)
+          ≤ k * (6 * (Q + 2) * RB + 2 * (nh + b))
+        have hb0 : (0 : ℝ) ≤ b := Nat.cast_nonneg _
+        have : 6 * (Q + 2) * (⌊RB⌋₊ : ℝ) ≤ 6 * (Q + 2) * RB :=
+          mul_le_mul_of_nonneg_left (Nat.floor_le hRB0) (by linarith)
+        exact mul_le_mul_of_nonneg_left (by linarith) (Nat.cast_nonneg _)
+      exact lazyReads_mono (by positivity) (by positivity) (by positivity) (by positivity)
+        (by positivity) (by positivity) (by positivity) (by positivity)
+        (by push_cast; exact le_rfl) ha (by push_cast; linarith [Nat.floor_le hPB0])
+        (Nat.floor_le hFV0) le_rfl hnX le_rfl
   have hBl : μL.real Bloop ≤ δ / 2 := by
     refine hD.trans (le_of_eq ?_)
     show (Q + 1) * (4 * (δ / (8 * (Q + 1)))) = δ / 2
