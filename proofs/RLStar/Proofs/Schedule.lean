@@ -137,14 +137,17 @@ def BandChecked (crossLimit : ℝ) (κ lo hi : ℕ) : Prop :=
     ∧ bandKappa κ q lo c (hi + 1) ^ 4 ≤ crossLimit
 
 /-- A family of `κ` the exact tails allow, at every centre.  The tails are binomials, which bound
-a vote's reads whatever their rates (`BitSumTails`).  The band spans at least five counts, which
-that bound asks of it, and the family is at least 32 strong, which keeps the pool at 64 for the
-budget's bounds.
+a vote's reads whatever their rates (`BitSumTails`).  The band spans at least eight counts: five
+for that bound, the rest so that the centre check's strong thresholds, `sig` past the centre,
+are ten counts clear of it.  The family is at least 32 strong, which keeps the pool at 64 for
+the budget's bounds.
 
-The last is for the loop's band check, at `ζ = crossLimit^(1/4)`: whatever the read's two rates,
+The fourth puts the centre check's misses, `exp(−8κ·sig²/25)`, under `cut/2`.  The last is
+for the loop's band check, at `ζ = crossLimit^(1/4)`: whatever the read's two rates,
 it is on its rarer decided side at most `ζ` times as often as undecided (`BandKappaBound`). -/
 def FamilyFits (η cut crossLimit : ℝ) (κ : ℕ) : Prop :=
-  Even κ ∧ 32 ≤ κ ∧ 5 ≤ (κ : ℝ) * voteSlack η
+  Even κ ∧ 32 ≤ κ ∧ 8 ≤ (κ : ℝ) * voteSlack η
+    ∧ Real.log (2 / cut) ≤ 8 * κ * sig η ^ 2 / 25
     ∧ ∀ m ∈ centres η κ, misfireTail η κ m ≤ cut / 2 ∧ crossTail η κ m ≤ crossLimit
       ∧ BandChecked crossLimit κ (loAt η κ m) (hiAt η κ m)
 
@@ -275,7 +278,8 @@ two fifths of it, and the levels', which shrink with the prefix count `n`, the r
 
     n ≥ K (log(7|J|/α) + 4 log(2n + 2)),
 
-which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (7|J|/α)^(1/4)`.
+which `n ≥ 4K (log(4Kk) + 2 log log(4Kk))` clears, `k = 4 (9|J|κ/α)^(1/4)` over the `κ`
+centres.
 
 The first term is the count rule's: a heavy row's shift, `(15/16)·shiftBudget` a prefix, has to
 clear `(u + x)√(|J| m)` on a table of at most `|J| m` prefixes.
@@ -304,7 +308,8 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
           * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 3) / δ)
         / gateRoom η indecisionLimit εcov ^ 2⌉₊
     + ⌈gateLogCount (200 / 9 * (gateDevD η + 1) ^ 2 / gateRoom η indecisionLimit εcov ^ 2)
-        (4 * Real.sqrt (Real.sqrt (7 * (populations.card : ℝ) / α)))⌉₊
+        (4 * Real.sqrt (Real.sqrt (9 * (populations.card : ℝ)
+          * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / α)))⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / dirtyRate η indecisionLimit εcov⌉₊
@@ -325,24 +330,30 @@ to the share:
 noncomputable def undecRate (indecisionLimit : ℝ) : ℝ := 2 * indecisionLimit / 27
 
 /-- The fewest prefixes at which a stop is covered: the FNR test's tail at
-`δ/(128·|populations|)`.  The gate pays for its own soundness at every count. -/
-noncomputable def validCount (_η : ℝ) (populations : Finset J)
-    (indecisionLimit _εcov δ _pAP _crossLimit : ℝ) : ℕ :=
-  ⌈Real.log (128 * (populations.card : ℝ) / δ) / undecRate indecisionLimit⌉₊ + 1
+`δ/(128·|populations|·k)`, over the family's `k` centres.  The gate pays for its own soundness
+at every count. -/
+noncomputable def validCount (η : ℝ) (populations : Finset J)
+    (indecisionLimit εcov δ _pAP crossLimit : ℝ) : ℕ :=
+  ⌈Real.log (128 * (populations.card : ℝ)
+      * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / δ)
+    / undecRate indecisionLimit⌉₊ + 1
 
-/-- The state at a given prefix count: every other field read off the condition it has to
-meet. -/
+/-- The state at a given prefix count, its band centred at count `m`: every other field read
+off the condition it has to meet. -/
 noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ pAP crossLimit : ℝ) (mi : ℕ) : State where
+    (indecisionLimit εcov δ pAP crossLimit : ℝ) (mi m : ℕ) : State where
   nsuff := poolCount η populations indecisionLimit εcov δ pAP crossLimit
   npref := mi
   k := famCount η populations indecisionLimit εcov δ crossLimit + 1
-  lo := loAt η (famCount η populations indecisionLimit εcov δ crossLimit)
-    (famCount η populations indecisionLimit εcov δ crossLimit / 2)
-  hi := hiAt η (famCount η populations indecisionLimit εcov δ crossLimit)
-    (famCount η populations indecisionLimit εcov δ crossLimit / 2)
+  lo := loAt η (famCount η populations indecisionLimit εcov δ crossLimit) m
+  hi := hiAt η (famCount η populations indecisionLimit εcov δ crossLimit) m
   sc := 1
   scd := 1
+
+open scoped Classical in
+/-- The centre counts the family's band is tried at. -/
+noncomputable def centreSet (η : ℝ) (κ : ℕ) : Finset ℕ :=
+  (Finset.range (κ + 1)).filter (· ∈ centres η κ)
 
 /-- How many times the loop runs the gate: the prefix count halves down to one.  There is no
 other state the loop can return at. -/
@@ -350,17 +361,19 @@ noncomputable def ladderLen (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℕ :=
   Nat.log 2 (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz) + 1
 
-/-- The states the loop runs the gate at: the ladder `m, m/2, m/4, …`. -/
+/-- The states the loop runs the gate at: the ladder `m, m/2, m/4, …`, each count at every
+centre. -/
 noncomputable def schedule (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : Finset State :=
-  (Finset.range (ladderLen η populations indecisionLimit εcov εs δ α pAP crossLimit hsz)).image
-    (fun i => solvedStateAt η populations indecisionLimit εcov δ pAP crossLimit
-      (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ i))
+  (Finset.range (ladderLen η populations indecisionLimit εcov εs δ α pAP crossLimit hsz)
+      ×ˢ centreSet η (famCount η populations indecisionLimit εcov δ crossLimit)).image
+    (fun ic => solvedStateAt η populations indecisionLimit εcov δ pAP crossLimit
+      (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz / 2 ^ ic.1) ic.2)
 
 /-- What one tested state may cost, summed over the populations: the table sampler rejecting more
 than `tabCount` of its draws and the certification sampler more than `certCount`, binomial tails at
-what a draw can land on, and the draws missing the undecided set.  The gate's own tails are not
-here: they are spent at `gateLevel`, which sums to `α` over the states. -/
+what a draw can land on, and the draws missing the undecided set at each of the `k` centres.  The
+gate's own tails are not here: they are spent at `gateLevel`, which sums to `α` over the states. -/
 noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov εs ρ : ℝ)
     (B : State) : ℝ :=
   (populations.card : ℝ) * (rejTail (B.npref + tabCount η₀ indecisionLimit εcov B.npref)
@@ -370,7 +383,7 @@ noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLi
         (((populations.card * B.npref + (2 * B.npref + certCount indecisionLimit εs B.npref)
           : ℕ) : ℝ) * ρ)
         (certCount indecisionLimit εs B.npref)
-    + Real.exp (-((B.npref : ℝ) * undecRate indecisionLimit)))
+    + (B.k : ℝ) * Real.exp (-((B.npref : ℝ) * undecRate indecisionLimit)))
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
 prefixes to carry its share of the error budget.
@@ -416,7 +429,8 @@ a binomial tail of order `(m/N)·2^-(r+1)`; its certification draws land on what
 earlier ones hold at most `(|J| + 3)·m·ρ` of the time, against `certFrac`; the uniform pool's draws
 land in a window of `4|J|N` strings at most `e/4` of the time, `e = min(εs, indecisionLimit)/8`;
 and the hash splits every population evenly but for its sub-Gaussian tail `2exp(−e²/(8ρ))`, which
-over the `|J|(3 + 2 log₂ N)` splits it is union-bounded across takes `δ/32`. -/
+over the `|J|·k·(3 + 2 log₂ N)` splits it is union-bounded across, a family's `k` centres at each
+rung, takes `δ/32`. -/
 noncomputable def collisionCap (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov εs δ α pAP crossLimit : ℝ) (hsz : ℕ) : ℝ :=
   min (min (min (tabFrac η indecisionLimit εcov
@@ -429,6 +443,7 @@ noncomputable def collisionCap (η : ℝ) (populations : Finset J)
           * (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit hsz : ℝ))))
     (min εs indecisionLimit ^ 2
       / (512 * Real.log (64 * (populations.card : ℝ)
+        * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1)
         * (3 + 2 * (Nat.log 2 (prefCount η populations indecisionLimit εcov εs δ α pAP crossLimit
           hsz) : ℝ)) / δ)))
 
@@ -447,12 +462,14 @@ pool and a half elsewhere, twice the certification redraw fraction, and on a nam
 `εs/2` for reading it through one side of the hash, and leaves at most `2·indecisionLimit` of each
 undecided.
 
-The algorithm is not told the noise rate, only an upper bound `η₀` on it — `η₀` is what
-`min_signal_strength` gives `build_pst`, and every computed field of `State` is solved from
-it, never from `O.η`.  The gate reads each class's rate at `η₀`, so it needs none of them.
+The algorithm is not told the noise rates, only `η₀`, whose signal `½ − η₀` is a quarter of the
+gap `1 − ηIn − ηOut` or less, and every computed field of `State` is solved from it.  The gate
+estimates where the two rates sit from the uniform pool's strongly decided prefixes, trying the
+band at every centre, so it needs neither rate.
 
-The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`,
-which has signal; the uniform pool is a population; the populations, the harvested strings and
+The hypotheses, in the order they appear: the gap is at least `4·(½ − η₀)`, which has signal;
+the uniform pool is a population holding at least `2·εcov` of each class, so that a cut wrong on
+`εcov` of it is not vacuous; the populations, the harvested strings and
 the suffix measure are supported on a `Flat` pair of sets; no string has more than `ρ` of a tame
 population and `pAP` of the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov`,
 `εs` and `δ` are in range; and `ρ` fits `collisionCap` and `Dsf`'s atoms fit `poolAtomCap`. -/
@@ -462,10 +479,12 @@ def ClusteringCorrect : Prop :=
     (O : Oracle μ S) (populations tame : Finset J) (uni : J)
     (H : J → Finset S) (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre Suf : Set S) (η₀ indecisionLimit εcov εs α δ ρ pAP crossLimit k : ℝ),
-  O.η ≤ η₀ →
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov εs α δ ρ pAP crossLimit k εg : ℝ),
+  4 * (1 / 2 - η₀) ≤ O.gap →
   η₀ < 1 / 2 →
   uni ∈ tame →
+  2 * εcov ≤ (D uni).real {p | p ∈ O.L} →
+  2 * εcov ≤ (D uni).real {p | p ∉ O.L} →
   tame ⊆ populations →
   Flat Pre Suf →
   (∀ j, ∀ p ∈ H j, p ∈ Pre) →
@@ -481,6 +500,8 @@ def ClusteringCorrect : Prop :=
   0 < εcov →
   εcov ≤ 1 →
   0 < εs →
+  εs ≤ εcov →
+  εcov ≤ εg →
   0 < δ →
   -- The budget the schedule is built from costs no more than `k` buys: a count that is
   -- logarithmic in the failure probability and polynomial in the rates it resolves.
@@ -495,19 +516,23 @@ def ClusteringCorrect : Prop :=
   1 - δ - α ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations
         indecisionLimit εcov εs δ α pAP crossLimit (allHarvest H).card ρ},
-        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit εcov α
+        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀
+            indecisionLimit εg α
           B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εs δ
         α pAP crossLimit (allHarvest H).card ρ},
-        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀ indecisionLimit εcov α
+        streams H uni x ∈ retBy (nearestClusterer B.val.centre) O.mq populations uni η₀
+            indecisionLimit εg α
           B.val →
-        ∀ j ∈ tame, 1 - gateLimit uni εcov j - 2 * certFrac indecisionLimit εs
+        ∀ j ∈ tame, 1 - gateLimit uni εg j - 2 * certFrac indecisionLimit εs
             - (if j = uni then 0 else εs / 2)
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-              (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise
+              (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p
+                  (oracleNoise
                 x.1)}
           ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
-              (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p (oracleNoise
+              (familyBy (nearestClusterer B.val.centre) O.mq populations (streams H uni x) B.val) p
+                  (oracleNoise
                 x.1)}
             ≤ 2 * indecisionLimit}
 
