@@ -119,9 +119,14 @@ theorem lazy_round_bad_exists (m crossLimit δH tw : ℝ) (Nr : ℕ)
   set K₀ := CP.image fun p => prefixOf p k
   set Oc := O.clamped
   have hηIn : 0 ≤ 1 - Oc.ηIn ∧ 1 - Oc.ηIn ≤ 1 := by
-    sorry -- closes by: main's hηIn (clamped noise rates)
+    have h1 : O.ηIn ≤ O.η := le_max_left _ _
+    exact ⟨by simp only [Oc, Oracle.clamped]; have := le_max_left O.ηIn 0
+              exact sub_nonneg.2 (max_le (by linarith) (by norm_num)),
+      by simp only [Oc, Oracle.clamped]; linarith [le_max_right O.ηIn 0]⟩
   have hηOut : 0 ≤ Oc.ηOut ∧ Oc.ηOut ≤ 1 := by
-    sorry -- closes by: main's hηOut
+    have h1 : O.ηOut ≤ O.η := le_max_right _ _
+    exact ⟨by simp only [Oc, Oracle.clamped]; exact le_max_right _ _,
+      by simp only [Oc, Oracle.clamped]; exact max_le (by linarith) (by norm_num)⟩
   have hb := hband F.card hcard (1 - Oc.ηIn) Oc.ηOut hηIn.1 hηIn.2 hηOut.1 hηOut.2
   let fam : SuffixFamily μ α σ :=
     ⟨Oc, M, F, B.lo, B.hi + 1, crossLimit, hL, hsf, hb⟩
@@ -129,10 +134,38 @@ theorem lazy_round_bad_exists (m crossLimit δH tw : ℝ) (Nr : ℕ)
   let fam' := fam.renoise R
   set D' := avoidLaw P.D k K₀
   set X₀ := Random.prefixTrie k CP
+  set A := avoiding k (↑K₀ : Set (FreeMonoid α))
+  set m' := P.D.real Aᶜ
+  have hm' : m' ≤ m := (real_compl_avoiding_le P.D k K₀).trans hK₀
+  have hm'0 : 0 ≤ m' := measureReal_nonneg
+  have hA : P.D.real A = 1 - m' := by
+    rw [show m' = P.D.real Aᶜ from rfl, probReal_compl_eq_one_sub (measurableSet_of_countable A)]
+    ring
+  have hApos : 0 < P.D.real A := by rw [hA]; linarith
+  have hA0 : P.D.restrict A Set.univ ≠ 0 := by
+    rw [Measure.restrict_apply_univ]
+    intro h0
+    rw [measureReal_def, h0, ENNReal.toReal_zero] at hApos
+    exact lt_irrefl _ hApos
+  have hD'eq : D' = (P.D.restrict A Set.univ)⁻¹ • P.D.restrict A := by
+    show popLaw (P.D.restrict A) = _
+    unfold popLaw
+    rw [if_neg (not_or.2 ⟨hA0, measure_ne_top _ _⟩)]
+  have hAv : ∀ᵐ x ∂D', x ∈ A := by
+    rw [hD'eq]
+    exact Measure.smul_absolutelyContinuous.ae_le (ae_restrict_mem (measurableSet_of_countable A))
   have hD'len : ∀ᵐ x ∂D', k ≤ x.toList.length ∧ x.toList.length ≤ P.L := by
-    sorry -- closes by: avoidLaw_len, popLaw_null on hKw
+    have hac : D' ≪ P.D := by
+      rw [hD'eq]
+      exact Measure.smul_absolutelyContinuous.trans Measure.restrict_le_self.absolutelyContinuous
+    exact hac.ae_le (hKw.and P.length_le)
   have hp₁ : ∀ u, D'.real {x | prefixOf x k = u} ≤ 2 * prefixMax P.D k := by
-    sorry -- closes by: main's hpm, prefixMax_avoidLaw_le, real_compl_avoiding_le, hK₀
+    have hpm0 : 0 ≤ prefixMax P.D k := (measureReal_nonneg).trans (le_prefixMax P.D k 1)
+    have hpm : prefixMax D' k ≤ 2 * prefixMax P.D k := by
+      refine (prefixMax_avoidLaw_le P.D k K₀ (by linarith)).trans ?_
+      rw [div_le_iff₀ (by linarith)]
+      nlinarith
+    exact fun u => (le_prefixMax D' k u).trans hpm
   have h4 := lazyFail_le fam' hcross.le settings X₀ (trieOK_prefixTrie k CP) D'
     (2 * prefixMax P.D k) δH tw Nr P.L hD'len hp₁ hprem hNr hδH htw
   set Sf := lazyFail fam' settings X₀ D' (lazySlope σ Nr settings.listSize)
@@ -140,8 +173,11 @@ theorem lazy_round_bad_exists (m crossLimit δH tw : ℝ) (Nr : ℕ)
   have hSm : MeasurableSet Sf := measurableSet_lazyFail fam' settings X₀ D' _ _ tw
   obtain ⟨ω₀, hω₀⟩ := exists_noise_le (μ := μ) (lazyDrawLaw settings D') Sf hSm
   set ν := lazyLaw settings.epochs C.probeBudget settings.blocks settings.blockSize
-  have hpr : MeasurePreserving (probesOf settings P.D K₀) ν (lazyDrawLaw settings D') := by
-    sorry -- closes by: measurePreserving_pi of map_drawFrom, as main's hpr
+  have hpr : MeasurePreserving (probesOf settings P.D K₀) ν (lazyDrawLaw settings D') :=
+    measurePreserving_pi _ _ fun _ =>
+      (measurePreserving_pi _ _ fun _ => ⟨measurable_drawFrom _, map_drawFrom _⟩).prod
+        (measurePreserving_pi _ _ fun _ => measurePreserving_pi _ _ fun _ =>
+          ⟨measurable_drawFrom _, map_drawFrom _⟩)
   have hmp : MeasurePreserving (fun q : Ω × settings.Uniforms =>
       (q.1, probesOf settings P.D K₀ q.2)) (μ.prod ν) (μ.prod (lazyDrawLaw settings D')) :=
     (MeasurePreserving.id μ).prod hpr
@@ -152,10 +188,39 @@ theorem lazy_round_bad_exists (m crossLimit δH tw : ℝ) (Nr : ℕ)
   -- the draws, null under `ν`, with a probe shorter than `k`
   set Sh : Set (Ω × settings.Uniforms) :=
     {q | ¬ LazyDrawsAll (fun x => k ≤ x.toList.length) (probesOf settings P.D K₀ q.2)}
-  have hShm : MeasurableSet Sh := by
-    sorry -- closes by: measurable_probesOf, countable codomain
+  have hShm : MeasurableSet Sh :=
+    ((measurable_probesOf settings P.D K₀).comp measurable_snd)
+      (Set.to_countable {d | ¬ LazyDrawsAll (fun x => k ≤ x.toList.length) d}).measurableSet
   have hSh0 : (μ.prod ν) Sh = 0 := by
-    sorry -- closes by: drawFrom_pos_or_one, hD'len, volume of {1} is 0
+    have hk' : ∀ᵐ x ∂D', k ≤ x.toList.length := hD'len.mono fun x hx => hx.1
+    have hall : ∀ᵐ d ∂(lazyDrawLaw settings D'),
+        LazyDrawsAll (fun x => k ≤ x.toList.length) d := by
+      set ρ := (Measure.pi fun _ : Fin C.probeBudget => D').prod
+        (Measure.pi fun _ : Fin settings.blocks => Measure.pi fun _ : Fin settings.blockSize => D')
+      have he : ∀ e, MeasurePreserving (fun d : Fin settings.epochs →
+          Random.EpochDraws α C.probeBudget settings.blocks settings.blockSize => d e)
+          (lazyDrawLaw settings D') ρ := fun e => measurePreserving_eval (fun _ => ρ) e
+      have h1 : ∀ i, MeasurePreserving (fun p : Random.EpochDraws α C.probeBudget settings.blocks
+          settings.blockSize => p.1 i) ρ D' := fun i =>
+        (measurePreserving_eval (fun _ => D') i).comp measurePreserving_fst
+      have h2 : ∀ j t, MeasurePreserving (fun p : Random.EpochDraws α C.probeBudget settings.blocks
+          settings.blockSize => p.2 j t) ρ D' := fun j t =>
+        (measurePreserving_eval (fun _ => D') t).comp
+          ((measurePreserving_eval (fun _ => Measure.pi fun _ => D') j).comp measurePreserving_snd)
+      unfold LazyDrawsAll
+      refine ae_all_iff.2 fun e => (ae_all_iff.2 fun i => ?_).and
+        (ae_all_iff.2 fun j => ae_all_iff.2 fun t => ?_)
+      · exact ((h1 i).comp (he e)).quasiMeasurePreserving.ae hk'
+      · exact ((h2 j t).comp (he e)).quasiMeasurePreserving.ae hk'
+    exact ae_iff.1
+      (measurePreserving_snd.quasiMeasurePreserving.ae (hpr.quasiMeasurePreserving.ae hall))
+  have hdraws : ∀ v, LazyDrawsAll (fun x => k ≤ x.toList.length) (probesOf settings P.D K₀ v) →
+      LazyDrawsAll (fun x => k ≤ x.toList.length ∧ Avoids k ↑K₀ x)
+        (probesOf settings P.D K₀ v) := fun v hv e =>
+    ⟨fun i => ⟨(hv e).1 i, drawFrom_avoids P.D hk K₀ _⟩,
+      fun j t => ⟨(hv e).2 j t, drawFrom_avoids P.D hk K₀ _⟩⟩
+  have hoff : ∀ z, LazyKeyOff k CP z → ∀ p : Ω × Ω, fam'.read p z = fam.read p.1 z :=
+    fun z hz => renoise_read_of_notMem fam R fun v hv hR => hR ⟨z, hz, v, hv, rfl⟩
   refine ⟨(fun q : Ω × settings.Uniforms => (q.1, probesOf settings P.D K₀ q.2)) ⁻¹'
     {q | ((q.1, ω₀), q.2) ∈ Sf} ∪ Sh, (hmp.measurable hSω).union hShm, ?_, ?_, ?_⟩
   · calc (μ.prod ν) ((fun q : Ω × settings.Uniforms => (q.1, probesOf settings P.D K₀ q.2)) ⁻¹'
@@ -165,20 +230,81 @@ theorem lazy_round_bad_exists (m crossLimit δH tw : ℝ) (Nr : ℕ)
       _ = (μ.prod (lazyDrawLaw settings D')) {q | ((q.1, ω₀), q.2) ∈ Sf} := by
         rw [hSh0, add_zero, hmp.measure_preimage hSω.nullMeasurableSet]
       _ ≤ _ := hω₀.trans h4
-  · intro v ω ω' h hω
-    sorry -- closes by: main's hread via renoise_mq_of_mem/notMem, lazyFail_congr_up
+  · -- the bad draws read only the zone
+    intro v ω ω' h hω
+    rcases hω with hω | hω
+    · by_cases hsh : (ω', v) ∈ Sh
+      · exact Or.inr hsh
+      refine Or.inl ?_
+      change ((ω, ω₀), probesOf settings P.D K₀ v) ∈ Sf at hω
+      show ((ω', ω₀), probesOf settings P.D K₀ v) ∈ Sf
+      have hlen : ∀ᵐ x ∂D', x.toList.length ≤ P.L ∧ k ≤ x.toList.length ∧ Avoids k ↑K₀ x :=
+        (hD'len.and hAv).mono fun x hx => ⟨hx.1.2, hx.1.1, hx.2⟩
+      refine lazyFail_congr_up fam' settings CP D' hlen _ _ tw (probesOf settings P.D K₀ v)
+        (hdraws v (not_not.1 hsh)) (fun z hz hzl => ?_) hω
+      rw [hoff z hz, hoff z hz]
+      refine familyRead_congr Oc (Z := {z}) (fun w hw => ?_) (Finset.mem_singleton_self z)
+      obtain ⟨⟨z', v'⟩, hzv, rfl⟩ := Finset.mem_image.1 hw
+      obtain ⟨hz', hv'⟩ := Finset.mem_product.1 hzv
+      rw [Finset.mem_singleton] at hz'
+      subst hz'
+      exact h _ (Finset.mem_filter.2 ⟨Finset.mem_image.2 ⟨(z', v'),
+        Finset.mem_product.2 ⟨mem_shortStrings.2 hzl, hv'⟩, rfl⟩, z', hz, hzl, v', hv', rfl⟩)
+    · exact Or.inr hω
   · intro Sf' ω v hnot
-    simp only [Set.mem_union, Set.mem_preimage, Set.mem_setOf_eq, not_or] at hnot
+    simp only [Set.mem_union, Set.mem_preimage, Set.mem_ofPred_eq, not_or] at hnot
     obtain ⟨hgood, hlong⟩ := hnot
     obtain ⟨hE, hpk⟩ := not_not.1 hgood
+    have hd := hdraws v (not_not.1 hlong)
     have hres : (mkRound settings O P.D B F K₀ CP Sf' (ω, v)).result
         = lazyRun fam' settings X₀ ((ω, ω₀), probesOf settings P.D K₀ v) := by
-      sorry -- closes by: renoise_read_of_notMem on LazyKeyOff, reads_lazyRoundQ_keyOff, eval_congr
+      have hreads := reads_lazyRoundQ_keyOff C k settings.listSize CP (probesOf settings P.D K₀ v)
+        (fun z => fam'.read (ω, ω₀) z) rfl hd
+      exact (Query.eval_congr (fun z => fam'.read (ω, ω₀) z) _ fun z hz =>
+        (hoff z (hreads z hz).1 (ω, ω₀)).symm).1
     have hdist : fam'.readDist = familyReadDist O M F B.lo (B.hi + 1) := by
       rw [SuffixFamily.renoise_readDist]
       rfl
     refine ⟨?_, ?_⟩
-    · sorry -- closes by: hres, hdist; lazyDisagree off avoiding mass m, LooseEndsWell.mono
+    · set r := lazyRun fam' settings X₀ ((ω, ω₀), probesOf settings P.D K₀ v)
+      obtain ⟨hsub, hmid⟩ := lazyRoundQ_expanded_mids (fun z => fam'.read (ω, ω₀) z) C k
+        settings.listSize X₀ (probesOf settings P.D K₀ v)
+      set S := Random.lazyDisagree (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω) k r.expanded
+        r.hypothesis
+      set S' := Random.lazyDisagree (fun z => fam'.read (ω, ω₀) z) k r.expanded r.hypothesis
+      have hU : (fun q => fam'.readDist q .undecided)
+          = fun q => familyReadDist O M F B.lo (B.hi + 1) q .undecided := by rw [hdist]
+      show LooseEndsWell M (fun q => familyReadDist O M F B.lo (B.hi + 1) q .undecided)
+        (lazySlope σ Nr settings.listSize) (lazySlack σ settings.listSize δH) P.D
+        (C.disagreementRate + tw + m)
+        (Random.lazyDisagree (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω) k
+          (mkRound settings O P.D B F K₀ CP Sf' (ω, v)).result.expanded
+          (mkRound settings O P.D B F K₀ CP Sf' (ω, v)).result.hypothesis)
+        (mkRound settings O P.D B F K₀ CP Sf' (ω, v)).result.ending
+      rw [← hU, hres]
+      refine LooseEndsWell.of_real (fun hle => ?_) hE
+      have hSS : (S ∩ A : Set (FreeMonoid α)) ≤ᵐ[P.D] (S' ∩ A : Set (FreeMonoid α)) := by
+        filter_upwards [hKw] with x hkx hx
+        exact ⟨(mem_lazyDisagree_congr hsub hmid hkx hx.2 fun z hz _ =>
+          (hoff z hz (ω, ω₀)).symm).1 hx.1, hx.2⟩
+      have h1 : P.D.real S ≤ P.D.real (S ∩ A) + m' :=
+        (measureReal_mono (fun x hx => by
+          by_cases hxA : x ∈ A
+          exacts [Or.inl ⟨hx, hxA⟩, Or.inr hxA]) (measure_ne_top _ _)).trans
+          (measureReal_union_le _ _)
+      have h2 : P.D.real (S ∩ A) ≤ P.D.real (S' ∩ A) := by
+        rw [measureReal_def, measureReal_def]
+        exact ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono_ae hSS)
+      have h3 : P.D.real (S' ∩ A) ≤ D'.real S' := by
+        have hD' : D'.real S' = P.D.real (S' ∩ A) / P.D.real A := by
+          show (popLaw (P.D.restrict A)).real S' = _
+          rw [popLaw_real hA0 (measure_ne_top _ _),
+            measureReal_restrict_apply (measurableSet_of_countable _),
+            measureReal_restrict_apply_univ]
+        rw [hD', le_div_iff₀ hApos]
+        have := measureReal_nonneg (μ := P.D) (s := S' ∩ A)
+        nlinarith
+      linarith
     · rw [hres]
       exact hpk
 
