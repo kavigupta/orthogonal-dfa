@@ -148,6 +148,22 @@ lemma pops_take_getD {rounds : List (SpecRound α)} {j i : ℕ} (hij : i < j)
     (hj : j ≤ rounds.length) (hall : AllHarvested (rounds.take j)) {ℓ : List (FreeMonoid α)}
     (hℓ : (rounds[i]'(by omega)).population = some ℓ) :
     (specHistOf (rounds.take j)).pops.getD i [] = ℓ := by
-  sorry -- closes by: main's harvestsOf_take_getD, induction on rounds
+  induction rounds generalizing j i with
+  | nil => simp at hj; omega
+  | cons o rounds ih =>
+    obtain ⟨j, rfl⟩ : ∃ j', j = j' + 1 := ⟨j - 1, by omega⟩
+    have ho : o.result.ending.IsHarvest := hall o (by simp)
+    obtain ⟨ℓo, hpo⟩ : ∃ ℓo, o.population = some ℓo := by
+      unfold SpecRound.population
+      revert ho
+      cases o.result.ending <;> simp [Random.LazyEnd.IsHarvest]
+    simp only [specHistOf] at ih ⊢
+    simp only [List.take_succ_cons, List.filterMap_cons, hpo]
+    rcases i with _ | i
+    · simp only [List.getElem_cons_zero, hpo, Option.some.injEq] at hℓ
+      simp [hℓ]
+    · simp only [List.getD_cons_succ]
+      exact ih (j := j) (i := i) (by omega) (by simp at hj; omega)
+        (fun o' ho' => hall o' (by simp [ho'])) hℓ
 
 end OrthoDFA
