@@ -225,6 +225,19 @@ lemma knSuff_le (hr : r ∈ rlStarRunRegion) : knSuff r ≤ 2 ^ 21 * r.nSuff := 
   have h3 := mul_le_mul_of_nonneg_left h2 (show (0 : ℝ) ≤ 2 ^ 12 * r.Q by positivity)
   linarith
 
+lemma knTrie_le (hr : r ∈ rlStarRunRegion) : knTrie r ≤ 2 ^ 224 * r.nList := by
+  obtain ⟨hQ, -⟩ := kn_base hr
+  obtain ⟨hRB0, hRB, -⟩ := knRB_bounds hr
+  obtain ⟨hnhc, -⟩ := knNh_bounds hr
+  have hRBc := knRBb_cap hr
+  have hbn := knB_nh hr
+  have hnh := knNh_le hr
+  have hL0 := (shape_pos hr).2.1
+  have h1 := mul_le_mul_of_nonneg_left hRB (show (0 : ℝ) ≤ 6 * (r.Q + 2) by positivity)
+  have h2 : 1 * knRBb r ≤ r.Q * knRBb r := mul_le_mul_of_nonneg_right hQ (hRB0.trans hRB)
+  unfold knTrie
+  linarith
+
 lemma knProbes_le (hr : r ∈ rlStarRunRegion) : knProbes r ≤ 2 ^ 259 * r.nProbe := by
   obtain ⟨hQ, hA, hX, -, -, -, -, hξ, hξ1, -⟩ := kn_base hr
   obtain ⟨hE1, hE, -⟩ := knE_bounds hr

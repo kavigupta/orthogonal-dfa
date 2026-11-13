@@ -148,6 +148,7 @@ theorem lazyRoundQ_expanded_mids (read : FreeMonoid α → ARU) (C : Random.Leve
 variable {σ : Type*} [Fintype σ] {Ω' : Type*} [MeasurableSpace Ω'] {μ' : Measure Ω'}
   [IsProbabilityMeasure μ']
 
+omit [IsProbabilityMeasure μ'] in
 /-- Over probes at least `k` and at most `L` long whose first `k` letters avoid `CP`'s, whether the
 lazy round from `CP`'s trie fails its claim is fixed by the family's reads of the `LazyKeyOff`
 strings at most `max (L + T + 2) (probes + 1 + T + 2)` long. -/
@@ -228,6 +229,7 @@ lemma card_biUnion_freshDraws_le {S : Type*} [Stringlike S] (T : Finset S) (y : 
 
 variable {Ω : Type*} [MeasurableSpace Ω]
 
+omit [DecidableEq α] [MeasurableSpace Ω] in
 /-- The prefixes a round's clustering reads number at most three per population per prefix the
 schedule draws; states at one prefix count read the same ones. -/
 lemma card_roundPrefs_le (sched : Finset State) (pops : Finset (Option (Fin K)))
@@ -264,6 +266,7 @@ lemma card_roundPrefs_le (sched : Finset State) (pops : Finset (Option (Fin K)))
       _ = _ := by rw [Finset.sum_const, smul_eq_mul]
   nlinarith
 
+omit [DecidableEq α] [MeasurableSpace Ω] in
 /-- Where every state of the schedule draws `n` suffixes, the clustering reads at most `n + 1`. -/
 lemma card_roundSuffs_le (sched : Finset State) {n : ℕ} (hn : ∀ B ∈ sched, B.nsuff = n)
     (x : Run Ω (FreeMonoid α) (Option (Fin K))) : (roundSuffs sched x).card ≤ n + 1 := by

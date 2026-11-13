@@ -18,11 +18,11 @@ open MeasureTheory
 lemma rlStarSucceeds_mono {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype Q]
     {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} {settings : LoopSettings K}
     {O : Oracle μ (FreeMonoid A)} {D Dsf T : Measure (FreeMonoid A)} {M : _root_.DFA A Q}
-    {ε R R' : ℝ} (hR : R ≤ R') {p : settings.Draws Ω A}
-    (h : RLStarSucceeds settings O D Dsf T M ε R p) :
-    RLStarSucceeds settings O D Dsf T M ε R' p := by
-  obtain ⟨h1, S, hS, hdep⟩ := h
-  exact ⟨h1, S, hS.trans hR, hdep⟩
+    {ε X X' R R' : ℝ} (hX : X ≤ X') (hR : R ≤ R') {p : settings.Draws Ω A}
+    (h : RLStarSucceeds settings O D Dsf T M ε X R p) :
+    RLStarSucceeds settings O D Dsf T M ε X' R' p := by
+  obtain ⟨⟨rounds, hrun, ⟨hlen, o, ho, hc, hT, hXo⟩, hpk⟩, S, hS, hdep⟩ := h
+  exact ⟨⟨rounds, hrun, ⟨hlen, o, ho, hc, hT, hXo.trans hX⟩, hpk⟩, S, hS.trans hR, hdep⟩
 
 lemma lazyReads_mono_nX {K a b f Nr A nX nX' q : ℝ} (hf : 0 ≤ f) (hA : 0 ≤ A) (hq : 0 ≤ q)
     (h : nX ≤ nX') : lazyReads K a b f Nr A nX q ≤ lazyReads K a b f Nr A nX' q := by
@@ -40,7 +40,7 @@ lemma knTol_pos (r : RLStarRun) : 0 < knTol r := by
   · exact one_pos
 
 set_option maxHeartbeats 2000000 in -- `lazy_loop_core`'s lets unfold against the knobs
-theorem lazy_within : RLStarWithin.{u, v, w} knTol knPref knSuff knProbes knReads := by
+theorem lazy_within : RLStarWithin.{u, v, w} knTol knPref knSuff knProbes knTrie knReads := by
   intro α _ _ _ σ _ Ω _ μ _ x M O L k D _ L₁ Ls hx hQ hA hLang hgap hbL hbN hlong hkL hpre hpAPu
   obtain ⟨Q, A, δ, ξ, pAP, s₀, β⟩ := x
   subst hQ hA
@@ -117,7 +117,7 @@ theorem lazy_within : RLStarWithin.{u, v, w} knTol knPref knSuff knProbes knRead
         (k * (6 * (r.Q + 2) * knRB r + 2 * (knNh r + knB r))) r.Q ≤ knReads r :=
       lazyReads_mono_nX hFV0 (by positivity) (by positivity) (by gcongr)
     refine le_trans (measureReal_mono (fun p hp => ?_) (measure_ne_top _ _)) hprob
-    exact fun hs => hp (rlStarSucceeds_mono hle hs)
+    exact fun hs => hp (rlStarSucceeds_mono le_rfl hle hs)
 
 end OrthoDFA
 

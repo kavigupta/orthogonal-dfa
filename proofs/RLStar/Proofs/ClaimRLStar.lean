@@ -15,7 +15,8 @@ namespace OrthoDFA
 open MeasureTheory Asymptotics Filter Real
 
 theorem rlStarClaim_holds : RLStarClaim.{u, v, w} := by
-  refine ⟨knTol, knPref, knSuff, knProbes, knReads, ?_, ?_, ?_, ?_, ?_, knTol_pos, lazy_within⟩
+  refine ⟨knTol, knPref, knSuff, knProbes, knTrie, knReads, ?_, ?_, ?_, ?_, ?_, ?_, knTol_pos,
+    lazy_within⟩
   · refine isBigO_on (2 ^ 236) fun r hr => ?_
     have h := knP₀_inv_le hr
     have hp := (knP₀_bounds hr).1
@@ -39,6 +40,10 @@ theorem rlStarClaim_holds : RLStarClaim.{u, v, w} := by
   · refine isBigO_on (2 ^ 259) fun r hr => ⟨?_, (shape_pos hr).2.2.2.2.1, knProbes_le hr⟩
     obtain ⟨hB₃, -⟩ := knB₃_bounds hr
     unfold knProbes
+    positivity
+  · refine isBigO_on (2 ^ 224) fun r hr => ⟨?_, (shape_pos hr).2.1, knTrie_le hr⟩
+    obtain ⟨hRB0, -⟩ := knRB_bounds hr
+    unfold knTrie
     positivity
   · refine isBigO_on (2 ^ 283) fun r hr => ⟨?_, (shape_pos hr).2.2.2.2.2, knReads_le hr⟩
     obtain ⟨hRB0, -⟩ := knRB_bounds hr

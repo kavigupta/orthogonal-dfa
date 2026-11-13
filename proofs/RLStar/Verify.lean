@@ -44,8 +44,8 @@ import RLStar.Proofs.UnaskedFresh
 
 The headline: `RLStarClaim`, stated in `RLStar.Claims.RLStar`, holds: the learner's lazy loop
 outputs a hypothesis that, its walk starts' sifts read off the last round's table, misclassifies
-at most `ξ` of the strings, with every epoch's tree within `|Q| + 2` leaves, its reads and probes
-within the stated shapes, but for chance `δ`. `RLStarClaimUniform` and `RLStarClaimUniformSimple`
+at most `ξ` of the strings, with every epoch's tree within `|Q| + 2` leaves, its trie, reads and
+probes within the stated shapes, but for chance `δ`. `RLStarClaimUniform` and `RLStarClaimUniformSimple`
 are the same claim over uniform strings.
 
 The claims it rests on are `ClusteringGuarantee`, stated in `RLStar.LowLevelClaims.Clustering`,

@@ -119,6 +119,7 @@ end Last
 
 variable [Nonempty α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 
+omit [DecidableEq α] [Nonempty α] [IsProbabilityMeasure μ] in
 lemma misMean_split (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (kl kh : ℕ)
     {T : Measure (FreeMonoid α)} [IsFiniteMeasure T] {L : ℕ}
     (hT : T {x | x.toList.length ≠ L} = 0) :
@@ -130,8 +131,8 @@ lemma misMean_split (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α))
   simp only [mul_add]
 
 set_option maxHeartbeats 1000000 in -- the settings meet `loop_simple_checks`'s conditions
-/-- The lazy loop over `D`'s first `L` letters: its DFA misjudges at most `ξT` of them, reading
-at most `lazyReads` strings, but for chance `δ`. -/
+/-- The lazy loop over `D`'s first `L` letters: its DFA misjudges at most `ξT` of them from a trie
+of at most `nX` strings, reading at most `lazyReads` strings, but for chance `δ`. -/
 theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L k : ℕ)
     (η₀ c δ pAP ξ ξT t Ae p₀ ι W Tu tw : ℝ) (nh E J b Nr : ℕ) (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] :
@@ -193,7 +194,7 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
           ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ (Q + 1) * (PB + 1)) ∧
       (settings.measure μ α).real
         {p | ¬ RLStarSucceeds settings O (prefixLaw D L) (prefixLaw D Ls)
-          (prefixLaw D L) M ξT (lazyReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV Nr A nX Q) p}
+          (prefixLaw D L) M ξT nX (lazyReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV Nr A nX Q) p}
         ≤ δ := by
   intro Q A kN L₁ Ls N ε εcov δ' s τ Jp S B₃ PB RB capP SC FV nX
     hL hgap hη₀ hbalL hbalN hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL ht hlong hp₀0 hpreD hpAPu
@@ -340,7 +341,7 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
   refine ⟨settings, hwalk, hbud, hSC, hnh', hE', hJ', hb', hlenT, ?_⟩
   -- off both, the loop's last round classifies through its table, reading few strings
   have hsub : {p | ¬ RLStarSucceeds settings O (prefixLaw D L) (prefixLaw D Ls)
-      (prefixLaw D L) M ξT (lazyReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV Nr A nX Q) p}
+      (prefixLaw D L) M ξT nX (lazyReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV Nr A nX Q) p}
       ⊆ Bloop ∪ Prod.fst ⁻¹' Bmis := by
     intro p hp
     by_contra hn
@@ -387,7 +388,30 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     have hlast : ((idealRounds settings O P.D Dsf (persistDraws p) (Fintype.card σ + 1)).map
         SpecRound.data).getLast? = some o.data := by
       rw [List.getLast?_map, Option.mem_def.1 ho, Option.map_some]
-    refine ⟨⟨_, hind, ⟨by simpa using hlen, o.data, hlast, hcons, ?_⟩, hpk⟩, ?_⟩
+    obtain ⟨nXn, hnXn⟩ : ∃ n : ℕ, n = k * (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊ + 2 * nh) :=
+      ⟨_, rfl⟩
+    have hX : ∀ o' ∈ ((idealRounds settings O P.D Dsf (persistDraws p)
+        (Fintype.card σ + 1)).map SpecRound.data).getLast?, o'.result.expanded.card ≤ nXn := by
+      intro o' ho'
+      rw [hlast, Option.mem_some_iff] at ho'
+      subst ho'
+      rw [hnXn]
+      refine hXc.trans (Nat.mul_le_mul_left _ (Nat.add_le_add_right ?_ _))
+      rw [hox]
+      exact (hab _ x).1
+    have hQ : Q = (Fintype.card σ : ℝ) := rfl
+    have hnX : (nXn : ℝ) ≤ nX := by
+      have e : (nXn : ℝ) = k * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ) + 2 * nh) := by
+        rw [hnXn, hQ]; push_cast; ring
+      rw [e]
+      show (k : ℝ) * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ) + 2 * nh)
+        ≤ k * (6 * (Q + 2) * RB + 2 * (nh + b))
+      have hb0 : (0 : ℝ) ≤ b := Nat.cast_nonneg _
+      have : 6 * (Q + 2) * (⌊RB⌋₊ : ℝ) ≤ 6 * (Q + 2) * RB :=
+        mul_le_mul_of_nonneg_left (Nat.floor_le hRB0) (by linarith)
+      exact mul_le_mul_of_nonneg_left (by linarith) (Nat.cast_nonneg _)
+    refine ⟨⟨_, hind, ⟨by simpa using hlen, o.data, hlast, hcons, ?_,
+      (Nat.cast_le.2 (hX o.data (Option.mem_def.2 hlast))).trans hnX⟩, hpk⟩, ?_⟩
     · show (prefixLaw D L).real {w | ¬ o.result.hypothesis.LazyClassifies
           ((Random.lazyTableQ settings.level3.walkStart o.result.hypothesis.tree
             o.result.expanded).eval (o.data.read O p.1)) o.result.expanded w
@@ -431,17 +455,6 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       linarith
     · refine ⟨(learnerQ settings (prefixLaw D L) (prefixLaw D Ls) p.2).reads
         (fun w => O.mq w p.1), ?_, fun o' ho' => (Query.eval_congr _ _ ho').1⟩
-      obtain ⟨nXn, hnXn⟩ : ∃ n : ℕ, n = k * (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊ + 2 * nh) :=
-        ⟨_, rfl⟩
-      have hX : ∀ o' ∈ ((idealRounds settings O P.D Dsf (persistDraws p)
-          (Fintype.card σ + 1)).map SpecRound.data).getLast?, o'.result.expanded.card ≤ nXn := by
-        intro o' ho'
-        rw [hlast, Option.mem_some_iff] at ho'
-        subst ho'
-        rw [hnXn]
-        refine hXc.trans (Nat.mul_le_mul_left _ (Nat.add_le_add_right ?_ _))
-        rw [hox]
-        exact (hab _ x).1
       have hNrS : lazyReadCap settings.level3 settings.epochs settings.blocks settings.blockSize
           L₁ (Fintype.card σ) (Fintype.card α) ≤ Nr := by
         have h : (lazyReadCap settings.level3 settings.epochs settings.blocks settings.blockSize
@@ -466,23 +479,12 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       refine ((Nat.cast_le (α := ℝ)).2 h).trans ((reads_le_lazyReads (Fintype.card σ + 1)
         (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊) (⌊PB⌋₊ + 1) ⌊FV⌋₊ Nr (Fintype.card α) nXn
         (Fintype.card σ)).trans ?_)
-      have hQ : Q = (Fintype.card σ : ℝ) := rfl
       have ha : ((6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊ : ℕ) : ℝ) ≤ 6 * (Q + 2) * RB := by
         have e : ((6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊ : ℕ) : ℝ)
             = 6 * (Q + 2) * (⌊RB⌋₊ : ℝ) := by
           rw [hQ]; push_cast; ring
         rw [e]
         exact mul_le_mul_of_nonneg_left (Nat.floor_le hRB0) (by linarith)
-      have hnX : (nXn : ℝ) ≤ nX := by
-        have e : (nXn : ℝ) = k * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ) + 2 * nh) := by
-          rw [hnXn, hQ]; push_cast; ring
-        rw [e]
-        show (k : ℝ) * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ) + 2 * nh)
-          ≤ k * (6 * (Q + 2) * RB + 2 * (nh + b))
-        have hb0 : (0 : ℝ) ≤ b := Nat.cast_nonneg _
-        have : 6 * (Q + 2) * (⌊RB⌋₊ : ℝ) ≤ 6 * (Q + 2) * RB :=
-          mul_le_mul_of_nonneg_left (Nat.floor_le hRB0) (by linarith)
-        exact mul_le_mul_of_nonneg_left (by linarith) (Nat.cast_nonneg _)
       exact lazyReads_mono (by positivity) (by positivity) (by positivity) (by positivity)
         (by positivity) (by positivity) (by positivity) (by positivity)
         (by push_cast; exact le_rfl) ha (by push_cast; linarith [Nat.floor_le hPB0])

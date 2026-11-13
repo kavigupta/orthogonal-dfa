@@ -113,6 +113,8 @@ def knSuff (r : RLStarRun) : ℝ := (r.Q + 1) * (knPB r + 1)
 
 def knProbes (r : RLStarRun) : ℝ := (r.Q + 1) * (knE r * (knB₃ r + knJ r * knB r))
 
+def knTrie (r : RLStarRun) : ℝ := 6 * (r.Q + 2) * knRB r + 2 * (knNh r + knB r)
+
 def knReads (r : RLStarRun) : ℝ :=
   lazyReads (r.Q + 1) (6 * (r.Q + 2) * knRB r) (knPB r + 1) (knFV r) (knNr r) r.A
     (r.L * (6 * (r.Q + 2) * knRB r + 2 * (knNh r + knB r))) r.Q

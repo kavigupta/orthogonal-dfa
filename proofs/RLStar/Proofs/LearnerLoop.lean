@@ -520,6 +520,7 @@ lemma population_nodup (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α
 
 end Pops
 
+omit [DecidableEq α] in
 lemma flat_of_length (Ls : ℕ) :
     Flat {p : FreeMonoid α | p.toList.length < Ls} {v : FreeMonoid α | v.toList.length = Ls} := by
   intro p hp p' hp' v hv v' hv' e
@@ -541,6 +542,7 @@ lemma real_singleton_le_prefixMax (D : Measure (FreeMonoid α)) [IsProbabilityMe
   (measureReal_mono (fun x hx => by rw [Set.mem_singleton_iff.1 hx]; rfl)
     (measure_ne_top _ _)).trans (le_prefixMax D k (prefixOf t k))
 
+omit [DecidableEq α] in
 /-- A list of `n` distinct strings puts `1/n` on each. -/
 lemma listLaw_atom_le {ℓ : List (FreeMonoid α)} (hℓ : ℓ.Nodup) {nh : ℕ} (hn : nh ≤ ℓ.length)
     (hnh : 0 < nh) (t : FreeMonoid α) : (listLaw ℓ).real {t} ≤ 1 / nh := by
@@ -615,6 +617,7 @@ lemma persist_bridge (p : Ω × (Fin K → settings.RoundDraws α)) (i : ℕ)
   · rw [e, hc, hdec, htake]
     rfl
 
+omit [IsProbabilityMeasure μ] [IsProbabilityMeasure D] in
 /-- Every earlier clustering returned, where each met its claim. -/
 lemma histOK_of_specs (εcov slack : ℝ)
     (p : Ω × (Fin K → settings.RoundDraws α)) :

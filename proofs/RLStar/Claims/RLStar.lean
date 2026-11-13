@@ -43,24 +43,27 @@ def DependsOnlyOn {X Y : Type*} (f : (X → ℝ) → Y) (oracle : X → ℝ) (S 
   ∀ o : X → ℝ, (∀ w ∈ S, o w = oracle w) → f o = f oracle
 
 /-- The loop stops in agreement within `|Q| + 1` rounds, the last round's hypothesis, its walk
-starts' sifts read off the table, misclassifying at most `ε` of `T`; no epoch's tree has more
-than `|Q| + 2` leaves; and the learner reads at most `totalReads` strings. -/
+starts' sifts read off the table, misclassifying at most `ε` of `T` from a trie of at most
+`trieSize` strings; no epoch's tree has more than `|Q| + 2` leaves; and the learner reads at most
+`totalReads` strings. -/
 def RLStarSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype Q] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K)
     (O : Oracle μ (FreeMonoid A)) (D Dsf T : Measure (FreeMonoid A)) (M : _root_.DFA A Q) (ε : ℝ)
-    (totalReads : ℝ) (p : settings.Draws Ω A) : Prop :=
+    (trieSize totalReads : ℝ) (p : settings.Draws Ω A) : Prop :=
   (∃ rounds, indecisiveLStarLoop settings O D Dsf p = some rounds ∧
     (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
         o.result.ending = .consistent ∧ T.real {w | ¬ o.result.hypothesis.LazyClassifies
           ((Random.lazyTableQ settings.level3.walkStart o.result.hypothesis.tree
             o.result.expanded).eval (o.read O p.1)) o.result.expanded w
-            (M.eval w.toList ∈ M.accept)} ≤ ε) ∧
+            (M.eval w.toList ∈ M.accept)} ≤ ε
+        ∧ (o.result.expanded.card : ℝ) ≤ trieSize) ∧
     ∀ o ∈ rounds, o.result.peak ≤ Fintype.card Q + 2) ∧
   ∃ S : Finset (FreeMonoid A), (S.card : ℝ) ≤ totalReads ∧
     DependsOnlyOn (fun o => (learnerQ settings D Dsf p.2).eval o) (fun w => O.mq w p.1) S
 
-def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ) :
-    Prop :=
+/-- The trie has at most `trieWidth` strings per letter of the walk start `k`. -/
+def RLStarWithin.{u, v, w}
+    (p₀Tol totalPref totalSuff totalProbes trieWidth totalReads : RLStarRun → ℝ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
     [Fintype Q] {Ω : Type w}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -87,7 +90,7 @@ def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads :
           ≤ totalProbes { x with L }) ∧
     (settings.measure μ A).real
       {p | ¬ RLStarSucceeds settings O (prefixLaw D L) (prefixLaw D Ls) (prefixLaw D L) M
-        x.ξ (totalReads { x with L }) p}
+        x.ξ (k * trieWidth { x with L }) (totalReads { x with L }) p}
       ≤ x.δ
 
 open Real in
@@ -118,18 +121,19 @@ noncomputable def RLStarRun.nReads (r : RLStarRun) : ℝ :=
   r.nPref * r.nSuff / r.Q + r.nProbe * (r.logZ / r.s₀ ^ 2) * r.Q * log (r.L + r.Q + 1)
 
 def RLStarClaim.{u, v, w} : Prop :=
-  ∃ (p₀Tol totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ),
+  ∃ (p₀Tol totalPref totalSuff totalProbes trieWidth totalReads : RLStarRun → ℝ),
     (fun r => 1 / p₀Tol r) =O[𝓟 rlStarRunRegion]
       (fun r => r.A * (r.L + r.Q) * r.nList / r.ξc) ∧
     totalPref =O[𝓟 rlStarRunRegion] RLStarRun.nPref ∧
     totalSuff =O[𝓟 rlStarRunRegion] RLStarRun.nSuff ∧
     totalProbes =O[𝓟 rlStarRunRegion] RLStarRun.nProbe ∧
+    trieWidth =O[𝓟 rlStarRunRegion] RLStarRun.nList ∧
     totalReads =O[𝓟 rlStarRunRegion] RLStarRun.nReads ∧
     (∀ r, 0 < p₀Tol r) ∧
-    RLStarWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes totalReads
+    RLStarWithin.{u, v, w} p₀Tol totalPref totalSuff totalProbes trieWidth totalReads
 
 def RLStarWithinUniform.{u, v, w} (k₀ : RLStarRun → ℝ)
-    (totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ) : Prop :=
+    (totalPref totalSuff totalProbes trieWidth totalReads : RLStarRun → ℝ) : Prop :=
   ∀ {A : Type u} [Fintype A] [DecidableEq A] [Nonempty A] {Q : Type v}
     [Fintype Q] {Ω : Type w}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -153,24 +157,25 @@ def RLStarWithinUniform.{u, v, w} (k₀ : RLStarRun → ℝ)
     (settings.measure μ A).real
       {p | ¬ RLStarSucceeds settings O (uniformStrings L)
         (uniformStrings (L₁ + Fintype.card Q + 3)) (uniformStrings L) M x.ξ
-        (totalReads { x with L }) p}
+        (k * trieWidth { x with L }) (totalReads { x with L }) p}
       ≤ x.δ
 
 open Real in
 /-- `RLStarClaim` at uniform strings: `p₀Tol` gives way to `k₀`. -/
 def RLStarClaimUniform.{u, v, w} : Prop :=
-  ∃ (k₀ totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ),
+  ∃ (k₀ totalPref totalSuff totalProbes trieWidth totalReads : RLStarRun → ℝ),
     k₀ =O[𝓟 rlStarRunRegion] (fun r =>
       1 + log ((r.L + r.Q) * log (1 / r.δ) / (r.ξc * r.pAP * r.s₀)) / log r.A) ∧
     totalPref =O[𝓟 rlStarRunRegion] RLStarRun.nPref ∧
     totalSuff =O[𝓟 rlStarRunRegion] RLStarRun.nSuff ∧
     totalProbes =O[𝓟 rlStarRunRegion] RLStarRun.nProbe ∧
+    trieWidth =O[𝓟 rlStarRunRegion] RLStarRun.nList ∧
     totalReads =O[𝓟 rlStarRunRegion] RLStarRun.nReads ∧
-    RLStarWithinUniform.{u, v, w} k₀ totalPref totalSuff totalProbes totalReads
+    RLStarWithinUniform.{u, v, w} k₀ totalPref totalSuff totalProbes trieWidth totalReads
 
 open Real in
 def RLStarClaimUniformSimple.{u, v, w} : Prop :=
-  ∃ (k₀ totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ),
+  ∃ (k₀ totalPref totalSuff totalProbes trieWidth totalReads : RLStarRun → ℝ),
     k₀ =O[𝓟 rlStarRunRegion] (fun r =>
       1 + log ((r.L + r.Q) * log (1 / r.δ) / (r.ξc * r.pAP * r.s₀)) / log r.A) ∧
     totalPref =O[𝓟 rlStarRunRegion] (fun r =>
@@ -181,11 +186,15 @@ def RLStarClaimUniformSimple.{u, v, w} : Prop :=
       r.Q ^ 13 * r.A ^ 8 * (r.L + r.Q) ^ 16 * r.logZ ^ 5 * log (r.L + r.Q + 1) ^ 3
           / (r.ξc ^ 8 * r.s₀ ^ 6)
         + r.Q ^ 2 * r.A ^ 2 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 2 * r.pAP ^ 2 * r.s₀ ^ 2)) ∧
+    trieWidth =O[𝓟 rlStarRunRegion] (fun r =>
+      r.Q ^ 12 * r.A ^ 6 * (r.L + r.Q) ^ 12 * r.logZ ^ 4 * log (r.L + r.Q + 1) ^ 3
+          / (r.ξc ^ 6 * r.s₀ ^ 6)
+        + r.Q * r.logZ / (r.pAP ^ 2 * r.s₀ ^ 2)) ∧
     totalReads =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q ^ 14 * r.A ^ 8 * (r.L + r.Q) ^ 16 * r.logZ ^ 6 * log (r.L + r.Q + 1) ^ 4
           / (r.ξc ^ 8 * r.s₀ ^ 8)
         + r.Q ^ 3 * r.A ^ 2 * (r.L + r.Q) ^ 4 * r.logZ ^ 3 * log (r.L + r.Q + 1)
           / (r.ξc ^ 2 * r.pAP ^ 2 * r.s₀ ^ 4)) ∧
-    RLStarWithinUniform.{u, v, w} k₀ totalPref totalSuff totalProbes totalReads
+    RLStarWithinUniform.{u, v, w} k₀ totalPref totalSuff totalProbes trieWidth totalReads
 
 end OrthoDFA

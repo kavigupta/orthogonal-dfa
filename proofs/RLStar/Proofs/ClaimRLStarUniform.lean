@@ -179,7 +179,7 @@ end uniform
 
 theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     RLStarClaimUniform.{u, v, w} := by
-  obtain ⟨p₀Tol, tp, ts, tpr, tr, hp₀, hpref, hsuff, hprobes, hreads, hpos, hw⟩ := h
+  obtain ⟨p₀Tol, tp, ts, tpr, tt, tr, hp₀, hpref, hsuff, hprobes, htrie, hreads, hpos, hw⟩ := h
   obtain ⟨C, hC⟩ := isBigO_principal.1 hp₀
   set C₀ := max 1 C with hC₀d
   have hC₀ : 1 ≤ C₀ := le_max_left 1 C
@@ -189,8 +189,8 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     have : 0 ≤ log (3 * C₀) := Real.log_nonneg (by linarith)
     have : 0 ≤ log (8 : ℝ) := Real.log_nonneg (by norm_num)
     positivity
-  refine ⟨fun r => log (C₀ * tolShape r) / log r.A, tp, ts, tpr, tr, ?_, hpref, hsuff, hprobes,
-    hreads, ?_⟩
+  refine ⟨fun r => log (C₀ * tolShape r) / log r.A, tp, ts, tpr, tt, tr, ?_, hpref, hsuff, hprobes,
+    htrie, hreads, ?_⟩
   · refine isBigO_on (c₁ + 50) fun r hr => ?_
     obtain ⟨hQ, hA, -⟩ := kn_base hr
     obtain ⟨hW1, hS16, hSU⟩ := tolShape_le hr
@@ -309,6 +309,24 @@ lemma simple_list (hr : r ∈ rlStarRunRegion) :
   rw [e3]
   linarith
 
+/-- The trie's two terms. -/
+def trieT1 (r : RLStarRun) : ℝ :=
+  r.Q ^ 12 * r.A ^ 6 * (r.L + r.Q) ^ 12 * r.logZ ^ 4 * log (r.L + r.Q + 1) ^ 3
+    / (r.ξc ^ 6 * r.s₀ ^ 6)
+
+def trieT2 (r : RLStarRun) : ℝ := r.Q * r.logZ / (r.pAP ^ 2 * r.s₀ ^ 2)
+
+lemma simple_trie (hr : r ∈ rlStarRunRegion) : r.nList ≤ 2 * (trieT1 r + trieT2 r) := by
+  obtain ⟨hl2, -⟩ := kn_shape_base hr
+  have hn := simple_list hr
+  have e : 2 * r.Q ^ 3 * r.logZ * r.ιInv ^ 3 * (1 / r.s₀) ^ 6
+      + r.Q * r.logZ * (1 / r.s₀) ^ 2 * (1 / r.pAP) ^ 2 = 2 * trieT1 r + trieT2 r := by
+    rw [shape_ιInv]; unfold trieT1 trieT2 knLg knX; ring
+  have h2 : 0 ≤ trieT2 r := by
+    unfold trieT2
+    exact div_nonneg (mul_nonneg (Nat.cast_nonneg _) (by linarith)) (by positivity)
+  linarith
+
 /-- The probes' two terms. -/
 def probeT1 (r : RLStarRun) : ℝ :=
   r.Q ^ 13 * r.A ^ 8 * (r.L + r.Q) ^ 16 * r.logZ ^ 5 * log (r.L + r.Q + 1) ^ 3
@@ -409,8 +427,9 @@ lemma simple_reads (hr : r ∈ rlStarRunRegion) : r.nReads ≤ 3 * (readsT1 r + 
 
 theorem rlStarClaimUniformSimple_of_claim (h : RLStarClaimUniform.{u, v, w}) :
     RLStarClaimUniformSimple.{u, v, w} := by
-  obtain ⟨k₀, tp, ts, tpr, tr, hk, hp, hs, hpr, hr, hw⟩ := h
-  refine ⟨k₀, tp, ts, tpr, tr, hk, hp.trans ?_, hs, hpr.trans ?_, hr.trans ?_, hw⟩
+  obtain ⟨k₀, tp, ts, tpr, tt, tr, hk, hp, hs, hpr, ht, hr, hw⟩ := h
+  refine ⟨k₀, tp, ts, tpr, tt, tr, hk, hp.trans ?_, hs, hpr.trans ?_, ht.trans ?_, hr.trans ?_,
+    hw⟩
   · refine isBigO_on 1 fun r hr => ?_
     obtain ⟨-, -, hP0, -⟩ := shape_pos hr
     have e := simple_pref r
@@ -425,6 +444,10 @@ theorem rlStarClaimUniformSimple_of_claim (h : RLStarClaimUniform.{u, v, w}) :
     obtain ⟨-, -, -, -, hPr0, -⟩ := shape_pos hr
     have h := simple_probe hr
     exact ⟨hPr0, (by show 0 ≤ probeT1 r + probeT2 r; linarith), h⟩
+  · refine isBigO_on 2 fun r hr => ?_
+    obtain ⟨-, hL0, -⟩ := shape_pos hr
+    have h := simple_trie hr
+    exact ⟨hL0, (by show 0 ≤ trieT1 r + trieT2 r; linarith), h⟩
   · refine isBigO_on 3 fun r hr => ?_
     obtain ⟨-, -, -, -, -, hR0⟩ := shape_pos hr
     have h := simple_reads hr

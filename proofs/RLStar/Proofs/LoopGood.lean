@@ -32,7 +32,7 @@ lemma card_loopPopulations_le (K r : ℕ) : (loopPopulations K r).card ≤ K + 1
   refine (Finset.card_insert_le _ _).trans (Nat.add_le_add_right ?_ 1)
   exact Finset.card_image_le.trans ((Finset.card_filter_le _ _).trans (by simp))
 
-omit [IsProbabilityMeasure μ] in
+omit [IsProbabilityMeasure μ] [DecidableEq α] in
 /-- No population's sides falling short and a scheduled state returning, the round is good. -/
 lemma roundGood_of (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
@@ -49,7 +49,7 @@ lemma roundGood_of (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     RoundGood settings O D Dsf h d :=
   ⟨scanWithin_of_not_scanShort _ _ hNP hNA hAT _ h2, h3⟩
 
-omit [IsProbabilityMeasure μ] [DecidableEq α] in
+omit [IsProbabilityMeasure μ] [DecidableEq α] [MeasurableSpace Ω] in
 /-- Falling short reads no noise. -/
 lemma scanShort_noise (pops : Finset (Option (Fin K))) (M T A : ℕ) (ω ω' : Ω)
     (s s' : ((ℕ → FreeMonoid α) × (Option (Fin K) → ℕ → FreeMonoid α))
@@ -63,6 +63,7 @@ lemma scanShort_noise (pops : Finset (Option (Fin K))) (M T A : ℕ) (ω ω' : �
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
   (Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure Dsf]
 
+omit [IsProbabilityMeasure Dsf] in
 /-- Round `r`'s draws, after any history the earlier rounds hand on whose populations hold at
 most `cap` on a string and at most `m` of the earlier prefixes, fall short within the scan cap `M`
 with chance at most
