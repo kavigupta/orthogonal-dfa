@@ -163,7 +163,42 @@ lemma volume_eq_one_unit : (volume : Measure unitInterval) {u | ¬ (u : ℝ) < 1
 
 omit [DecidableEq α] in
 lemma allLt_ae (r : ℕ) : (settings.measure μ α) {p | ¬ AllLt settings p.2 r} = 0 := by
-  sorry -- closes by: main's proof with volume_eq_one_unit for every stream's uniform
+  have hrest : ∀ i : Fin K, MeasurePreserving (fun p : settings.Draws Ω α => (p.2 i).1)
+      (settings.measure μ α) (restLaw α K) := fun i =>
+    measurePreserving_fst.comp ((measurePreserving_eval _ i).comp measurePreserving_snd)
+  have hev : ∀ n, MeasurePreserving (fun f : ℕ → unitInterval => f n)
+      (Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)) volume := fun n =>
+    ⟨measurable_pi_apply n, Measure.infinitePi_map_eval _ n⟩
+  have hev2 : ∀ j n, MeasurePreserving (fun f : Option (Fin K) → ℕ → unitInterval => f j n)
+      (Measure.pi fun _ : Option (Fin K) =>
+        Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)) volume := fun j n =>
+    (hev n).comp (measurePreserving_eval _ j)
+  have h1 : MeasurableSet {u : unitInterval | ¬ (u : ℝ) < 1} :=
+    (measurableSet_lt continuous_subtype_val.measurable measurable_const).compl
+  have hnull : ∀ {f : settings.Draws Ω α → unitInterval},
+      MeasurePreserving f (settings.measure μ α) volume →
+        (settings.measure μ α) {x | ¬ (f x : ℝ) < 1} = 0 := fun hf => by
+    rw [show {x | ¬ (_ : ℝ) < 1} = _ ⁻¹' {u : unitInterval | ¬ (u : ℝ) < 1} from rfl,
+      hf.measure_preimage h1.nullMeasurableSet, volume_eq_one_unit]
+  have hset : {p : settings.Draws Ω α | ¬ AllLt settings p.2 r}
+      ⊆ ⋃ i : Fin K, ⋃ n : ℕ, ({p | ¬ (((p.2 i).1.1 n : unitInterval) : ℝ) < 1}
+        ∪ ⋃ j : Option (Fin K), ({p | ¬ (((p.2 i).1.2.1 j n : unitInterval) : ℝ) < 1}
+          ∪ {p | ¬ (((p.2 i).1.2.2.1 j n : unitInterval) : ℝ) < 1})) := by
+    intro p hp
+    simp only [AllLt, not_forall, not_and_or] at hp
+    obtain ⟨i, -, hp⟩ := hp
+    simp only [Set.mem_iUnion, Set.mem_union, Set.mem_ofPred_eq]
+    rcases hp with ⟨n, hn⟩ | ⟨j, n, hn⟩ | ⟨j, n, hn⟩
+    · exact ⟨i, n, Or.inl hn⟩
+    · exact ⟨i, n, Or.inr ⟨j, Or.inl hn⟩⟩
+    · exact ⟨i, n, Or.inr ⟨j, Or.inr hn⟩⟩
+  refine measure_mono_null hset (measure_iUnion_null fun i => measure_iUnion_null fun n =>
+    measure_union_null ?_ (measure_iUnion_null fun j => measure_union_null ?_ ?_))
+  · exact hnull ((hev n).comp (measurePreserving_fst.comp (hrest i)))
+  · exact hnull ((hev2 j n).comp (measurePreserving_fst.comp (measurePreserving_snd.comp
+      (hrest i))))
+  · exact hnull ((hev2 j n).comp (measurePreserving_fst.comp (measurePreserving_snd.comp
+      (measurePreserving_snd.comp (hrest i)))))
 
 end Draws
 
@@ -182,8 +217,57 @@ lemma histCodes_getElem (ω : Ω) (g : Fin K → settings.RoundDraws α) :
       ∧ code.2.2 = roundSuffs (settings.schedule (loopPopulations K
             (histAt (histCodes settings O D Dsf ω g r) i).pops.length))
           (((), runOf settings D Dsf (histAt (histCodes settings O D Dsf ω g r) i)
-            (g ⟨i, hiK⟩).1) : Run Unit (FreeMonoid α) (Option (Fin K))) := by
-  sorry -- closes by: main's induction with codesOf_idealRounds_succ, popCode
+            (g ⟨i, hiK⟩).1) : Run Unit (FreeMonoid α) (Option (Fin K)))
+  | 0, i, hi => by simp [histCodes, idealRounds, codesOf] at hi
+  | r + 1, i, hi => by
+    by_cases hrK : r < K
+    · have hy := codesOf_idealRounds_succ settings O D Dsf (fun i => (ω, g i)) r hrK
+      set c := histCodes settings O D Dsf ω g r
+      have hy' : histCodes settings O D Dsf ω g (r + 1) = if c.length = r then
+          c ++ (popCode (idealRound settings O D Dsf (decodeHist c) (ω, g ⟨r, hrK⟩))).toList
+          else c := hy
+      have ih := histCodes_getElem ω g r
+      by_cases hcl : c.length = r
+      · rw [if_pos hcl] at hy'
+        rw [hy'] at hi ⊢
+        by_cases hic : i < c.length
+        · obtain ⟨hiK, code, hget, h1, h2⟩ := ih i hic
+          have ht : ∀ l : List (HarvestCode α), histAt (c ++ l) i = histAt c i := fun l => by
+            simp only [histAt, List.take_append_of_le_length hic.le]
+          refine ⟨hiK, code, ?_, ?_, ?_⟩
+          · rw [List.getElem?_append_left hic]; exact hget
+          · rw [ht]; exact h1
+          · rw [ht]; exact h2
+        · revert hi
+          rcases ho : popCode (idealRound settings O D Dsf (decodeHist c) (ω, g ⟨r, hrK⟩))
+            with _ | code
+          · intro hi
+            simp only [Option.toList_none, List.append_nil] at hi
+            exact absurd hi hic
+          · intro hi
+            simp only [Option.toList_some, List.length_append, List.length_cons,
+              List.length_nil] at hi
+            have hir : i = r := by omega
+            subst hir
+            have ht : histAt (c ++ [code]) i = decodeHist c := by
+              simp only [histAt, List.take_append_of_le_length (le_of_eq hcl.symm),
+                List.take_of_length_le (le_of_eq hcl)]
+            simp only [Option.toList_some, ht]
+            unfold popCode at ho
+            obtain ⟨hv, -, hcode⟩ := Option.map_eq_some_iff.1 ho
+            refine ⟨hrK, code, ?_, ?_, ?_⟩
+            · rw [List.getElem?_append_right (le_of_eq hcl)]
+              simp [hcl]
+            · rw [← hcode]; rfl
+            · rw [← hcode]; rfl
+      · rw [if_neg hcl] at hy'
+        rw [hy'] at hi ⊢
+        exact ih i hi
+    · have hst : histCodes settings O D Dsf ω g (r + 1) = histCodes settings O D Dsf ω g r := by
+        simp only [histCodes]
+        rw [idealRounds_succ, dif_neg (fun h' => hrK h'.1)]
+      rw [hst] at hi ⊢
+      exact histCodes_getElem ω g r i hi
 
 end Codes
 
@@ -219,7 +303,90 @@ theorem noColl_of_allLt (Ls : ℕ)
       (histCodes settings O P.D Dsf ω g r)).suffs ≤ 1 / 2)
     (hlt : AllLt settings g r) :
     NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf ω g r) g r hr := by
-  sorry -- closes by: main's proof with drawFrom_offLaw for list populations, histCodes_getElem
+  classical
+  set c := histCodes settings O P.D Dsf ω g r
+  set H := decodeHist c
+  have hpl : H.pops.length = r := by simp [H, decodeHist, hlen]
+  have hHr : histAt c r = H := by
+    simp only [histAt, List.take_of_length_le (le_of_eq hlen), H]
+  have hpsH : ∀ i, (histAt c i).pops.length ≤ r := fun i => by
+    rw [histAt_pops, List.length_take, hpl]; exact min_le_right _ _
+  -- each population a round through `r` reads is one of round `r`'s
+  have hdist : ∀ i, ∀ j ∈ loopPopulations K (histAt c i).pops.length,
+      loopDistributions P.D (histAt c i).pops j = loopDistributions P.D H.pops j
+        ∧ j ∈ loopPopulations K r := by
+    intro i j hj
+    have hj' : j ∈ loopPopulations K i := by
+      refine loopPopulations_mono ?_ hj
+      rw [histAt_pops]; exact List.length_take_le _ _
+    rw [histAt_pops]
+    exact ⟨loopDistributions_take P.D H.pops hj', loopPopulations_mono (hpsH i) hj⟩
+  have hshort : ∀ j ∈ loopPopulations K r, loopDistributions P.D H.pops j
+      {q | Ls ≤ q.toList.length} = 0 := by
+    intro j hj
+    cases j with
+    | none =>
+      refine measure_mono_null (fun x hx => ?_) (ae_iff.1 P.length_le)
+      simp only [Set.mem_ofPred_eq, not_le] at hx ⊢
+      omega
+    | some i' =>
+      have hi' : i'.val < H.pops.length := by rw [hpl]; exact lt_of_some_mem_loopPops hj
+      simp only [loopDistributions, List.getElem?_eq_getElem hi']
+      exact hsupp _ (List.getElem_mem _)
+  have hpref : ∀ i : Fin K, i.1 ≤ r → ∀ p ∈ prefsOf settings P.D Dsf (histAt c i) (g i).1,
+      p ∉ (histAt c i).prefs ∧ p.toList.length < Ls := by
+    intro i hir p hp
+    obtain ⟨j, hj, n, hpn⟩ := mem_prefsOf_draw settings P.D Dsf hp
+    obtain ⟨hd, hjr⟩ := hdist i j hj
+    have hm : (loopDistributions P.D H.pops j).real ↑(histAt c i).prefs ≤ 1 / 2 :=
+      (measureReal_mono (Finset.coe_subset.2 (histAt_prefs_sub c i))).trans (hpm j hjr)
+    have h0 : loopDistributions P.D (histAt c i).pops j (↑(histAt c i).prefs)ᶜ ≠ 0 := by
+      rw [hd]; exact compl_ne_zero hm
+    obtain ⟨hT, hpos⟩ : p ∉ (histAt c i).prefs
+        ∧ 0 < (loopDistributions P.D (histAt c i).pops j).real {p} := by
+      rcases hpn with h | h
+      · rw [h]; exact drawFrom_offLaw h0 ((hlt i hir).2.1 j n)
+      · rw [h]; exact drawFrom_offLaw h0 ((hlt i hir).2.2 j n)
+    rw [hd] at hpos
+    refine ⟨hT, mem_of_pos (A := {q : FreeMonoid α | q.toList.length < Ls}) ?_ hpos⟩
+    refine measure_mono_null (fun x hx => ?_) (hshort j hjr)
+    simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_lt] at hx ⊢
+    exact hx
+  have hsuf : ∀ i : Fin K, i.1 ≤ r → ∀ v ∈ suffsOf settings P.D Dsf (histAt c i) (g i).1,
+      v ∉ (histAt c i).suffs ∧ v.toList.length = Ls := by
+    intro i hir v hv
+    obtain ⟨n, rfl⟩ := mem_suffsOf_draw settings P.D Dsf hv
+    have hm : Dsf.real ↑(histAt c i).suffs ≤ 1 / 2 :=
+      (measureReal_mono (Finset.coe_subset.2 (histAt_suffs_sub c i))).trans hsm
+    obtain ⟨hT, hpos⟩ := drawFrom_offLaw (compl_ne_zero hm) ((hlt i hir).1 n)
+    refine ⟨hT, mem_of_pos (A := {q : FreeMonoid α | q.toList.length = Ls}) ?_ hpos⟩
+    exact measure_mono_null (fun x hx => by simpa using hx) hDsf
+  -- an earlier round's reads are in the history round `r` draws off
+  have hcons : ∀ i : Fin K, i.1 < r →
+      prefsOf settings P.D Dsf (histAt c i) (g i).1 ⊆ H.prefs
+      ∧ suffsOf settings P.D Dsf (histAt c i) (g i).1 ⊆ H.suffs := by
+    intro i hir
+    have hic : i.1 < c.length := by omega
+    obtain ⟨hiK, code, hget, h1, h2⟩ := histCodes_getElem settings O P.D Dsf ω g r i hic
+    have hmem : code ∈ c := List.mem_of_getElem? hget
+    refine ⟨fun p hp => ?_, fun v hv => ?_⟩
+    · simp only [H, decodeHist]
+      refine (mem_foldr_union _ _ p).2 ⟨code, hmem, ?_⟩
+      rw [h1]
+      exact hp
+    · simp only [H, decodeHist]
+      refine (mem_foldr_union _ _ v).2 ⟨code, hmem, ?_⟩
+      rw [h2]
+      exact Finset.mem_of_mem_erase hv
+  refine ⟨fun i hir v hv => (hsuf i hir v hv).2, fun i hir p hp => (hpref i hir p hp).2,
+    fun i hir => Finset.disjoint_left.2 fun v hv hv' => ?_,
+    fun i hir => Finset.disjoint_left.2 fun p hp hp' => ?_⟩
+  · have := (hsuf ⟨r, hr⟩ le_rfl v hv').1
+    rw [hHr] at this
+    exact this ((hcons i hir).2 hv)
+  · have := (hpref ⟨r, hr⟩ le_rfl p hp').1
+    rw [hHr] at this
+    exact this ((hcons i hir).1 hp)
 
 /-- Round `r` reads a prefix or a suffix an earlier round read, or a string of a length its
 distribution gives no mass, with chance zero. -/
