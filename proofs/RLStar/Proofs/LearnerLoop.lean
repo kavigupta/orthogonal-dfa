@@ -694,13 +694,13 @@ def RoundsFresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
       ∧ NoColl settings D Dsf Ls (histCodes settings O D Dsf p.1 p.2 i) p.2 i hK
 
 /-- Off a collision, each round of the persistent run reads its family through the one noise,
-its family suffixes `Ls` long and fewer than its state's `k`. -/
+its family suffixes `Ls` long and at most its state's `k - 1`. -/
 lemma family_of_fresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
     (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
     (Ls : ℕ) (p : Ω × (Fin K → settings.RoundDraws α))
     (hfr : RoundsFresh settings O D Dsf Ls p) :
     ∀ o ∈ idealRounds settings O D Dsf (persistDraws p) K,
-      (∀ v ∈ o.family, v.toList.length = Ls) ∧ o.family.card + 1 ≤ o.state.k
+      (∀ v ∈ o.family, v.toList.length = Ls) ∧ o.family.card ≤ o.state.k - 1
         ∧ (∃ pops, o.state ∈ settings.schedule pops)
         ∧ o.read = fun z => familyRead O.mq o.family o.state.lo (o.state.hi + 1) z p.1 := by
   intro o ho
@@ -728,17 +728,10 @@ lemma family_of_fresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : �
     have hsub : v ∈ suffsOf settings D Dsf H (p.2 ⟨r, hK'⟩).1 := Finset.mem_erase.2 ⟨hv1, h2⟩
     rw [← hpop] at hsub
     exact hnc.1 ⟨r, hK'⟩ le_rfl v hsub
-  · have : (idealRound settings O D Dsf H (p.1, p.2 ⟨r, hK'⟩)).family.card
-        ≤ (idealRound settings O D Dsf H (p.1, p.2 ⟨r, hK'⟩)).state.k - 1 := by
-      change (clusterAt O.mq _ _ _).card ≤ _
-      unfold clusterAt nearestRows
-      exact (Finset.card_le_card (Finset.erase_insert_subset _ _)).trans
-        (leastLossSubset_card_le _ _ _)
-    change (idealRound settings O D Dsf H (p.1, p.2 ⟨r, hK'⟩)).family.card + 1 ≤ _
-    rcases Nat.eq_zero_or_pos (idealRound settings O D Dsf H (p.1, p.2 ⟨r, hK'⟩)).state.k
-      with h0 | h0
-    · sorry
-    · exact Nat.add_le_of_le_sub h0 this
+  · change (clusterAt O.mq _ _ _).card ≤ _
+    unfold clusterAt nearestRows
+    exact (Finset.card_le_card (Finset.erase_insert_subset _ _)).trans
+      (leastLossSubset_card_le _ _ _)
 
 /-- The loop's claim at a cap `cap`, level 3's settings `C`, lists of `nh` strings, `E` epochs of
 `J` blocks of `b` probes, and `NS`, `NP` and `NF` bounding the schedule's suffix pool, prefix count
