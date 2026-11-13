@@ -99,10 +99,7 @@ theorem lazy_round_bad_exists (m crossLimit δH tw : ℝ) (Nr : ℕ)
     ∃ Bd : Set (Ω × settings.Uniforms), MeasurableSet Bd
       ∧ (μ.prod (lazyLaw settings.epochs settings.level3.probeBudget settings.blocks
           settings.blockSize)) Bd
-        ≤ ENNReal.ofReal (settings.level3.δ
-          + settings.epochs * settings.blocks * (1 - settings.level3.harvestRate / 4)
-            ^ settings.blockSize
-          + crossLimit * Nr + δH + (P.L + 1) * (Fintype.card σ + 2) * crossLimit / tw)
+        ≤ ENNReal.ofReal (lazyRoundBound σ settings crossLimit Nr P.L δH tw)
       ∧ (∀ v ω ω', (∀ w ∈ lazyZone (max (P.L + settings.level3.probeBudget + 2)
           (lazyProbesLen (probesOf settings P.D
             (CP.image fun p => prefixOf p settings.level3.walkStart) v)

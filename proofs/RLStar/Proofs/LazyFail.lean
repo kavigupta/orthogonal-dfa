@@ -85,6 +85,12 @@ def lazySlope (σ : Type*) [Fintype σ] (Nr nh : ℕ) : ℝ :=
 def lazySlack (σ : Type*) [Fintype σ] (nh : ℕ) (δH : ℝ) : ℝ :=
   Fintype.card σ * Real.log (Fintype.card σ / δH) / (nh * Real.log 2)
 
+/-- `lazyFail_le`'s bound. -/
+def lazyRoundBound (σ : Type*) [Fintype σ] (s : LoopSettings K) (κ : ℝ) (Nr L : ℕ) (δH tw : ℝ) :
+    ℝ :=
+  s.level3.δ + s.epochs * s.blocks * (1 - s.level3.harvestRate / 4) ^ s.blockSize + κ * Nr + δH
+    + (L + 1) * (Fintype.card σ + 2) * κ / tw
+
 theorem measurableSet_lazyFail [IsProbabilityMeasure μ'] (fam : SuffixFamily μ' α σ)
     (s : LoopSettings K) (X₀ : Finset (FreeMonoid α)) (D' : Measure (FreeMonoid α))
     (A sl tw : ℝ) : MeasurableSet (lazyFail fam s X₀ D' A sl tw) := by
@@ -102,9 +108,7 @@ theorem lazyFail_le [IsProbabilityMeasure μ'] (fam : SuffixFamily μ' α σ) (h
     (hδH : 0 < δH) (htw : 0 < tw) :
     (μ'.prod (lazyDrawLaw s D'))
         (lazyFail fam s X₀ D' (lazySlope σ Nr s.listSize) (lazySlack σ s.listSize δH) tw)
-      ≤ ENNReal.ofReal (s.level3.δ
-        + s.epochs * s.blocks * (1 - s.level3.harvestRate / 4) ^ s.blockSize
-        + fam.κ * Nr + δH + (Lp + 1) * (Fintype.card σ + 2) * fam.κ / tw) := by
+      ≤ ENNReal.ofReal (lazyRoundBound σ s fam.κ Nr Lp δH tw) := by
   sorry -- closes by: G (AdaptiveReadsBound), V (LazyRoundCorrect), H1 (ListSlope), W (UnaskedFresh)
 
 end OrthoDFA
