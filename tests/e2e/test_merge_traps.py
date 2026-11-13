@@ -75,25 +75,32 @@ class TestArmedMergeTarget(unittest.TestCase):
 class TestArmedMergeLearned(unittest.TestCase):
     @parameterized.expand([(seed,) for seed in range(MERGE_SEEDS)])
     def test_the_armed_state_is_not_merged(self, seed):
-        target = build_armed_target()
-        oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
-        sampler = UniformSampler(ARMED_LENGTH)
-        dfa = learn_dfa_unchecked(
-            oracle_creator,
-            min_signal_strength=ARMED_SIGNAL,
-            seed=seed,
-            sampler=sampler,
+        assert_armed_not_merged(
+            self, seed=seed, min_signal_strength=ARMED_SIGNAL, noise_model=None
         )
-        # Graded at the length it was learned at: a hypothesis that merges Q still
-        # reads well on strings long enough that almost all of them reach A anyway.
-        assert_not_merged(
-            self,
-            dfa,
-            target,
-            oracle_creator=oracle_creator,
-            symbols=ARMED_ALPHABET,
-            sampler=sampler,
-        )
+
+
+def assert_armed_not_merged(testcase, *, seed, min_signal_strength, noise_model):
+    target = build_armed_target()
+    oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
+    sampler = UniformSampler(ARMED_LENGTH)
+    dfa = learn_dfa_unchecked(
+        oracle_creator,
+        min_signal_strength=min_signal_strength,
+        seed=seed,
+        sampler=sampler,
+        noise_model=noise_model,
+    )
+    # Graded at the length it was learned at: a hypothesis that merges Q still
+    # reads well on strings long enough that almost all of them reach A anyway.
+    assert_not_merged(
+        testcase,
+        dfa,
+        target,
+        oracle_creator=oracle_creator,
+        symbols=ARMED_ALPHABET,
+        sampler=sampler,
+    )
 
 
 TRAP_LENGTH = 40

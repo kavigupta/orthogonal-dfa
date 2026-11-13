@@ -1,7 +1,7 @@
 import functools
 import itertools
 import math
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 import numpy as np
 import scipy
@@ -252,16 +252,14 @@ def reads_minority_bounded(
     return bool(np.all(trichotomous & bounded))
 
 
-def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_level):
-    """
-    Computes the suffix size to use for counterexample generation.
-    This is an alias for compute_suffix_size_for_counterexample_generation
-    to match the naming convention of other hyperparameter generators.
-    """
-    for n in itertools.count(start=1):
-        if binom_cdf(n // 2, n, noise_level) < acceptable_misclassification:
-            return n
-    raise ValueError("not reachable")
+def centres(signal: float) -> List[float]:
+    """Half a signal apart, out from a half to within [signal, 1 - signal]."""
+    steps = math.floor((1 / 2 - signal) / (signal / 2) + 1e-9)
+    # Clamped against the rounding of the outermost onto the far side of a rate.
+    return [
+        min(max(1 / 2 + k * signal / 2, signal), 1 - signal)
+        for k in range(-steps, steps + 1)
+    ]
 
 
 #: Chance ``denoise_accept_labels`` moves a label the evidence does not support,
@@ -289,7 +287,7 @@ def _decides(num_samples, signal_strength, boundary, failure_prob):
 
 
 def denoise_sample_size(
-    signal_strength, boundary=0.5, *, failure_prob=DENOISE_FAILURE_PROB
+    signal_strength, boundary, *, failure_prob=DENOISE_FAILURE_PROB
 ):
     """Samples one state needs before its own accept rate decides its label.
 

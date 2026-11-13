@@ -13,21 +13,20 @@ from .prefix_populations import (
     prefixes_for_split,
 )
 from .statistics import (
+    centres,
     cross_limit_for_coverage_error,
     evidence_margin_for_population_size,
     population_size_and_evidence_margin,
 )
-from .suffix_groups import nearest_to_anchor_group
+from .suffix_groups import misread_statistic, nearest_to_anchor_group
 
 
-def identify_cluster_around(
-    pst, seed: int, count: int, decision_boundary: float, anchored: List[bytes]
-) -> Tuple[List[int], float]:
-    """The first count of the rest of the pool in nearest_to_anchor_group's
-    order, anchored on seed's reads, among the suffixes that read every prefix
-    in anchored as seed does.  The seed anchors but does not vote: with
-    the empty seed voting, reading z at a midfix m would read the very string
-    the read of z·m reads at the root, so node reads would share noise."""
+def _cluster(pst, seed: int, count: int, centre: float, anchored: List[bytes]):
+    """The first count of the rest of the pool in order, anchored on seed's
+    reads, among the suffixes that read every prefix in anchored as seed does;
+    with the pool's reads.  The seed anchors but does not vote: with the empty
+    seed voting, reading z at a midfix m would read the very string the read of
+    z·m reads at the root, so node reads would share noise."""
     # Restrict to representative prefix columns: the suffix family and the
     # decision boundary are global calibration, and a caller that has re-scoped
     # them means that scope to be what calibration reads.
@@ -42,23 +41,39 @@ def identify_cluster_around(
         columns = _representative_columns(pst.table, anchored)
         others &= (reads[:, columns] == reads[seed_local, columns]).all(1)
     others = np.flatnonzero(others)
-    cluster = []
-    if len(others):
+    if others.size == 0:
+        return candidate, [], reads
+    rates = (centre - signal, centre + signal)
+    if pst.config.order_by_misread:
+        misread = misread_statistic(
+            reads[others], reads[seed_local], pst.table.seed_scoring(), rates
+        )
+        order = np.argsort(misread, kind="stable")
+    else:
         order = nearest_to_anchor_group(
             reads[others],
             reads[seed_local],
             list(pst.table.population_masks().values()),
             pst.table.seed_scoring(),
-            (decision_boundary - signal, decision_boundary + signal),
+            rates,
             # As many clusters as a group the preconditions guarantee, a
             # min_suffix_frequency share of the pool, needs to get one of its own.
             k=math.ceil(1 / pst.config.min_suffix_frequency),
             alpha=pst.config.screening_alpha,
             rng=pst.rng,
         )
-        cluster += others[order[:count]].tolist()
+    return candidate, others[order[:count]].tolist(), reads
+
+
+def identify_cluster_around(
+    pst, seed: int, count: int, decision_boundary: float, anchored: List[bytes]
+) -> Tuple[List[int], float]:
+    """_cluster's family at decision_boundary, and the boundary its prefixes'
+    means put between them."""
+    candidate, cluster, reads = _cluster(pst, seed, count, decision_boundary, anchored)
     if not cluster:
         return [], decision_boundary
+    signal = pst.config.min_signal_strength
 
     # Estimate decision boundary from the prefix separation
     prefix_means = reads[cluster].mean(0)
@@ -79,6 +94,41 @@ def identify_cluster_around(
     decision_boundary = min(max(decision_boundary, signal), 1 - signal)
 
     return candidate[cluster].tolist(), decision_boundary
+
+
+@dataclass
+class CentreCheck:
+    """Lean's centreFits on the point rates, without its Hoeffding margin: the
+    prefixes voting a signal past the centre read the seed within readη's slack
+    of it.  ``refined`` is the midpoint of those rates."""
+
+    plausible: bool
+    refined: Optional[float]
+
+
+def centre_check(votes, reads, centre, *, signal, class_floor) -> CentreCheck:
+    """votes are the family's per prefix of the uniform pool, reads the seed's.
+    Each side of the cut at centre has to hold class_floor of the prefixes.
+
+    The margin is left out because it asks for about 2 ln(1/level) / s^2
+    strongly decided prefixes a side, some 10^4 uniform prefixes at s = 0.1,
+    and the search draws prefixes for it until it times out."""
+    n = len(votes)
+    if n == 0 or min((votes >= centre).sum(), (votes < centre).sum()) < max(
+        1, class_floor * n
+    ):
+        return CentreCheck(False, None)
+    reject = reads[votes <= centre - signal]
+    accept = 1 - reads[votes >= centre + signal]
+    if reject.size == 0 or accept.size == 0:
+        return CentreCheck(False, None)
+    against = (reject.mean(), accept.mean())
+    held = (centre - signal / 2, 1 - centre - signal / 2)
+    refined = (against[0] + 1 - against[1]) / 2
+    return CentreCheck(
+        plausible=all(a <= h for a, h in zip(against, held)),
+        refined=min(max(refined, signal), 1 - signal),
+    )
 
 
 def _representative_columns(table, prefixes) -> List[int]:
@@ -520,6 +570,15 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     # exists.
     if len(vs) < family_size:
         return Judged(vs, 1.0, "undersized", ADMITTED, None)
+    vs, fnr, worst = _read_family(pst, vs, family_size)
+    if fnr > pst.fnr_limit:
+        return Judged(vs, fnr, f"FNR {fnr:.4f} too high", ADMITTED, worst)
+    return _gated(pst, gate, v, vs, fnr=fnr, worst=worst)
+
+
+def _read_family(pst, vs, family_size):
+    """(vs read down to the size its band was calibrated for, its FNR, the
+    population that FNR is of), at pst.decision_boundary, whose margin it sets."""
     # Both rates are properties of the population the test runs over, so read
     # the family at a size calibrated for it.
     size, pst.evidence_margin = readable_size_and_margin(
@@ -530,18 +589,134 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
         read_rates(pst, pst.decision_boundary),
     )
     vs = vs[:size]
-    decision = pst.compute_decision(vs, pst.table.representative)
-    fnr, worst = pst.fnr_from_decision(decision)
-    too_high = f"FNR {fnr:.4f} too high"
-    if fnr > pst.fnr_limit:
-        return Judged(vs, fnr, too_high, ADMITTED, worst)
+    fnr, worst = pst.fnr_from_decision(
+        pst.compute_decision(vs, pst.table.representative)
+    )
+    return vs, fnr, worst
+
+
+def _gated(pst, gate, v, vs, *, fnr, worst) -> Judged:
     # Certify only right before returning, as certifying is expensive.
     verdict, blamed = gate.verdict(pst, v, vs)
     if verdict is DRIFTED:
         return Judged(vs, 1.0, "not accept-preserving", verdict, blamed)
     if verdict is UNCERTIFIED:
         return Judged(vs, 1.0, "accept-preserving not established", verdict, blamed)
-    return Judged(vs, fnr, too_high, verdict, worst)
+    return Judged(vs, fnr, f"FNR {fnr:.4f} too high", verdict, worst)
+
+
+@dataclass
+class Reading:
+    """A family clustered and read at one centre, without new queries."""
+
+    centre: float
+    vs: List[int]
+    family_size: int
+    margin: float
+    fnr: float
+    worst: Optional[object]
+    #: None for an undersized family.
+    check: Optional[CentreCheck]
+
+    def rank(self, fnr_limit) -> int:
+        """0 usable; 1 a plausible centre whose FNR is too high; 2 a centre
+        refused; 3 undersized."""
+        if self.check is None:
+            return 3
+        if not self.check.plausible:
+            return 2
+        return 1 if self.fnr > fnr_limit else 0
+
+    def preference(self, fnr_limit):
+        """Least first: by rank, then, among plausible centres, by how far the
+        class rates' midpoint sits from the centre, then by FNR."""
+        rank = self.rank(fnr_limit)
+        offset = abs(self.check.refined - self.centre) if rank <= 1 else 0
+        return rank, offset, self.fnr
+
+
+def _read_at(pst, v, centre, anchored) -> Reading:
+    """Sets pst's boundary and margin to the centre's."""
+    signal = pst.config.min_signal_strength
+    pst.decision_boundary = centre
+    family_size = smallest_readable_family(signal, centre, read_rates(pst, centre))
+    candidate, cluster, _ = _cluster(pst, v, family_size, centre, anchored)
+    vs = candidate[cluster].tolist()
+    if len(vs) < family_size:
+        return Reading(centre, vs, family_size, 0.0, 1.0, None, None)
+    vs, fnr, worst = _read_family(pst, vs, family_size)
+    representative = pst.table.representative
+    uniform = pst.table.population_masks()[UNIFORM]
+    check = centre_check(
+        pst.compute_decision(vs, representative)[uniform],
+        pst.table.observed_masks([v], representative)[0][uniform],
+        centre,
+        signal=signal,
+        class_floor=pst.config.class_floor,
+    )
+    return Reading(centre, vs, family_size, pst.evidence_margin, fnr, worst, check)
+
+
+def _adopt(pst, reading: Reading):
+    pst.decision_boundary, pst.evidence_margin = reading.centre, reading.margin
+
+
+def judge_on_centres(pst, gate, v, anchored, previous) -> Tuple[Judged, Reading]:
+    """The family at the centre its class rates refine the grid's most preferred
+    reading to, unless that reads worse, and gated where the centre check finds
+    it plausible; else the reading's failure.  pst's boundary is left at the
+    reading's centre where that is plausible, else at previous."""
+    readings = [
+        _read_at(pst, v, c, anchored) for c in centres(pst.config.min_signal_strength)
+    ]
+    best = min(readings, key=lambda r: r.preference(pst.fnr_limit))
+    if best.rank(pst.fnr_limit) <= 1:
+        refined = _read_at(pst, v, best.check.refined, anchored)
+        if refined.rank(pst.fnr_limit) <= best.rank(pst.fnr_limit):
+            best = refined
+    rank = best.rank(pst.fnr_limit)
+    if rank <= 1:
+        _adopt(pst, best)
+    else:
+        pst.decision_boundary = previous
+    if rank == 0:
+        return _gated(pst, gate, v, best.vs, fnr=best.fnr, worst=best.worst), best
+    if rank == 1:
+        judged = Judged(
+            best.vs, best.fnr, f"FNR {best.fnr:.4f} too high", ADMITTED, best.worst
+        )
+    elif rank == 2:
+        judged = Judged(best.vs, 1.0, "no centre fits", ADMITTED, None)
+    else:
+        judged = Judged(best.vs, 1.0, "undersized", ADMITTED, None)
+    return judged, best
+
+
+def _judge_at_estimate(pst, gate, v, *, family_size, decision_boundary, anchored):
+    """judge_family on the cluster identify_cluster_around estimates its own
+    boundary from, with that boundary and the family size it wants."""
+    # The cluster is capped at the size asked for, and the boundary it
+    # estimates decides the size wanted, so a boundary that moves far enough
+    # leaves it short by construction.  The pool usually already holds the
+    # rest: ask again at the new size before spending a cohort of oracle
+    # queries on suffixes to cover a handful.
+    for _ in range(2):
+        vs, decision_boundary = identify_cluster_around(
+            pst, v, family_size, decision_boundary, list(anchored.values())
+        )
+        pst.decision_boundary = decision_boundary
+        family_size = smallest_readable_family(
+            pst.config.min_signal_strength,
+            decision_boundary,
+            read_rates(pst, decision_boundary),
+        )
+        if len(vs) >= family_size:
+            break
+    return (
+        judge_family(pst, gate, v, vs, family_size),
+        decision_boundary,
+        family_size,
+    )
 
 
 def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float, float]:
@@ -557,10 +732,14 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float, float]:
     prev_effective_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
-    family_size = smallest_readable_family(
-        pst.config.min_signal_strength,
-        decision_boundary,
-        read_rates(pst, decision_boundary),
+    family_size = (
+        None
+        if pst.config.centre_grid
+        else smallest_readable_family(
+            pst.config.min_signal_strength,
+            decision_boundary,
+            read_rates(pst, decision_boundary),
+        )
     )
     gate = AcceptPreservingGate(pst.config, state)
     anchored = {}
@@ -569,25 +748,20 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float, float]:
     if v not in pst.suffix_pool:
         pst.suffix_pool.append(v)
     while True:
-        # The cluster is capped at the size asked for, and the boundary it
-        # estimates decides the size wanted, so a boundary that moves far enough
-        # leaves it short by construction.  The pool usually already holds the
-        # rest: ask again at the new size before spending a cohort of oracle
-        # queries on suffixes to cover a handful.
-        for _ in range(2):
-            vs, decision_boundary = identify_cluster_around(
-                pst, v, family_size, decision_boundary, list(anchored.values())
+        if pst.config.centre_grid:
+            judged, reading = judge_on_centres(
+                pst, gate, v, list(anchored.values()), pst.decision_boundary
             )
-            pst.decision_boundary = decision_boundary
-            family_size = smallest_readable_family(
-                pst.config.min_signal_strength,
-                decision_boundary,
-                read_rates(pst, decision_boundary),
+            decision_boundary, family_size = reading.centre, reading.family_size
+        else:
+            judged, decision_boundary, family_size = _judge_at_estimate(
+                pst,
+                gate,
+                v,
+                family_size=family_size,
+                decision_boundary=decision_boundary,
+                anchored=anchored,
             )
-            if len(vs) >= family_size:
-                break
-
-        judged = judge_family(pst, gate, v, vs, family_size)
 
         if judged.fnr <= pst.fnr_limit:
             print(
