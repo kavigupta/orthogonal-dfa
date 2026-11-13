@@ -158,6 +158,7 @@ lemma scan_tail_le {Kn T : ℕ} {cap δ δₘ : ℝ} (hδ : 0 < δ) (hcap0 : 0 �
   rw [show ((Kn : ℝ) + 1) * (δ / (4 * ((Kn : ℝ) + 1))) = δ / 4 by field_simp] at h5
   linarith
 
+set_option maxHeartbeats 8000000 in -- the settings and the cap meet `LoopCore`'s conditions
 /-- The loop's claim with each round's failure `δ'` free and the last round's disagreeing probes
 at most `ε + ε/96 + tw`, level 3 running at disagreement rate `ε` over `E` epochs and top-ups of
 `J` blocks of `b` probes, lists of `nh` strings, each lazy round asking at most `Nr` strings and
@@ -231,6 +232,403 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
                     RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
                       (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))}
           ≤ (Q + 1) * (4 * δ') := by
-  sorry -- closes by: main's settings at C.δ = δ'/4, cross = δ'/(8W), δH = δ'/4; loop_core_holds
+  intro Q A L s τ Jp S B₃ PB FV RB cap SC
+    hL hgap hη₀ hε hε1 hbalL hbalN hεd hεd12 hδ'0 hδ'1' hpAP hpAP1 hL1 hk0 hkD _ hk1 hι0 hι8
+    hW1 hnh hnhc hnhp hE hJ hb hNr hNrW htwW htw hTu hslope
+  have hδ'1 : δ' ≤ 1 := hδ'1'.le
+  classical
+  have : Nonempty σ := ⟨M.start⟩
+  have hQ1 : (1 : ℝ) ≤ Q := by
+    show (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
+  have hA1 : (1 : ℝ) ≤ A := by
+    show (1 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast Fintype.card_pos
+  have hη0 : 0 ≤ η₀ := by have := gap_le_one O; linarith
+  have hW0 : 0 < W := by linarith
+  -- level 3's settings
+  set S' : ℕ := Fintype.card σ * ((Fintype.card σ + 2) * (Fintype.card α + 1) + 1)
+    + 2 * (Fintype.card α + 1) + 1 with hS'
+  have hSS : (S' : ℝ) = S := by
+    show ((Fintype.card σ * ((Fintype.card σ + 2) * (Fintype.card α + 1) + 1)
+      + 2 * (Fintype.card α + 1) + 1 : ℕ) : ℝ) = _
+    push_cast; rfl
+  have hS1 : (1 : ℝ) ≤ S := by
+    show 1 ≤ Q * ((Q + 2) * (A + 1) + 1) + 2 * (A + 1) + 1
+    have : 0 ≤ Q * ((Q + 2) * (A + 1) + 1) := by positivity
+    linarith
+  have hE1 : (1 : ℝ) ≤ E := by
+    have : 0 ≤ 2 * (k : ℝ) / (ε / 48) := by positivity
+    linarith
+  have hlogS : 0 ≤ Real.log (16 * S * (S + 1) * (E * (E + 1)) / δ') := by
+    refine Real.log_nonneg ?_
+    rw [le_div_iff₀ hδ'0, one_mul]
+    have h1 : 1 ≤ S * (S + 1) := by nlinarith
+    have h2 : 1 ≤ (E : ℝ) * (E + 1) := by nlinarith
+    have h3 : 1 ≤ S * (S + 1) * ((E : ℝ) * (E + 1)) := one_le_mul_of_one_le_of_one_le h1 h2
+    have e : 16 * S * (S + 1) * ((E : ℝ) * (E + 1)) = 16 * (S * (S + 1) * (E * (E + 1))) := by
+      ring
+    rw [e]
+    linarith
+  set budget : ℕ := ⌈36 * S / ε * Real.log (16 * S * (S + 1) * (E * (E + 1)) / δ') + S⌉₊
+    with hbudd
+  have hbud : (budget : ℝ) ≤ B₃ := by
+    have := Nat.ceil_lt_add_one (show 0 ≤ 36 * S / ε
+      * Real.log (16 * S * (S + 1) * (E * (E + 1)) / δ') + S by positivity)
+    show (budget : ℝ) ≤ 36 * S / ε * Real.log (16 * S * (S + 1) * (E * (E + 1)) / δ') + S + 1
+    linarith
+  set C : Random.Level3Settings := ⟨k, δ', ε, budget, 0⟩ with hCd
+  -- the band's far side
+  set cross : ℝ := δ' / (8 * W) with hcrossd
+  have hcr : 0 < cross := div_pos hδ'0 (by linarith)
+  have hcrW : cross * W = δ' / 8 := by rw [hcrossd]; field_simp
+  set cLog : ℝ := 4 * Real.log (8 * W / δ') with hcLog
+  have hcL0 : 0 ≤ cLog := mul_nonneg (by norm_num) (Real.log_nonneg (by
+    rw [le_div_iff₀ hδ'0]; linarith))
+  have hcexp : cross ^ 4 = Real.exp (-cLog) := by
+    have e : -cLog = Real.log (cross ^ 4) := by
+      rw [hcLog, Real.log_pow, hcrossd, Real.log_div hδ'0.ne' (by positivity), Real.log_div
+        (by positivity) hδ'0.ne']
+      push_cast; ring
+    rw [e, Real.exp_log (by positivity)]
+  have hτb : budgetScale η₀ ι (εcov / 2) = τ := by
+    show min (min (εcov / 2) (1 / 2) * gateA η₀ ^ 2) ι
+      = min ((εcov / 2) * (1 - 2 * η₀) ^ 2) ι
+    rw [min_eq_left (by linarith : εcov / 2 ≤ 1 / 2)]
+    rfl
+  have hPBe : capPB η₀ ι (εcov / 2) δ' (pAP / 2) cLog Jp = PB := by
+    show _ = (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / (1 / 2 - η₀) ^ 2 + 20 /
+        (1 / 2 - η₀) + 28) / pAP
+      + 120 * Real.log (3 / (δ' / 2)) / pAP
+    unfold capPB
+    rw [hτb, hcLog, ← mul_max_of_nonneg _ _ (by norm_num : (0 : ℝ) ≤ 4)]
+    field_simp
+    ring
+  have hRBe : capRB η₀ ι (εcov / 2) (δ' / 4) δ' (pAP / 2) cLog Jp = RB := by
+    unfold capRB
+    rw [hPBe, hτb]
+  have hJp : (((Fintype.card σ + 1 + 1 : ℕ)) : ℝ) = Jp := by
+    push_cast; show _ = (Fintype.card σ : ℝ) + 2; ring
+  have hcounts : ∀ pops : Finset (Option (Fin (Fintype.card σ + 1))), none ∈ pops →
+      (poolCount η₀ pops ι (εcov / 2) (δ' / 2) (pAP / 2) (Real.exp (-cLog)) : ℝ) ≤ PB
+        ∧ (prefCount η₀ pops ι (εcov / 2) (εcov / 2 / 512) (δ' / 2) (δ' / 4) (pAP / 2)
+          (Real.exp (-cLog)) 0 : ℝ) ≤ RB := by
+    intro pops hpops
+    have hcard : (pops.card : ℝ) ≤ Jp := by
+      have h1 := Finset.card_le_univ pops
+      simp only [Fintype.card_option, Fintype.card_fin] at h1
+      rw [← hJp]
+      exact_mod_cast h1
+    have h := counts_le η₀ pops ι (εcov / 2) (δ' / 4) δ' (pAP / 2) cLog Jp hη0 hη₀ ⟨none, hpops⟩
+      hcard hι0 (by linarith) (by linarith) hδ'0 hδ'1 (by positivity) (by linarith)
+      (by positivity) (by linarith) hcL0
+    rw [hPBe, hRBe] at h
+    exact h
+  have hfam : ∀ pops : Finset (Option (Fin (Fintype.card σ + 1))),
+      famCount η₀ pops ι (εcov / 2) (δ' / 2) (Real.exp (-cLog)) ≤ ⌊FV⌋₊ := by
+    intro pops
+    have hsig : 0 < sig η₀ := by unfold sig; linarith
+    have h := famCount_succ_le pops η₀ ι (εcov / 2) (δ' / 2) (Real.exp (-cLog)) hsig hη0 hι0
+      (by linarith) (Real.exp_pos _) (Real.exp_le_one_iff.2 (by linarith))
+    have e1 : Real.log (1 / Real.exp (-cLog)) = cLog := by
+      rw [one_div, ← Real.exp_neg, neg_neg, Real.log_exp]
+    have e : 25 * (max (4 * Real.log (20 / budgetScale η₀ ι (εcov / 2)))
+        (Real.log (1 / Real.exp (-cLog))) + 12) / (8 * sig η₀ ^ 2) + 5 / sig η₀ + 7 = FV := by
+      rw [e1, hτb, hcLog, ← mul_max_of_nonneg _ _ (by norm_num : (0 : ℝ) ≤ 4)]
+      show _ = (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / (1 / 2 - η₀) ^ 2
+        + 20 / (1 / 2 - η₀) + 28) / 4
+      unfold sig
+      field_simp
+      ring
+    rw [e] at h
+    exact Nat.le_floor (by linarith)
+  obtain ⟨hPB0', hRB0'⟩ := hcounts {none} (Finset.mem_singleton_self _)
+  have hPB0 : 0 ≤ PB := (Nat.cast_nonneg _).trans hPB0'
+  have hRB0 : 0 ≤ RB := (Nat.cast_nonneg _).trans hRB0'
+  -- the scan cap `2T`
+  have hJ3 : (3 : ℝ) ≤ Jp := by show 3 ≤ Q + 2; linarith
+  have hlog16 : 0 < Real.log (16 * Jp / δ') :=
+    Real.log_pos (by rw [one_lt_div hδ'0]; linarith)
+  set Tsc : ℕ := max (4 * ((Fintype.card σ + 1 + 3) * ⌊RB⌋₊)) ⌈8 * Real.log (16 * Jp / δ')⌉₊
+    with hTscd
+  have hTsc8 : 8 * Real.log (16 * Jp / δ') ≤ Tsc :=
+    (Nat.le_ceil _).trans (by exact_mod_cast le_max_right _ _)
+  have hMSC : ((2 * Tsc : ℕ) : ℝ) ≤ SC := by
+    have hT : Tsc ≤ 4 * ((Fintype.card σ + 1 + 3) * ⌊RB⌋₊) + ⌈8 * Real.log (16 * Jp / δ')⌉₊ := by
+      simp only [hTscd]; omega
+    have hTR : (Tsc : ℝ) ≤ 4 * ((((Fintype.card σ + 1 + 3 : ℕ)) : ℝ) * ((⌊RB⌋₊ : ℕ) : ℝ))
+        + ((⌈8 * Real.log (16 * Jp / δ')⌉₊ : ℕ) : ℝ) := by exact_mod_cast hT
+    have hc := Nat.ceil_lt_add_one (show 0 ≤ 8 * Real.log (16 * Jp / δ') by positivity)
+    have hK3 : ((Fintype.card σ + 1 + 3 : ℕ) : ℝ) = Q + 4 := by push_cast; show _ = Q + 4; ring
+    rw [hK3] at hTR
+    have hNP : ((⌊RB⌋₊ : ℕ) : ℝ) ≤ RB := Nat.floor_le hRB0
+    have hM : ((2 * Tsc : ℕ) : ℝ) = 2 * Tsc := by push_cast; ring
+    show ((2 * Tsc : ℕ) : ℝ) ≤ 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
+    have hQ4 : 0 ≤ Q + 4 := by linarith
+    have := mul_le_mul_of_nonneg_left hNP hQ4
+    change ((2 * Tsc : ℕ) : ℝ) ≤ 8 * (Q + 4) * RB + 16 * Real.log (16 * Jp / δ') + 2
+    linarith only [hTR, hc, this, hM]
+  have hJ0 : 0 < Jp := by show 0 < Q + 2; linarith
+  have hτ0 : 0 < τ := by
+    have ha : 0 < (1 - 2 * η₀) := gateA_pos hη0 hη₀
+    exact lt_min (mul_pos (by positivity) (pow_pos ha 2)) hι0
+  have hs0 : 0 < s := by show 0 < 1 / 2 - η₀; linarith
+  have hlogpos : 0 < Real.log (128 * Jp * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1)) / δ') := by
+    have hlb : 0 ≤ Real.logb 2 (RB + 1) := Real.logb_nonneg one_lt_two (by linarith)
+    have hJ1 : (1 : ℝ) ≤ Jp := by linarith
+    have h1 : 1 ≤ Jp * (PB + 1) := one_le_mul_of_one_le_of_one_le hJ1 (by linarith)
+    have h2 : 3 ≤ Jp * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1)) := by nlinarith
+    refine Real.log_pos ?_
+    rw [lt_div_iff₀ hδ'0]
+    nlinarith
+  have hcap0 : 0 < cap := by
+    show 0 < min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
+          (ι ^ 2 / (2 ^ 28 * Real.log (128 * Jp * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1))
+            / δ'))))
+        (ι / 2 / (8 * Jp * (RB + 1))))
+      (min (min (pAP / (2 ^ 18 * (PB + 1))) (ι / (2 ^ 24 * Jp ^ 2 * (RB + 1))))
+        (min (pAP / (2 * Jp * (PB + 2))) (1 / (6 * Jp * (RB + 1)))))
+    refine lt_min (lt_min (lt_min (by positivity)
+        (div_pos (by positivity) (mul_pos (by norm_num) hlogpos)))
+      (by positivity)) (by positivity)
+  -- the cap's terms
+  have hmul : ∀ {x b a : ℝ}, 0 < b → x ≤ b → cap ≤ a / b → x * cap ≤ a := fun hb hx h => by
+    rw [le_div_iff₀ hb] at h
+    exact (mul_le_mul_of_nonneg_right hx hcap0.le).trans (by linarith)
+  have hNSr : ((⌊PB⌋₊ : ℕ) : ℝ) ≤ PB := Nat.floor_le hPB0
+  have hNPr : ((⌊RB⌋₊ : ℕ) : ℝ) ≤ RB := Nat.floor_le hRB0
+  have hK1 : (((Fintype.card σ + 1 : ℕ) : ℝ)) + 1 = Jp := by
+    push_cast; show _ = (Fintype.card σ : ℝ) + 2; ring
+  have hnlog : ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ) ≤ Real.logb 2 (RB + 1) := by
+    rcases Nat.eq_zero_or_pos ⌊RB⌋₊ with h0 | hpos
+    · rw [h0]; simp only [Nat.log_zero_right, Nat.cast_zero]
+      exact Real.logb_nonneg (by norm_num) (by linarith)
+    · have h1 := Real.natLog_le_logb ⌊RB⌋₊ 2
+      push_cast at h1
+      refine h1.trans (Real.logb_le_logb_of_le (by norm_num) (by exact_mod_cast hpos) ?_)
+      linarith
+  have hq1a : 2 ^ 20 * ((⌊RB⌋₊ : ℕ) : ℝ) * cap
+      ≤ (1 / 2 - η₀) * min (εcov / 2 * (1 / 2 - η₀)) ι := by
+    change _ ≤ s * min (εcov / 2 * s) ι
+    exact hmul (b := 2 ^ 20 * (RB + 1)) (by positivity) (by gcongr; linarith)
+      (((min_le_left _ _).trans (min_le_left _ _)).trans (min_le_left _ _))
+  have hq1c : 2 ^ 24 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 4) * ((⌊RB⌋₊ : ℕ) : ℝ) * cap
+      ≤ min (εcov / 2) ι := by
+    have hK4 : (((Fintype.card σ + 1 : ℕ) : ℝ)) + 4 = Jp + 3 := by
+      push_cast; show _ = (Fintype.card σ : ℝ) + 2 + 3; ring
+    have hJ2 : Jp + 3 ≤ Jp ^ 2 := by nlinarith
+    rw [hK4, min_eq_right (by linarith : ι ≤ εcov / 2)]
+    exact hmul (b := 2 ^ 24 * Jp ^ 2 * (RB + 1)) (by positivity) (by gcongr; linarith)
+      (((min_le_right _ _).trans (min_le_left _ _)).trans (min_le_right _ _))
+  have hl0 : (0 : ℝ) ≤ ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ) := Nat.cast_nonneg _
+  have hhash : 2 ^ 28 * Real.log (128 * Jp * ((((⌊PB⌋₊ : ℕ) : ℝ)) + 1)
+      * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') * cap ≤ ι ^ 2 := by
+    have hlg : Real.log (128 * Jp * ((((⌊PB⌋₊ : ℕ) : ℝ)) + 1)
+          * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ')
+        ≤ Real.log (128 * Jp * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1)) / δ') :=
+      Real.log_le_log (by positivity) (div_le_div_of_nonneg_right (by gcongr) hδ'0.le)
+    exact hmul (b := 2 ^ 28
+        * Real.log (128 * Jp * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))
+      (mul_pos (by norm_num) hlogpos) (by gcongr)
+      (((min_le_left _ _).trans (min_le_left _ _)).trans (min_le_right _ _))
+  have hq1b : 2 ^ 28 * Real.log (128 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 1)
+      * ((((⌊PB⌋₊ : ℕ) : ℝ)) + 1)
+      * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') * cap ≤ min (εcov / 2) ι ^ 2 := by
+    rw [hK1, min_eq_right (by linarith : ι ≤ εcov / 2)]
+    exact hhash
+  have hq2a : 4 * Real.log (128 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 1)
+      * ((((⌊PB⌋₊ : ℕ) : ℝ)) + 1)
+      * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') * cap ≤ (ι - ι / 2) ^ 2 := by
+    rw [hK1, show ι - ι / 2 = ι / 2 by ring]
+    have h0 : 0 ≤ Real.log (128 * Jp * ((((⌊PB⌋₊ : ℕ) : ℝ)) + 1)
+        * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') * cap := by
+      refine mul_nonneg (Real.log_nonneg ?_) hcap0.le
+      rw [le_div_iff₀ hδ'0]
+      have hJ1 : (1 : ℝ) ≤ Jp := by linarith
+      have hP1 : (1 : ℝ) ≤ ((⌊PB⌋₊ : ℕ) : ℝ) + 1 := by
+        linarith [(Nat.cast_nonneg ⌊PB⌋₊ : (0 : ℝ) ≤ ((⌊PB⌋₊ : ℕ) : ℝ))]
+      have h3 : (1 : ℝ) ≤ 3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ) := by linarith
+      have : 1 ≤ Jp * (((⌊PB⌋₊ : ℕ) : ℝ) + 1) * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) :=
+        one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le hJ1 hP1) h3
+      nlinarith
+    nlinarith [hhash, h0]
+  have hq2b : 8 * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 1) * ((⌊RB⌋₊ : ℕ) : ℝ) * cap
+      ≤ ι - ι / 2 := by
+    rw [hK1, show ι - ι / 2 = ι / 2 by ring]
+    exact hmul (b := 8 * Jp * (RB + 1)) (by positivity) (by gcongr; linarith)
+      ((min_le_left _ _).trans (min_le_right _ _))
+  have hq3 : 2 ^ 17 * ((⌊PB⌋₊ : ℕ) : ℝ) * cap ≤ pAP - pAP / 2 := by
+    have h := hmul (x := 2 ^ 18 * ((⌊PB⌋₊ : ℕ) : ℝ)) (a := pAP)
+      (b := 2 ^ 18 * (PB + 1)) (by positivity) (by gcongr; linarith)
+      (((min_le_right _ _).trans (min_le_left _ _)).trans (min_le_left _ _))
+    linarith only [h]
+  have hqm : 6 * (((Fintype.card σ + 1 : ℕ) : ℝ)) * ((((Fintype.card σ + 1 : ℕ) : ℝ)) + 1)
+      * ((⌊RB⌋₊ : ℕ) : ℝ) * cap ≤ ι / 2 := by
+    rw [hK1]
+    have h := hmul (x := 12 * (((Fintype.card σ + 1 : ℕ) : ℝ)) * Jp * ((⌊RB⌋₊ : ℕ) : ℝ))
+      (a := ι) (b := 2 ^ 24 * Jp ^ 2 * (RB + 1)) (by positivity)
+      (by
+        have : 0 ≤ Jp ^ 2 * (RB + 1) := by positivity
+        calc 12 * (((Fintype.card σ + 1 : ℕ) : ℝ)) * Jp * ((⌊RB⌋₊ : ℕ) : ℝ)
+            ≤ 12 * Jp * Jp * (RB + 1) := by gcongr <;> linarith [Nat.floor_le hRB0]
+          _ = 12 * (Jp ^ 2 * (RB + 1)) := by ring
+          _ ≤ 2 ^ 24 * Jp ^ 2 * (RB + 1) := by linarith)
+      (((min_le_right _ _).trans (min_le_left _ _)).trans (min_le_right _ _))
+    linarith only [h]
+  have hqms : (((Fintype.card σ + 1 : ℕ) : ℝ)) * (((⌊PB⌋₊ : ℕ) : ℝ) + 1) * cap ≤ pAP / 2 := by
+    have h := hmul (x := 2 * (((Fintype.card σ + 1 : ℕ) : ℝ)) * (((⌊PB⌋₊ : ℕ) : ℝ) + 1))
+      (a := pAP) (b := 2 * Jp * (PB + 2)) (by positivity) (by gcongr <;> linarith)
+      (((min_le_right _ _).trans (min_le_right _ _)).trans (min_le_left _ _))
+    linarith only [h]
+  have hpm0 : 0 ≤ prefixMax P.D k := (prefixMax_pos P.D k).le
+  -- the probes' avoided mass
+  have hcapJ : 6 * Jp ^ 2 * (RB + 1) * cap ≤ 1 := by
+    have h0 : 0 ≤ Jp ^ 2 * (RB + 1) := by positivity
+    have h := hmul (x := 6 * Jp ^ 2 * (RB + 1)) (a := ι) (b := 2 ^ 24 * Jp ^ 2 * (RB + 1))
+      (by positivity) (by linarith only [h0])
+      (((min_le_right _ _).trans (min_le_left _ _)).trans (min_le_right _ _))
+    linarith only [h, hι8, hε1]
+  have hmr : 6 * (((Fintype.card σ + 1 : ℕ) : ℝ) + 1) * ((⌊RB⌋₊ : ℕ) : ℝ) * prefixMax P.D k
+      ≤ ε / (1536 * Jp) := by
+    rw [hK1]
+    calc 6 * Jp * ((⌊RB⌋₊ : ℕ) : ℝ) * prefixMax P.D k
+        ≤ 6 * Jp * (RB + 1) * (cap * ε / 1536) :=
+          mul_le_mul (mul_le_mul_of_nonneg_left (by linarith [Nat.floor_le hRB0])
+            (by positivity)) hk1 hpm0 (by positivity)
+      _ = 6 * Jp ^ 2 * (RB + 1) * cap * (ε / (1536 * Jp)) := by field_simp
+      _ ≤ 1 * (ε / (1536 * Jp)) := mul_le_mul_of_nonneg_right hcapJ (by positivity)
+      _ = ε / (1536 * Jp) := one_mul _
+  have hmr96 : ε / (1536 * Jp) ≤ ε / 96 :=
+    div_le_div_of_nonneg_left hεd.le (by norm_num) (by linarith)
+  -- the scan tail's atoms: `32 T cap ≤ 1`
+  have hρ : 32 * (Tsc : ℝ) * cap ≤ 1 := by
+    have hιl : ι ≤ 1 := by linarith only [hι8, hε1]
+    have hι2 : ι ^ 2 ≤ 1 := by nlinarith only [hιl, hι0]
+    rcases le_total (4 * ((Fintype.card σ + 1 + 3) * ⌊RB⌋₊)) ⌈8 * Real.log (16 * Jp / δ')⌉₊
+      with h | h
+    · rw [hTscd, max_eq_right h]
+      have hc := Nat.ceil_lt_add_one (show 0 ≤ 8 * Real.log (16 * Jp / δ') by positivity)
+      set Λ := Real.log (128 * Jp * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') with hΛd
+      have hX : 1 ≤ 3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ) := by linarith only [hl0]
+      have hJX : 3 ≤ Jp * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) := by nlinarith only [hX, hJ3]
+      have hΛ1 : 1 ≤ Λ := by
+        rw [hΛd, Real.le_log_iff_exp_le (by positivity)]
+        have := Real.exp_one_lt_d9
+        rw [le_div_iff₀ hδ'0]
+        nlinarith only [this, hJX, hδ'1, hδ'0]
+      have hlg : Real.log (16 * Jp / δ') ≤ Λ :=
+        Real.log_le_log (by positivity)
+          (div_le_div_of_nonneg_right (by nlinarith only [hX, hJ3]) hδ'0.le)
+      have hce : ((⌈8 * Real.log (16 * Jp / δ')⌉₊ : ℕ) : ℝ) ≤ 9 * Λ := by
+        linarith only [hc, hlg, hΛ1]
+      have h1 := mul_le_mul_of_nonneg_right hce hcap0.le
+      have h2 : 0 ≤ Λ * cap := mul_nonneg (by linarith only [hΛ1]) hcap0.le
+      have hΛP : Λ ≤ Real.log (128 * Jp * ((((⌊PB⌋₊ : ℕ) : ℝ)) + 1)
+          * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) / δ') := by
+        rw [hΛd]
+        refine Real.log_le_log (by positivity) (div_le_div_of_nonneg_right ?_ hδ'0.le)
+        have hP1 : (1 : ℝ) ≤ ((⌊PB⌋₊ : ℕ) : ℝ) + 1 := by
+          linarith [(Nat.cast_nonneg ⌊PB⌋₊ : (0 : ℝ) ≤ ((⌊PB⌋₊ : ℕ) : ℝ))]
+        have hX0 : 0 ≤ 128 * Jp * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) := by positivity
+        calc 128 * Jp * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ))
+            = 128 * Jp * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) * 1 := by ring
+          _ ≤ 128 * Jp * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) * (((⌊PB⌋₊ : ℕ) : ℝ) + 1) :=
+            mul_le_mul_of_nonneg_left hP1 hX0
+          _ = 128 * Jp * ((((⌊PB⌋₊ : ℕ) : ℝ)) + 1) * (3 + 2 * ((Nat.log 2 ⌊RB⌋₊ : ℕ) : ℝ)) := by
+            ring
+      have h3 : 2 ^ 28 * Λ * cap ≤ ι ^ 2 :=
+        le_trans (mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hΛP (by norm_num))
+          hcap0.le) hhash
+      nlinarith only [h1, h2, h3, hι2]
+    · rw [hTscd, max_eq_left h]
+      push_cast
+      have h0 : 0 ≤ ((⌊RB⌋₊ : ℕ) : ℝ) * cap := mul_nonneg (Nat.cast_nonneg _) hcap0.le
+      have h1 : 0 ≤ (Fintype.card σ : ℝ) * (((⌊RB⌋₊ : ℕ) : ℝ) * cap) :=
+        mul_nonneg (Nat.cast_nonneg _) h0
+      have h2 := hq1c
+      push_cast at h2
+      have h3 : min (εcov / 2) ι ≤ 1 := (min_le_right _ _).trans hιl
+      nlinarith only [h0, h1, h2, h3]
+  -- the lazy round's premises
+  have hprem : LazyPremises σ α C nh E J (2 * prefixMax P.D k) := by
+    unfold LazyPremises
+    dsimp only
+    refine ⟨hnh, ?_, ?_, hδ'0, hδ'1', hεd, show ε < 1 by linarith, ?_, hE, hJ⟩
+    · show 8 * (nh : ℝ) * (2 * prefixMax P.D k) ≤ ε / 48
+      linarith
+    · show ε / 48 ≤ 1
+      linarith
+    · show 36 * (S' : ℝ) / ε * Real.log (16 * S' * (S' + 1) * (E * (E + 1)) / δ') + S'
+        ≤ (budget : ℝ)
+      rw [hSS]
+      exact Nat.le_ceil _
+  have hNr' : lazyReadCap C E J b P.L (Fintype.card σ) (Fintype.card α) ≤ Nr := by
+    have h : (lazyReadCap C E J b P.L (Fintype.card σ) (Fintype.card α) : ℝ) ≤ Nr := by
+      refine le_trans ?_ hNr
+      unfold lazyReadCap
+      push_cast
+      show (E : ℝ) * (((budget : ℝ) + J * b) * (Random.Kappa.probeSifts (P.L + k) * (Q + 3))
+          + (Q + 2) * ((Q + 2) * (A + 1) * (Q + 2)))
+        ≤ E * ((B₃ + J * b) * (Random.Kappa.probeSifts (P.L + k) * (Q + 3))
+          + (Q + 2) * ((Q + 2) * (A + 1) * (Q + 2)))
+      exact mul_le_mul_of_nonneg_left (add_le_add (mul_le_mul_of_nonneg_right
+        (add_le_add hbud le_rfl)
+        (mul_nonneg (Nat.cast_nonneg _)
+          (show (0 : ℝ) ≤ Q + 3 from add_nonneg (Nat.cast_nonneg _) (by norm_num)))) le_rfl)
+        (Nat.cast_nonneg _)
+    exact_mod_cast h
+  have hcond : lazySlope σ Nr nh * Tu + lazySlack σ nh (δ' / 4)
+      + Fintype.card σ * (2 * ι + ι) / Tu < 1 := by
+    have e : (Fintype.card σ : ℝ) * (2 * ι + ι) = Q * (3 * ι) := by
+      show (Fintype.card σ : ℝ) * (2 * ι + ι) = (Fintype.card σ : ℝ) * (3 * ι)
+      ring
+    rw [e]
+    exact hslope
+  have hcore := loop_core_holds M O P (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
+    ⌊PB⌋₊ ⌊RB⌋₊ ⌊FV⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / (1536 * Jp))
+    cross Tu C (2 * Tsc) Tsc nh E J b Nr (δ' / 4) tw
+  dsimp only at hcore
+  rw [hcexp] at hcore
+  obtain ⟨settings, -, -, -, -, hC3, hscan, hlist, hep, hbl, hbs, hnp, hreads, hks, hmain⟩ :=
+    hcore hL hgap hη₀ hι0 (by linarith) (by positivity) (by linarith) (by positivity)
+    (by linarith) (by linarith) (by linarith) hδ'0 hδ'1 hι0 hpAP
+    hL1 (by omega) (by omega) hcap0 (by linarith) (by linarith) (by linarith) (by linarith)
+    (fun pops hpops => by
+      rw [show pAP - pAP / 2 = pAP / 2 by ring]
+      exact Nat.le_floor (hcounts pops hpops).1)
+    (fun pops hpops => by
+      rw [show pAP - pAP / 2 = pAP / 2 by ring]
+      exact Nat.le_floor (hcounts pops hpops).2)
+    (fun pops _ => hfam pops)
+    hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0 hkD hmr (by linarith) hcr hprem hnhc hNr'
+    (by positivity) htw hTu hcond (le_max_left _ _) (by omega)
+  refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud,
+    by rw [hscan]; exact hMSC, hlist, hep, hbl, hbs, hnp, hreads, hks, ?_⟩
+  intro Dsf hDsf hlen hpAPD hatom
+  have h := hmain Dsf hDsf hlen hpAPD hatom
+  refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans ?_)
+  · intro p hd hgood
+    apply hd
+    obtain ⟨⟨h1, o, ho, hag⟩, hlv, hfr, hrg⟩ := hgood
+    exact ⟨⟨h1, o, ho, checks_mono (by linarith) (by linarith)
+      (by show ε + tw + ε / (1536 * Jp) ≤ ε + ε / 96 + tw; linarith) hag⟩, hlv, hfr, hrg⟩
+  · have hbsc := scan_tail_le (Kn := Fintype.card σ + 1) (T := Tsc) (δₘ := 0) hδ'0 hcap0.le hρ
+      (by rw [hK1]; exact hTsc8) (by rw [mul_zero]; positivity)
+    rw [mul_zero, zero_add] at hbsc
+    have hlr : lazyRoundBound σ C E J b cross Nr P.L (δ' / 4) tw ≤ 7 / 4 * δ' := by
+      unfold lazyRoundBound
+      have e1 : C.δ = δ' := rfl
+      have e2 : C.harvestRate = ε / 48 := rfl
+      rw [e1, e2, show ε / 48 / 4 = ε / 192 by ring]
+      have h1 : cross * (Nr : ℝ) ≤ δ' / 8 := by
+        rw [← hcrW]; exact mul_le_mul_of_nonneg_left hNrW hcr.le
+      have h2 : ((P.L : ℝ) + 1) * (Fintype.card σ + 2) * cross / tw ≤ δ' / 8 := by
+        rw [div_le_iff₀ htw]
+        calc ((P.L : ℝ) + 1) * (Fintype.card σ + 2) * cross ≤ tw * W * cross :=
+              mul_le_mul_of_nonneg_right htwW hcr.le
+          _ = tw * (cross * W) := by ring
+          _ = δ' / 8 * tw := by rw [hcrW]; ring
+      linarith
+    have hQ0 : (0 : ℝ) ≤ (Fintype.card σ : ℝ) + 1 := by positivity
+    refine mul_le_mul_of_nonneg_left ?_ hQ0
+    linarith
 
 end OrthoDFA
