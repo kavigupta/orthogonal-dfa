@@ -231,7 +231,8 @@ theorem loop_coll_null (Ls : ℕ)
         ∧ (∀ ℓ ∈ (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).pops,
             listLaw ℓ {q | Ls ≤ q.toList.length} = 0)
         ∧ (∀ j ∈ loopPopulations K r,
-            (loopDistributions P.D (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).pops j).real
+            (loopDistributions P.D
+              (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).pops j).real
               ↑(decodeHist
                 (histCodes settings O P.D Dsf p.1 p.2 r)).prefs ≤ 1 / 2)
         ∧ Dsf.real ↑(decodeHist

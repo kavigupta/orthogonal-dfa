@@ -177,7 +177,8 @@ lemma measurableSet_stage4 [IsProbabilityMeasure D]
         exact ⟨⟨⟨⟨h1, h2⟩, h3⟩, h4⟩, ⟨h5, by rw [h5]; exact h6⟩, h7⟩
       · rintro ⟨⟨⟨⟨h1, h2⟩, h3⟩, h4⟩, ⟨h5, h6⟩, h7⟩
         exact ⟨h1, h2, h3, h4, h5, by rw [← h5]; exact h6, h7⟩
-    have hCP : MeasurableSet {cd : ClusterDraws Ω α K | (roundSets settings D Dsf H cd).1 = K₀} := by
+    have hCP : MeasurableSet
+        {cd : ClusterDraws Ω α K | (roundSets settings D Dsf H cd).1 = K₀} := by
       sorry -- closes by: measurableSet_roundPrefs through measurable_idealRun
     rw [hset]
     exact ((((hok.inter (hhc c)).inter (MeasurableSet.const _)).inter
@@ -272,7 +273,8 @@ theorem loop_round_le_persist (Ls NP : ℕ) (m crossLimit δH tw : ℝ) (Nr : �
     (hk : 1 ≤ settings.level3.walkStart)
     (hKw : ∀ᵐ x ∂P.D, settings.level3.walkStart ≤ x.toList.length)
     (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
-    (hprem : LazyPremises σ α settings (2 * prefixMax P.D settings.level3.walkStart))
+    (hprem : LazyPremises σ α settings.level3 settings.listSize settings.epochs settings.blocks
+      (2 * prefixMax P.D settings.level3.walkStart))
     (hNr : lazyReadCap settings.level3 settings.epochs settings.blocks settings.blockSize P.L
       (Fintype.card σ) (Fintype.card α) ≤ Nr)
     (hδH : 0 < δH) (htw : 0 < tw)
@@ -289,7 +291,8 @@ theorem loop_round_le_persist (Ls NP : ℕ) (m crossLimit δH tw : ℝ) (Nr : �
             (idealRound settings O P.D Dsf (decodeHist
               (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 r) p.2 r hr}
-      ≤ lazyRoundBound σ settings crossLimit Nr P.L δH tw := by
+      ≤ lazyRoundBound σ settings.level3 settings.epochs settings.blocks
+          settings.blockSize crossLimit Nr P.L δH tw := by
   sorry -- closes by: main's proof, hex from lazy_round_bad_exists at stage4's (B, F, CP)
 
 end Round

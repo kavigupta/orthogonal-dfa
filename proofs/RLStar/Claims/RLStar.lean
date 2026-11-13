@@ -1,7 +1,7 @@
 import Mathlib.Analysis.Asymptotics.Defs
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
-import RLStar.LowLevelClaims.LoopDFA
-import RLStar.Code.LearnerLoopTrie
+import RLStar.LowLevelClaims.CoveredStart
+import RLStar.Code.LearnerLoop
 
 /-!
 # The learner's costs, asymptotically
@@ -42,20 +42,22 @@ noncomputable def RLStarRun.ξc (r : RLStarRun) : ℝ := min r.ξ ((r.L + r.Q) *
 def DependsOnlyOn {X Y : Type*} (f : (X → ℝ) → Y) (oracle : X → ℝ) (S : Finset X) : Prop :=
   ∀ o : X → ℝ, (∀ w ∈ S, o w = oracle w) → f o = f oracle
 
+/-- The loop stops in agreement within `|Q| + 1` rounds, the last round's hypothesis, its walk
+starts' sifts read off the table, misclassifying at most `ε` of `T`; no epoch's tree has more
+than `|Q| + 2` leaves; and the learner reads at most `totalReads` strings. -/
 def RLStarSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype Q] {Ω : Type*}
-    [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
+    [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K)
     (O : Oracle μ (FreeMonoid A)) (D Dsf T : Measure (FreeMonoid A)) (M : _root_.DFA A Q) (ε : ℝ)
-    (totalReads : ℝ)
-    (p : settings.Draws Ω A) : Prop :=
-  (∃ rounds, indecisiveLStarTrieLoop settings cap O D Dsf p = some rounds ∧
+    (totalReads : ℝ) (p : settings.Draws Ω A) : Prop :=
+  (∃ rounds, indecisiveLStarLoop settings O D Dsf p = some rounds ∧
     (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
-        o.result.ending = .consistent ∧ T.real {w | ¬
-          o.result.hypothesis.TrieClassifies (o.read O p.1) o.result.expanded w
+        o.result.ending = .consistent ∧ T.real {w | ¬ o.result.hypothesis.LazyClassifies
+          ((Random.lazyTableQ settings.level3.walkStart o.result.hypothesis.tree
+            o.result.expanded).eval (o.read O p.1)) o.result.expanded w
             (M.eval w.toList ∈ M.accept)} ≤ ε) ∧
-    ∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card Q + 2) ∧
+    ∀ o ∈ rounds, o.result.peak ≤ Fintype.card Q + 2) ∧
   ∃ S : Finset (FreeMonoid A), (S.card : ℝ) ≤ totalReads ∧
-    DependsOnlyOn (fun o => (trieLoopRoundsQ settings cap D Dsf p.2 K).eval o)
-      (fun w => O.mq w p.1) S
+    DependsOnlyOn (fun o => (learnerQ settings D Dsf p.2).eval o) (fun w => O.mq w p.1) S
 
 def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads : RLStarRun → ℝ) :
     Prop :=
@@ -76,16 +78,15 @@ def RLStarWithin.{u, v, w} (p₀Tol totalPref totalSuff totalProbes totalReads :
   x.pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
-    (∀ p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
-          settings.level3.probeBudget,
-      ∀ rounds,
-        indecisiveLStarTrieLoop settings k O (prefixLaw D L) (prefixLaw D Ls) p = some rounds →
+    (∀ p : settings.Draws Ω A, ∀ rounds,
+        indecisiveLStarLoop settings O (prefixLaw D L) (prefixLaw D Ls) p = some rounds →
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
-        ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    (loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
-        settings.level3.probeBudget).real
-      {p | ¬ RLStarSucceeds settings k O (prefixLaw D L) (prefixLaw D Ls) (prefixLaw D L) M
+        ∧ (rounds.length * (settings.epochs
+            * (settings.level3.probeBudget + settings.blocks * settings.blockSize)) : ℝ)
+          ≤ totalProbes { x with L }) ∧
+    (settings.measure μ A).real
+      {p | ¬ RLStarSucceeds settings O (prefixLaw D L) (prefixLaw D Ls) (prefixLaw D L) M
         x.ξ (totalReads { x with L }) p}
       ≤ x.δ
 
@@ -145,16 +146,15 @@ def RLStarWithinUniform.{u, v, w} (k₀ : RLStarRun → ℝ)
   k₀ { x with L } ≤ k → k ≤ L →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
-    (∀ p : LoopDraws Ω A (Fintype.card Q + 1) settings.level3.harvestReadCap
-          settings.level3.probeBudget,
-      ∀ rounds, indecisiveLStarTrieLoop settings k O (uniformStrings L)
+    (∀ p : settings.Draws Ω A, ∀ rounds, indecisiveLStarLoop settings O (uniformStrings L)
         (uniformStrings (L₁ + Fintype.card Q + 3)) p = some rounds →
       ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
         ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
-        ∧ (rounds.length * settings.level3.probeBudget : ℝ) ≤ totalProbes { x with L }) ∧
-    (loopMeasure μ A (Fintype.card Q + 1) settings.level3.harvestReadCap
-        settings.level3.probeBudget).real
-      {p | ¬ RLStarSucceeds settings k O (uniformStrings L)
+        ∧ (rounds.length * (settings.epochs
+            * (settings.level3.probeBudget + settings.blocks * settings.blockSize)) : ℝ)
+          ≤ totalProbes { x with L }) ∧
+    (settings.measure μ A).real
+      {p | ¬ RLStarSucceeds settings O (uniformStrings L)
         (uniformStrings (L₁ + Fintype.card Q + 3)) (uniformStrings L) M x.ξ
         (totalReads { x with L }) p}
       ≤ x.δ

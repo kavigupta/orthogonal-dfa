@@ -1,22 +1,15 @@
 import RLStar.Claims.RLStar
-import RLStar.Proofs.TrieTol
+import RLStar.Proofs.LazyCore
 import RLStar.Proofs.ClaimRLStarUniform
 import RLStar.Proofs.ClaimReadsArith
 
 /-!
 # The learner's costs, asymptotically: the proof
 
-`trie_loop_tol` bounds, for every draw, the loop's reads by `(|Q| + 1)` rounds of
-`6 (|Q| + 2) loopCount` prefixes and `loopPool + 1` suffixes, and its probes by
-`(|Q| + 1) loopBudget`, all at `ℓ = L + |Q| + 4`, once `D` holds at most `1/(2⁴ trieTolInv⁵ ℓ)` on
-any first `k` letters; but for chance `δ` the run succeeds, asking the oracle at most
-`learnerReads` strings with no held-out ones.
-The claim runs it at `η₀ = 1/2 − s₀/2`, the rate `ret` reads a declared `1/2 − s₀` at, so the
-gap `2 s₀` is `4 (1/2 − η₀)`, and at main's rates at
-`R = 1` with edges crossed at `|Σ|` and `ξ` replaced by `ξc = min(ξ, (L + |Q|) β)`: `c = ξc/2` and
-`ξc/4`, so the clustering's `2 εcov ≤ ξc/(16 N)` is at most `β`, `N ≥ (L + |Q|)/4` the probe
-lengths. `ClaimRLStarArith` and `ClaimReadsArith` bound those shapes at `s₀/2` (`halfRun`), each
-within a constant of its shape at `s₀`.
+The shapes are main's: `ClaimRLStarArith` and `ClaimReadsArith` bound them at `s₀/2`
+(`halfRun`), each within a constant of its shape at `s₀`. The run is `lazy_loop_core` at the lazy
+round's knobs.
+
 `RLStarClaimUniform` and `RLStarClaimUniformSimple` follow (`ClaimRLStarUniform`).
 -/
 
@@ -388,49 +381,7 @@ theorem rlStarClaim_holds : RLStarClaim := by
     (isBigO_comp_on reads_dist halfRun_maps).trans reads_half,
     fun r => div_pos (pow_pos (distP₀Tol_pos _) 5) (by norm_num), ?_⟩
   -- the run
-  intro α _ _ _ σ _ Ω _ μ _ x
-  obtain ⟨Q, A, δ, ξ, pAP, s₀, β⟩ := x
-  intro M O L k D _ L₁ Ls hx hQ hA hLang hgap hbL hbN hlong hkL hpre hpAPu
-  subst hQ hA
-  obtain ⟨hQ1, hA2, hδ, hδ2, hξ, hξ1, hp, hp1, hs, hs1, hβ⟩ := hx
-  have hA' : (2 : ℝ) ≤ Fintype.card α := by exact_mod_cast hA2
-  have hgap' : 2 * s₀ ≤ O.gap := hgap
-  have hbL' : β ≤ (prefixLaw D L).real {p | p ∈ O.L} := hbL
-  have hbN' : β ≤ (prefixLaw D L).real {p | p ∉ O.L} := hbN
-  have hLQ : (1 : ℝ) ≤ (L : ℝ) + Fintype.card σ := by
-    have : (1 : ℝ) ≤ Fintype.card σ := by exact_mod_cast hQ1
-    have : (0 : ℝ) ≤ L := Nat.cast_nonneg _
-    linarith
-  set ξc : ℝ := min ξ (((L : ℝ) + Fintype.card σ) * β) with hξcd
-  have hξc0 : 0 < ξc := lt_min hξ (mul_pos (by linarith) hβ)
-  have hξc1 : ξc ≤ 1 := (min_le_left _ _).trans hξ1
-  have hξcξ : ξc ≤ ξ := min_le_left _ _
-  have hξcβ : ξc ≤ ((L : ℝ) + Fintype.card σ) * β := min_le_right _ _
-  have hbL'' := mul_le_mul_of_nonneg_left hbL' (by linarith : (0 : ℝ) ≤ (L : ℝ) + Fintype.card σ)
-  have hbN'' := mul_le_mul_of_nonneg_left hbN' (by linarith : (0 : ℝ) ≤ (L : ℝ) + Fintype.card σ)
-  have hη₀ : 1 / 2 - s₀ / 2 < 1 / 2 := by linarith
-  have hc0 : 0 < ξc / (2 * 1) := by positivity
-  have hc1 : ξc / (2 * 1) ≤ 1 := by linarith
-  set T := trieTolInv ((L : ℝ) + Fintype.card σ + 4) (Fintype.card σ)
-      (Fintype.card α) (1 / (1 / (Fintype.card α : ℝ))) (Fintype.card σ) (Fintype.card α) δ
-      (ξc / (2 * 1)) (ξc / 4) pAP (1 / 2 - s₀ / 2) with hTd
-  have hT1 : 1 ≤ T := one_le_trieTolInv _ _
-    (by have : (0 : ℝ) ≤ L := Nat.cast_nonneg _; linarith) (Nat.cast_nonneg _) (Nat.cast_nonneg _)
-    (by rw [one_div_one_div]; exact hA') hδ (by linarith) hc0 hc1 (by positivity) hp hp1
-    (by linarith) hη₀
-  have hTm : max 1 T = T := max_eq_right hT1
-  -- `D`'s first `k` letters weigh at most `1/Ak`
-  have hpre' : ∀ u, D.real {w | prefixOf w k = u} ≤ (2 ^ 4 * T ^ 5)⁻¹ := by
-    intro u
-    refine (hpre u).trans (le_of_eq ?_)
-    change (1 / max 1 T) ^ 5 / 2 ^ 4 = _
-    rw [hTm, one_div_pow, div_div, one_div, mul_comm]
-  obtain ⟨settings, hwk, hprobe, hprob⟩ := trie_loop_tol (Ω := Ω) (μ := μ) M O L k k
-    (1 / 2 - s₀ / 2) (ξc / (2 * 1)) δ pAP (ξc / 4) ξ (1 / (1 / (Fintype.card α : ℝ)))
-    (2 ^ 4 * T ^ 5) D hLang (by linarith) hη₀ (by linarith) (by linarith) hc0 hc1 hδ
-    (by linarith) hp (by positivity) hA2 (le_of_eq (one_div_one_div _).symm) hkL le_rfl hlong
-    hpre' hpAPu le_rfl (by linarith)
-  exact ⟨settings, hwk, hprobe, hprob⟩
+  sorry -- closes by: lazy_loop_core at knobs solving its log loop; needs the lazy shapes
 
 theorem rlStarClaimUniform_holds : RLStarClaimUniform :=
   rlStarClaimUniform_of_rlStarClaim rlStarClaim_holds

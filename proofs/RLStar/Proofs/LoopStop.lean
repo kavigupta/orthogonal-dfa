@@ -204,7 +204,8 @@ def roundReads (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
         ((ω, runOf settings D Dsf h d.1) : Run Ω (FreeMonoid α) (Option (Fin K)))).erase 1)
 
 theorem clusterSpec_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D' D Dsf : Measure (FreeMonoid α)) (εcov slack : ℝ) (h : SpecHist α) {ω ω' : Ω} (c : ClusterRest α K)
+    (D' D Dsf : Measure (FreeMonoid α)) (εcov slack : ℝ) (h : SpecHist α) {ω ω' : Ω}
+    (c : ClusterRest α K)
     (hr : ∀ w ∈ schedReads (settings.schedule (loopPopulations K h.pops.length))
       (loopPopulations K h.pops.length) (idealRun D Dsf h (ω, c)),
       (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
@@ -215,11 +216,11 @@ theorem clusterSpec_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
   set pops := loopPopulations K h.pops.length
   set sched := settings.schedule pops
   have hnone : none ∈ pops := Finset.mem_insert_self _ _
-  have hret : ∀ B ∈ sched, (idealRun D Dsf
-      h (ω, c) ∈ ret O.mq pops none
-      settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B ↔ idealRun D Dsf h (ω', c) ∈ ret O.mq pops
-        none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B) := fun B hB =>
-    ret_congr O sched pops none hnone _ _ _ _ hB (runOf settings D Dsf h c) hr
+  have hret : ∀ B ∈ sched, (idealRun D Dsf h (ω, c) ∈ ret O.mq pops none
+      settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
+      ↔ idealRun D Dsf h (ω', c) ∈ ret O.mq pops
+        none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B) :=
+    fun B hB => ret_congr O sched pops none hnone _ _ _ _ hB (runOf settings D Dsf h c) hr
   have hfam : ∀ B ∈ sched, familyAt O.mq pops (idealRun D Dsf h (ω, c)) B
       = familyAt O.mq pops (idealRun D Dsf
           h (ω', c)) B := fun B hB => by

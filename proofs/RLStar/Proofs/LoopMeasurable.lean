@@ -318,7 +318,8 @@ theorem measurableSet_roundPick (settings : LoopSettings K) (O : Oracle μ (Free
   set pops := loopPopulations K h.pops.length
   set sched := settings.schedule pops
   set Sc : ClusterDraws Ω α K → Finset State := fun c => sched.filter fun B' =>
-    idealRun D Dsf h c ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B'
+    idealRun D Dsf h c ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+      settings.gateLevel B'
   have hstate : ∀ c, roundState settings O D Dsf h c = Classical.epsilon (· ∈ Sc c) := by
     intro c
     unfold roundState
@@ -345,7 +346,8 @@ theorem measurableSet_roundPick (settings : LoopSettings K) (O : Oracle μ (Free
   refine Finset.measurableSet_biUnion _ fun T hT => MeasurableSet.inter ?_ ?_
   · have hT' : T ⊆ sched := Finset.mem_powerset.1 hT
     have : {c : ClusterDraws Ω α K | Sc c = T} = ⋂ B' ∈ sched, {c |
-        (idealRun D Dsf h c ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B'
+        (idealRun D Dsf h c ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov
+          settings.gateLevel B'
           ↔ B' ∈ T)} := by
       ext c
       simp only [Set.mem_setOf_eq, Set.mem_iInter, Finset.ext_iff, Sc, Finset.mem_filter]

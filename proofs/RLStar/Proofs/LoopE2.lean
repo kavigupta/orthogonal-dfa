@@ -87,7 +87,8 @@ theorem lazy_round_bad_exists (m crossLimit δH tw : ℝ) (Nr : ℕ)
     (hk : 1 ≤ settings.level3.walkStart)
     (hKw : ∀ᵐ x ∂P.D, settings.level3.walkStart ≤ x.toList.length)
     (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
-    (hprem : LazyPremises σ α settings (2 * prefixMax P.D settings.level3.walkStart))
+    (hprem : LazyPremises σ α settings.level3 settings.listSize settings.epochs settings.blocks
+      (2 * prefixMax P.D settings.level3.walkStart))
     (hNr : lazyReadCap settings.level3 settings.epochs settings.blocks settings.blockSize P.L
       (Fintype.card σ) (Fintype.card α) ≤ Nr)
     (hδH : 0 < δH) (htw : 0 < tw) (hm1 : m ≤ 1 / 2)
@@ -99,7 +100,8 @@ theorem lazy_round_bad_exists (m crossLimit δH tw : ℝ) (Nr : ℕ)
     ∃ Bd : Set (Ω × settings.Uniforms), MeasurableSet Bd
       ∧ (μ.prod (lazyLaw settings.epochs settings.level3.probeBudget settings.blocks
           settings.blockSize)) Bd
-        ≤ ENNReal.ofReal (lazyRoundBound σ settings crossLimit Nr P.L δH tw)
+        ≤ ENNReal.ofReal (lazyRoundBound σ settings.level3 settings.epochs settings.blocks
+          settings.blockSize crossLimit Nr P.L δH tw)
       ∧ (∀ v ω ω', (∀ w ∈ lazyZone (max (P.L + settings.level3.probeBudget + 2)
           (lazyProbesLen (probesOf settings P.D
             (CP.image fun p => prefixOf p settings.level3.walkStart) v)

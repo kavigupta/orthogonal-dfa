@@ -29,19 +29,19 @@ open MeasureTheory
 
 variable {α : Type*} [Fintype α] [DecidableEq α] {K : ℕ}
 
-/-- `LazyRoundCorrect`'s premises at the loop's settings, no `walkStart`-letter prefix above
-`p₁`. -/
-def LazyPremises (σ α : Type*) [Fintype σ] [Fintype α] (s : LoopSettings K) (p₁ : ℝ) : Prop :=
-  let C := s.level3
+/-- `LazyRoundCorrect`'s premises for rounds of `nh`-string lists, `E` epochs and `J` blocks, no
+`walkStart`-letter prefix above `p₁`. -/
+def LazyPremises (σ α : Type*) [Fintype σ] [Fintype α] (C : Random.Level3Settings) (nh E J : ℕ)
+    (p₁ : ℝ) : Prop :=
   let nQ := Fintype.card σ
   let nα := Fintype.card α
   let S : ℕ := nQ * ((nQ + 2) * (nα + 1) + 1) + 2 * (nα + 1) + 1
-  0 < s.listSize ∧ 8 * s.listSize * p₁ ≤ C.harvestRate ∧ C.harvestRate ≤ 1
+  0 < nh ∧ 8 * nh * p₁ ≤ C.harvestRate ∧ C.harvestRate ≤ 1
     ∧ 0 < C.δ ∧ C.δ < 1 ∧ 0 < C.disagreementRate ∧ C.disagreementRate < 1
-    ∧ 36 * (S : ℝ) / C.disagreementRate
-        * Real.log (16 * S * (S + 1) * (s.epochs * (s.epochs + 1)) / C.δ) + S ≤ C.probeBudget
-    ∧ 2 * (C.walkStart : ℝ) / C.harvestRate + 1 ≤ s.epochs
-    ∧ s.listSize * (C.walkStart + 1) + 1 ≤ s.blocks
+    ∧ 36 * (S : ℝ) / C.disagreementRate * Real.log (16 * S * (S + 1) * (E * (E + 1)) / C.δ) + S
+      ≤ C.probeBudget
+    ∧ 2 * (C.walkStart : ℝ) / C.harvestRate + 1 ≤ E
+    ∧ nh * (C.walkStart + 1) + 1 ≤ J
 
 /-- A lazy round's draws from `D'`. -/
 def lazyDrawLaw (s : LoopSettings K) (D' : Measure (FreeMonoid α)) :
@@ -86,10 +86,9 @@ def lazySlack (σ : Type*) [Fintype σ] (nh : ℕ) (δH : ℝ) : ℝ :=
   Fintype.card σ * Real.log (Fintype.card σ / δH) / (nh * Real.log 2)
 
 /-- `lazyFail_le`'s bound. -/
-def lazyRoundBound (σ : Type*) [Fintype σ] (s : LoopSettings K) (κ : ℝ) (Nr L : ℕ) (δH tw : ℝ) :
-    ℝ :=
-  s.level3.δ + s.epochs * s.blocks * (1 - s.level3.harvestRate / 4) ^ s.blockSize + κ * Nr + δH
-    + (L + 1) * (Fintype.card σ + 2) * κ / tw
+def lazyRoundBound (σ : Type*) [Fintype σ] (C : Random.Level3Settings) (E J b : ℕ) (κ : ℝ)
+    (Nr L : ℕ) (δH tw : ℝ) : ℝ :=
+  C.δ + E * J * (1 - C.harvestRate / 4) ^ b + κ * Nr + δH + (L + 1) * (Fintype.card σ + 2) * κ / tw
 
 theorem measurableSet_lazyFail [IsProbabilityMeasure μ'] (fam : SuffixFamily μ' α σ)
     (s : LoopSettings K) (X₀ : Finset (FreeMonoid α)) (D' : Measure (FreeMonoid α))
@@ -102,13 +101,14 @@ theorem lazyFail_le [IsProbabilityMeasure μ'] (fam : SuffixFamily μ' α σ) (h
     [IsProbabilityMeasure D'] (p₁ δH tw : ℝ) (Nr Lp : ℕ)
     (hlen : ∀ᵐ x ∂D', s.level3.walkStart ≤ x.toList.length ∧ x.toList.length ≤ Lp)
     (hp₁ : ∀ u, D'.real {x | prefixOf x s.level3.walkStart = u} ≤ p₁)
-    (hprem : LazyPremises σ α s p₁)
+    (hprem : LazyPremises σ α s.level3 s.listSize s.epochs s.blocks p₁)
     (hNr : lazyReadCap s.level3 s.epochs s.blocks s.blockSize Lp (Fintype.card σ)
       (Fintype.card α) ≤ Nr)
     (hδH : 0 < δH) (htw : 0 < tw) :
     (μ'.prod (lazyDrawLaw s D'))
         (lazyFail fam s X₀ D' (lazySlope σ Nr s.listSize) (lazySlack σ s.listSize δH) tw)
-      ≤ ENNReal.ofReal (lazyRoundBound σ s fam.κ Nr Lp δH tw) := by
+      ≤ ENNReal.ofReal
+        (lazyRoundBound σ s.level3 s.epochs s.blocks s.blockSize fam.κ Nr Lp δH tw) := by
   sorry -- closes by: G (AdaptiveReadsBound), V (LazyRoundCorrect), H1 (ListSlope), W (UnaskedFresh)
 
 end OrthoDFA
