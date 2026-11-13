@@ -15,7 +15,6 @@ import numpy as np
 from .counterexample_synthesis import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import Sampler, UniformSampler
-from .statistics import compute_suffix_size_counterexample_gen
 from .structures import SymmetricBernoulli
 from .tracker import SynthesisTracker
 
@@ -31,6 +30,15 @@ NUM_PREFIXES = 200
 #: Share of the prefixes a family decides that it may decide against the language.
 DEFAULT_MAX_COVERAGE_ERROR = 1 / 3
 
+#: The handling of bands not centred on a half (#319), each switchable to ablate it.
+CENTRE_GRID = True
+CENTRED_SCREEN = True
+CENTRED_SUPPLY = True
+ORDER_BY_MISREAD = True
+
+#: Lean's β: the least share of the uniform pool either class holds.
+CLASS_FLOOR = 0.01
+
 
 def build_pst(
     oracle_creator: Callable[[Any, int], Any],
@@ -45,25 +53,22 @@ def build_pst(
     acceptable_fnr: float = 0.01,
     max_coverage_error: float = DEFAULT_MAX_COVERAGE_ERROR,
 ) -> PrefixSuffixTracker:
-    """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
-
-    The oracle answers correctly with probability `0.5 + min_signal_strength`,
-    and every population size here is derived from that: too small and the
-    row statistics cannot separate states, too large and every query is spent
-    on evidence nobody needs.
+    """A PrefixSuffixTracker for an oracle whose two classes read at least
+    `2 * min_signal_strength` apart.
 
     `sampler` supplies the probe strings; pass one to learn over a different
     string distribution, or to vary the length.
     """
-    effective_p_acc = 0.5 + min_signal_strength
     if noise_model is None:
-        noise_model = SymmetricBernoulli(p_correct=effective_p_acc)
+        noise_model = SymmetricBernoulli(p_correct=0.5 + min_signal_strength)
     oracle = oracle_creator(noise_model, seed)
     config = SearchConfig(
-        suffix_size_counterexample_gen=compute_suffix_size_counterexample_gen(
-            0.01, effective_p_acc
-        ),
         min_signal_strength=min_signal_strength,
+        centre_grid=CENTRE_GRID,
+        centred_screen=CENTRED_SCREEN,
+        order_by_misread=ORDER_BY_MISREAD,
+        centred_supply=CENTRED_SUPPLY,
+        class_floor=CLASS_FLOOR,
         num_addtl_prefixes=NUM_PREFIXES,
         min_suffix_frequency=min_suffix_frequency,
         require_accept_preserving=require_accept_preserving,

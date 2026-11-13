@@ -321,12 +321,13 @@ class _ClusterTable:
         return self.representative
 
 
-def cluster_pst(masks, min_signal_strength, *, seed):
+def cluster_pst(masks, min_signal_strength, *, seed, order_by_misread):
     return SimpleNamespace(
         table=_ClusterTable(masks),
         suffix_pool=list(range(masks.shape[0])),
         config=SimpleNamespace(
             min_signal_strength=min_signal_strength,
+            order_by_misread=order_by_misread,
             min_suffix_frequency=SearchConfig.min_suffix_frequency,
             screening_alpha=SearchConfig.screening_alpha,
         ),
