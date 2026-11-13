@@ -23,6 +23,7 @@ import RLStar.Proofs.Level5
 import RLStar.Proofs.RandomCorrect
 import RLStar.Proofs.EpsRound
 import RLStar.Proofs.RaceTail
+import RLStar.Proofs.QueryBadTail
 import RLStar.Proofs.RateTest
 import RLStar.Proofs.SeqTest
 import RLStar.Proofs.SpurAccount
@@ -56,9 +57,10 @@ wrong, and level 5's wrong at most `κ` times as often as undecided, a few wrong
 both. The loop runs level 5.
 
 The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBound`,
-`UnaskedFresh`, `RaceTailBound`, `Level3AllowanceCorrect`, `BitSumTails`, `BandKappaBound`,
-`SuccessiveDrawsTails`, `BlockMiss`, `CoveredStartCorrect`, `TrieProbeAgreeCorrect`,
-`TrieSinglePieceCorrect`, `TrieTableCorrect`, `TrieTableReads`, `Level3TrieRootOne`,
+`UnaskedFresh`, `RaceTailBound`, `QueryBadTail`, `Level3AllowanceCorrect`, `BitSumTails`,
+`BandKappaBound`, `SuccessiveDrawsTails`, `BlockMiss`, `CoveredStartCorrect`,
+`TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `TrieTableCorrect`, `TrieTableReads`,
+`Level3TrieRootOne`,
 `Level3TrieAgrees`, `TrieLoopAgrees`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`,
 `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and
 `RunsKeepEdgesAtLeaves`.
@@ -200,6 +202,10 @@ theorem level4_round_correct : Level4RoundCorrect := level4RoundCorrect_holds
 theorem race_tail_bound : RaceTailBound := raceTailBound_holds
 
 #print axioms race_tail_bound
+
+theorem query_bad_tail : QueryBadTail := queryBadTail_holds
+
+#print axioms query_bad_tail
 
 theorem level3_allowance_correct : Level3AllowanceCorrect := level3AllowanceCorrect_holds
 
