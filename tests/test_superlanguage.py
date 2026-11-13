@@ -254,8 +254,6 @@ class TestSuffixFamily(unittest.TestCase):
     def test_a_wildcard_only_family_separates_the_prefixes(self):
         vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
         pst = self._tracker(vocab)
-        # build_pst's oracle reads symmetrically about a half.
-        pst.decision_boundary = 0.5
         sampler = SuperSampler(vocab, 20)
         rng = np.random.default_rng(1)
         wanted = smallest_readable_family(

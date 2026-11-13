@@ -6,7 +6,8 @@ import unittest
 import numpy as np
 from parameterized import parameterized
 
-from orthogonal_dfa.l_star.cluster import centre_check, centres
+from orthogonal_dfa.l_star.cluster import centre_check
+from orthogonal_dfa.l_star.statistics import centres
 
 FAMILY = 200
 PREFIXES = 20000

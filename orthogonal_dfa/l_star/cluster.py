@@ -13,6 +13,7 @@ from .prefix_populations import (
     prefixes_for_split,
 )
 from .statistics import (
+    centres,
     cross_limit_for_coverage_error,
     evidence_margin_for_population_size,
     population_size_and_evidence_margin,
@@ -93,16 +94,6 @@ def identify_cluster_around(
     decision_boundary = min(max(decision_boundary, signal), 1 - signal)
 
     return candidate[cluster].tolist(), decision_boundary
-
-
-def centres(signal: float) -> List[float]:
-    """Half a signal apart, out from a half to within [signal, 1 - signal]."""
-    steps = math.floor((1 / 2 - signal) / (signal / 2) + 1e-9)
-    # Clamped against the rounding of the outermost onto the far side of a rate.
-    return [
-        min(max(1 / 2 + k * signal / 2, signal), 1 - signal)
-        for k in range(-steps, steps + 1)
-    ]
 
 
 @dataclass
@@ -640,6 +631,13 @@ class Reading:
             return 2
         return 0 if self.check.fits else 1
 
+    def preference(self, fnr_limit):
+        """Least first: by rank, then, among plausible centres, by how far the
+        class rates' midpoint sits from the centre, then by FNR."""
+        rank = self.rank(fnr_limit)
+        offset = abs(self.check.refined - self.centre) if rank <= 2 else 0
+        return rank, offset, self.fnr
+
 
 def _read_at(pst, v, centre, anchored, level) -> Reading:
     """Sets pst's boundary and margin to the centre's."""
@@ -669,18 +667,19 @@ def _adopt(pst, reading: Reading):
 
 
 def judge_on_centres(pst, gate, v, anchored, previous) -> Tuple[Judged, Reading]:
-    """The family at the centre of least FNR among those the centre check bears
-    out, or at the centre its class rates refine that to where it reads as well,
-    and gated; else the best reading's failure.  pst's boundary is left at the
+    """The family at the centre its class rates refine the grid's most preferred
+    reading to, unless that reads worse, and gated where the centre check bears
+    it out; else the reading's failure.  pst's boundary is left at the
     reading's centre where that is plausible, else at previous."""
     grid = centres(pst.config.min_signal_strength)
     # Over the grid and the refined centre, both sides each.
     level = ACCEPT_PRESERVING_VERDICT_ERROR_RATE / (2 * (len(grid) + 1))
     readings = [_read_at(pst, v, c, anchored, level) for c in grid]
-    key = lambda r: (r.rank(pst.fnr_limit), r.fnr)
-    best = min(readings, key=key)
+    best = min(readings, key=lambda r: r.preference(pst.fnr_limit))
     if best.rank(pst.fnr_limit) <= 2:
-        best = min(best, _read_at(pst, v, best.check.refined, anchored, level), key=key)
+        refined = _read_at(pst, v, best.check.refined, anchored, level)
+        if refined.rank(pst.fnr_limit) <= best.rank(pst.fnr_limit):
+            best = refined
     rank = best.rank(pst.fnr_limit)
     if rank <= 2:
         _adopt(pst, best)

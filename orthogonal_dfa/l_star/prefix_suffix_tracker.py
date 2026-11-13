@@ -154,8 +154,9 @@ class PrefixSuffixTracker:
     oracle: Oracle
     config: SearchConfig
     table: MaskTable
-    #: None until a centre is found, under ``centre_grid``.
-    decision_boundary: Optional[float] = 0.5
+    #: Under ``centre_grid``, read only by the suffix screen until a centre is
+    #: found.
+    decision_boundary: float = 0.5
     evidence_margin: float = 0.0
     #: The suffix rows clustering picks families from.
     suffix_pool: List[int] = field(default_factory=list)
@@ -214,7 +215,6 @@ class PrefixSuffixTracker:
             oracle=oracle,
             config=config,
             table=MaskTable(oracle, prefixes, population=UNIFORM),
-            decision_boundary=None if config.centre_grid else 0.5,
         )
 
     def _screening_staircase(self, available: int) -> List[int]:
@@ -256,10 +256,7 @@ class PrefixSuffixTracker:
         return min(ceiling, float(means.min()) + deviation) + deviation
 
     def _screen_centred(self, rows: List[int], reference: int) -> List[int]:
-        """_screen_cohort under the centred statistic; every row while there is
-        no centre to weigh at."""
-        if self.decision_boundary is None:
-            return list(rows)
+        """_screen_cohort under the centred statistic."""
         order = self._screen_columns()
         staircase = self._screening_staircase(len(order))
         alpha = self.config.screening_alpha / len(staircase)
@@ -393,8 +390,7 @@ class PrefixSuffixTracker:
         ``amount``.
 
         Under ``centred_supply`` it stops early only once the whole pool holds
-        ``amount`` within the centred screen's slack, or after one cohort while
-        there is no centre to weigh at."""
+        ``amount`` within the centred screen's slack."""
         kept = 0
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
@@ -409,10 +405,7 @@ class PrefixSuffixTracker:
                 if not self.config.centred_supply:
                     if kept >= amount:
                         break
-                elif (
-                    self.decision_boundary is None
-                    or self._within_slack(reference) >= amount
-                ):
+                elif self._within_slack(reference) >= amount:
                     break
         return kept, drawn
 

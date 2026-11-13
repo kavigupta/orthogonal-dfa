@@ -1,7 +1,7 @@
 import functools
 import itertools
 import math
-from typing import Iterator, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 import numpy as np
 import scipy
@@ -250,6 +250,16 @@ def reads_minority_bounded(
     minority = np.minimum(accept, reject)
     bounded = (minority <= limit) | (minority <= ratio * undecided)
     return bool(np.all(trichotomous & bounded))
+
+
+def centres(signal: float) -> List[float]:
+    """Half a signal apart, out from a half to within [signal, 1 - signal]."""
+    steps = math.floor((1 / 2 - signal) / (signal / 2) + 1e-9)
+    # Clamped against the rounding of the outermost onto the far side of a rate.
+    return [
+        min(max(1 / 2 + k * signal / 2, signal), 1 - signal)
+        for k in range(-steps, steps + 1)
+    ]
 
 
 #: Chance ``denoise_accept_labels`` moves a label the evidence does not support,
