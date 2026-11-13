@@ -12,7 +12,6 @@ from orthogonal_dfa.l_star.statistics import centres
 FAMILY = 200
 PREFIXES = 20000
 ACCEPTING = 0.3
-LEVEL = 0.001
 CLASS_FLOOR = 0.01
 
 BANDS = [(0.60, 0.90), (0.10, 0.40), (0.35, 0.95), (0.05, 0.65), (0.20, 0.80)]
@@ -31,7 +30,6 @@ def _check(p_0, p_1, centre, seed=0):
         reads,
         centre,
         signal=(p_1 - p_0) / 2,
-        level=LEVEL,
         class_floor=CLASS_FLOOR,
     )
 
@@ -50,21 +48,13 @@ class TestCentres(unittest.TestCase):
 
 class TestCentreCheck(unittest.TestCase):
     @parameterized.expand(BANDS)
-    def test_the_nearest_centre_fits_and_refines_to_the_band(self, p_0, p_1):
+    def test_the_nearest_centre_is_plausible_and_refines_to_the_band(self, p_0, p_1):
         truth, signal = (p_0 + p_1) / 2, (p_1 - p_0) / 2
         nearest = min(centres(signal), key=lambda c: abs(c - truth))
         check = _check(p_0, p_1, nearest)
-        self.assertTrue(check.fits)
+        self.assertTrue(check.plausible)
         self.assertAlmostEqual(check.refined, truth, delta=0.02)
-        self.assertTrue(_check(p_0, p_1, check.refined).fits)
-
-    @parameterized.expand(BANDS)
-    def test_every_centre_that_fits_refines_to_the_band(self, p_0, p_1):
-        truth, signal = (p_0 + p_1) / 2, (p_1 - p_0) / 2
-        for c in centres(signal):
-            check = _check(p_0, p_1, c)
-            if check.fits:
-                self.assertAlmostEqual(check.refined, truth, delta=0.02, msg=c)
+        self.assertTrue(_check(p_0, p_1, check.refined).plausible)
 
     def test_the_clamped_boundary_of_issue_319_is_refused(self):
         self.assertFalse(_check(0.60, 0.90, 0.85).plausible)
@@ -72,19 +62,6 @@ class TestCentreCheck(unittest.TestCase):
     def test_a_cut_with_everything_on_one_side_is_refused(self):
         # (0.60, 0.90) read at a half: both classes vote above it.
         self.assertFalse(_check(0.60, 0.90, 0.5).plausible)
-
-    def test_too_few_prefixes_is_not_borne_out_but_plausible(self):
-        votes, reads = _reads(0.60, 0.90, 0)
-        check = centre_check(
-            votes[:300],
-            reads[:300],
-            0.75,
-            signal=0.15,
-            level=LEVEL,
-            class_floor=CLASS_FLOOR,
-        )
-        self.assertTrue(check.plausible)
-        self.assertFalse(check.fits)
 
 
 if __name__ == "__main__":

@@ -34,7 +34,10 @@ DEFAULT_MAX_COVERAGE_ERROR = 1 / 3
 CENTRE_GRID = True
 CENTRED_SCREEN = True
 CENTRED_SUPPLY = True
-ORDER_BY_MISREAD = True
+#: Off: ranked row by row, the misread leaves most of a family's suffixes
+#: outside the accept-preserving class at (0.60, 0.90) even when the pool holds
+#: enough of them.
+ORDER_BY_MISREAD = False
 
 #: Lean's β: the least share of the uniform pool either class holds.
 CLASS_FLOOR = 0.01

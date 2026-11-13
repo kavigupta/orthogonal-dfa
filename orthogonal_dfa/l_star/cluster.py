@@ -98,36 +98,34 @@ def identify_cluster_around(
 
 @dataclass
 class CentreCheck:
-    """Lean's centreFits: the prefixes voting a signal past the centre read the
-    seed within readη's slack of it, as ``fits`` with a Hoeffding margin at the
-    level asked and as ``plausible`` on the point rates.  ``refined`` is the
-    midpoint of those rates."""
+    """Lean's centreFits on the point rates, without its Hoeffding margin: the
+    prefixes voting a signal past the centre read the seed within readη's slack
+    of it.  ``refined`` is the midpoint of those rates."""
 
-    fits: bool
     plausible: bool
     refined: Optional[float]
 
 
-def centre_check(votes, reads, centre, *, signal, level, class_floor) -> CentreCheck:
+def centre_check(votes, reads, centre, *, signal, class_floor) -> CentreCheck:
     """votes are the family's per prefix of the uniform pool, reads the seed's.
-    Each side of the cut at centre has to hold class_floor of the prefixes."""
+    Each side of the cut at centre has to hold class_floor of the prefixes.
+
+    The margin is left out because it asks for about 2 ln(1/level) / s^2
+    strongly decided prefixes a side, some 10^4 uniform prefixes at s = 0.1,
+    and the search draws prefixes for it until it times out."""
     n = len(votes)
     if n == 0 or min((votes >= centre).sum(), (votes < centre).sum()) < max(
         1, class_floor * n
     ):
-        return CentreCheck(False, False, None)
+        return CentreCheck(False, None)
     reject = reads[votes <= centre - signal]
     accept = 1 - reads[votes >= centre + signal]
     if reject.size == 0 or accept.size == 0:
-        return CentreCheck(False, False, None)
+        return CentreCheck(False, None)
     against = (reject.mean(), accept.mean())
     held = (centre - signal / 2, 1 - centre - signal / 2)
-    deviation = [
-        math.sqrt(math.log(1 / level) / (2 * len(s))) for s in (reject, accept)
-    ]
     refined = (against[0] + 1 - against[1]) / 2
     return CentreCheck(
-        fits=all(a + d <= h for a, d, h in zip(against, deviation, held)),
         plausible=all(a <= h for a, h in zip(against, held)),
         refined=min(max(refined, signal), 1 - signal),
     )
@@ -621,25 +619,23 @@ class Reading:
     check: Optional[CentreCheck]
 
     def rank(self, fnr_limit) -> int:
-        """0 usable; 1 the centre wants more prefixes to bear it out; 2 a
-        plausible centre whose FNR is too high; 3 a centre refused; 4 undersized."""
+        """0 usable; 1 a plausible centre whose FNR is too high; 2 a centre
+        refused; 3 undersized."""
         if self.check is None:
-            return 4
-        if not self.check.plausible:
             return 3
-        if self.fnr > fnr_limit:
+        if not self.check.plausible:
             return 2
-        return 0 if self.check.fits else 1
+        return 1 if self.fnr > fnr_limit else 0
 
     def preference(self, fnr_limit):
         """Least first: by rank, then, among plausible centres, by how far the
         class rates' midpoint sits from the centre, then by FNR."""
         rank = self.rank(fnr_limit)
-        offset = abs(self.check.refined - self.centre) if rank <= 2 else 0
+        offset = abs(self.check.refined - self.centre) if rank <= 1 else 0
         return rank, offset, self.fnr
 
 
-def _read_at(pst, v, centre, anchored, level) -> Reading:
+def _read_at(pst, v, centre, anchored) -> Reading:
     """Sets pst's boundary and margin to the centre's."""
     signal = pst.config.min_signal_strength
     pst.decision_boundary = centre
@@ -656,7 +652,6 @@ def _read_at(pst, v, centre, anchored, level) -> Reading:
         pst.table.observed_masks([v], representative)[0][uniform],
         centre,
         signal=signal,
-        level=level,
         class_floor=pst.config.class_floor,
     )
     return Reading(centre, vs, family_size, pst.evidence_margin, fnr, worst, check)
@@ -668,32 +663,29 @@ def _adopt(pst, reading: Reading):
 
 def judge_on_centres(pst, gate, v, anchored, previous) -> Tuple[Judged, Reading]:
     """The family at the centre its class rates refine the grid's most preferred
-    reading to, unless that reads worse, and gated where the centre check bears
-    it out; else the reading's failure.  pst's boundary is left at the
+    reading to, unless that reads worse, and gated where the centre check finds
+    it plausible; else the reading's failure.  pst's boundary is left at the
     reading's centre where that is plausible, else at previous."""
-    grid = centres(pst.config.min_signal_strength)
-    # Over the grid and the refined centre, both sides each.
-    level = ACCEPT_PRESERVING_VERDICT_ERROR_RATE / (2 * (len(grid) + 1))
-    readings = [_read_at(pst, v, c, anchored, level) for c in grid]
+    readings = [
+        _read_at(pst, v, c, anchored) for c in centres(pst.config.min_signal_strength)
+    ]
     best = min(readings, key=lambda r: r.preference(pst.fnr_limit))
-    if best.rank(pst.fnr_limit) <= 2:
-        refined = _read_at(pst, v, best.check.refined, anchored, level)
+    if best.rank(pst.fnr_limit) <= 1:
+        refined = _read_at(pst, v, best.check.refined, anchored)
         if refined.rank(pst.fnr_limit) <= best.rank(pst.fnr_limit):
             best = refined
     rank = best.rank(pst.fnr_limit)
-    if rank <= 2:
+    if rank <= 1:
         _adopt(pst, best)
     else:
         pst.decision_boundary = previous
     if rank == 0:
         return _gated(pst, gate, v, best.vs, fnr=best.fnr, worst=best.worst), best
     if rank == 1:
-        judged = Judged(best.vs, 1.0, "centre not borne out", UNCERTIFIED, None)
-    elif rank == 2:
         judged = Judged(
             best.vs, best.fnr, f"FNR {best.fnr:.4f} too high", ADMITTED, best.worst
         )
-    elif rank == 3:
+    elif rank == 2:
         judged = Judged(best.vs, 1.0, "no centre fits", ADMITTED, None)
     else:
         judged = Judged(best.vs, 1.0, "undersized", ADMITTED, None)

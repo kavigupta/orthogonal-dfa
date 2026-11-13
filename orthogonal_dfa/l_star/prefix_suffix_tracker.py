@@ -36,8 +36,9 @@ class SearchConfig:
     #: Screen and order suffixes by the disagreement weighted at the centre.
     centred_screen: bool
     order_by_misread: bool
-    #: Draw suffixes until the pool holds the amount asked for within the
-    #: centred screen's slack, rather than until that many survive it.
+    #: Draw suffixes until the pool holds the amount asked for over
+    #: min_suffix_frequency within the centred screen's slack, rather than until
+    #: the amount asked for survive it.
     centred_supply: bool
     #: The least share of the uniform pool either side of the centre must hold.
     class_floor: float
@@ -390,7 +391,10 @@ class PrefixSuffixTracker:
         ``amount``.
 
         Under ``centred_supply`` it stops early only once the whole pool holds
-        ``amount`` within the centred screen's slack."""
+        ``amount / min_suffix_frequency`` within the centred screen's slack: the
+        screen cannot tell a class-preserving suffix from one that moves a rare
+        state, so the pool holds ``amount`` of them only at the share the
+        preconditions promise."""
         kept = 0
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
@@ -405,7 +409,7 @@ class PrefixSuffixTracker:
                 if not self.config.centred_supply:
                     if kept >= amount:
                         break
-                elif self._within_slack(reference) >= amount:
+                elif self._within_slack(reference) >= max_draws:
                     break
         return kept, drawn
 

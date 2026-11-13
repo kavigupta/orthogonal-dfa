@@ -5,13 +5,11 @@ import unittest
 
 from parameterized import parameterized
 
-from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliParityOracle
 from orthogonal_dfa.l_star.learn import learn_dfa
-from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
-from tests.e2e.test_merge_traps import ARMED_ALPHABET, ARMED_LENGTH, build_armed_target
-from tests.lstar_common import DEFAULT_SAMPLER, assert_not_merged, assertDFA
+from tests.e2e.test_merge_traps import assert_armed_not_merged
+from tests.lstar_common import DEFAULT_SAMPLER, assertDFA
 
 #: Straddling a half off-centre, at the armed target's signal of 0.3 and above.
 ARMED_BANDS = [(0.05, 0.65), (0.15, 0.75), (0.25, 0.95)]
@@ -28,23 +26,11 @@ class TestArmedOffCentre(unittest.TestCase):
         [(p_0, p_1, seed) for p_0, p_1 in ARMED_BANDS for seed in range(ARMED_SEEDS)]
     )
     def test_the_armed_state_is_not_merged(self, p_0, p_1, seed):
-        target = build_armed_target()
-        oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
-        sampler = UniformSampler(ARMED_LENGTH)
-        dfa = learn_dfa(
-            oracle_creator,
-            min_signal_strength=(p_1 - p_0) / 2,
-            seed=seed,
-            sampler=sampler,
-            noise_model=AsymmetricBernoulli(p_0=p_0, p_1=p_1),
-        )
-        assert_not_merged(
+        assert_armed_not_merged(
             self,
-            dfa,
-            target,
-            oracle_creator=oracle_creator,
-            symbols=ARMED_ALPHABET,
-            sampler=sampler,
+            seed=seed,
+            min_signal_strength=(p_1 - p_0) / 2,
+            noise_model=AsymmetricBernoulli(p_0=p_0, p_1=p_1),
         )
 
 
