@@ -384,7 +384,27 @@ theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
           settings.εcov settings.gateLevel B) :
     loopRound settings O D Dsf h d = some (roundOf settings O D h (idealRun D Dsf h (d.1, d.2.1))
       d.2.2) := by
-  sorry -- closes by: AgreeTo of drawsOf, idealDraws; sameReads_of_scan, roundOf_congr
+  classical
+  set ps := loopPopulations K h.pops.length
+  set sched := settings.schedule ps
+  set M := settings.scanCap
+  set I := idealDraws D Dsf h (d.1, d.2.1)
+  set dr := drawsOf d.1 D Dsf M h.prefs h.suffs d.2.1 (popTables D M h d.2.1)
+  have hag : AgreeTo none (fun _ => M) dr I := by
+    refine ⟨rfl, rfl, rfl, fun j n hn => ?_, fun n hn => ?_⟩
+    · simp only [dr, I, drawsOf, idealDraws, padList, popTables, uniDraws]
+      rw [List.getD_eq_getElem _ _ (by simpa using hn), List.getElem_ofFn]
+    · simp only [dr, I, drawsOf, idealDraws, padDraws, dif_pos hn, loopDistributions]
+  have hscan' := scanWithin_agree hag.symm hscan
+  have hsr := sameReads_of_scan hag.symm hscan
+  have hret' : ∃ B ∈ sched, streams (fun _ => ∅) none dr ∈ ret O.mq ps none settings.η₀
+      settings.indecisionLimit settings.εcov settings.gateLevel B := by
+    obtain ⟨B, hB, hx⟩ := hret
+    exact ⟨B, hB, (hsr.ret O.mq none (Finset.mem_insert_self _ _) _ _ _ _ hB).1 hx⟩
+  have hro := roundOf_congr settings O D h (sameReads_of_scan hag hscan') hret' d.2.2
+  unfold loopRound
+  rw [if_pos ⟨hscan', hret'⟩]
+  exact congrArg some hro
 
 end OrthoDFA
 
