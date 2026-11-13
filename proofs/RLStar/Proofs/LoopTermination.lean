@@ -287,18 +287,18 @@ section RoundFacts
 
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
   (h : SpecHist α)
-  (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
+  (d : LoopRoundDraws Ω α settings)
 
 lemma idealRound_returns
     (hB : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
-      idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1) ∈ ret O.mq (loopPopulations K h.pops.length) none
+      idealRun D Dsf h (d.1, d.2.1) ∈ ret O.mq (loopPopulations K h.pops.length) none
         settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B) :
     (idealRound settings O D Dsf h d).state ∈ settings.schedule (loopPopulations K h.pops.length)
-      ∧ idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1) ∈ ret O.mq (loopPopulations K h.pops.length) none
+      ∧ idealRun D Dsf h (d.1, d.2.1) ∈ ret O.mq (loopPopulations K h.pops.length) none
         settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel (idealRound settings O D Dsf h d).state := by
   obtain ⟨B, hB, hr⟩ := hB
   exact Classical.epsilon_spec (p := fun B => B ∈ settings.schedule
-    (loopPopulations K h.pops.length) ∧ idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1) ∈ ret O.mq
+    (loopPopulations K h.pops.length) ∧ idealRun D Dsf h (d.1, d.2.1) ∈ ret O.mq
       (loopPopulations K h.pops.length) none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B)
     ⟨B, hB, hr⟩
 
@@ -308,7 +308,7 @@ lemma one_notMem_idealRound_family : 1 ∉ (idealRound settings O D Dsf h d).fam
 /-- The clustering's claim, at the state the round returned at. -/
 lemma idealRound_quality {D' : Measure (FreeMonoid α)} {εcov slack : ℝ}
     (hs : ClusterSpec settings O D' settings.level3.walkStart εcov slack h.pops
-      (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))) :
+      (idealRun D Dsf h (d.1, d.2.1))) :
     (idealRound settings O D Dsf h d).state ∈ settings.schedule (loopPopulations K h.pops.length)
     ∧ ∫ p, miscutProb O (idealRound settings O D Dsf h d).state.lo
           ((idealRound settings O D Dsf h d).state.hi + 1)
@@ -342,8 +342,7 @@ lemma length_harvestsOf {D : Measure (FreeMonoid α)} {k : ℕ} {rounds : List (
 theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.DFA α σ)
     (O : Oracle μ (FreeMonoid α)) (hL : ∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept)
     (P : PrefixDistribution α) (Dsf : Measure (FreeMonoid α)) (settings : LoopSettings K)
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
-      settings.level3.probeBudget) (k : ℕ)
+    (draws : Fin K → LoopRoundDraws Ω α settings) (k : ℕ)
     (hk : settings.level3.walkStart = k) (εcov slack A sl m εd y T : ℝ)
     (E : σ → Set (FreeMonoid α)) (u : ℝ)
     (hK : Fintype.card σ + 1 ≤ K) (hT : 0 < T) (hy : 0 < y) (hm0 : 0 ≤ m)
@@ -386,7 +385,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
       (specHistOf (L.take i)) (draws ⟨i, hiK⟩), hq⟩
   -- a round that does not harvest agrees
   have hagree : ∀ i (hi : i < L.length), i ≤ Fintype.card σ →
-      L[i].result.ending.harvested = none →
+      ¬ L[i].result.ending.IsHarvest →
       L[i].Checks M O P.D k (εcov + 2 * settings.indecisionLimit + 2 * slack) c εd E u := by
     intro i hi hiσ hn
     obtain ⟨hlh, h1, hmis, hund⟩ := hround i hi hiσ
@@ -430,7 +429,7 @@ theorem loop_agrees_of_specs [IsProbabilityMeasure μ] [Fintype σ] (M : _root_.
         _ ≤ c := hund'
   -- some round among the first `|Q| + 1` does not harvest
   have hstop : ∃ i, ∃ hi : i < L.length, i ≤ Fintype.card σ
-      ∧ L[i].result.ending.harvested = none := by
+      ∧ ¬ L[i].result.ending.IsHarvest := by
     by_contra hno
     push Not at hno
     by_cases hlen : Fintype.card σ + 1 ≤ L.length

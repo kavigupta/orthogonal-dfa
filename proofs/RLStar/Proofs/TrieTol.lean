@@ -26,7 +26,7 @@ lemma trieSucceeds_mono {K : ℕ} {settings : LoopSettings K} {cap : ℕ}
     {O : Oracle μ (FreeMonoid α)} {D Dsf T : Measure (FreeMonoid α)} {M : _root_.DFA α σ} {ξ R R' :
         ℝ}
     (hR : R ≤ R')
-    {p : LoopDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget}
+    {p : settings.Draws Ω α}
     (h : RLStarSucceeds settings cap O D Dsf T M ξ R p) :
     RLStarSucceeds settings cap O D Dsf T M ξ R' p := by
   obtain ⟨h1, S, hS, hdep⟩ := h

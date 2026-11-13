@@ -30,12 +30,12 @@ variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Me
 
 open scoped Classical in
 /-- The earlier rounds' harvest data, where every earlier clustering returned. -/
-def stageH (r : ℕ) (ω : Ω) (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
+def stageH (r : ℕ) (ω : Ω) (g : Fin K → settings.RoundDraws α) :
     Option (List (HarvestCode α)) :=
   if HistOK settings O D Dsf ω g r then some (histCodes settings O D Dsf ω g r) else none
 
 omit [IsProbabilityMeasure μ] in
-lemma histCodes_congr_draws (r : ℕ) (ω : Ω) (g g' : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+lemma histCodes_congr_draws (r : ℕ) (ω : Ω) (g g' : Fin K → settings.RoundDraws α)
     (h : ∀ i : Fin K, i.1 < r → g i = g' i) :
     histCodes settings O D Dsf ω g r = histCodes settings O D Dsf ω g' r := by
   unfold histCodes
@@ -43,7 +43,7 @@ lemma histCodes_congr_draws (r : ℕ) (ω : Ω) (g g' : Fin K → RoundDraws α 
     fun i hi => by rw [h i hi]]
 
 omit [IsProbabilityMeasure μ] in
-lemma histOK_congr_draws (ω : Ω) (g g' : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
+lemma histOK_congr_draws (ω : Ω) (g g' : Fin K → settings.RoundDraws α) :
     ∀ r : ℕ, (∀ i : Fin K, i.1 < r → g i = g' i) →
       (HistOK settings O D Dsf ω g r ↔ HistOK settings O D Dsf ω g' r)
   | 0, _ => Iff.rfl
@@ -56,7 +56,7 @@ lemma histOK_congr_draws (ω : Ω) (g g' : Fin K → RoundDraws α K settings.le
     rw [h ⟨r, hr⟩ (Nat.lt_succ_self r)]
 
 omit [IsProbabilityMeasure μ] in
-lemma stageH_congr_draws (r : ℕ) (ω : Ω) (g g' : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+lemma stageH_congr_draws (r : ℕ) (ω : Ω) (g g' : Fin K → settings.RoundDraws α)
     (h : ∀ i : Fin K, i.1 < r → g i = g' i) :
     stageH settings O D Dsf r ω g = stageH settings O D Dsf r ω g' := by
   classical
@@ -66,27 +66,27 @@ lemma stageH_congr_draws (r : ℕ) (ω : Ω) (g g' : Fin K → RoundDraws α K s
 
 omit [IsProbabilityMeasure μ] in
 lemma measurable_persist :
-    Measurable (fun p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) =>
-      fun i => ((p.1, p.2 i) : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)) :=
+    Measurable (fun p : Ω × (Fin K → settings.RoundDraws α) =>
+      fun i => ((p.1, p.2 i) : LoopRoundDraws Ω α settings)) :=
   measurable_pi_lambda _ fun i => measurable_fst.prodMk ((measurable_pi_apply i).comp measurable_snd)
 
 lemma measurableSet_histCodes [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (r : ℕ)
     (c : List (HarvestCode α)) :
-    MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
+    MeasurableSet {p : Ω × (Fin K → settings.RoundDraws α) |
       histCodes settings O D Dsf p.1 p.2 r = c} :=
   measurable_persist settings (measurableSet_codesOf settings O D Dsf (ae_lenBound hlen) (N := codeLen settings D) le_rfl r c)
 
 omit [IsProbabilityMeasure μ] in
 lemma measurable_idealRun_at [IsProbabilityMeasure D] (h : SpecHist α) (i : Fin K) :
-    Measurable (fun p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) =>
-      idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h ((p.1, (p.2 i).1) : ClusterDraws Ω α K settings.level3.harvestReadCap)) :=
-  (measurable_idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h).comp (measurable_fst.prodMk (measurable_fst.comp
+    Measurable (fun p : Ω × (Fin K → settings.RoundDraws α) =>
+      idealRun D Dsf h ((p.1, (p.2 i).1) : ClusterDraws Ω α K)) :=
+  (measurable_idealRun D Dsf h).comp (measurable_fst.prodMk (measurable_fst.comp
     ((measurable_pi_apply i).comp measurable_snd)))
 
 lemma measurableSet_histOK [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     :
-    ∀ r : ℕ, MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
+    ∀ r : ℕ, MeasurableSet {p : Ω × (Fin K → settings.RoundDraws α) |
       HistOK settings O D Dsf p.1 p.2 r}
   | 0 => by simp only [HistOK, Set.setOf_true]; exact MeasurableSet.univ
   | r + 1 => by
@@ -94,11 +94,11 @@ lemma measurableSet_histOK [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
     simp only [HistOK, Set.setOf_and]
     refine (measurableSet_histOK hlen r).inter ?_
     by_cases hr : r < K
-    · have hset : {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
+    · have hset : {p : Ω × (Fin K → settings.RoundDraws α) |
           ∀ h : r < K, (histCodes settings O D Dsf p.1 p.2 r).length = r →
             ∃ B ∈ settings.schedule (loopPopulations K (decodeHist
                 (histCodes settings O D Dsf p.1 p.2 r)).pops.length),
-              idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap (decodeHist
+              idealRun D Dsf (decodeHist
                 (histCodes settings O D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, h⟩).1)
                 ∈ ret O.mq (loopPopulations K (decodeHist
                   (histCodes settings O D Dsf p.1 p.2 r)).pops.length) none
@@ -106,9 +106,9 @@ lemma measurableSet_histOK [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
           = ⋃ c : List (HarvestCode α), {p | histCodes settings O D Dsf p.1 p.2 r = c}
             ∩ (if c.length = r then ⋃ B ∈ settings.schedule (loopPopulations K
                 (decodeHist c).pops.length),
-              (fun p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) =>
-                idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap (decodeHist c)
-                  ((p.1, (p.2 ⟨r, hr⟩).1) : ClusterDraws Ω α K settings.level3.harvestReadCap)) ⁻¹'
+              (fun p : Ω × (Fin K → settings.RoundDraws α) =>
+                idealRun D Dsf (decodeHist c)
+                  ((p.1, (p.2 ⟨r, hr⟩).1) : ClusterDraws Ω α K)) ⁻¹'
                 (ret O.mq (loopPopulations K (decodeHist c).pops.length)
                   none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B : Set _)
               else Set.univ) := by
@@ -133,11 +133,11 @@ lemma measurableSet_histOK [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
       · exact Finset.measurableSet_biUnion _ fun B _ =>
           measurable_idealRun_at settings D Dsf _ ⟨r, hr⟩ (measurableSet_ret O _ none _ _ _ _ B)
       · exact MeasurableSet.univ
-    · have : {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
+    · have : {p : Ω × (Fin K → settings.RoundDraws α) |
           ∀ h : r < K, (histCodes settings O D Dsf p.1 p.2 r).length = r →
             ∃ B ∈ settings.schedule (loopPopulations K (decodeHist
                 (histCodes settings O D Dsf p.1 p.2 r)).pops.length),
-              idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap (decodeHist
+              idealRun D Dsf (decodeHist
                 (histCodes settings O D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, h⟩).1)
                 ∈ ret O.mq (loopPopulations K (decodeHist
                   (histCodes settings O D Dsf p.1 p.2 r)).pops.length) none
@@ -151,18 +151,18 @@ lemma measurableSet_histOK [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
 lemma measurableSet_stageH [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (r : ℕ)
     (y : Option (List (HarvestCode α))) :
-    MeasurableSet {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
+    MeasurableSet {p : Ω × (Fin K → settings.RoundDraws α) |
       stageH settings O D Dsf r p.1 p.2 = y} := by
   classical
   rcases y with _ | c
-  · have : {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
+  · have : {p : Ω × (Fin K → settings.RoundDraws α) |
         stageH settings O D Dsf r p.1 p.2 = none} = {p | HistOK settings O D Dsf p.1 p.2 r}ᶜ := by
       ext p
       simp only [stageH, Set.mem_setOf_eq, Set.mem_compl_iff]
       split_ifs with h <;> simp [h]
     rw [this]
     exact (measurableSet_histOK settings O D Dsf hlen r).compl
-  · have : {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) |
+  · have : {p : Ω × (Fin K → settings.RoundDraws α) |
         stageH settings O D Dsf r p.1 p.2 = some c}
         = {p | HistOK settings O D Dsf p.1 p.2 r}
           ∩ {p | histCodes settings O D Dsf p.1 p.2 r = c} := by
@@ -177,7 +177,7 @@ lemma measurableSet_stageH [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x �
 fix the stage. -/
 lemma stageH_stop [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (r : ℕ)
-    (c : List (HarvestCode α)) (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (c : List (HarvestCode α)) (g : Fin K → settings.RoundDraws α)
     (ω ω' ω₀ : Ω) (hs : stageH settings O D Dsf r ω g = some c)
     (h : ∀ w ∈ histReads settings D Dsf c g r ω₀, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
     stageH settings O D Dsf r ω' g = some c := by

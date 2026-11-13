@@ -27,7 +27,7 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {σ : Type*} [Fintype σ]
 
 lemma length_trieLoopRoundsQ_le {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
     (D Dsf : Measure (FreeMonoid α))
-    (draws : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (draws : Fin K → settings.RoundDraws α)
     (rd : FreeMonoid α → ℝ) :
     ∀ r rs, (trieLoopRoundsQ settings cap D Dsf draws r).eval rd = some rs → rs.length ≤ r
   | 0, rs, h => by
@@ -53,7 +53,7 @@ lemma length_trieLoopRoundsQ_le {K : ℕ} (settings : LoopSettings K) (cap : ℕ
 
 lemma trieRoundQ_prefs {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
     (D Dsf : Measure (FreeMonoid α)) (h : TrieLoopHist α)
-    (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (d : settings.RoundDraws α)
     (rd : FreeMonoid α → ℝ) (o : TrieLoopRound α)
     (ho : (trieRoundQ settings cap D Dsf h d).eval rd = some o) :
     ∃ (pops : Finset (Option (Fin K))) (x : Run Unit (FreeMonoid α) (Option (Fin K))),
@@ -75,7 +75,7 @@ lemma trieRoundQ_prefs {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
 
 lemma trieLoopRoundsQ_prefs {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
     (D Dsf : Measure (FreeMonoid α))
-    (draws : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (draws : Fin K → settings.RoundDraws α)
     (rd : FreeMonoid α → ℝ) :
     ∀ r rs, (trieLoopRoundsQ settings cap D Dsf draws r).eval rd = some rs →
       ∀ o ∈ rs, ∃ (pops : Finset (Option (Fin K))) (x : Run Unit (FreeMonoid α) (Option (Fin K))),
@@ -108,7 +108,7 @@ lemma trieLoopRoundsQ_prefs {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
 
 lemma trie_rounds_counts {Ω : Type*} {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
     (D Dsf : Measure (FreeMonoid α))
-    (draws : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (draws : Fin K → settings.RoundDraws α)
     (rd : FreeMonoid α → ℝ) (ω : Ω) (a b : ℕ)
     (hab : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ a

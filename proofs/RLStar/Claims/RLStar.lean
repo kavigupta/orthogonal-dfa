@@ -46,7 +46,7 @@ def RLStarSucceeds {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [Fintype 
     [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ} (settings : LoopSettings K) (cap : ℕ)
     (O : Oracle μ (FreeMonoid A)) (D Dsf T : Measure (FreeMonoid A)) (M : _root_.DFA A Q) (ε : ℝ)
     (totalReads : ℝ)
-    (p : LoopDraws Ω A K settings.level3.harvestReadCap settings.level3.probeBudget) : Prop :=
+    (p : settings.Draws Ω A) : Prop :=
   (∃ rounds, indecisiveLStarTrieLoop settings cap O D Dsf p = some rounds ∧
     (rounds.length ≤ Fintype.card Q + 1 ∧ ∃ o ∈ rounds.getLast?,
         o.result.ending = .consistent ∧ T.real {w | ¬

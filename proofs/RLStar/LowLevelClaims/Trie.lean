@@ -1,5 +1,4 @@
 import RLStar.Code.TrieDFA
-import RLStar.Code.LearnerLoopTrie
 import RLStar.LowLevelClaims.Level3Claim
 import RLStar.LowLevelClaims.CoveredStart
 
@@ -15,9 +14,7 @@ the DFA then misjudges at most the probes that disagree plus the strings the roo
 `Level3TrieRootOne`: every tree a round grows reads `ε` at its root, as level 3's do.
 
 `Level3TrieAgrees`: probes at least `walkStart` long run as level 3's, nothing expanded past the
-complete trie. `TrieLoopAgrees`: where `cap ≤ walkStart` and every probe a round draws is at least
-`walkStart` long, the loop with local walk starts returns the loop's rounds and reads the same
-strings.
+complete trie.
 -/
 
 noncomputable section
@@ -70,57 +67,6 @@ def Level3TrieAgrees : Prop :=
     indecisiveLStarLevel3Trie C read draws
       = ⟨(indecisiveLStarLevel3 C read draws).hypothesis, completeTrie C.walkStart,
         (indecisiveLStarLevel3 C read draws).ending⟩
-
-section Lift
-
-variable {α : Type*} [Fintype α] [DecidableEq α] (k : ℕ)
-
-def liftSampler (s : HarvestSampler α) : TrieHarvestSampler α :=
-  ⟨s.family, s.kl, s.kh, s.hyp, completeTrie k, s.site⟩
-
-def liftRound (o : LoopRound α) : TrieLoopRound α :=
-  ⟨o.state, o.family, ⟨o.result.hypothesis, completeTrie k, o.result.ending⟩, o.prefs, o.suffs⟩
-
-def liftHist (h : LoopHist α) : TrieLoopHist α :=
-  ⟨h.pops.map (liftSampler k), h.prefs, h.suffs⟩
-
-/-- The first `M` batches of `N` probes drawn by `u` from `D` are each at least `k` long. -/
-def BatchesGood (D : Measure (FreeMonoid α)) (N M : ℕ)
-    (u : ℕ → unitInterval × (Fin N → unitInterval)) : Prop :=
-  ∀ n < M, ∀ t, k ≤ (drawFrom D ((u n).2 t)).toList.length
-
-/-- The level-3 probes `u` draws from `D` off the keys `K₀` are each at least `k` long. -/
-def L3Good (D : Measure (FreeMonoid α)) (K₀ : Finset (FreeMonoid α)) {P : ℕ}
-    (u : Fin P → unitInterval) : Prop :=
-  ∀ i, k ≤ (drawFrom (avoidLaw D k K₀) (u i)).toList.length
-
-end Lift
-
-/-- Round `d` after the history `h`, at the answers `rd`: every harvested population's batches are
-good, and where the loop's round returns, its level-3 probes are. -/
-def TrieRoundGood {α : Type*} [Fintype α] [DecidableEq α] {K : ℕ} (settings : LoopSettings K)
-    (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
-    (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
-    (rd : FreeMonoid α → ℝ) : Prop :=
-  (∀ i : Fin K, BatchesGood settings.level3.walkStart D settings.level3.harvestReadCap
-      settings.scanCap (d.1.2.1 (some i)))
-    ∧ ∀ o, (roundQ settings D Dsf h d).eval rd = some o →
-      L3Good settings.level3.walkStart D
-        (o.prefs.image fun p => prefixOf p settings.level3.walkStart) d.2
-
-def TrieLoopAgrees : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] {K : ℕ} (rd : FreeMonoid α → ℝ)
-    (settings : LoopSettings K) (cap : ℕ) (D Dsf : Measure (FreeMonoid α))
-    (draws : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget),
-    cap ≤ settings.level3.walkStart →
-    (∀ r (hr : r < K) rs, (loopRoundsQ settings D Dsf draws r).eval rd = some rs →
-      (∀ o ∈ rs, o.result.ending.harvested ≠ none) →
-      TrieRoundGood settings D Dsf (histOf rs) (draws ⟨r, hr⟩) rd) →
-    (trieLoopRoundsQ settings cap D Dsf draws K).eval rd
-        = ((loopRoundsQ settings D Dsf draws K).eval rd).map
-          (List.map (liftRound settings.level3.walkStart))
-      ∧ (trieLoopRoundsQ settings cap D Dsf draws K).reads rd
-        = (loopRoundsQ settings D Dsf draws K).reads rd
 
 end OrthoDFA
 

@@ -174,16 +174,16 @@ omit [IsProbabilityMeasure μ] in
 returning, the round is good. -/
 lemma roundGood_of (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
-    (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (d : LoopRoundDraws Ω α settings)
     {T A NP : ℕ}
     (hNP : ∀ B ∈ settings.schedule (loopPopulations K h.pops.length), B.npref ≤ NP)
     (hNA : (2 + (loopPopulations K h.pops.length).card) * NP ≤ A) (hAT : A ≤ T)
     (h1 : ¬ MissAt D settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap
       h.pops h.prefs d.2.1.2.1)
     (h2 : ¬ ScanShort (loopPopulations K h.pops.length) settings.scanCap T A
-      (idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)))
+      (idealDraws D Dsf h (d.1, d.2.1)))
     (h3 : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
-      idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)
+      idealRun D Dsf h (d.1, d.2.1)
         ∈ ret O.mq (loopPopulations K h.pops.length) none settings.η₀ settings.indecisionLimit
           settings.εcov settings.gateLevel B) :
     RoundGood settings O D Dsf h d :=
@@ -221,13 +221,12 @@ lemma harvestLaw_compl_ge (s : SpecSampler α) (D : Measure (FreeMonoid α))
 /-- Each harvested population's first `Nh` filled draws hold every sample a state of the schedule
 takes from it (`DrawsHold`), and they walk at most `B` probes in all. -/
 def DrawsWithin (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
-    (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (d : LoopRoundDraws Ω α settings)
     (Nh B : ℕ) : Prop :=
   (∀ i : Fin K, i.val < h.pops.length →
     DrawsHold (settings.schedule (loopPopulations K h.pops.length)) d.2.1.2.2.2
       (uniTable D settings.scanCap h.prefs (d.2.1.2.1 none))
-      ((List.range Nh).map ((idealDraws D Dsf settings.level3.walkStart
-        settings.level3.harvestReadCap h (d.1, d.2.1)).1.2.1.2 (some i))))
+      ((List.range Nh).map ((idealDraws D Dsf h (d.1, d.2.1)).1.2.1.2 (some i))))
     ∧ harvestWalk D settings.level3.walkStart settings.level3.harvestReadCap Nh h.pops h.prefs
       d.2.1.2.1 ≤ B
 
@@ -235,11 +234,11 @@ def DrawsWithin (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h
 at most `NP` prefixes, and those draws walking at most `B` probes, the round's draws are within. -/
 lemma drawsWithin_of (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
     (h : SpecHist α)
-    (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (d : LoopRoundDraws Ω α settings)
     {NP Th Nh B : ℕ}
     (hNP : ∀ B ∈ settings.schedule (loopPopulations K h.pops.length), B.npref ≤ NP)
     (hs : ¬ ScanShort (loopPopulations K h.pops.length) Nh Th (3 * NP)
-      (idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)))
+      (idealDraws D Dsf h (d.1, d.2.1)))
     (hw : harvestWalk D settings.level3.walkStart settings.level3.harvestReadCap Nh h.pops h.prefs
       d.2.1.2.1 ≤ B) :
     DrawsWithin settings D Dsf h d Nh B := by
@@ -250,7 +249,7 @@ lemma drawsWithin_of (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α
     exact ⟨i, hi, rfl⟩
   exact drawsHold_of_not_popShort _ hNP le_rfl (fun m => by
     simp only [uniTable]; exact card_freshDraws_le _ _ _)
-    (idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)) i
+    (idealDraws D Dsf h (d.1, d.2.1)) i
     fun h' => hs ⟨some i, hmem, h'⟩
 
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
@@ -271,7 +270,7 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP Th Nh : ℕ} (B :
     (hy0 : 0 < y) (hy1 : y ≤ 1) (hδ : 0 < δₘ) (hM : 0 < settings.scanCap) (hm : m ≤ 1 / 2)
     (hA : 4 * ((K + 3) * NP) ≤ T) (hT : T ≤ settings.scanCap) (hAh : 4 * (3 * NP) ≤ Th)
     (hTh : Th ≤ Nh) (hDat : ∀ t, P.D.real {t} ≤ cap) (r : ℕ) (hr : r < K) :
-    (loopMeasure μ α K settings.level3.harvestReadCap settings.level3.probeBudget).real
+    (settings.measure μ α).real
       {p | HistOK settings O P.D Dsf p.1 p.2 r
         ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
         ∧ (∀ ν' ∈ samplerLaws P.D settings.level3.walkStart (decodeHist
@@ -286,10 +285,10 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP Th Nh : ℕ} (B :
             (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).pops
             (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).prefs (p.2 ⟨r, hr⟩).1.2.1
           ∨ ScanShort (loopPopulations K r) settings.scanCap T ((K + 3) * NP)
-            (idealDraws P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap
+            (idealDraws P.D Dsf
               (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))
           ∨ ScanShort (loopPopulations K r) Nh Th (3 * NP)
-            (idealDraws P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap
+            (idealDraws P.D Dsf
               (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))
           ∨ B < harvestWalk P.D settings.level3.walkStart settings.level3.harvestReadCap
             Nh (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).pops
@@ -491,8 +490,7 @@ theorem loop_good_round_le_persist (cap m y δₘ : ℝ) {T NP Th Nh : ℕ} (B :
 omit [IsProbabilityMeasure μ] [IsProbabilityMeasure Dsf] in
 /-- Where every round the filled draws run is good, the loop runs those rounds. -/
 theorem idealRounds_mem_loop (D : Measure (FreeMonoid α))
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
-      settings.level3.probeBudget)
+    (draws : Fin K → LoopRoundDraws Ω α settings)
     (hg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf draws r) →
       RoundGood settings O D Dsf (specHistOf (idealRounds settings O D Dsf draws r)) (draws ⟨r, hr⟩)) :
     loopRounds settings O D Dsf draws K = some (idealRounds settings O D Dsf draws K) :=
@@ -504,13 +502,12 @@ section Reads
 
 variable {μ : Measure Ω} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
   (D Dsf : Measure (FreeMonoid α))
-  (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
-    settings.level3.probeBudget)
+  (draws : Fin K → LoopRoundDraws Ω α settings)
 
 /-- Each round the loop runs is a round after some history and clustering run. -/
 lemma loopRounds_roundOf (n : ℕ) : ∀ rounds, loopRounds settings O D Dsf draws n = some rounds →
     rounds.length ≤ n ∧ ∀ o ∈ rounds, ∃ (h : SpecHist α) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
-      (u : Fin settings.level3.probeBudget → unitInterval), o = roundOf settings O D h x u := by
+      (u : settings.Uniforms), o = roundOf settings O D h x u := by
   induction n with
   | zero =>
     intro rounds hr
@@ -571,7 +568,7 @@ section Walk
 draws hold their samples and walk at most `B` probes in all (`DrawsWithin`). -/
 def RoundsWalkWithin {μ : Measure Ω}
     (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
+    (p : Ω × (Fin K → settings.RoundDraws α))
     (Nh B : ℕ) : Prop :=
   ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf (persistDraws p) r) →
     DrawsWithin settings D Dsf (specHistOf (idealRounds settings O D Dsf (persistDraws p) r))

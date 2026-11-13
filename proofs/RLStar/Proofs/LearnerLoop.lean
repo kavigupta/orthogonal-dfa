@@ -325,8 +325,7 @@ omit [IsProbabilityMeasure μ] in
 include hlen in
 /-- Round `i` of the persistent run is the round after the history the rounds before it hand
 on. -/
-lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap
-    settings.level3.probeBudget)) (i : ℕ)
+lemma persist_bridge (p : Ω × (Fin K → settings.RoundDraws α)) (i : ℕ)
     (hi : i < (idealRounds settings O D Dsf (persistDraws p) K).length) :
     ∃ hK : i < K, (histCodes settings O D Dsf p.1 p.2 i).length = i
       ∧ HistAlike (lenBound D) (decodeHist (histCodes settings O D Dsf p.1 p.2 i))
@@ -360,7 +359,7 @@ lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level3.harve
 include hlen in
 /-- Every earlier clustering returned, where each met its claim. -/
 lemma histOK_of_specs (εcov slack : ℝ)
-    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)) :
+    (p : Ω × (Fin K → settings.RoundDraws α)) :
     ∀ i, i ≤ (idealRounds settings O D Dsf (persistDraws p) K).length →
       (∀ j (_ : j < (idealRounds settings O D Dsf (persistDraws p) K).length) (hjK : j < K),
         j < i → ClusterSpec settings O D settings.level3.walkStart εcov slack
@@ -401,8 +400,7 @@ lemma measureReal_le_card_mul {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν
 lemma loop_reads_le {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
     (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
-        settings.level3.probeBudget) (a b : ℕ)
+    (draws : Fin K → LoopRoundDraws Ω α settings) (a b : ℕ)
     (h : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ a
         ∧ (roundSuffs (settings.schedule pops) x).card ≤ b) :
@@ -431,8 +429,7 @@ lemma loop_reads_le {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ
 reads no prefix or suffix an earlier round read. -/
 def RoundsFresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
     (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-    (Ls : ℕ) (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap
-        settings.level3.probeBudget)) : Prop :=
+    (Ls : ℕ) (p : Ω × (Fin K → settings.RoundDraws α)) : Prop :=
   ∀ i < (idealRounds settings O D Dsf (persistDraws p) K).length, ∃ hK : i < K,
     HistOK settings O D Dsf p.1 p.2 i
       ∧ Returns settings O D Dsf (decodeHist
@@ -515,7 +512,7 @@ def LoopCore : Prop :=
       Dsf {v | v.toList.length ≠ Ls} = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ v, Dsf.real {v} ≤ cap) →
-      (loopMeasure μ α K settings.level3.harvestReadCap settings.level3.probeBudget).real
+      (settings.measure μ α).real
           {p | let rounds := idealRounds settings O
                 P.D Dsf (persistDraws p) K
             ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
@@ -828,7 +825,7 @@ theorem loop_core_holds : LoopCore := by
         ∧ Dsf.real ↑(dec (histCodes settings O P.D Dsf p.1 p.2 r)).suffs ≤ ms
         ∧ ¬ ClusterSpec settings O P.D k (513 / 512 * εcov) slack (dec
             (histCodes settings O P.D Dsf p.1 p.2 r)).pops
-          (idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap (dec (histCodes
+          (idealRun P.D Dsf (dec (histCodes
               settings O P.D Dsf p.1 p.2 r))
             (p.1, (p.2 ⟨r, hr⟩).1))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 r) p.2 r hr}
@@ -1032,7 +1029,7 @@ theorem loop_core_holds : LoopCore := by
           exact hn3 ⟨hlen, fun ν hν => (hpops ν hν).2, fun j hj => (hmP j hj).trans hm1,
             hmS.trans hms1, h⟩
         have hcs : ClusterSpec settings O P.D k (513 / 512 * εcov) slack (dec cH).pops
-            (idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap (dec cH)
+            (idealRun P.D Dsf (dec cH)
                 (p.1, (p.2 ⟨i, hK'⟩).1)) := by
           by_contra h
           exact hn1 ⟨hok, hlen, hpops, hmP, hmS, h, hnc⟩

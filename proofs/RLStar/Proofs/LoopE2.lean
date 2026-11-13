@@ -112,7 +112,7 @@ theorem round_bad_exists (E : σ → Set (FreeMonoid α)) (m u crossLimit : ℝ)
     (hband : ∀ N, N + 1 ≤ B.k → ∀ p r : ℝ, 0 ≤ p → p ≤ 1 → 0 ≤ r → r ≤ 1 →
       RarerBounded N B.lo (B.hi + 1) p r crossLimit)
     (hK₀ : K₀.card * prefixMax P.D settings.level3.walkStart ≤ m) :
-    ∃ Bd : Set (Ω × (Fin settings.level3.probeBudget → unitInterval)), MeasurableSet Bd
+    ∃ Bd : Set (Ω × (settings.Uniforms)), MeasurableSet Bd
       ∧ (μ.prod (Measure.pi fun _ => volume)) Bd
         ≤ ENNReal.ofReal (settings.level3.δ + Fintype.card σ * Fintype.card α
           * misledTail settings.level3.probeBudget (2 * prefixMax P.D settings.level3.walkStart)

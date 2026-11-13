@@ -1,4 +1,5 @@
-import RLStar.Proofs.TrieStage
+import RLStar.Proofs.LoopAux
+import RLStar.LowLevelClaims.Trie
 import RLStar.Proofs.Hoeffding
 import RLStar.Proofs.MiscutGate
 import RLStar.Proofs.DFABridge

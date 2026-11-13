@@ -18,8 +18,8 @@ Known modelling gap. A retraction restarts level 3 from its first hypothesis, an
 tests at its own level. The Python keeps its hypothesis and its counts.
 
 Known modelling gap. The lists are kept per site for the whole round, and the round's population
-is uniform over the first `nh` strings of the list that fills. The Python's population is the
-strings its harvest draws.
+is uniform over the list that fills, at least `nh` strings. The Python's population is the strings
+its harvest draws.
 
 Known modelling gap. The top-up runs blocks of a fixed size, expands at each block's end, and
 retracts at the first block without progress. The Python's top-up budget differs.
@@ -93,6 +93,13 @@ inductive LazyEnd (α : Type*)
   | consistent
   | harvest (s : Level3Site) (ℓ : List (FreeMonoid α))
   | failed
+
+def LazyEnd.IsHarvest {α : Type*} : LazyEnd α → Prop
+  | .harvest _ _ => True
+  | _ => False
+
+instance {α : Type*} : DecidablePred (LazyEnd.IsHarvest (α := α)) := fun e => by
+  cases e <;> unfold LazyEnd.IsHarvest <;> infer_instance
 
 structure LazyResult (α : Type*) where
   hypothesis : HypothesisDFA (Option α)

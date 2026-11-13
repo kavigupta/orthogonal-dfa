@@ -109,7 +109,7 @@ def Draws.flat {S J : Type*} (dr : Draws Ω S J) : Draws Unit S J := (((), dr.1.
 
 open scoped Classical in
 lemma eval_roundQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : LoopHist α)
-    (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
+    (d : settings.RoundDraws α) :
     (roundQ settings D Dsf h d).eval (fun w => O.mq w ω)
       = (loopRound settings O D Dsf (h.spec O ω) (ω, d)).map SpecRound.data
       ∧ ∀ o ∈ loopRound settings O D Dsf (h.spec O ω) (ω, d), o.ReadsAt O ω := by
@@ -203,7 +203,7 @@ lemma eval_roundQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) 
 /-- The program's first `r` rounds are the functions' at the noise `ω`, and each reads its family
 there. -/
 theorem eval_loopRoundsQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
-    (rd : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
+    (rd : Fin K → settings.RoundDraws α) :
     ∀ r, (loopRoundsQ settings D Dsf rd r).eval (fun w => O.mq w ω)
         = (loopRounds settings O D Dsf (persistDraws (ω, rd)) r).map (List.map SpecRound.data)
       ∧ ∀ rs ∈ loopRounds settings O D Dsf (persistDraws (ω, rd)) r, ∀ o ∈ rs, o.ReadsAt O ω
@@ -215,10 +215,10 @@ theorem eval_loopRoundsQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoi
     · simp
     have hR := ih2 rs hrs
     simp only [Option.map_some, Option.bind_some]
-    have hcond : (∀ o ∈ rs.map SpecRound.data, o.result.ending.harvested ≠ none)
-        ↔ ∀ o ∈ rs, o.result.ending.harvested ≠ none := by
+    have hcond : (∀ o ∈ rs.map SpecRound.data, o.result.ending.IsHarvest)
+        ↔ ∀ o ∈ rs, o.result.ending.IsHarvest := by
       simp [SpecRound.data]
-    by_cases hc : r < K ∧ ∀ o ∈ rs, o.result.ending.harvested ≠ none
+    by_cases hc : r < K ∧ ∀ o ∈ rs, o.result.ending.IsHarvest
     · rw [dif_pos ⟨hc.1, hcond.2 hc.2⟩, dif_pos hc, eval_map]
       obtain ⟨e1, e2⟩ := eval_roundQ O ω settings D Dsf (histOf (rs.map SpecRound.data))
         (rd ⟨r, hc.1⟩)
@@ -241,14 +241,13 @@ theorem eval_loopRoundsQ (settings : LoopSettings K) (D Dsf : Measure (FreeMonoi
 
 /-- The loop's rounds at `p` are the functions' at `p.1` in every round. -/
 theorem indecisiveLStarLoop_eq (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
-    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap
-      settings.level3.probeBudget)) :
+    (p : Ω × (Fin K → settings.RoundDraws α)) :
     indecisiveLStarLoop settings O D Dsf p
       = (loopRounds settings O D Dsf (persistDraws p) K).map (List.map SpecRound.data) :=
   (eval_loopRoundsQ O p.1 settings D Dsf p.2 K).1
 
 lemma indecisiveLStarLoop_some {settings : LoopSettings K} {D Dsf : Measure (FreeMonoid α)}
-    {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)}
+    {p : Ω × (Fin K → settings.RoundDraws α)}
     {rounds : List (LoopRound α)} (h : indecisiveLStarLoop settings O D Dsf p = some rounds) :
     ∃ rs, loopRounds settings O D Dsf (persistDraws p) K = some rs
       ∧ rounds = rs.map SpecRound.data := by
@@ -257,8 +256,7 @@ lemma indecisiveLStarLoop_some {settings : LoopSettings K} {D Dsf : Measure (Fre
   exact ⟨rs, hrs, rfl⟩
 
 theorem loopRounds_read (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
-    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap
-      settings.level3.probeBudget)) :
+    (p : Ω × (Fin K → settings.RoundDraws α)) :
     ∀ rs ∈ loopRounds settings O D Dsf (persistDraws p) K, ∀ o ∈ rs, o.read = o.data.read O p.1 :=
   (eval_loopRoundsQ O p.1 settings D Dsf p.2 K).2
 
@@ -361,7 +359,7 @@ open scoped Classical in
 `roundCallBound` strings. -/
 theorem card_reads_roundQ_le (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] (h : LoopHist α)
-    (d : RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) {L a b f : ℕ}
+    (d : settings.RoundDraws α) {L a b f : ℕ}
     (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hab : ∀ pops (x : Run Unit (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ a
@@ -434,7 +432,7 @@ theorem card_reads_roundQ_le (settings : LoopSettings K) (D Dsf : Measure (FreeM
 section Small
 
 variable (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-  (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget)
+  (draws : Fin K → LoopRoundDraws Ω α settings)
 
 /-- Every round the loop runs has a family of at most `f` members. -/
 lemma loopRounds_small {f : ℕ} (hk : ∀ pops, ∀ B ∈ settings.schedule pops, B.k ≤ f + 1)
@@ -480,7 +478,7 @@ end Small
 section Prefix
 
 variable (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
-  (rd : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+  (rd : Fin K → settings.RoundDraws α)
   (o : FreeMonoid α → ℝ)
 
 lemma loopRoundsQ_prefix_succ (r : ℕ) {rs' : List (LoopRound α)}
@@ -519,7 +517,7 @@ lemma loopRoundsQ_prefix {r s : ℕ} (hrs : r ≤ s) {rs' : List (LoopRound α)}
 /-- The first `r ≤ K` rounds, all harvesting, are `r` rounds. -/
 lemma loopRoundsQ_length {r : ℕ} (hr : r ≤ K) {rs : List (LoopRound α)}
     (h : (loopRoundsQ settings D Dsf rd r).eval o = some rs)
-    (hall : ∀ ro ∈ rs, ro.result.ending.harvested ≠ none) : rs.length = r := by
+    (hall : ∀ ro ∈ rs, ro.result.ending.IsHarvest) : rs.length = r := by
   induction r generalizing rs with
   | zero =>
     simp [loopRoundsQ] at h
@@ -547,7 +545,7 @@ returns `rounds` whose harvested draws walk at most `W` probes a round, read at 
 `roundCallBound` strings. -/
 theorem card_reads_loopRoundsQ_le (O : Oracle μ (FreeMonoid α)) (ω : Ω)
     (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (rd : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (rd : Fin K → settings.RoundDraws α)
     {L a b f : ℕ} (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hab : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ a
@@ -613,7 +611,7 @@ filled draws hold their samples and walk at most `B` probes (`DrawsWithin`), the
 `HarvestProbesWithin` at `B`. -/
 theorem harvestProbesWithin_of (O : Oracle μ (FreeMonoid α)) (settings : LoopSettings K)
     (D Dsf : Measure (FreeMonoid α))
-    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
+    (p : Ω × (Fin K → settings.RoundDraws α))
     (Nh B : ℕ)
     (hg : ∀ r (hr : r < K), AllHarvested (idealRounds settings O D Dsf (persistDraws p) r) →
       RoundGood settings O D Dsf (specHistOf (idealRounds settings O D Dsf (persistDraws p) r))
@@ -681,7 +679,7 @@ theorem harvestProbesWithin_of (O : Oracle μ (FreeMonoid α)) (settings : LoopS
       rw [hlen]; exact (List.getElem?_eq_some_iff.1 hs).1
     refine (hpop i _ (hspi i s hs)).2.2 Nh hlt' ?_
     have e : (tabs (some i)).take Nh = (List.range Nh).map
-        ((idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap (h.spec O p.1)
+        ((idealDraws D Dsf (h.spec O p.1)
           ((persistDraws p ⟨r, hr⟩).1, (persistDraws p ⟨r, hr⟩).2.1)).1.2.1.2 (some i)) := by
       refine List.ext_getElem (by simp; omega) fun n h1 h2 => ?_
       simp only [List.length_take] at h1
@@ -729,7 +727,7 @@ variable (O : Oracle μ (FreeMonoid α))
 held-out string. -/
 theorem card_reads_learnerQ_le (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
     [IsProbabilityMeasure D]
-    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget))
+    (p : Ω × (Fin K → settings.RoundDraws α))
     {n : ℕ} (xs : Fin n → FreeMonoid α) {L a b f : ℕ} (hD : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (hab : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ a

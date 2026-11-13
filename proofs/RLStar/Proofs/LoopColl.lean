@@ -116,7 +116,7 @@ variable (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
 
 omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
 /-- A prefix a round's clustering reads is a draw of one of its populations. -/
-lemma mem_prefsOf_draw {h : SpecHist α} {c : ClusterRest α K settings.level3.harvestReadCap} {p : FreeMonoid α}
+lemma mem_prefsOf_draw {h : SpecHist α} {c : ClusterRest α K} {p : FreeMonoid α}
     (hp : p ∈ prefsOf settings D Dsf h c) :
     ∃ j ∈ loopPopulations K h.pops.length, ∃ n,
       p = fillDraw D settings.level3.walkStart settings.level3.harvestReadCap h.pops h.prefs j (c.2.1 j n)
@@ -135,7 +135,7 @@ lemma mem_prefsOf_draw {h : SpecHist α} {c : ClusterRest α K settings.level3.h
 
 omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
 /-- A suffix a round's clustering reads, but `ε`, is a draw of the suffix distribution. -/
-lemma mem_suffsOf_draw {h : SpecHist α} {c : ClusterRest α K settings.level3.harvestReadCap} {v : FreeMonoid α}
+lemma mem_suffsOf_draw {h : SpecHist α} {c : ClusterRest α K} {v : FreeMonoid α}
     (hv : v ∈ suffsOf settings D Dsf h c) : ∃ n, v = drawFrom (offLaw Dsf h.suffs) (c.1 n) := by
   obtain ⟨hv1, hv⟩ := Finset.mem_erase.1 hv
   obtain ⟨B, -, hv⟩ := Finset.mem_biUnion.1 hv
@@ -270,7 +270,7 @@ omit [IsProbabilityMeasure μ] in
 /-- Each earlier round's data hold the prefixes and suffixes its clustering read. -/
 lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (ω : Ω)
-    (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
+    (g : Fin K → settings.RoundDraws α) :
     ∀ r i, i < (histCodes settings O D Dsf ω g r).length → ∃ hiK : i < K, ∃ code,
       (histCodes settings O D Dsf ω g r)[i]? = some code
       ∧ code.2.2.2.1 = prefsOf settings D Dsf
@@ -413,7 +413,7 @@ and every string read has a length its distribution gives mass. -/
 theorem noColl_of_allLt (Ls : ℕ)
     (hLs : P.L < Ls)
     (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0) (ω : Ω)
-    (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) (r : ℕ) (hr : r < K)
+    (g : Fin K → settings.RoundDraws α) (r : ℕ) (hr : r < K)
     (hlen : (histCodes settings O P.D Dsf ω g r).length = r)
     (hsupp : ∀ ν ∈ samplerLaws P.D settings.level3.walkStart (decodeHist
       (histCodes settings O P.D Dsf ω g r)).pops, ν {q | Ls ≤ q.toList.length} = 0)
@@ -527,7 +527,7 @@ distribution gives no mass, with chance zero. -/
 theorem loop_coll_null (Ls : ℕ)
     (hLs : P.L < Ls)
     (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0) (r : ℕ) (hr : r < K) :
-    (loopMeasure μ α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (settings.measure μ α)
       {p | (histCodes settings O P.D Dsf p.1 p.2 r).length = r
         ∧ (∀ ν ∈ samplerLaws P.D settings.level3.walkStart (decodeHist
             (histCodes settings O P.D Dsf p.1 p.2 r)).pops, ν {q | Ls ≤ q.toList.length} = 0)

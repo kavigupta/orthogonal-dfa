@@ -177,9 +177,9 @@ variable {σ : Type*} [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
 open scoped Classical in
 /-- The state a round's clustering returns at, after the history `h`. -/
 def roundState (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
-    (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α) (c : ClusterDraws Ω α K settings.level3.harvestReadCap) : State :=
+    (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α) (c : ClusterDraws Ω α K) : State :=
   Classical.epsilon fun B => B ∈ settings.schedule (loopPopulations K h.pops.length)
-    ∧ idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h c ∈ ret O.mq (loopPopulations K h.pops.length) none
+    ∧ idealRun D Dsf h c ∈ ret O.mq (loopPopulations K h.pops.length) none
       settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B
 
 /-- A round at the state `B` and family `F`, its clustering having read the prefixes `Pr` and the
@@ -194,7 +194,7 @@ def roundAt (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
 
 /-- The round's probes, drawn by uniforms from `D` avoiding `K₀`. -/
 def probesOf (settings : LoopSettings K) (D : Measure (FreeMonoid α)) (K₀ : Finset (FreeMonoid α))
-    (u : Fin settings.level3.probeBudget → unitInterval) :
+    (u : settings.Uniforms) :
     Fin settings.level3.probeBudget → FreeMonoid α :=
   fun i => drawFrom (avoidLaw D settings.level3.walkStart K₀) (u i)
 
@@ -202,29 +202,29 @@ def probesOf (settings : LoopSettings K) (D : Measure (FreeMonoid α)) (K₀ : F
 noise and uniforms `d`. -/
 def mkRound (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
     (B : State) (F K₀ Pr Sf : Finset (FreeMonoid α))
-    (d : Ω × (Fin settings.level3.probeBudget → unitInterval)) : SpecRound α :=
+    (d : Ω × (settings.Uniforms)) : SpecRound α :=
   roundAt settings O B F Pr Sf (d.1, probesOf settings D K₀ d.2)
 
 /-- The first `k` letters of the prefixes a round's clustering reads. -/
 def roundKeys (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
-    (c : ClusterDraws Ω α K settings.level3.harvestReadCap) : Finset (FreeMonoid α) :=
+    (c : ClusterDraws Ω α K) : Finset (FreeMonoid α) :=
   clusterKeys (settings.schedule (loopPopulations K h.pops.length))
-    (loopPopulations K h.pops.length) settings.level3.walkStart (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h c)
+    (loopPopulations K h.pops.length) settings.level3.walkStart (idealRun D Dsf h c)
 
 /-- The prefixes and suffixes a round's clustering reads. -/
 def roundSets (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
-    (c : ClusterDraws Ω α K settings.level3.harvestReadCap) : Finset (FreeMonoid α) × Finset (FreeMonoid α) :=
+    (c : ClusterDraws Ω α K) : Finset (FreeMonoid α) × Finset (FreeMonoid α) :=
   (roundPrefs (settings.schedule (loopPopulations K h.pops.length))
-      (loopPopulations K h.pops.length) (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h c),
-    roundSuffs (settings.schedule (loopPopulations K h.pops.length)) (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h c))
+      (loopPopulations K h.pops.length) (idealRun D Dsf h c),
+    roundSuffs (settings.schedule (loopPopulations K h.pops.length)) (idealRun D Dsf h c))
 
 omit [IsProbabilityMeasure μ] in
 lemma idealRound_eq_mkRound (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
-    (d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) :
+    (d : LoopRoundDraws Ω α settings) :
     idealRound settings O D Dsf h d = mkRound settings O D
       (roundState settings O D Dsf h (d.1, d.2.1))
-      (clusterAt O.mq (loopPopulations K h.pops.length) (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))
+      (clusterAt O.mq (loopPopulations K h.pops.length) (idealRun D Dsf h (d.1, d.2.1))
         (roundState settings O D Dsf h (d.1, d.2.1)))
       (roundKeys settings D Dsf h (d.1, d.2.1)) (roundSets settings D Dsf h (d.1, d.2.1)).1
       (roundSets settings D Dsf h (d.1, d.2.1)).2 (d.1, d.2.2) := rfl
@@ -429,16 +429,16 @@ variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasu
 measurable function of the round's clustering draws. -/
 theorem measurableSet_roundPick (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (h : SpecHist α) (B : State) (F : Finset (FreeMonoid α)) :
-    MeasurableSet {c : ClusterDraws Ω α K settings.level3.harvestReadCap | roundState settings O D Dsf h c = B
-      ∧ clusterAt O.mq (loopPopulations K h.pops.length) (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h c)
+    MeasurableSet {c : ClusterDraws Ω α K | roundState settings O D Dsf h c = B
+      ∧ clusterAt O.mq (loopPopulations K h.pops.length) (idealRun D Dsf h c)
         (roundState settings O D Dsf h c) = F} := by
   classical
   have hrun := measurable_idealRun (Ω := Ω) (K := K) D Dsf
     settings.level3.walkStart settings.level3.harvestReadCap h
   set pops := loopPopulations K h.pops.length
   set sched := settings.schedule pops
-  set Sc : ClusterDraws Ω α K settings.level3.harvestReadCap → Finset State := fun c => sched.filter fun B' =>
-    idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h c ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B'
+  set Sc : ClusterDraws Ω α K → Finset State := fun c => sched.filter fun B' =>
+    idealRun D Dsf h c ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B'
   have hstate : ∀ c, roundState settings O D Dsf h c = Classical.epsilon (· ∈ Sc c) := by
     intro c
     unfold roundState
@@ -446,10 +446,10 @@ theorem measurableSet_roundPick (settings : LoopSettings K) (O : Oracle μ (Free
     funext B'
     simp only [Sc, Finset.mem_filter]
     rfl
-  have hset : {c : ClusterDraws Ω α K settings.level3.harvestReadCap | roundState settings O D Dsf h c = B
-      ∧ clusterAt O.mq pops (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h c) (roundState settings O D Dsf h c) = F}
+  have hset : {c : ClusterDraws Ω α K | roundState settings O D Dsf h c = B
+      ∧ clusterAt O.mq pops (idealRun D Dsf h c) (roundState settings O D Dsf h c) = F}
       = ⋃ T ∈ sched.powerset, ({c | Sc c = T} ∩ {c | Classical.epsilon (· ∈ T) = B
-        ∧ clusterAt O.mq pops (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h c) (Classical.epsilon (· ∈ T)) = F}) := by
+        ∧ clusterAt O.mq pops (idealRun D Dsf h c) (Classical.epsilon (· ∈ T)) = F}) := by
     ext c
     simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Finset.mem_powerset,
       exists_prop]
@@ -464,8 +464,8 @@ theorem measurableSet_roundPick (settings : LoopSettings K) (O : Oracle μ (Free
   rw [hset]
   refine Finset.measurableSet_biUnion _ fun T hT => MeasurableSet.inter ?_ ?_
   · have hT' : T ⊆ sched := Finset.mem_powerset.1 hT
-    have : {c : ClusterDraws Ω α K settings.level3.harvestReadCap | Sc c = T} = ⋂ B' ∈ sched, {c |
-        (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h c ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B'
+    have : {c : ClusterDraws Ω α K | Sc c = T} = ⋂ B' ∈ sched, {c |
+        (idealRun D Dsf h c ∈ ret O.mq pops none settings.η₀ settings.indecisionLimit settings.εcov settings.gateLevel B'
           ↔ B' ∈ T)} := by
       ext c
       simp only [Set.mem_setOf_eq, Set.mem_iInter, Finset.ext_iff, Sc, Finset.mem_filter]
@@ -579,12 +579,12 @@ lemma measurableSet_roundSuffs (sched : Finset State) (S : Finset (FreeMonoid α
 /-- After the history `h`, a round's keys are a measurable function of its clustering draws. -/
 theorem measurableSet_roundKeys (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (h : SpecHist α) (K₀ : Finset (FreeMonoid α)) :
-    MeasurableSet {c : ClusterDraws Ω α K settings.level3.harvestReadCap | roundKeys settings D Dsf h c = K₀} := by
+    MeasurableSet {c : ClusterDraws Ω α K | roundKeys settings D Dsf h c = K₀} := by
   classical
   have hrun := measurable_idealRun (Ω := Ω) (K := K) D Dsf
     settings.level3.walkStart settings.level3.harvestReadCap h
-  have : {c : ClusterDraws Ω α K settings.level3.harvestReadCap | roundKeys settings D Dsf h c = K₀}
-      = ⋃ P : Finset (FreeMonoid α), idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h ⁻¹'
+  have : {c : ClusterDraws Ω α K | roundKeys settings D Dsf h c = K₀}
+      = ⋃ P : Finset (FreeMonoid α), idealRun D Dsf h ⁻¹'
         ({x | roundPrefs (settings.schedule (loopPopulations K h.pops.length))
           (loopPopulations K h.pops.length) x = P}
           ∩ {_x | P.image (fun p => prefixOf p settings.level3.walkStart) = K₀}) := by
@@ -600,11 +600,11 @@ theorem measurableSet_roundKeys (settings : LoopSettings K) (D Dsf : Measure (Fr
 clustering draws. -/
 theorem measurableSet_roundSets (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (h : SpecHist α) (PS : Finset (FreeMonoid α) × Finset (FreeMonoid α)) :
-    MeasurableSet {c : ClusterDraws Ω α K settings.level3.harvestReadCap | roundSets settings D Dsf h c = PS} := by
+    MeasurableSet {c : ClusterDraws Ω α K | roundSets settings D Dsf h c = PS} := by
   have hrun := measurable_idealRun (Ω := Ω) (K := K) D Dsf
     settings.level3.walkStart settings.level3.harvestReadCap h
-  have : {c : ClusterDraws Ω α K settings.level3.harvestReadCap | roundSets settings D Dsf h c = PS}
-      = idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h ⁻¹' ({x | roundPrefs (settings.schedule (loopPopulations K
+  have : {c : ClusterDraws Ω α K | roundSets settings D Dsf h c = PS}
+      = idealRun D Dsf h ⁻¹' ({x | roundPrefs (settings.schedule (loopPopulations K
           h.pops.length)) (loopPopulations K h.pops.length) x = PS.1}
         ∩ {x | roundSuffs (settings.schedule (loopPopulations K h.pops.length)) x = PS.2}) := by
     ext c
@@ -623,27 +623,27 @@ theorem measurable_probesOf (settings : LoopSettings K) (D : Measure (FreeMonoid
 /-- After the history `h`, a round's harvest data are a measurable function of its draws. -/
 theorem measurableSet_roundCode (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (N : ℕ) (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (h : SpecHist α) (oc : Option (HarvestCode α)) :
-    MeasurableSet {d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget |
+    MeasurableSet {d : LoopRoundDraws Ω α settings |
       popCode N (idealRound settings O D Dsf h d) = oc} := by
   classical
   set pops := loopPopulations K h.pops.length
-  have hcl : Measurable fun d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget =>
-      ((d.1, d.2.1) : ClusterDraws Ω α K settings.level3.harvestReadCap) := measurable_fst.prodMk (measurable_fst.comp measurable_snd)
-  have hlv : Measurable fun d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget => (d.1, d.2.2) :=
+  have hcl : Measurable fun d : LoopRoundDraws Ω α settings =>
+      ((d.1, d.2.1) : ClusterDraws Ω α K) := measurable_fst.prodMk (measurable_fst.comp measurable_snd)
+  have hlv : Measurable fun d : LoopRoundDraws Ω α settings => (d.1, d.2.2) :=
     measurable_fst.prodMk (measurable_snd.comp measurable_snd)
-  have hset : {d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget |
+  have hset : {d : LoopRoundDraws Ω α settings |
       popCode N (idealRound settings O D Dsf h d) = oc}
       = ⋃ BFK : State × Finset (FreeMonoid α) × Finset (FreeMonoid α)
           × (Finset (FreeMonoid α) × Finset (FreeMonoid α)),
-        ((fun d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget =>
-            ((d.1, d.2.1) : ClusterDraws Ω α K settings.level3.harvestReadCap)) ⁻¹'
+        ((fun d : LoopRoundDraws Ω α settings =>
+            ((d.1, d.2.1) : ClusterDraws Ω α K)) ⁻¹'
           ({c | roundState settings O D Dsf h c = BFK.1
-            ∧ clusterAt O.mq pops (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h c) (roundState settings O D Dsf h c)
+            ∧ clusterAt O.mq pops (idealRun D Dsf h c) (roundState settings O D Dsf h c)
               = BFK.2.1}
             ∩ {c | roundKeys settings D Dsf h c = BFK.2.2.1}
             ∩ {c | roundSets settings D Dsf h c = BFK.2.2.2}))
-        ∩ ((fun d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget => (d.1, d.2.2)) ⁻¹'
-          ((fun e : Ω × (Fin settings.level3.probeBudget → unitInterval) =>
+        ∩ ((fun d : LoopRoundDraws Ω α settings => (d.1, d.2.2)) ⁻¹'
+          ((fun e : Ω × (settings.Uniforms) =>
             (e.1, probesOf settings D BFK.2.2.1 e.2)) ⁻¹'
             {d₂ : Ω × (Fin settings.level3.probeBudget → FreeMonoid α) |
               popCode N (roundAt settings O BFK.1 BFK.2.1 BFK.2.2.2.1 BFK.2.2.2.2 d₂)
@@ -653,7 +653,7 @@ theorem measurableSet_roundCode (settings : LoopSettings K) (O : Oracle μ (Free
     constructor
     · intro hd
       refine ⟨(roundState settings O D Dsf h (d.1, d.2.1),
-        clusterAt O.mq pops (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)) (roundState settings O D Dsf h
+        clusterAt O.mq pops (idealRun D Dsf h (d.1, d.2.1)) (roundState settings O D Dsf h
           (d.1, d.2.1)), roundKeys settings D Dsf h (d.1, d.2.1),
           roundSets settings D Dsf h (d.1, d.2.1)), ⟨⟨⟨rfl, rfl⟩, rfl⟩, rfl⟩, ?_⟩
       rw [idealRound_eq_mkRound] at hd
@@ -723,7 +723,7 @@ lemma length_codesOf (N : ℕ) (D : Measure (FreeMonoid α)) (k : ℕ)
 omit [IsProbabilityMeasure μ] in
 lemma idealRounds_result (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) (r : ℕ) :
+    (draws : Fin K → LoopRoundDraws Ω α settings) (r : ℕ) :
     ∀ o ∈ idealRounds settings O D Dsf draws r,
       ∃ xs : Fin settings.level3.probeBudget → FreeMonoid α,
       o.result = Random.indecisiveLStarLevel3 settings.level3 o.read xs := by
@@ -738,7 +738,7 @@ lemma codesOf_idealRounds_succ (settings : LoopSettings K) (O : Oracle μ (FreeM
     (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ}
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     {N : ℕ} (hN : L + settings.level3.probeBudget ≤ N)
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget) (r : ℕ) (hrK : r < K) :
+    (draws : Fin K → LoopRoundDraws Ω α settings) (r : ℕ) (hrK : r < K) :
     codesOf N (idealRounds settings O D Dsf draws (r + 1))
       = if (codesOf N
           (idealRounds settings O D Dsf draws r)).length = r then
@@ -781,7 +781,7 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
     (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     {N : ℕ} (hN : L + settings.level3.probeBudget ≤ N)
     (r : ℕ) (c : List (HarvestCode α)) :
-    MeasurableSet {draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget |
+    MeasurableSet {draws : Fin K → LoopRoundDraws Ω α settings |
       codesOf N (idealRounds settings O D Dsf draws r) = c} := by
   classical
   induction r generalizing c with
@@ -790,11 +790,11 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
     exact MeasurableSet.const _
   | succ r ih =>
     by_cases hrK : r < K
-    · have hset : {draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget |
+    · have hset : {draws : Fin K → LoopRoundDraws Ω α settings |
           codesOf N (idealRounds settings O D Dsf draws (r + 1)) = c}
           = ⋃ c', {draws | codesOf N
               (idealRounds settings O D Dsf draws r) = c'}
-            ∩ (fun draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget =>
+            ∩ (fun draws : Fin K → LoopRoundDraws Ω α settings =>
               draws ⟨r, hrK⟩) ⁻¹' {d | (if c'.length = r then
                 c' ++ (popCode N (idealRound settings O D Dsf
                   (decodeHist c') d)).toList else c') = c} := by
@@ -806,7 +806,7 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
       refine MeasurableSet.iUnion fun c' => (ih c').inter (measurable_pi_apply _ ?_)
       by_cases hc : c'.length = r
       · simp only [hc, if_true]
-        have : {d : LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget |
+        have : {d : LoopRoundDraws Ω α settings |
             c' ++ (popCode N (idealRound settings O D Dsf
               (decodeHist c') d)).toList = c}
             = ⋃ oc : Option (HarvestCode α),
@@ -829,7 +829,7 @@ theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMo
         · exact MeasurableSet.empty
       · simp only [hc, if_false]
         exact MeasurableSet.const _
-    · have hst : ∀ draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap settings.level3.probeBudget,
+    · have hst : ∀ draws : Fin K → LoopRoundDraws Ω α settings,
           idealRounds settings O D Dsf draws (r + 1) = idealRounds settings O D Dsf draws r :=
         fun draws => by rw [idealRounds_succ, dif_neg (fun h => hrK h.1)]
       simp only [hst]
