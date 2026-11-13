@@ -6,10 +6,10 @@ import RLStar.Proofs.RawMeas
 # A round's outcomes are measurable
 
 An event the oracle's answers at finitely many strings fix is measurable
-(`measurableSet_of_reads`). Over given probes, level 3 reads only strings of bounded length, so its
-result is fixed by finitely many answers. A round's harvest data are fixed by finitely many
-answers too, so the earlier rounds' data are a measurable function of their draws
-(`measurableSet_codesOf`).
+(`measurableSet_of_reads`). Over given probes, level 3 and the lazy round read only strings of
+bounded length, so their results are fixed by finitely many answers (`lazyRound_result_congr`).
+A round's harvest data are fixed by finitely many answers too, so the earlier rounds' data are a
+measurable function of their draws (`measurableSet_codesOf`).
 -/
 
 noncomputable section
@@ -130,6 +130,155 @@ theorem probeOrAgree_congr_reads (O : Oracle μ (FreeMonoid α)) {F : Finset (Fr
       omega))
 
 end Reads
+
+/-! ## The lazy round's reads -/
+
+section LazyCongr
+
+open Random Query
+
+omit [Fintype α] [DecidableEq α] in
+private lemma length_unpad_prefixOf_padIn (K : ℕ) (X : Finset (FreeMonoid α)) (x : FreeMonoid α)
+    (j : ℕ) : (unpad (prefixOf (padIn K X x) j)).toList.length ≤ x.toList.length := by
+  have hp : ((padIn K X x).toList.take j).reduceOption <+: (padIn K X x).toList.reduceOption :=
+    (List.take_prefix j _).filterMap id
+  have hx : (padIn K X x).toList.reduceOption = x.toList := by
+    simp [padIn, List.reduceOption, List.filterMap_append]
+  simpa [unpad, prefixOf, hx] using hp.length_le
+
+omit [DecidableEq α] in
+private lemma length_unpad_mul_le (K : ℕ) (X : Finset (FreeMonoid α)) (x : FreeMonoid α) (j : ℕ)
+    (m : FreeMonoid (Option α)) :
+    (unpad (prefixOf (padIn K X x) j * m)).toList.length
+      ≤ x.toList.length + m.toList.length := by
+  have h1 := length_unpad_prefixOf_padIn K X x j
+  have h2 : (unpad m).toList.length ≤ m.toList.length := by
+    simpa [unpad, List.reduceOption] using List.length_filterMap_le id m.toList
+  have h3 : unpad (prefixOf (padIn K X x) j * m) = unpad (prefixOf (padIn K X x) j) * unpad m := by
+    simp [unpad, List.reduceOption, List.filterMap_append]
+  rw [h3, FreeMonoid.toList_mul, List.length_append]
+  omega
+
+private lemma epochQ_eval_congr {r r' : FreeMonoid α → ARU} (C : Level3Settings) (K : ℕ)
+    (X : Finset (FreeMonoid α)) {P L : ℕ} (xs : Fin P → FreeMonoid α)
+    (hx : ∀ i, (xs i).toList.length ≤ L)
+    (h : ∀ z : FreeMonoid α, z.toList.length ≤ L + P → r z = r' z) :
+    (epochQ C K X xs).eval r = (epochQ C K X xs).eval r' := by
+  simp only [epochQ, eval_subst, unpadQ, eval_query]
+  refine level3_congr_zone { C with walkStart := K } (fun i => padIn K X (xs i))
+    fun i j _ _ m hm => h _ ((length_unpad_mul_le K X (xs i) j m).trans ?_)
+  have := hx i
+  omega
+
+private lemma midsLe_epochQ (r : FreeMonoid α → ARU) (C : Level3Settings) (K : ℕ)
+    (X : Finset (FreeMonoid α)) {P : ℕ} (xs : Fin P → FreeMonoid α) :
+    MidsLe P ((epochQ C K X xs).eval r).hypothesis.tree := by
+  simp only [epochQ, eval_subst, unpadQ, eval_query]
+  have := (runProbes_tree (fun z => r (unpad z)) { C with walkStart := K }
+    (List.ofFn fun i => padIn K X (xs i))).2.2
+  rw [List.length_ofFn] at this
+  exact (indecisiveLStarLevel3_tree (fun z => r (unpad z)) { C with walkStart := K }
+    (fun i => padIn K X (xs i))) ▸ this
+
+private lemma blockQ_eval_congr {r r' : FreeMonoid α → ARU} (K : ℕ) (H : HypothesisDFA (Option α))
+    (s : Level3Site) (X : Finset (FreeMonoid α)) {L T : ℕ} (hH : MidsLe T H.tree)
+    (h : ∀ z : FreeMonoid α, z.toList.length ≤ L + T → r z = r' z) :
+    ∀ xs : List (FreeMonoid α), (∀ x ∈ xs, x.toList.length ≤ L) →
+      (blockQ K H s X xs).eval r = (blockQ K H s X xs).eval r'
+  | [], _ => rfl
+  | x :: xs, hx => by
+    have hpr : (probeOrAgreeQ H.tree H.edges K (padIn K X x)).eval (fun z => r (unpad z))
+        = (probeOrAgreeQ H.tree H.edges K (padIn K X x)).eval (fun z => r' (unpad z)) :=
+      probeOrAgree_congr_zone H.edges K fun j _ _ m hm =>
+        h _ ((length_unpad_mul_le K X x j m).trans (by
+          have := hx x List.mem_cons_self
+          have := hH m hm
+          omega))
+    have hrest := blockQ_eval_congr K H s X hH h xs fun y hy => hx y (List.mem_cons_of_mem _ hy)
+    simp only [blockQ, eval_bind, eval_map, eval_subst, unpadQ, eval_query]
+    rw [hrest]
+    cases s <;> simp only [siteHarvestQ, eval_map, hpr]
+
+private lemma topUpQ_eval_congr {r r' : FreeMonoid α → ARU} (K nh : ℕ)
+    (H : HypothesisDFA (Option α)) (s : Level3Site) {L T b : ℕ} (hH : MidsLe T H.tree)
+    (h : ∀ z : FreeMonoid α, z.toList.length ≤ L + T → r z = r' z) :
+    ∀ (Bs : List (Fin b → FreeMonoid α)) (X : Finset (FreeMonoid α)) (ℓ : List (FreeMonoid α)),
+      (∀ B ∈ Bs, ∀ t, (B t).toList.length ≤ L) →
+      (topUpQ K nh H s Bs X ℓ).eval r = (topUpQ K nh H s Bs X ℓ).eval r'
+  | [], _, _, _ => rfl
+  | B :: Bs, X, ℓ, hB => by
+    simp only [topUpQ, eval_bind]
+    rw [blockQ_eval_congr K H s X hH h (List.ofFn B) fun x hx => by
+      obtain ⟨t, rfl⟩ := List.mem_ofFn.1 hx
+      exact hB B List.mem_cons_self t]
+    generalize (blockQ K H s X (List.ofFn B)).eval r' = ws
+    split_ifs
+    · rfl
+    · rfl
+    · exact topUpQ_eval_congr K nh H s hH h Bs _ _ fun B' hB' => hB B' (List.mem_cons_of_mem _ hB')
+
+private lemma lazyEpochsQ_eval_congr {r r' : FreeMonoid α → ARU} (C : Level3Settings) (K nh : ℕ)
+    {J b L : ℕ} (h : ∀ z : FreeMonoid α, z.toList.length ≤ L + C.probeBudget → r z = r' z) :
+    ∀ (e pk : ℕ) (ds : List (EpochDraws α C.probeBudget J b)) (X : Finset (FreeMonoid α))
+      (ls : LazyLists α), (∀ d ∈ ds, (∀ i, (d.1 i).toList.length ≤ L)
+        ∧ ∀ j t, (d.2 j t).toList.length ≤ L) →
+      (lazyEpochsQ C K nh e pk ds X ls).eval r = (lazyEpochsQ C K nh e pk ds X ls).eval r'
+  | _, _, [], _, _, _ => rfl
+  | e, pk, d :: ds, X, ls, hd => by
+    have hd0 := hd d List.mem_cons_self
+    simp only [lazyEpochsQ, eval_bind]
+    rw [epochQ_eval_congr (epochSettings C e) K X d.1 hd0.1 h]
+    have hmid := midsLe_epochQ r' (epochSettings C e) K X d.1
+    generalize (epochQ (epochSettings C e) K X d.1).eval r' = res at hmid ⊢
+    rcases res with ⟨hyp, _ | s | _⟩
+    · rfl
+    · simp only [eval_bind]
+      rw [topUpQ_eval_congr K nh hyp s hmid h (List.ofFn d.2) X (ls s) fun B hB t => by
+        obtain ⟨j, rfl⟩ := List.mem_ofFn.1 hB
+        exact hd0.2 j t]
+      generalize (topUpQ K nh hyp s (List.ofFn d.2) X (ls s)).eval r' = o
+      rcases o with _ | ⟨_ | _, rest⟩
+      · rfl
+      · rfl
+      · exact lazyEpochsQ_eval_congr C K nh h _ _ ds _ _ fun d' hd' =>
+          hd d' (List.mem_cons_of_mem _ hd')
+    · rfl
+
+end LazyCongr
+
+/-- Reads agreeing on every string at most `probes + T` long give the same lazy round. -/
+private theorem lazyRound_eval_congr (C : Random.Level3Settings) (K nh : ℕ) {E J b : ℕ}
+    (X₀ : Finset (FreeMonoid α)) (d : Fin E → Random.EpochDraws α C.probeBudget J b)
+    {r r' : FreeMonoid α → ARU}
+    (h : ∀ z : FreeMonoid α, z.toList.length ≤ lazyProbesLen d + C.probeBudget → r z = r' z) :
+    (Random.lazyRoundQ C K nh X₀ d).eval r = (Random.lazyRoundQ C K nh X₀ d).eval r' := by
+  refine lazyEpochsQ_eval_congr C K nh h _ _ _ _ _ fun dd hdd => ?_
+  obtain ⟨e, rfl⟩ := List.mem_ofFn.1 hdd
+  have he : max (probesLen (d e).1) (Finset.univ.sup fun j => probesLen ((d e).2 j))
+      ≤ lazyProbesLen d :=
+    Finset.le_sup (f := fun e => max (probesLen (d e).1)
+      (Finset.univ.sup fun j => probesLen ((d e).2 j))) (Finset.mem_univ e)
+  refine ⟨fun i => (le_probesLen _ i).trans ((le_max_left _ _).trans he), fun j t => ?_⟩
+  have hj : probesLen ((d e).2 j) ≤ Finset.univ.sup fun j => probesLen ((d e).2 j) :=
+    Finset.le_sup (f := fun j => probesLen ((d e).2 j)) (Finset.mem_univ j)
+  exact (le_probesLen _ t).trans (hj.trans ((le_max_right _ _).trans he))
+
+section LazyResult
+
+variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+
+/-- The lazy round's result, over given draws, as a function of the oracle's answers, is fixed by
+its answers at finitely many strings. -/
+theorem lazyRound_result_congr (O : Oracle μ (FreeMonoid α)) (C : Random.Level3Settings)
+    (K nh : ℕ) {E J b : ℕ} (X₀ F : Finset (FreeMonoid α)) (kl kh : ℕ)
+    (d : Fin E → Random.EpochDraws α C.probeBudget J b) {ω ω' : Ω}
+    (h : ∀ p ∈ readStrings (shortStrings (lazyProbesLen d + 1 + C.probeBudget + 2)) F,
+      (O.mq p ω = 1 ↔ O.mq p ω' = 1)) :
+    (Random.lazyRoundQ C K nh X₀ d).eval (fun z => familyRead O.mq F kl kh z ω)
+      = (Random.lazyRoundQ C K nh X₀ d).eval (fun z => familyRead O.mq F kl kh z ω') :=
+  lazyRound_eval_congr C K nh X₀ d fun _ hz => familyRead_congr O h (mem_shortStrings.2 (by omega))
+
+end LazyResult
 
 section Round
 
@@ -498,7 +647,13 @@ instance (D : Measure (FreeMonoid α)) (k : ℕ) (K₀ : Finset (FreeMonoid α))
 
 theorem measurable_probesOf (settings : LoopSettings K) (D : Measure (FreeMonoid α))
     (K₀ : Finset (FreeMonoid α)) : Measurable (probesOf settings D K₀) := by
-  sorry -- closes by: measurable_drawFrom through lazyProbes, measurable_pi_lambda
+  unfold probesOf lazyProbes
+  refine measurable_pi_lambda _ fun e => Measurable.prodMk ?_ ?_
+  · exact measurable_pi_lambda _ fun i => (measurable_drawFrom _).comp
+      ((measurable_pi_apply i).comp (measurable_fst.comp (measurable_pi_apply e)))
+  · exact measurable_pi_lambda _ fun j => measurable_pi_lambda _ fun t =>
+      (measurable_drawFrom _).comp ((measurable_pi_apply t).comp
+        ((measurable_pi_apply j).comp (measurable_snd.comp (measurable_pi_apply e))))
 
 /-- After the history `h`, a round's harvest data are a measurable function of its draws. -/
 theorem measurableSet_roundCode (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
@@ -506,7 +661,59 @@ theorem measurableSet_roundCode (settings : LoopSettings K) (O : Oracle μ (Free
     (oc : Option (HarvestCode α)) :
     MeasurableSet {d : LoopRoundDraws Ω α settings |
       popCode (idealRound settings O D Dsf h d) = oc} := by
-  sorry -- closes by: main's split over (B, F, K₀, CP, Sf); measurableSet_of_reads, LazyZone
+  classical
+  set pops := loopPopulations K h.pops.length
+  have hcl : Measurable fun d : LoopRoundDraws Ω α settings =>
+      ((d.1, d.2.1) : ClusterDraws Ω α K) :=
+    measurable_fst.prodMk (measurable_fst.comp measurable_snd)
+  have hlv : Measurable fun d : LoopRoundDraws Ω α settings => (d.1, d.2.2) :=
+    measurable_fst.prodMk (measurable_snd.comp measurable_snd)
+  have hset : {d : LoopRoundDraws Ω α settings |
+      popCode (idealRound settings O D Dsf h d) = oc}
+      = ⋃ BFK : State × Finset (FreeMonoid α) × Finset (FreeMonoid α)
+          × (Finset (FreeMonoid α) × Finset (FreeMonoid α)),
+        ((fun d : LoopRoundDraws Ω α settings => ((d.1, d.2.1) : ClusterDraws Ω α K)) ⁻¹'
+          ({c | roundState settings O D Dsf h c = BFK.1
+            ∧ clusterAt O.mq pops (idealRun D Dsf h c) (roundState settings O D Dsf h c)
+              = BFK.2.1}
+            ∩ {c | roundKeys settings D Dsf h c = BFK.2.2.1}
+            ∩ {c | roundSets settings D Dsf h c = BFK.2.2.2}))
+        ∩ ((fun d : LoopRoundDraws Ω α settings => (d.1, d.2.2)) ⁻¹'
+          ((fun e : Ω × settings.Uniforms => (e.1, probesOf settings D BFK.2.2.1 e.2)) ⁻¹'
+            {d₂ | popCode (roundAt settings O BFK.1 BFK.2.1 BFK.2.2.2.1 BFK.2.2.2.2 d₂)
+                = oc})) := by
+    ext d
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Set.mem_preimage]
+    constructor
+    · intro hd
+      refine ⟨(roundState settings O D Dsf h (d.1, d.2.1),
+        clusterAt O.mq pops (idealRun D Dsf h (d.1, d.2.1))
+          (roundState settings O D Dsf h (d.1, d.2.1)), roundKeys settings D Dsf h (d.1, d.2.1),
+          roundSets settings D Dsf h (d.1, d.2.1)), ⟨⟨⟨rfl, rfl⟩, rfl⟩, rfl⟩, ?_⟩
+      rw [idealRound_eq_mkRound] at hd
+      exact hd
+    · rintro ⟨⟨B, F, K₀, PS⟩, ⟨⟨⟨hB, hF⟩, hK⟩, hS⟩, hd⟩
+      rw [idealRound_eq_mkRound]
+      dsimp only at hB hF hK hS hd
+      rw [hF, hB, hK, hS]
+      exact hd
+  rw [hset]
+  refine MeasurableSet.iUnion fun BFK => MeasurableSet.inter
+    (hcl (((measurableSet_roundPick settings O D Dsf h BFK.1 BFK.2.1).inter
+      (measurableSet_roundKeys settings D Dsf h BFK.2.2.1)).inter
+      (measurableSet_roundSets settings D Dsf h BFK.2.2.2)))
+    (hlv ((measurable_fst.prodMk ((measurable_probesOf settings D BFK.2.2.1).comp measurable_snd))
+      (measurableSet_prod_countable_right _ fun xs => ?_)))
+  refine measurableSet_of_reads O (readStrings (shortStrings
+    (lazyProbesLen xs + 1 + settings.level3.probeBudget + 2)) BFK.2.1) _ fun ω ω' h' hω => ?_
+  simp only [Set.mem_setOf_eq] at hω ⊢
+  rw [← hω]
+  have hres := lazyRound_result_congr O settings.level3 settings.level3.walkStart settings.listSize
+    (Random.prefixTrie settings.level3.walkStart BFK.2.2.2.1) BFK.2.1 BFK.1.lo (BFK.1.hi + 1) xs
+    fun p hp => (h' p hp).symm
+  unfold popCode SpecRound.population roundAt
+  dsimp only
+  rw [hres]
 
 omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
 lemma codesOf_append_single (rounds : List (SpecRound α)) (o : SpecRound α) :
@@ -536,7 +743,35 @@ lemma codesOf_idealRounds_succ (settings : LoopSettings K) (O : Oracle μ (FreeM
               (decodeHist (codesOf (idealRounds settings O D Dsf draws r)))
               (draws ⟨r, hrK⟩))).toList
         else codesOf (idealRounds settings O D Dsf draws r) := by
-  sorry -- closes by: main's proof with decodeHist_codesOf for idealRound_alike, length_codesOf
+  have hlenc := length_codesOf (idealRounds settings O D Dsf draws r)
+  have hfm : (codesOf (idealRounds settings O D Dsf draws r)).length
+      = ((idealRounds settings O D Dsf draws r).filterMap fun o => o.population).length := hlenc
+  rw [idealRounds_succ]
+  split_ifs with h1 h2 h2
+  · rw [codesOf_append_single, decodeHist_codesOf _ h1.2]
+  · refine absurd ?_ h2
+    rw [hfm, List.filterMap_length_eq_length.2 fun o ho => ?_,
+      length_eq_of_allHarvested settings O D Dsf draws hrK.le h1.2]
+    have := h1.2 o ho
+    rcases he : o.result.ending with _ | ⟨s, ℓ⟩ | _ <;> rw [he] at this
+    · exact this.elim
+    · simp [SpecRound.population, he]
+    · exact this.elim
+  · exfalso
+    apply h1
+    refine ⟨hrK, fun o ho => ?_⟩
+    have hle := length_idealRounds_le settings O D Dsf draws r
+    have hlen' : ((idealRounds settings O D Dsf draws r).filterMap fun o => o.population).length
+        = (idealRounds settings O D Dsf draws r).length := by
+      have := List.length_filterMap_le (fun o : SpecRound α => o.population)
+        (idealRounds settings O D Dsf draws r)
+      omega
+    have := (List.filterMap_length_eq_length.1 hlen') o ho
+    rcases he : o.result.ending with _ | ⟨s, ℓ⟩ | _
+    · simp [SpecRound.population, he] at this
+    · trivial
+    · simp [SpecRound.population, he] at this
+  · rfl
 
 /-- The earlier rounds' harvest data are a measurable function of the rounds' draws. -/
 theorem measurableSet_codesOf (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
