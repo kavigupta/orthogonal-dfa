@@ -99,13 +99,15 @@ open Real in
 noncomputable def RLStarRun.logZ (r : RLStarRun) : ℝ :=
   log ((r.L + r.Q) * r.A / (r.δ * r.ξc * r.pAP * r.s₀))
 
+open Real in
 /-- The inverse of the tolerance `ι` of a family's undecided rate on a population. -/
-noncomputable def RLStarRun.ιInv (r : RLStarRun) : ℝ := r.Q ^ 2 * r.A * (r.L + r.Q) / r.ξc
+noncomputable def RLStarRun.ιInv (r : RLStarRun) : ℝ :=
+  (r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)
 
-/-- The inverse of the cap on a population's atoms. -/
+/-- The inverse of the cap on a population's atoms, the last term from level 3's slack. -/
 noncomputable def RLStarRun.nCap (r : RLStarRun) : ℝ :=
   r.Q * r.logZ * r.ιInv ^ 3 * (1 / r.s₀ ^ 6 + r.Q ^ 2 / r.s₀ ^ 4)
-    + r.Q * r.logZ / (r.pAP ^ 2 * r.s₀ ^ 2)
+    + r.Q * r.logZ / (r.pAP ^ 2 * r.s₀ ^ 2) + r.Q * r.A * r.logZ
 
 noncomputable def RLStarRun.nPref (r : RLStarRun) : ℝ := r.Q ^ 3 * r.logZ * r.ιInv ^ 2 / r.s₀ ^ 4
 
@@ -113,10 +115,11 @@ noncomputable def RLStarRun.nSuff (r : RLStarRun) : ℝ := r.Q * r.logZ / (r.pAP
 
 /-- A round's trie draws, `logZ / θ` at the light-prefix level `θ`, the atom cap times the harvest
 rate. -/
-noncomputable def RLStarRun.nHeavy (r : RLStarRun) : ℝ :=
-  r.A * (r.L + r.Q) * r.logZ * r.nCap / r.ξc
+noncomputable def RLStarRun.nHeavy (r : RLStarRun) : ℝ := r.logZ * r.nCap / r.ξc
 
-noncomputable def RLStarRun.nProbe (r : RLStarRun) : ℝ := r.Q * r.nHeavy
+/-- Each round's heavy draws, then level 3's `(L + |Q|)/ξc` epochs of `Q² |Σ| logZ/ξc` probes. -/
+noncomputable def RLStarRun.nProbe (r : RLStarRun) : ℝ :=
+  r.Q * r.nHeavy + r.Q ^ 3 * r.A * (r.L + r.Q) * r.logZ / r.ξc ^ 2
 
 /-- Clusterings, then the walk-start table: `|Q| + 2` sifts at `|V̂| = logZ / s₀²` for each of
 the trie's `k |Σ| nHeavy` frontier strings; the samplers read as much as `logZ` letters of `k`. -/
@@ -125,8 +128,7 @@ noncomputable def RLStarRun.nReads (r : RLStarRun) : ℝ :=
 
 def RLStarClaim.{u, v, w} : Prop :=
   ∃ (p₀Tol totalPref totalSuff totalProbes trieWidth totalReads : RLStarRun → ℝ),
-    (fun r => 1 / p₀Tol r) =O[𝓟 rlStarRunRegion]
-      (fun r => r.A * (r.L + r.Q) * r.nCap / r.ξc) ∧
+    (fun r => 1 / p₀Tol r) =O[𝓟 rlStarRunRegion] (fun r => r.nCap / r.ξc) ∧
     totalPref =O[𝓟 rlStarRunRegion] RLStarRun.nPref ∧
     totalSuff =O[𝓟 rlStarRunRegion] RLStarRun.nSuff ∧
     totalProbes =O[𝓟 rlStarRunRegion] RLStarRun.nProbe ∧
@@ -182,21 +184,35 @@ def RLStarClaimUniformSimple.{u, v, w} : Prop :=
     k₀ =O[𝓟 rlStarRunRegion] (fun r =>
       1 + log ((r.L + r.Q) * log (1 / r.δ) / (r.ξc * r.pAP * r.s₀)) / log r.A) ∧
     totalPref =O[𝓟 rlStarRunRegion] (fun r =>
-      r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.logZ / (r.ξc ^ 2 * r.s₀ ^ 4)) ∧
+      r.Q ^ 3 * r.logZ * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 2
+        / r.s₀ ^ 4) ∧
     totalSuff =O[𝓟 rlStarRunRegion] (fun r => r.Q * r.logZ / (r.pAP * r.s₀ ^ 2)) ∧
     totalProbes =O[𝓟 rlStarRunRegion] (fun r =>
-      r.Q ^ 8 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 6)
-        + r.Q ^ 10 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 4)
-        + r.Q ^ 2 * r.A * (r.L + r.Q) * r.logZ ^ 2 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 2)) ∧
+      r.Q ^ 2 * r.logZ ^ 2 * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 3
+          / (r.ξc * r.s₀ ^ 6)
+        + r.Q ^ 4 * r.logZ ^ 2
+          * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 3
+          / (r.ξc * r.s₀ ^ 4)
+        + r.Q ^ 2 * r.logZ ^ 2 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 2) + r.Q ^ 2 * r.A * r.logZ ^ 2 / r.ξc
+        + r.Q ^ 3 * r.A * (r.L + r.Q) * r.logZ / r.ξc ^ 2) ∧
     trieWidth =O[𝓟 rlStarRunRegion] (fun r =>
-      r.Q ^ 7 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 6)
-        + r.Q ^ 9 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 4)
-        + r.Q * r.A * (r.L + r.Q) * r.logZ ^ 2 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 2)) ∧
+      r.Q * r.logZ ^ 2 * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 3
+          / (r.ξc * r.s₀ ^ 6)
+        + r.Q ^ 3 * r.logZ ^ 2
+          * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 3
+          / (r.ξc * r.s₀ ^ 4)
+        + r.Q * r.logZ ^ 2 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 2) + r.Q * r.A * r.logZ ^ 2 / r.ξc) ∧
     totalReads =O[𝓟 rlStarRunRegion] (fun r =>
-      r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.logZ ^ 2 / (r.ξc ^ 2 * r.pAP * r.s₀ ^ 6)
-        + (r.k + r.logZ) * (r.Q ^ 8 * r.A ^ 5 * (r.L + r.Q) ^ 4 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 8)
-          + r.Q ^ 10 * r.A ^ 5 * (r.L + r.Q) ^ 4 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 6)
-          + r.Q ^ 2 * r.A ^ 2 * (r.L + r.Q) * r.logZ ^ 3 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 4))) ∧
+      r.Q ^ 3 * r.logZ ^ 2 * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 2
+          / (r.pAP * r.s₀ ^ 6)
+        + (r.k + r.logZ) * (r.Q ^ 2 * r.A * r.logZ ^ 3
+            * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 3
+            / (r.ξc * r.s₀ ^ 8)
+          + r.Q ^ 4 * r.A * r.logZ ^ 3
+            * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 3
+            / (r.ξc * r.s₀ ^ 6)
+          + r.Q ^ 2 * r.A * r.logZ ^ 3 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 4)
+          + r.Q ^ 2 * r.A ^ 2 * r.logZ ^ 3 / (r.ξc * r.s₀ ^ 2))) ∧
     RLStarWithinUniform.{u, v, w} k₀ totalPref totalSuff totalProbes trieWidth totalReads
 
 end OrthoDFA

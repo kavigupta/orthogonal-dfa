@@ -184,14 +184,16 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         / 4
     let RB : ℝ := 2 ^ 22 * Jp * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
       + 2 ^ 27 * Real.log ((Jp + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
+    let Kt : ℝ := (1 + (Q + 1) ^ 3 * (A + 1)) ^ Fintype.card σ
+      * (Q + 3) ^ ((Fintype.card σ + 2) * (Fintype.card α + 1))
     let cap : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * Jp * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
         (ι / 2 / (8 * Jp * (RB + 1))))
       (min (min (pAP / (2 ^ 18 * (PB + 1))) (ι / (2 ^ 24 * Jp ^ 2 * (RB + 1))))
-        (min (pAP / (2 * Jp * (PB + 2))) (1 / (6 * Jp * (RB + 1)))))
+        (min (pAP / (2 * Jp * (PB + 2)))
+          (min (1 / (6 * Jp * (RB + 1)))
+            (1 / (8 * Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / (δ' / 8)))))))
     let θ : ℝ := cap * ε / 192
-    let Kt : ℝ := (1 + (Q + 1) ^ 3 * (A + 1)) ^ Fintype.card σ
-      * (Q + 3) ^ ((Fintype.card σ + 2) * (Fintype.card α + 1))
     let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
     let HR : ℝ := Real.log (4 * (Q + 1) * (SC + 1) / δ') / (ε / 384) + 1
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
@@ -199,11 +201,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     0 < εcov → εcov ≤ 1 →
     2 * εcov ≤ P.D.real {p | p ∈ O.L} → 2 * εcov ≤ P.D.real {p | p ∉ O.L} →
     0 < ε → ε ≤ 1 / 2 → 0 < δ' → δ' < 1 → 0 < pAP → pAP ≤ 1 → 1 ≤ P.L →
-    1 ≤ k → (∀ᵐ x ∂P.D, k ≤ x.toList.length) → (2 + Nat.clog 2 P.L) * ε < 3 / 8 →
+    1 ≤ k → (∀ᵐ x ∂P.D, k ≤ x.toList.length) →
     prefixMax P.D k ≤ cap * ε / 12288 →
     0 < ι → ι ≤ εcov / 8 → 1 ≤ W →
     Real.log (4 * k / (θ * δ')) / θ ≤ Nh →
-    cap * Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / (δ' / 8)) ≤ 1 / 8 →
     2 * k / (ε / 48) + 1 ≤ E → k + 2 ≤ J →
     E * J * (1 - ε / 192) ^ b ≤ δ' / 4 →
     E * ((B₃ + J * b) * (Random.Kappa.probeSifts (P.L + k) * (Q + 3))
@@ -239,9 +240,9 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
                     RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
                       (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))}
           ≤ (Q + 1) * (5 * δ') := by
-  intro Q A L s τ Jp S B₃ PB FV RB cap θ Kt SC HR
-    hL hgap hη₀ hε hε1 hbalL hbalN hεd hεd12 hδ'0 hδ'1' hpAP hpAP1 hL1 hk0 hkD _ hk1 hι0 hι8
-    hW1 hNh hslack hE hJ hb hNr hNrW htwW htw htwε hTu hslope
+  intro Q A L s τ Jp S B₃ PB FV RB Kt cap θ SC HR
+    hL hgap hη₀ hε hε1 hbalL hbalN hεd hεd12 hδ'0 hδ'1' hpAP hpAP1 hL1 hk0 hkD hk1 hι0 hι8
+    hW1 hNh hE hJ hb hNr hNrW htwW htw htwε hTu hslope
   have hδ'1 : δ' ≤ 1 := hδ'1'.le
   classical
   have : Nonempty σ := ⟨M.start⟩
@@ -413,16 +414,39 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     refine Real.log_pos ?_
     rw [lt_div_iff₀ hδ'0]
     nlinarith
+  have hKt1 : 1 ≤ Kt := by
+    show 1 ≤ (1 + (Q + 1) ^ 3 * (A + 1)) ^ Fintype.card σ
+      * (Q + 3) ^ ((Fintype.card σ + 2) * (Fintype.card α + 1))
+    have : (0 : ℝ) ≤ (Q + 1) ^ 3 * (A + 1) := by positivity
+    exact one_le_mul_of_one_le_of_one_le (one_le_pow₀ (by linarith)) (one_le_pow₀ (by linarith))
+  have hlogKt : 0 < Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / (δ' / 8)) := by
+    refine Real.log_pos ?_
+    rw [lt_div_iff₀ (by positivity)]
+    have h1 : (1 : ℝ) ≤ (E : ℝ) * (E + 1) := one_le_mul_of_one_le_of_one_le hE1 (by linarith)
+    have h2 : (1 : ℝ) ≤ Kt * ((E : ℝ) * (E + 1)) := one_le_mul_of_one_le_of_one_le hKt1 h1
+    have e : 8 * (Q + 1) * Kt * ((E : ℝ) * (E + 1)) = 8 * (Q + 1) * (Kt * (E * (E + 1))) := by
+      ring
+    rw [e]
+    nlinarith
   have hcap0 : 0 < cap := by
     show 0 < min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * Jp * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1))
             / δ'))))
         (ι / 2 / (8 * Jp * (RB + 1))))
       (min (min (pAP / (2 ^ 18 * (PB + 1))) (ι / (2 ^ 24 * Jp ^ 2 * (RB + 1))))
-        (min (pAP / (2 * Jp * (PB + 2))) (1 / (6 * Jp * (RB + 1)))))
+        (min (pAP / (2 * Jp * (PB + 2)))
+          (min (1 / (6 * Jp * (RB + 1)))
+            (1 / (8 * Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / (δ' / 8)))))))
     refine lt_min (lt_min (lt_min (by positivity)
         (div_pos (by positivity) (mul_pos (by norm_num) hlogpos)))
-      (by positivity)) (by positivity)
+      (by positivity)) (lt_min (by positivity) (lt_min (by positivity)
+        (lt_min (by positivity) (div_pos one_pos (mul_pos (by norm_num) hlogKt)))))
+  have hslack : cap * Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / (δ' / 8)) ≤ 1 / 8 := by
+    have h : cap ≤ 1 / (8 * Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / (δ' / 8))) :=
+      (min_le_right _ _).trans ((min_le_right _ _).trans ((min_le_right _ _).trans
+        (min_le_right _ _)))
+    rw [le_div_iff₀ (mul_pos (by norm_num) hlogKt)] at h
+    linarith
   -- the cap's terms
   have hmul : ∀ {x b a : ℝ}, 0 < b → x ≤ b → cap ≤ a / b → x * cap ≤ a := fun hb hx h => by
     rw [le_div_iff₀ hb] at h

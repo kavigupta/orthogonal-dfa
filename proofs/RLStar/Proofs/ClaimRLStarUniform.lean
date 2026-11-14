@@ -6,7 +6,7 @@ import RLStar.Proofs.DFABridge
 
 Uniform strings hold `|Σ|^-k` on any first `k` letters, and `1/p₀Tol ≤ C S` for the shape `S` of
 `RLStarClaim`, so `k ≥ k₀ = log (C₀ S)/log |Σ|` gives `1/p₀Tol ≤ |Σ|^k`. Each factor of `S` is at
-most `U = 8 |Σ| W`, `W = (L + |Q|) log(1/δ)/(ξc pAP s₀)`, and `S ≤ 3 U²⁶`.
+most `U = 8 |Σ| W`, `W = (L + |Q|) log(1/δ)/(ξc pAP s₀)`, and `S ≤ 64 U¹⁸`.
 -/
 
 noncomputable section
@@ -16,7 +16,7 @@ namespace OrthoDFA
 open MeasureTheory Asymptotics Filter Real
 
 /-- The shape of `1/p₀Tol`. -/
-def tolShape (r : RLStarRun) : ℝ := r.A * (r.L + r.Q) * r.nCap / r.ξc
+def tolShape (r : RLStarRun) : ℝ := r.nCap / r.ξc
 
 /-- `W = (L + |Q|) log(1/δ)/(ξc pAP s₀)`. -/
 def uW (r : RLStarRun) : ℝ := (r.L + r.Q) * log (1 / r.δ) / (r.ξc * r.pAP * r.s₀)
@@ -27,7 +27,7 @@ variable {r : RLStarRun}
 
 set_option maxHeartbeats 800000 in -- `linarith` over the factors' bounds
 lemma tolShape_le (hr : r ∈ rlStarRunRegion) :
-    1 ≤ uW r ∧ 16 ≤ tolShape r ∧ tolShape r ≤ 3 * (8 * r.A * uW r) ^ 26 := by
+    1 ≤ uW r ∧ 16 ≤ tolShape r ∧ tolShape r ≤ 64 * (8 * r.A * uW r) ^ 18 := by
   obtain ⟨hQ, hA, hX, hQX, -, hδ, hδ2, hξ, hξ1, hp, hp1, hs, hs1⟩ := kn_base hr
   obtain ⟨hl2, -, hlg2, hlgX⟩ := kn_shape_base hr
   obtain ⟨hι0, hL0, -⟩ := shape_pos hr
@@ -127,51 +127,49 @@ lemma tolShape_le (hr : r ∈ rlStarRunRegion) :
       have : (r.A : ℝ) ≤ r.A * (4 * W) := le_mul_of_one_le_right (by linarith) (by linarith)
       linarith
     linarith
-  have hS : tolShape r = r.A * knX r * (1 / r.ξc) * r.nCap := by unfold tolShape knX; ring
+  have hS : tolShape r = (1 / r.ξc) * r.nCap := by unfold tolShape; ring
   -- the factors' products
-  have hιU : r.ιInv ≤ U ^ 5 := by
+  have hιU : r.ιInv ≤ 3 * U ^ 3 := by
+    have : 0 ≤ knLg r := by linarith
     rw [shape_ιInv]
-    calc (r.Q : ℝ) ^ 2 * r.A * knX r * (1 / r.ξc) ≤ U ^ 2 * U * U * U := by gcongr
-      _ = U ^ 5 := by ring
-  have hLU : r.nCap ≤ 3 * U ^ 23 := by
+    calc ((r.Q : ℝ) ^ 2 + knX r) * (1 / r.ξc) + r.Q ^ 2 * knLg r
+        ≤ (U ^ 2 + U) * U + U ^ 2 * U := by gcongr
+      _ ≤ 3 * U ^ 3 := by
+          have : U ^ 2 ≤ U ^ 3 := pow_le_pow_right₀ hU1 (by norm_num)
+          linarith
+  have hLU : r.nCap ≤ 56 * U ^ 17 := by
     rw [shape_nCap]
     calc (r.Q : ℝ) * r.logZ * r.ιInv ^ 3 * (1 / r.s₀) ^ 4 * ((1 / r.s₀) ^ 2 + r.Q ^ 2)
-          + r.Q * r.logZ * (1 / r.s₀) ^ 2 * (1 / r.pAP) ^ 2
-        ≤ U * U * (U ^ 5) ^ 3 * U ^ 4 * (U ^ 2 + U ^ 2) + U * U * U ^ 2 * U ^ 2 := by
+          + r.Q * r.logZ * (1 / r.s₀) ^ 2 * (1 / r.pAP) ^ 2 + r.Q * r.A * r.logZ
+        ≤ U * U * (3 * U ^ 3) ^ 3 * U ^ 4 * (U ^ 2 + U ^ 2) + U * U * U ^ 2 * U ^ 2
+          + U * U * U := by
           gcongr
-      _ = 2 * U ^ 23 + U ^ 6 := by ring
-      _ ≤ 3 * U ^ 23 := by
-          have : U ^ 6 ≤ U ^ 23 := pow_le_pow_right₀ hU1 (by norm_num)
+      _ = 54 * U ^ 17 + U ^ 6 + U ^ 3 := by ring
+      _ ≤ 56 * U ^ 17 := by
+          have : U ^ 6 ≤ U ^ 17 := pow_le_pow_right₀ hU1 (by norm_num)
+          have : U ^ 3 ≤ U ^ 17 := pow_le_pow_right₀ hU1 (by norm_num)
           linarith
   have hS16 : 16 ≤ tolShape r := by
     rw [hS]
+    obtain ⟨hC1, -, -⟩ := shape_lower hr
+    have hι1 := (shape_ιInv_ge hr).1
     have is : 2 ≤ 1 / r.s₀ := by rw [le_div_iff₀ hs]; linarith
-    have ip : 1 ≤ 1 / r.pAP := by rw [le_div_iff₀ hp]; linarith
-    have h1 : (8 : ℝ) ≤ r.nCap := by
-      rw [shape_nCap]
-      have a1 : (1 : ℝ) * 2 ≤ r.Q * r.logZ := mul_le_mul hQ hl2 (by norm_num) (by linarith)
-      have is2 : (4 : ℝ) ≤ (1 / r.s₀) ^ 2 := by
-        calc (4 : ℝ) = 2 * 2 := by norm_num
-          _ ≤ (1 / r.s₀) * (1 / r.s₀) := mul_le_mul is is (by norm_num) (by linarith)
-          _ = (1 / r.s₀) ^ 2 := by ring
-      have a2 : (2 : ℝ) * 4 ≤ r.Q * r.logZ * (1 / r.s₀) ^ 2 :=
-        mul_le_mul (by linarith) is2 (by norm_num) (by positivity)
-      have a3 : (8 : ℝ) * 1 ≤ r.Q * r.logZ * (1 / r.s₀) ^ 2 * (1 / r.pAP) ^ 2 :=
-        mul_le_mul (by linarith) (one_le_pow₀ ip) (by norm_num) (by positivity)
-      have a4 : (0 : ℝ) ≤ r.Q * r.logZ * r.ιInv ^ 3 * (1 / r.s₀) ^ 4
-          * ((1 / r.s₀) ^ 2 + r.Q ^ 2) := by positivity
-      linarith
     have iξ : 1 ≤ 1 / r.ξc := by rw [le_div_iff₀ hξ]; linarith
-    have b1 : (2 : ℝ) * 1 ≤ r.A * knX r := mul_le_mul hA hX (by norm_num) (by linarith)
-    have b2 : (2 : ℝ) * 1 ≤ r.A * knX r * (1 / r.ξc) :=
-      mul_le_mul (by linarith) iξ (by norm_num) (by positivity)
-    have b3 : (2 : ℝ) * 8 ≤ r.A * knX r * (1 / r.ξc) * r.nCap :=
-      mul_le_mul (by linarith) h1 (by norm_num) (by positivity)
+    have a1 : (1 : ℝ) * 2 ≤ r.Q * r.logZ := mul_le_mul hQ hl2 (by norm_num) (by linarith)
+    have a2 : (2 : ℝ) * 1 ≤ r.Q * r.logZ * r.ιInv ^ 3 :=
+      mul_le_mul (by linarith) (one_le_pow₀ hι1) (by norm_num) (by positivity)
+    have is6 : (2 : ℝ) ^ 6 ≤ (1 / r.s₀) ^ 6 := pow_le_pow_left₀ (by norm_num) is 6
+    have a3 : (2 : ℝ) * 2 ^ 6 ≤ r.Q * r.logZ * r.ιInv ^ 3 * (1 / r.s₀) ^ 6 :=
+      mul_le_mul (by linarith) is6 (by norm_num) (by positivity)
+    have h1 := le_mul_of_one_le_left (show (0 : ℝ) ≤ r.nCap by linarith) iξ
     linarith
   refine ⟨hW1, hS16, ?_⟩
   rw [hS]
-  calc (r.A : ℝ) * knX r * (1 / r.ξc) * r.nCap ≤ U * U * U * (3 * U ^ 23) := by gcongr
-    _ = 3 * U ^ 26 := by ring
+  calc 1 / r.ξc * r.nCap ≤ U * (56 * U ^ 17) := by gcongr
+    _ = 56 * U ^ 18 := by ring
+    _ ≤ 64 * U ^ 18 := by
+        have : (0 : ℝ) ≤ U ^ 18 := by positivity
+        linarith
 
 end uniform
 
@@ -181,15 +179,15 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
   obtain ⟨C, hC⟩ := isBigO_principal.1 hp₀
   set C₀ := max 1 C with hC₀d
   have hC₀ : 1 ≤ C₀ := le_max_left 1 C
-  set c₁ := (log (3 * C₀) + 26 * log 8) / log 2 with hc₁d
+  set c₁ := (log (64 * C₀) + 18 * log 8) / log 2 with hc₁d
   have hlt := Real.log_two_gt_d9
   have hc₁ : 0 ≤ c₁ := by
-    have : 0 ≤ log (3 * C₀) := Real.log_nonneg (by linarith)
+    have : 0 ≤ log (64 * C₀) := Real.log_nonneg (by linarith)
     have : 0 ≤ log (8 : ℝ) := Real.log_nonneg (by norm_num)
     positivity
   refine ⟨fun r => log (C₀ * tolShape r) / log r.A, tp, ts, tpr, tt, tr, ?_, hpref, hsuff, hprobes,
     htrie, hreads, ?_⟩
-  · refine isBigO_on (c₁ + 26) fun r hr => ?_
+  · refine isBigO_on (c₁ + 18) fun r hr => ?_
     obtain ⟨hQ, hA, -⟩ := kn_base hr
     obtain ⟨hW1, hS16, hSU⟩ := tolShape_le hr
     have hWe : (r.L + r.Q : ℝ) * log (1 / r.δ) / (r.ξc * r.pAP * r.s₀) = uW r := rfl
@@ -200,23 +198,23 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     have hV : 0 ≤ log W := Real.log_nonneg hW1
     have hCS : 1 ≤ C₀ * tolShape r := one_le_mul_of_one_le_of_one_le hC₀ (by linarith)
     have hk0 : 0 ≤ log (C₀ * tolShape r) := Real.log_nonneg hCS
-    -- `log (C₀ S) ≤ log (3 C₀) + 26 (log 8 + log |Σ| + log W)`
-    have hlog : log (C₀ * tolShape r) ≤ log (3 * C₀) + 26 * log 8 + 26 * log r.A + 26 * log W := by
-      have h1 : C₀ * tolShape r ≤ 3 * C₀ * (8 * r.A * W) ^ 26 := by
+    -- `log (C₀ S) ≤ log (64 C₀) + 18 (log 8 + log |Σ| + log W)`
+    have hlog : log (C₀ * tolShape r) ≤ log (64 * C₀) + 18 * log 8 + 18 * log r.A + 18 * log W := by
+      have h1 : C₀ * tolShape r ≤ 64 * C₀ * (8 * r.A * W) ^ 18 := by
         have := mul_le_mul_of_nonneg_left hSU (show 0 ≤ C₀ by linarith)
         linarith
       have h2 := Real.log_le_log (by linarith) h1
-      have hR : log (3 * C₀ * (8 * r.A * W) ^ 26)
-          = log (3 * C₀) + 26 * (log 8 + log r.A + log W) := by
-        rw [Real.log_mul (x := 3 * C₀) (y := (8 * r.A * W) ^ 26) (by positivity) (by positivity),
+      have hR : log (64 * C₀ * (8 * r.A * W) ^ 18)
+          = log (64 * C₀) + 18 * (log 8 + log r.A + log W) := by
+        rw [Real.log_mul (x := 64 * C₀) (y := (8 * r.A * W) ^ 18) (by positivity) (by positivity),
           Real.log_pow, Real.log_mul (x := 8 * (r.A : ℝ)) (y := W) (by positivity) (by positivity),
           Real.log_mul (x := 8) (y := (r.A : ℝ)) (by norm_num) (by positivity)]
         push_cast; ring
       linarith
-    have hdiv : (log (3 * C₀) + 26 * log 8) / log r.A ≤ c₁ := by
+    have hdiv : (log (64 * C₀) + 18 * log 8) / log r.A ≤ c₁ := by
       rw [hc₁d]
       refine div_le_div_of_nonneg_left ?_ (by linarith) hlA
-      have : 0 ≤ log (3 * C₀) := Real.log_nonneg (by linarith)
+      have : 0 ≤ log (64 * C₀) := Real.log_nonneg (by linarith)
       have : 0 ≤ log (8 : ℝ) := Real.log_nonneg (by norm_num)
       positivity
     have hVA : 0 ≤ log W / log r.A := div_nonneg hV hlA0.le
@@ -224,16 +222,16 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     · show 0 ≤ 1 + log ((r.L + r.Q : ℝ) * log (1 / r.δ) / (r.ξc * r.pAP * r.s₀)) / log r.A
       rw [hWe]
       linarith
-    have e : (log (3 * C₀) + 26 * log 8 + 26 * log r.A + 26 * log W) / log r.A
-        = (log (3 * C₀) + 26 * log 8) / log r.A + 26 * (log r.A / log r.A)
-          + 26 * (log W / log r.A) := by ring
+    have e : (log (64 * C₀) + 18 * log 8 + 18 * log r.A + 18 * log W) / log r.A
+        = (log (64 * C₀) + 18 * log 8) / log r.A + 18 * (log r.A / log r.A)
+          + 18 * (log W / log r.A) := by ring
     rw [div_self hlA0.ne', mul_one] at e
     have h3 : log (C₀ * tolShape r) / log r.A
-        ≤ (log (3 * C₀) + 26 * log 8 + 26 * log r.A + 26 * log W) / log r.A :=
+        ≤ (log (64 * C₀) + 18 * log 8 + 18 * log r.A + 18 * log W) / log r.A :=
       div_le_div_of_nonneg_right hlog hlA0.le
     rw [e] at h3
     show log (C₀ * tolShape r) / log r.A
-      ≤ (c₁ + 26) * (1 + log ((r.L + r.Q : ℝ) * log (1 / r.δ) / (r.ξc * r.pAP * r.s₀)) / log r.A)
+      ≤ (c₁ + 18) * (1 + log ((r.L + r.Q : ℝ) * log (1 / r.δ) / (r.ξc * r.pAP * r.s₀)) / log r.A)
     rw [hWe]
     linarith [mul_nonneg hc₁ hVA]
   -- the run, at `D` uniform
@@ -277,33 +275,52 @@ section simple
 variable {r : RLStarRun}
 
 lemma simple_pref (r : RLStarRun) :
-    r.nPref = r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.logZ / (r.ξc ^ 2 * r.s₀ ^ 4) := by
+    r.nPref =
+      r.Q ^ 3 * r.logZ * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 2
+        / r.s₀ ^ 4 := by
   unfold RLStarRun.nPref RLStarRun.ιInv; ring
 
 lemma simple_trie (r : RLStarRun) :
-    r.nHeavy = r.Q ^ 7 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 6)
-      + r.Q ^ 9 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 4)
-      + r.Q * r.A * (r.L + r.Q) * r.logZ ^ 2 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 2) := by
+    r.nHeavy =
+      r.Q * r.logZ ^ 2 * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 3
+          / (r.ξc * r.s₀ ^ 6)
+        + r.Q ^ 3 * r.logZ ^ 2
+          * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 3
+          / (r.ξc * r.s₀ ^ 4)
+        + r.Q * r.logZ ^ 2 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 2) + r.Q * r.A * r.logZ ^ 2 / r.ξc := by
   unfold RLStarRun.nHeavy RLStarRun.nCap RLStarRun.ιInv; ring
 
 lemma simple_probe (r : RLStarRun) :
-    r.nProbe = r.Q ^ 8 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 6)
-      + r.Q ^ 10 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 4)
-      + r.Q ^ 2 * r.A * (r.L + r.Q) * r.logZ ^ 2 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 2) := by
+    r.nProbe =
+      r.Q ^ 2 * r.logZ ^ 2 * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 3
+          / (r.ξc * r.s₀ ^ 6)
+        + r.Q ^ 4 * r.logZ ^ 2
+          * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 3
+          / (r.ξc * r.s₀ ^ 4)
+        + r.Q ^ 2 * r.logZ ^ 2 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 2) + r.Q ^ 2 * r.A * r.logZ ^ 2 / r.ξc
+        + r.Q ^ 3 * r.A * (r.L + r.Q) * r.logZ / r.ξc ^ 2 := by
   unfold RLStarRun.nProbe; rw [simple_trie]; ring
 
 lemma simple_reads (hr : r ∈ rlStarRunRegion) :
-    r.nReads = r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.logZ ^ 2 / (r.ξc ^ 2 * r.pAP * r.s₀ ^ 6)
-      + (r.k + r.logZ) * (r.Q ^ 8 * r.A ^ 5 * (r.L + r.Q) ^ 4 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 8)
-        + r.Q ^ 10 * r.A ^ 5 * (r.L + r.Q) ^ 4 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 6)
-        + r.Q ^ 2 * r.A ^ 2 * (r.L + r.Q) * r.logZ ^ 3 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 4)) := by
+    r.nReads =
+      r.Q ^ 3 * r.logZ ^ 2 * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 2
+          / (r.pAP * r.s₀ ^ 6)
+        + (r.k + r.logZ) * (r.Q ^ 2 * r.A * r.logZ ^ 3
+            * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 3
+            / (r.ξc * r.s₀ ^ 8)
+          + r.Q ^ 4 * r.A * r.logZ ^ 3
+            * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 3
+            / (r.ξc * r.s₀ ^ 6)
+          + r.Q ^ 2 * r.A * r.logZ ^ 3 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 4)
+          + r.Q ^ 2 * r.A ^ 2 * r.logZ ^ 3 / (r.ξc * r.s₀ ^ 2)) := by
   obtain ⟨hQ, -⟩ := kn_base hr
   have hQ0 : (r.Q : ℝ) ≠ 0 := by positivity
-  have e : r.nPref * r.nSuff / r.Q
-      = r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.logZ ^ 2 / (r.ξc ^ 2 * r.pAP * r.s₀ ^ 6) := by
-    rw [simple_pref]
+  have e : r.nPref * r.nSuff / r.Q =
+      r.Q ^ 3 * r.logZ ^ 2 * ((r.Q ^ 2 + r.L + r.Q) / r.ξc + r.Q ^ 2 * log (r.L + r.Q + 1)) ^ 2
+          / (r.pAP * r.s₀ ^ 6) := by
+    rw [simple_pref, div_eq_iff hQ0]
     unfold RLStarRun.nSuff
-    field_simp
+    ring
   unfold RLStarRun.nReads
   rw [e, simple_trie]
   ring

@@ -5,8 +5,8 @@ import RLStar.Proofs.ClaimRLStarArith
 # The lazy loop at the claim's knobs
 
 `lazy_loop_core` at the knobs of `ClaimRLStarArith`, with `η₀ = 1/2 − s₀/2`, `c = ξc`, the
-coverage's accuracy `ξc`, `t = ξc/4`, `tw = ε/12288` and `Ae = |Σ|`. A walk start of no letters
-puts all of `D` on one prefix, which `p₀Tol < 1` rules out.
+coverage's accuracy `ξc`, `t = ξc/4` and `tw = ε/12288`. A walk start of no letters puts all of
+`D` on one prefix, which `p₀Tol < 1` rules out.
 -/
 
 noncomputable section
@@ -56,7 +56,6 @@ theorem lazy_within : RLStarWithin.{u, v, w} knTol knPref knSuff knProbes knTrie
     (hpre u).trans (le_of_eq (if_pos hr))
   have hkL' : k ≤ r.L := hkL
   have hK : knK r = k := min_eq_left hkL
-  have hA2 : 2 ≤ Fintype.card α := hx.2.1
   obtain ⟨hP0, hP1, hPcap, hPmc⟩ := knP₀_bounds hr
   -- a walk start of no letters is ruled out
   have hk1 : 1 ≤ k := by
@@ -84,11 +83,11 @@ theorem lazy_within : RLStarWithin.{u, v, w} knTol knPref knSuff knProbes knTrie
   obtain ⟨htw0, htwε⟩ := knTw_spec hr
   obtain ⟨settings, hwalk, hbud, -, -, hhd, hE', hJ', hb', hcnt, hprob⟩ :=
     lazy_loop_core (Ω := Ω) (μ := μ) M O L k (knη₀ r) r.ξc r.δ r.pAP r.ξc r.ξ (r.ξc / 4)
-      (r.A : ℝ) (knP₀ r) (knι r) (knW r) (knTu r) (knTw r) (knE r) (knJ r) (knB r) (knNr r)
+      (knP₀ r) (knι r) (knW r) (knTu r) (knTw r) (knE r) (knJ r) (knB r) (knNr r)
       (knNh r) D hLang (by rw [knη₀_s]; linarith) (by unfold knη₀; linarith)
-      (hbal.trans hbL') (hbal.trans hbN') hξc hξc1 hδ (by linarith) hp hξc hA2 le_rfl hk1 hkL
+      (hbal.trans hbL') (hbal.trans hbN') hξc hξc1 hδ (by linarith) hp hξc hk1 hkL
       (by linarith) hlong hP0 hpre' hpAPu hPcap (knMcD_spec hr hP0 hPmc) hι0 hι8 hW1
-      (hNh k hkL') (knSlack_spec hr) hEk hJk (knb_spec hr) (knNr_spec hr hK.ge)
+      (hNh k hkL') hEk hJk (knb_spec hr) (knNr_spec hr hK.ge)
       hNrW htwW htw0 htwε (knTu_pos hr) (knSlope_spec hr hkL') (knξT_spec hr)
   refine ⟨settings, hwalk, fun p rounds hrun => ?_, ?_⟩
   · obtain ⟨hlen, hpref, hsuff⟩ := hcnt p rounds hrun

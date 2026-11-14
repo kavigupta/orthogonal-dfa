@@ -123,7 +123,7 @@ set_option maxHeartbeats 1000000 in -- the settings meet `loop_simple_checks`'s 
 /-- The lazy loop over `D`'s first `L` letters: its DFA misjudges at most `ξT` of them from a trie
 of at most `nX` strings, reading at most `lazyReads` strings, but for chance `δ`. -/
 theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L k : ℕ)
-    (η₀ c δ pAP ξ ξT t Ae p₀ ι W Tu tw : ℝ) (E J b Nr Nh : ℕ) (D : Measure (FreeMonoid α))
+    (η₀ c δ pAP ξ ξT t p₀ ι W Tu tw : ℝ) (E J b Nr Nh : ℕ) (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] :
     let Q : ℝ := Fintype.card σ
     let A : ℝ := Fintype.card α
@@ -131,7 +131,7 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     let L₁ : ℕ := L + Fintype.card σ + 3
     let Ls : ℕ := L₁ + Fintype.card σ + 3
     let N : ℝ := L₁ + 1 - kN
-    let ε : ℝ := c / (4 * (Ae + 1) * N)
+    let ε : ℝ := c / 8
     let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
     let δ' : ℝ := δ / (8 * (Q + 1))
     let s : ℝ := 1 / 2 - η₀
@@ -144,14 +144,16 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       + 120 * Real.log (3 / (δ' / 2)) / pAP
     let RB : ℝ := 2 ^ 22 * Jp * Real.log (128 * (PB + 1) / δ') / (s ^ 4 * ι ^ 2)
       + 2 ^ 27 * Real.log ((Jp + 2) * PB / (δ' / 2 * (δ' / 4) * (pAP / 2) * τ)) / τ ^ 2
+    let Kt : ℝ := (1 + (Q + 1) ^ 3 * (A + 1)) ^ Fintype.card σ
+      * (Q + 3) ^ ((Fintype.card σ + 2) * (Fintype.card α + 1))
     let capP : ℝ := min (min (min (s * min (εcov / 2 * s) ι / (2 ^ 20 * (RB + 1)))
           (ι ^ 2 / (2 ^ 28 * Real.log (128 * Jp * (PB + 1) * (3 + 2 * Real.logb 2 (RB + 1)) / δ'))))
         (ι / 2 / (8 * Jp * (RB + 1))))
       (min (min (pAP / (2 ^ 18 * (PB + 1))) (ι / (2 ^ 24 * Jp ^ 2 * (RB + 1))))
-        (min (pAP / (2 * Jp * (PB + 2))) (1 / (6 * Jp * (RB + 1)))))
+        (min (pAP / (2 * Jp * (PB + 2)))
+          (min (1 / (6 * Jp * (RB + 1)))
+            (1 / (8 * Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / (δ' / 8)))))))
     let θ : ℝ := capP * ε / 192
-    let Kt : ℝ := (1 + (Q + 1) ^ 3 * (A + 1)) ^ Fintype.card σ
-      * (Q + 3) ^ ((Fintype.card σ + 2) * (Fintype.card α + 1))
     let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
     let HR : ℝ := Real.log (4 * (Q + 1) * (SC + 1) / δ') / (ε / 384) + 1
     let FV : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28)
@@ -161,15 +163,13 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
     2 * εcov ≤ (prefixLaw D L).real {p | p ∈ O.L} → 2 * εcov ≤ (prefixLaw D L).real {p | p ∉ O.L} →
-    0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
-    2 ≤ Fintype.card α → A ≤ Ae → 1 ≤ k → k ≤ L → 0 ≤ t →
+    0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 1 ≤ k → k ≤ L → 0 ≤ t →
     (∀ᵐ w ∂D, Ls ≤ w.toList.length) → 0 < p₀ → (∀ u, D.real {w | prefixOf w k = u} ≤ p₀) →
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
     p₀ ≤ capP * ε / 12288 →
     2 * ((⌊FV⌋₊ : ℝ) + 1) ^ 3 * (A ^ Ls + 1) ^ ⌊FV⌋₊ * Real.exp (-2 * t ^ 2 / p₀) ≤ δ / 8 →
     0 < ι → ι ≤ εcov / 8 → 1 ≤ W →
     Real.log (4 * k / (θ * δ')) / θ ≤ Nh →
-    capP * Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / (δ' / 8)) ≤ 1 / 8 →
     2 * k / (ε / 48) + 1 ≤ E → k + 2 ≤ J →
     E * J * (1 - ε / 192) ^ b ≤ δ' / 4 →
     E * ((B₃ + J * b) * (Random.Kappa.probeSifts (L₁ + k) * (Q + 3))
@@ -191,14 +191,11 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
         {p | ¬ RLStarSucceeds settings O (prefixLaw D L) (prefixLaw D Ls)
           (prefixLaw D L) M ξT nX (lazyReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV Ns A nX Q) p}
         ≤ δ := by
-  intro Q A kN L₁ Ls N ε εcov δ' s τ Jp S B₃ PB RB capP θ Kt SC HR FV nX Ns
-    hL hgap hη₀ hbalL hbalN hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL ht hlong hp₀0 hpreD hpAPu
-    hk1 hk6 hι0 hι8 hW1 hNh hslack hE hJ hb hNr hNrW htwW htw htwε hTu hslope hξT
+  intro Q A kN L₁ Ls N ε εcov δ' s τ Jp S B₃ PB RB Kt capP θ SC HR FV nX Ns
+    hL hgap hη₀ hbalL hbalN hc hc1 hδ hδ1 hpAP hξ hk0 hkL ht hlong hp₀0 hpreD hpAPu
+    hk1 hk6 hι0 hι8 hW1 hNh hE hJ hb hNr hNrW htwW htw htwε hTu hslope hξT
   classical
   have hη0 : 0 ≤ η₀ := by have := gap_le_one O; linarith
-  have hA2' : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
-  have hA0 : (0 : ℝ) < A := by linarith
-  have hAe2 : (2 : ℝ) ≤ Ae := hA2'.trans hAe
   have : Nonempty σ := ⟨M.start⟩
   have hQ1 : (1 : ℝ) ≤ Q := by
     show (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
@@ -208,18 +205,14 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
   have hN1 : (1 : ℝ) ≤ N := by
     have : (kN : ℝ) ≤ L₁ := by exact_mod_cast hkL₁
     rw [hNe]; linarith
-  have hwN : 2 + (Nat.clog 2 L₁ : ℝ) ≤ 2 * N := by
-    rw [hNe]
-    have h1 : 1 ≤ L₁ := by change 1 ≤ L + Fintype.card σ + 3; omega
-    have h2 : Nat.clog 2 L₁ ≤ L₁ - 1 :=
-      Nat.clog_le_of_le_pow (by have := (L₁ - 1).lt_two_pow_self; omega)
-    have h3 : 2 * kN ≤ L₁ + 1 := by show 2 * ((L + 1) / 2) ≤ L + Fintype.card σ + 3 + 1; omega
-    have : 2 + Nat.clog 2 L₁ + 2 * kN ≤ 2 * (L₁ + 1) := by omega
-    have : 2 + (Nat.clog 2 L₁ : ℝ) + 2 * kN ≤ 2 * (L₁ + 1) := by exact_mod_cast this
+  have hN0 : 0 < N := by linarith
+  have hε0 : 0 < ε := div_pos hc (by norm_num)
+  have hε12 : ε ≤ 1 / 2 := (div_le_iff₀ (by norm_num)).2 (by linarith)
+  have hεc0 : 0 < εcov := lt_min (div_pos hc (by positivity)) (div_pos hξ (by positivity))
+  have hεcov1 : εcov ≤ 1 := by
+    refine (min_le_left _ _).trans ?_
+    rw [div_le_one (by positivity)]
     linarith
-  obtain ⟨hε0, hε12, hεc0, hεcov1, -, -, -, -, hιL⟩ :=
-    dfa_rates (ℓ := 2 + (Nat.clog 2 L₁ : ℝ)) hQ1 hAe2 hN1 (by positivity) hwN hc hc1 hξ rfl rfl
-      rfl
   have hδ'0 : 0 < δ' := by show 0 < δ / (8 * (Q + 1)); positivity
   have hδ'1' : δ' < 1 := by
     show δ / (8 * (Q + 1)) < 1
@@ -250,8 +243,7 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     loop_simple_checks M O P η₀ εcov ε δ' pAP ι W Tu tw k E J b Nr Nh
     hL hgap hη₀ hεc0 hεcov1 hbalL hbalN hε0 hε12 hδ'0 hδ'1' hpAP hp1
     (by show 1 ≤ L + Fintype.card σ + 3; omega)
-    hk0 hkD hιL (hpm.trans hk1) hι0 hι8 hW1 hNh hslack hE hJ hb hNr hNrW htwW htw htwε hTu
-    hslope
+    hk0 hkD (hpm.trans hk1) hι0 hι8 hW1 hNh hE hJ hb hNr hNrW htwW htw htwε hTu hslope
   have hs0 : 0 < s := by show 0 < 1 / 2 - η₀; linarith
   have hs1 : s ≤ 1 / 2 := by show 1 / 2 - η₀ ≤ 1 / 2; linarith
   have hτ0 : 0 < τ := lt_min (mul_pos (div_pos hεc0 (by norm_num))

@@ -2,7 +2,7 @@ import RLStar.Proofs.RandomTree
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 
 /-! Facts the lazy loop's DFA and arithmetic share: a grown tree's root reads the string itself,
-and the claim's rates. -/
+and the prefix count is nonnegative. -/
 
 noncomputable section
 
@@ -65,43 +65,6 @@ lemma rb_nonneg {Q s pAP δ' ι τ cL : ℝ} (hQ : 0 ≤ Q) (hs0 : 0 < s) (hs1 :
     nlinarith
   exact add_nonneg (div_nonneg (mul_nonneg (by positivity) hl1) (by positivity))
     (div_nonneg (mul_nonneg (by norm_num) hl2) (by positivity))
-
-/-- The claim's rates, from the coverage `c`. -/
-lemma dfa_rates {Q A N ℓ c ξ ε εcov ι : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hN : 1 ≤ N)
-    (hℓ : 0 ≤ ℓ) (hNℓ : ℓ ≤ 2 * N) (hc : 0 < c) (hc1 : c ≤ 1) (hξ : 0 < ξ)
-    (he : ε = c / (4 * (A + 1) * N)) (hεc : εcov = min (c / (10 * N)) (ξ / (8 * N)))
-    (hι : ι = min (εcov / 8) (ε / (4608 * Q * (Q + 1)))) :
-    0 < ε ∧ ε ≤ 1 / 2 ∧ 0 < εcov ∧ εcov ≤ 1 ∧ 0 < ι ∧ ι ≤ εcov / 8
-      ∧ 2 * ((A + 1) * N * (ε + ε / 96) + N * (ε + ε / 96)) < c ∧ 10 * εcov * N ≤ c
-      ∧ ℓ * ε < 3 / 8 := by
-  have hX : 0 < 4 * (A + 1) * N := by positivity
-  have hq : ε * (4 * (A + 1) * N) = c := by rw [he]; field_simp
-  have he0 : 0 < ε := by rw [he]; positivity
-  have hεc0 : 0 < εcov := by rw [hεc]; exact lt_min (by positivity) (by positivity)
-  have hεcc : εcov ≤ c / (10 * N) := by rw [hεc]; exact min_le_left _ _
-  have hι0 : 0 < ι := by rw [hι]; exact lt_min (by positivity) (by positivity)
-  have hι8 : ι ≤ εcov / 8 := by rw [hι]; exact min_le_left _ _
-  have h12 : 12 ≤ 4 * (A + 1) * N := by nlinarith
-  have hcN : 10 * εcov * N ≤ c := by
-    have := mul_le_mul_of_nonneg_left hεcc (by positivity : (0 : ℝ) ≤ 10 * N)
-    rw [show 10 * N * (c / (10 * N)) = c by field_simp] at this
-    linarith
-  have hεc1 : εcov ≤ 1 := by nlinarith
-  refine ⟨he0, ?_, hεc0, hεc1, hι0, hι8, ?_, hcN, ?_⟩
-  · have : ε * 12 ≤ 1 := by nlinarith
-    linarith
-  · have hεN : 0 < ε * N := by positivity
-    have e : 2 * ((A + 1) * N * (ε + ε / 96) + N * (ε + ε / 96)) = 97 / 48 * (A + 2) * (ε * N) := by
-      ring
-    have e2 : c = 4 * (A + 1) * (ε * N) := by rw [← hq]; ring
-    rw [e, e2]
-    nlinarith
-  · have h2 : ℓ * ε ≤ 2 * N * ε := mul_le_mul_of_nonneg_right hNℓ he0.le
-    have h3 : 2 * N * ε * (4 * (A + 1)) = 2 * c := by rw [← hq]; ring
-    have h4 : 2 * N * ε * 12 ≤ 2 * c := by
-      rw [← h3]
-      exact mul_le_mul_of_nonneg_left (by linarith) (by positivity)
-    nlinarith
 
 end OrthoDFA
 
