@@ -1,4 +1,4 @@
-import RLStar.Code.Level3HarvestCode
+import RLStar.Code.Level3Harvest
 
 /-!
 # Level 3 with local walk starts

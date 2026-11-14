@@ -4,11 +4,9 @@ import RLStar.Proofs.LoopQuery
 /-!
 # The strings the learner asks, as a real bound
 
-`learnerReads` is `K` rounds of `roundCallBound` and the start leaf's `n f` reads, split by
-source, `3 + ⌈log₂ L⌉` standing for the sifts of a probe (`reads_le_learnerReads`). `loopSC` and
-`loopHB` bound `LearnerLoopDFASimple`'s scan cap and the probes a round's harvested draws walk at
-`ℓ = L₁ + 1`, the prefix count `RB` at `loopCount`, and `loopSH` the draws a harvested
-population makes in a round.
+`lazyReads` is `K` rounds of `roundCallBound` and the last round's table (`reads_le_lazyReads`).
+`learnerReads`, `loopSC`, `loopSH` and `loopHB` are main's counts, which the asymptotic files
+still bound.
 -/
 
 noncomputable section
@@ -55,19 +53,16 @@ lemma learnerReads_mono {K a b f T q B lg A n K' a' b' f' T' q' B' lg' A' n' : �
   gcongr
   all_goals first | positivity | linarith
 
-lemma reads_le_learnerReads (K a b f T W L A n q : ℕ) :
-    ((K * roundCallBound a b f T W L A q + n * f : ℕ) : ℝ)
-      ≤ learnerReads K a b f T q W ((3 + Nat.clog 2 L : ℕ) : ℝ) A n := by
-  have hp : Random.Kappa.probeSifts L ≤ 3 + Nat.clog 2 L := min_le_right _ _
-  have hp' : (Random.Kappa.probeSifts L : ℝ) ≤ ((3 + Nat.clog 2 L : ℕ) : ℝ) := by exact_mod_cast hp
-  unfold roundCallBound learnerReads readsCluster readsSearch readsResift readsHarvest readsStart
-  push_cast at hp' ⊢
-  have h : (K : ℝ) * ((f : ℝ) * (T * (Random.Kappa.probeSifts L * (q + 1))))
-      ≤ K * T * (f * ((3 + Nat.clog 2 L) * (q + 1))) := by
-    rw [show (K : ℝ) * T * (f * ((3 + Nat.clog 2 L) * (q + 1)))
-      = K * (f * (T * ((3 + Nat.clog 2 L) * (q + 1)))) by ring]
-    gcongr
-  linarith [h]
+/-- The lazy learner's reads: `K` rounds of `a` prefixes against `b` suffixes and the empty one
+and of a lazy round's `Nr` strings, each a family read of `f`, and the table's sifts, at most
+`q + 2` questions for each of the `A nX + 1` frontier strings of a trie of `nX` strings. -/
+def lazyReads (K a b f Nr A nX q : ℝ) : ℝ :=
+  K * (a * (b + 1) + f * Nr) + f * ((A * nX + 1) * (q + 2))
+
+lemma reads_le_lazyReads (K a b f Nr A nX q : ℕ) :
+    ((K * roundCallBound a b f Nr + f * ((A * nX + 1) * (q + 2)) : ℕ) : ℝ)
+      ≤ lazyReads K a b f Nr A nX q :=
+  le_of_eq (by unfold roundCallBound lazyReads; push_cast; ring)
 
 /-- `LearnerLoopDFASimple`'s scan cap, its prefix count at `loopCount ℓ`. -/
 def loopSC (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
