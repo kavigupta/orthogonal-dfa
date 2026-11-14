@@ -116,26 +116,32 @@ variable (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α))
 
 omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
 /-- A prefix a round's clustering reads is a draw of one of its populations. -/
-lemma mem_prefsOf_draw {h : SpecHist α} {c : ClusterRest α K settings.level3.harvestReadCap} {p : FreeMonoid α}
+lemma mem_prefsOf_draw {h : SpecHist α} {c : ClusterRest α K settings.level3.harvestReadCap} {p :
+    FreeMonoid α}
     (hp : p ∈ prefsOf settings D Dsf h c) :
     ∃ j ∈ loopPopulations K h.pops.length, ∃ n,
-      p = fillDraw D settings.level3.walkStart settings.level3.harvestReadCap h.pops h.prefs j (c.2.1 j n)
-        ∨ p = drawFrom (offLaw (loopDistributions D settings.level3.walkStart h.pops j) h.prefs) (c.2.2.1 j n) := by
+      p = fillDraw D settings.level3.walkStart settings.level3.harvestReadCap h.pops h.prefs j
+          (c.2.1 j n)
+        ∨ p = drawFrom (offLaw (loopDistributions D settings.level3.walkStart h.pops j) h.prefs)
+            (c.2.2.1 j n) := by
   obtain ⟨B, -, hp⟩ := Finset.mem_biUnion.1 hp
   rcases Finset.mem_union.1 hp with hp | hp
   · obtain ⟨j, hj, hp⟩ := Finset.mem_biUnion.1 hp
     obtain ⟨n, hn⟩ := mem_freshDraws hp
-    obtain ⟨i, hi⟩ := (streams_empty_draw none (idealDraws (Ω := Unit) D Dsf settings.level3.walkStart settings.level3.harvestReadCap h ((), c)) j n).1
+    obtain ⟨i, hi⟩ := (streams_empty_draw none (idealDraws (Ω := Unit) D Dsf
+        settings.level3.walkStart settings.level3.harvestReadCap h ((), c)) j n).1
     exact ⟨j, hj, i, hn ▸ hi⟩
   · obtain ⟨j, hj, hp⟩ := Finset.mem_biUnion.1 hp
     obtain ⟨e, -, hp⟩ := Finset.mem_biUnion.1 hp
     obtain ⟨n, hn⟩ := mem_freshDraws hp
-    obtain ⟨i, hi⟩ := (streams_empty_draw none (idealDraws (Ω := Unit) D Dsf settings.level3.walkStart settings.level3.harvestReadCap h ((), c)) j n).2
+    obtain ⟨i, hi⟩ := (streams_empty_draw none (idealDraws (Ω := Unit) D Dsf
+        settings.level3.walkStart settings.level3.harvestReadCap h ((), c)) j n).2
     exact ⟨j, hj, i, hn ▸ hi⟩
 
 omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
 /-- A suffix a round's clustering reads, but `ε`, is a draw of the suffix distribution. -/
-lemma mem_suffsOf_draw {h : SpecHist α} {c : ClusterRest α K settings.level3.harvestReadCap} {v : FreeMonoid α}
+lemma mem_suffsOf_draw {h : SpecHist α} {c : ClusterRest α K settings.level3.harvestReadCap} {v :
+    FreeMonoid α}
     (hv : v ∈ suffsOf settings D Dsf h c) : ∃ n, v = drawFrom (offLaw Dsf h.suffs) (c.1 n) := by
   obtain ⟨hv1, hv⟩ := Finset.mem_erase.1 hv
   obtain ⟨B, -, hv⟩ := Finset.mem_biUnion.1 hv
@@ -145,14 +151,15 @@ lemma mem_suffsOf_draw {h : SpecHist α} {c : ClusterRest α K settings.level3.h
     exact ⟨n, hn.symm⟩
 
 /-- Through round `r`, every uniform the clusterings draw by is below `1`. -/
-def AllLt {T : ℕ} (x : Fin K → RoundDraws α K settings.level3.harvestReadCap T) (r : ℕ) : Prop :=
+def AllLt (x : Fin K → settings.RoundDraws α) (r : ℕ) : Prop :=
   ∀ i : Fin K, i.1 ≤ r → (∀ n, ((x i).1.1 n : ℝ) < 1)
     ∧ (∀ j n, (((x i).1.2.1 j n).1 : ℝ) < 1 ∧ ∀ t, (((x i).1.2.1 j n).2 t : ℝ) < 1)
     ∧ ∀ j n, ((x i).1.2.2.1 j n : ℝ) < 1
 
 lemma volume_eq_one_unit : (volume : Measure unitInterval) {u | ¬ (u : ℝ) < 1} = 0 := by
   have h := volume_Ico_unit (a := 0) (b := 1) le_rfl zero_le_one le_rfl
-  have hs : {u : unitInterval | ¬ (u : ℝ) < 1} = {u : unitInterval | 0 ≤ (u : ℝ) ∧ (u : ℝ) < 1}ᶜ := by
+  have hs : {u : unitInterval | ¬ (u : ℝ) < 1} = {u : unitInterval | 0 ≤ (u : ℝ) ∧ (u : ℝ) < 1}ᶜ :=
+      by
     ext u
     simp only [Set.mem_setOf_eq, Set.mem_compl_iff, not_and, not_lt]
     exact ⟨fun h _ => h, fun h => h u.2.1⟩
@@ -170,7 +177,8 @@ lemma drawLaw_lt_ae (N : ℕ) :
     (measurableSet_lt continuous_subtype_val.measurable measurable_const).compl
   have hsub : {u : unitInterval × (Fin N → unitInterval) | ¬ ((u.1 : ℝ) < 1 ∧ ∀ t, (u.2 t : ℝ) < 1)}
       ⊆ Prod.fst ⁻¹' {u | ¬ (u : ℝ) < 1}
-        ∪ ⋃ t, (fun u : unitInterval × (Fin N → unitInterval) => u.2 t) ⁻¹' {u | ¬ (u : ℝ) < 1} := by
+        ∪ ⋃ t, (fun u : unitInterval × (Fin N → unitInterval) => u.2 t) ⁻¹' {u | ¬ (u : ℝ) < 1} :=
+            by
     intro u hu
     simp only [not_and_or, not_forall] at hu
     simp only [Set.mem_union, Set.mem_preimage, Set.mem_setOf_eq, Set.mem_iUnion]
@@ -188,11 +196,11 @@ lemma drawLaw_lt_ae (N : ℕ) :
   · rw [(hco t).measure_preimage h1.nullMeasurableSet, volume_eq_one_unit]
 
 omit [DecidableEq α] in
-lemma allLt_ae {T : ℕ} (r : ℕ) :
-    (loopMeasure μ α K settings.level3.harvestReadCap T) {p | ¬ AllLt settings p.2 r} = 0 := by
+lemma allLt_ae (r : ℕ) :
+    (settings.measure μ α) {p | ¬ AllLt settings p.2 r} = 0 := by
   have hrest : ∀ i : Fin K, MeasurePreserving
-      (fun p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap T) => (p.2 i).1)
-      (loopMeasure μ α K settings.level3.harvestReadCap T)
+      (fun p : settings.Draws Ω α => (p.2 i).1)
+      (settings.measure μ α)
       ((Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)).prod
         ((Measure.pi fun _ : Option (Fin K) =>
             Measure.infinitePi fun _ : ℕ => drawLaw settings.level3.harvestReadCap).prod
@@ -208,7 +216,8 @@ lemma allLt_ae {T : ℕ} (r : ℕ) :
         Measure.infinitePi fun _ : ℕ => (volume : Measure unitInterval)) volume := fun j n =>
     (hev n).comp (measurePreserving_eval _ j)
   have hevD : ∀ j n, MeasurePreserving
-      (fun f : Option (Fin K) → ℕ → unitInterval × (Fin settings.level3.harvestReadCap → unitInterval)
+      (fun f : Option (Fin K) → ℕ → unitInterval × (Fin settings.level3.harvestReadCap →
+          unitInterval)
         => f j n)
       (Measure.pi fun _ : Option (Fin K) =>
         Measure.infinitePi fun _ : ℕ => drawLaw settings.level3.harvestReadCap)
@@ -230,13 +239,13 @@ lemma allLt_ae {T : ℕ} (r : ℕ) :
       measurable_const).inter (MeasurableSet.iInter fun t => measurableSet_lt
         (measurable_subtype_coe.comp ((measurable_pi_apply t).comp measurable_snd))
         measurable_const)).compl
-  have hnull : ∀ {f : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap T) → unitInterval},
-      MeasurePreserving f (loopMeasure μ α K settings.level3.harvestReadCap T) volume →
-        (loopMeasure μ α K settings.level3.harvestReadCap T) {x | ¬ (f x : ℝ) < 1} = 0 :=
+  have hnull : ∀ {f : settings.Draws Ω α → unitInterval},
+      MeasurePreserving f (settings.measure μ α) volume →
+        (settings.measure μ α) {x | ¬ (f x : ℝ) < 1} = 0 :=
     fun hf => by
     rw [show {x | ¬ (_ : ℝ) < 1} = _ ⁻¹' {u : unitInterval | ¬ (u : ℝ) < 1} from rfl,
       hf.measure_preimage h1.nullMeasurableSet, volume_eq_one_unit]
-  have hset : {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap T) | ¬ AllLt settings p.2 r}
+  have hset : {p : settings.Draws Ω α | ¬ AllLt settings p.2 r}
       ⊆ ⋃ i : Fin K, ⋃ n : ℕ, ({p | ¬ (((p.2 i).1.1 n : unitInterval) : ℝ) < 1}
         ∪ ⋃ j : Option (Fin K), ({p | ¬ ((((p.2 i).1.2.1 j n).1 : ℝ) < 1
             ∧ ∀ t, (((p.2 i).1.2.1 j n).2 t : ℝ) < 1)}
@@ -270,20 +279,21 @@ omit [IsProbabilityMeasure μ] in
 /-- Each earlier round's data hold the prefixes and suffixes its clustering read. -/
 lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
     (ω : Ω)
-    (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) :
+    (g : Fin K → settings.RoundDraws α) :
     ∀ r i, i < (histCodes settings O D Dsf ω g r).length → ∃ hiK : i < K, ∃ code,
       (histCodes settings O D Dsf ω g r)[i]? = some code
-      ∧ code.2.2.2.1 = prefsOf settings D Dsf
+      ∧ code.2.2.2.2.1 = prefsOf settings D Dsf
             (histAt (histCodes settings O D Dsf ω g r) i)
           (g ⟨i, hiK⟩).1
-      ∧ code.2.2.2.2 = roundSuffs (settings.schedule (loopPopulations K
+      ∧ code.2.2.2.2.2 = roundSuffs (settings.schedule (loopPopulations K
             (histAt (histCodes settings O D Dsf ω g r) i).pops.length))
           (((), runOf settings D Dsf (histAt (histCodes settings O D Dsf ω g r) i)
             (g ⟨i, hiK⟩).1) : Run Unit (FreeMonoid α) (Option (Fin K)))
   | 0, i, hi => by simp [histCodes, idealRounds, codesOf] at hi
   | r + 1, i, hi => by
     by_cases hrK : r < K
-    · have hy := codesOf_idealRounds_succ settings O D Dsf (ae_lenBound hlen) (N := codeLen settings D) le_rfl
+    · have hy := codesOf_idealRounds_succ settings O D Dsf (ae_lenBound hlen) (N := codeLen settings
+        D) le_rfl
         (fun i => (ω, g i)) r hrK
       set c := histCodes settings O D Dsf ω g r with hcd
       have hy' : histCodes settings O D Dsf ω g (r + 1) = if c.length = r then
@@ -319,13 +329,14 @@ lemma histCodes_getElem [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D
               simp only [histAt, List.take_append_of_le_length (le_of_eq hcl.symm),
                 List.take_of_length_le (le_of_eq hcl)]
             simp only [Option.toList_some, ht]
-            unfold popCode at ho
-            obtain ⟨hv, -, hcode⟩ := Option.map_eq_some_iff.1 ho
             refine ⟨hrK, code, ?_, ?_, ?_⟩
             · rw [List.getElem?_append_right (le_of_eq hcl)]
               simp [hcl]
-            · rw [← hcode]; rfl
-            · rw [← hcode]; rfl
+            all_goals
+              unfold popCode at ho
+              split at ho
+              · rw [← Option.some.inj ho]; rfl
+              · exact absurd ho (by simp)
       · rw [if_neg hcl] at hy'
         rw [hy'] at hi ⊢
         exact ih i hi
@@ -351,7 +362,7 @@ lemma mem_of_pos {ν : Measure (FreeMonoid α)} {A : Set (FreeMonoid α)} (hA : 
   rw [measureReal_def, this, ENNReal.toReal_zero] at ht
   exact lt_irrefl _ ht
 
-omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] [DecidableEq α] in
+omit [MeasurableSpace Ω] [IsProbabilityMeasure μ] in
 /-- Where its uniforms are below `1`, a population's filled draw is off `T`, at a string the
 population gives mass. -/
 lemma fillDraw_pos (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k N : ℕ)
@@ -361,47 +372,48 @@ lemma fillDraw_pos (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k N :
     fillDraw D k N pops T j u ∉ T
       ∧ 0 < (loopDistributions D k pops j).real {fillDraw D k N pops T j u} := by
   classical
-  rcases j with _ | i
-  · exact drawFrom_offLaw h0 hu
-  rcases hs : pops[i.val]? with _ | s
-  · have hl : loopDistributions D k pops (some i) = Measure.dirac 1 := by
-      simp only [loopDistributions, hs]
-    have hf : fillDraw D k N pops T (some i) u = 1 := by simp only [fillDraw, hs]
-    rw [hf, hl]
-    rw [hl] at h0
-    refine ⟨fun h1 => h0 ?_, ?_⟩
-    · simp [h1]
-    · rw [measureReal_def, Measure.dirac_apply_of_mem (Set.mem_singleton 1)]
-      exact zero_lt_one
-  have hl : loopDistributions D k pops (some i)
-      = popLaw (Random.harvestLaw s.read D k s.hyp s.site) := by
-    simp only [loopDistributions, hs]
-  rw [hl] at h0 ⊢
-  simp only [fillDraw, hs]
-  rcases hh : Random.harvestFirst s.read k s.hyp s.site ↑T
-      (List.ofFn fun t => drawFrom D (u.2 t)) with _ | z
+  unfold fillDraw
+  rcases hh : popHit D k N pops T j u with _ | z
   · exact drawFrom_offLaw h0 hu
   simp only [Option.getD_some]
-  unfold Random.harvestFirst at hh
-  obtain ⟨x, hx, hz⟩ := List.exists_of_findSome?_eq_some hh
-  obtain ⟨t, rfl⟩ := List.mem_ofFn.1 hx
-  rw [Option.filter_eq_some_iff] at hz
-  have hzT : z ∉ T := by simpa using hz.2
-  have hzmem := List.mem_of_mem_head? hz.1
+  rcases j with _ | i
+  · simp [popHit] at hh
+  rcases hs : pops[i.val]? with _ | s
+  · simp [popHit, hs] at hh
+  simp only [popHit, hs] at hh
+  have hl : loopDistributions D k pops (some i)
+      = popLaw (Random.lazyHarvestLaw s.read D k s.trie s.hyp s.site) := by
+    simp only [loopDistributions, hs]
+  rw [hl]
+  rw [hl] at h0
+  unfold Random.lazyHarvestFirst at hh
+  obtain ⟨z', hz', rfl⟩ := Option.map_eq_some_iff.1 hh
+  unfold Random.harvestFirst at hz'
+  obtain ⟨x, hx, hzx⟩ := List.exists_of_findSome?_eq_some hz'
+  obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
+  obtain ⟨t, rfl⟩ := List.mem_ofFn.1 hy
+  rw [Option.filter_eq_some_iff] at hzx
+  have hzT : Random.unpad z' ∉ T := by simpa using hzx.2
+  have hzmem := List.mem_of_mem_head? hzx.1
   have hx0 : 0 < D {drawFrom D (u.2 t)} := (ENNReal.toReal_pos_iff.1 (drawFrom_pos D (hu2 t))).1
-  have hpos : 0 < Random.harvestLaw s.read D k s.hyp s.site {z} := by
-    rw [Random.harvestLaw_apply]
-    have hf1 : (1 : ENNReal) ≤ (((Random.siteHarvest s.read k s.hyp s.site
-        (drawFrom D (u.2 t))).filter (· ∈ ({z} : Set (FreeMonoid α)))).length : ENNReal) := by
+  set f : FreeMonoid α → ENNReal := fun x => (((Random.siteHarvest (Random.padRead s.read) k
+    s.hyp s.site (Random.padIn k s.trie x)).filter
+      (· ∈ Random.unpad ⁻¹' ({Random.unpad z'} : Set (FreeMonoid α)))).length : ENNReal)
+  have hpos : 0 < Random.lazyHarvestLaw s.read D k s.trie s.hyp s.site {Random.unpad z'} := by
+    unfold Random.lazyHarvestLaw
+    rw [Measure.map_apply (measurable_of_countable _) (measurableSet_singleton _),
+      Random.harvestLaw_apply, lintegral_map (measurable_of_countable _)
+        (measurable_of_countable _)]
+    have hf1 : (1 : ENNReal) ≤ f (drawFrom D (u.2 t)) := by
+      simp only [f]
       exact_mod_cast List.length_pos_of_mem (List.mem_filter.2 ⟨hzmem, by simp⟩)
     calc (0 : ENNReal) < 1 * D {drawFrom D (u.2 t)} := by simpa using hx0
-      _ ≤ _ := mul_le_mul_left hf1 _
-      _ = ∫⁻ y in {drawFrom D (u.2 t)}, (((Random.siteHarvest s.read k s.hyp s.site y).filter
-            (· ∈ ({z} : Set (FreeMonoid α)))).length : ENNReal) ∂D := by rw [lintegral_singleton]
-      _ ≤ _ := setLIntegral_le_lintegral _ _
-  have h0' : Random.harvestLaw s.read D k s.hyp s.site Set.univ ≠ 0 :=
+      _ ≤ f (drawFrom D (u.2 t)) * D {drawFrom D (u.2 t)} := mul_le_mul_left hf1 _
+      _ = ∫⁻ y in {drawFrom D (u.2 t)}, f y ∂D := by rw [lintegral_singleton]
+      _ ≤ ∫⁻ y, f y ∂D := setLIntegral_le_lintegral _ _
+  have h0' : Random.lazyHarvestLaw s.read D k s.trie s.hyp s.site Set.univ ≠ 0 :=
     (lt_of_lt_of_le hpos (measure_mono (Set.subset_univ _))).ne'
-  have htop := Random.harvestLaw_univ_ne_top s.read D k s.hyp s.site
+  have htop := lazyHarvestLaw_univ_ne_top s.read D k s.trie s.hyp s.site
   refine ⟨hzT, ?_⟩
   rw [popLaw_real h0' htop]
   exact div_pos (ENNReal.toReal_pos hpos.ne' (measure_ne_top_of_subset (Set.subset_univ _) htop))
@@ -413,11 +425,12 @@ and every string read has a length its distribution gives mass. -/
 theorem noColl_of_allLt (Ls : ℕ)
     (hLs : P.L < Ls)
     (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0) (ω : Ω)
-    (g : Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget) (r : ℕ) (hr : r < K)
+    (g : Fin K → settings.RoundDraws α) (r : ℕ) (hr : r < K)
     (hlen : (histCodes settings O P.D Dsf ω g r).length = r)
     (hsupp : ∀ ν ∈ samplerLaws P.D settings.level3.walkStart (decodeHist
       (histCodes settings O P.D Dsf ω g r)).pops, ν {q | Ls ≤ q.toList.length} = 0)
-    (hpm : ∀ j ∈ loopPopulations K r, (loopDistributions P.D settings.level3.walkStart (decodeHist (histCodes settings O P.D Dsf ω g r)).pops j).real
+    (hpm : ∀ j ∈ loopPopulations K r, (loopDistributions P.D settings.level3.walkStart (decodeHist
+        (histCodes settings O P.D Dsf ω g r)).pops j).real
         ↑(decodeHist (histCodes settings O P.D Dsf ω g r)).prefs
         ≤ 1 / 2)
     (hsm : Dsf.real ↑(decodeHist
@@ -434,7 +447,8 @@ theorem noColl_of_allLt (Ls : ℕ)
     rw [histAt_pops, List.length_take, hpl]; exact min_le_right _ _
   -- each population a round through `r` reads is one of round `r`'s, and puts mass on short strings
   have hdist : ∀ i, ∀ j ∈ loopPopulations K (histAt c i).pops.length,
-      loopDistributions P.D settings.level3.walkStart (histAt c i).pops j = loopDistributions P.D settings.level3.walkStart H.pops j
+      loopDistributions P.D settings.level3.walkStart (histAt c i).pops j = loopDistributions P.D
+          settings.level3.walkStart H.pops j
         ∧ j ∈ loopPopulations K r := by
     intro i j hj
     have hj' : j ∈ loopPopulations K i := by
@@ -462,10 +476,12 @@ theorem noColl_of_allLt (Ls : ℕ)
     intro i hir p hp
     obtain ⟨j, hj, n, hpn⟩ := mem_prefsOf_draw settings P.D Dsf hp
     obtain ⟨hd, hjr⟩ := hdist i j hj
-    have hm : (loopDistributions P.D settings.level3.walkStart H.pops j).real ↑(histAt c i).prefs ≤ 1 / 2 :=
+    have hm : (loopDistributions P.D settings.level3.walkStart H.pops j).real ↑(histAt c i).prefs ≤
+        1 / 2 :=
       (measureReal_mono (Finset.coe_subset.2 (histAt_prefs_sub c i))).trans
         (hpm j hjr)
-    have h0 : loopDistributions P.D settings.level3.walkStart (histAt c i).pops j (↑(histAt c i).prefs)ᶜ ≠ 0 := by
+    have h0 : loopDistributions P.D settings.level3.walkStart (histAt c i).pops j (↑(histAt c
+        i).prefs)ᶜ ≠ 0 := by
       rw [hd]; exact compl_ne_zero hm
     obtain ⟨hT, hpos⟩ : p ∉ (histAt c i).prefs
         ∧ 0 < (loopDistributions P.D settings.level3.walkStart (histAt c i).pops j).real {p} := by
@@ -527,11 +543,12 @@ distribution gives no mass, with chance zero. -/
 theorem loop_coll_null (Ls : ℕ)
     (hLs : P.L < Ls)
     (hDsf : Dsf {v | v.toList.length ≠ Ls} = 0) (r : ℕ) (hr : r < K) :
-    (loopMeasure μ α K settings.level3.harvestReadCap settings.level3.probeBudget)
+    (settings.measure μ α)
       {p | (histCodes settings O P.D Dsf p.1 p.2 r).length = r
         ∧ (∀ ν ∈ samplerLaws P.D settings.level3.walkStart (decodeHist
             (histCodes settings O P.D Dsf p.1 p.2 r)).pops, ν {q | Ls ≤ q.toList.length} = 0)
-        ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D settings.level3.walkStart (decodeHist (histCodes settings O P.D Dsf p.1 p.2 r)).pops j).real
+        ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D settings.level3.walkStart (decodeHist
+            (histCodes settings O P.D Dsf p.1 p.2 r)).pops j).real
               ↑(decodeHist
                 (histCodes settings O P.D Dsf p.1 p.2 r)).prefs ≤ 1 / 2)
         ∧ Dsf.real ↑(decodeHist
