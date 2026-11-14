@@ -1,6 +1,6 @@
 import RLStar.Proofs.RandomProbe
 import RLStar.Proofs.RandomNoise
-import RLStar.Code.LearnerLoopTrie
+import RLStar.Code.TrieDFA
 
 /-!
 # A round with local walk starts is level 3's

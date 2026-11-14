@@ -100,14 +100,19 @@ lemma prefixMax_avoidLaw_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure 
     (measure_ne_top _ _)).trans (le_prefixMax D k w)) hApos.le
 
 omit [DecidableEq α] in
-lemma LooseEndsWell.mono {σ H : Type*} {M : _root_.DFA α σ} {U : σ → ℝ} {A sl m m' : ℝ}
-    {D : Measure (FreeMonoid α)} {ε ε' : ℝ} {dis : Set (FreeMonoid α)} {k : ℕ}
-    {law : H → Measure (FreeMonoid α)} {y y' : ℝ} (hm : m ≤ m') (hε : ε ≤ ε') (hy : y' ≤ y)
-    {e : RoundEnd H} (h : LooseEndsWell M U A sl m D ε dis k law y e) :
-    LooseEndsWell M U A sl m' D ε' dis k law y' e := by
+lemma LooseEndsWell.mono {σ : Type*} {M : _root_.DFA α σ} {U : σ → ℝ}
+    {A sl sl' m m' pc pc' y y' : ℝ} {D : Measure (FreeMonoid α)} {ε ε' : ℝ}
+    {dis : Set (FreeMonoid α)} {law : Random.Level3Site → Measure (FreeMonoid α)}
+    (hsl : sl ≤ sl') (hm : m ≤ m') (hpc : pc ≤ pc') (hy : y' ≤ y) (hε : ε ≤ ε')
+    {e : Random.LazyEnd α} (h : LooseEndsWell M U A sl m pc y D ε dis law e) :
+    LooseEndsWell M U A sl' m' pc' y' D ε' dis law e := by
   cases e with
   | consistent => exact le_trans h hε
-  | harvest h' => exact ⟨fun T hT => (h.1 T hT).trans (by linarith), h.2.1, hy.trans h.2.2⟩
-  | failed => exact h
+  | harvest s _ =>
+    obtain ⟨h1, h2, h3⟩ := h
+    refine ⟨fun T hT => (h1 T hT).trans ?_, fun t => (h2 t).trans hpc, hy.trans h3⟩
+    have : 0 ≤ (law s).real Set.univ := measureReal_nonneg
+    nlinarith
+  | failed => exact (show False from h).elim
 
 end OrthoDFA
