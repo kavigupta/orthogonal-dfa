@@ -282,6 +282,7 @@ theorem loop_round_le_persist (Ls NP : ℕ) (m crossLimit θ tw : ℝ) (Nr : ℕ
     (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
     (hprem : LazyPremises σ α settings.level3 settings.epochs settings.blocks (2 * θ))
     (hnh : settings.listSize = 1) (hθ : 0 < θ)
+    (hhc : (settings.heavyCount : ℝ) ≤ θ * settings.heavyDraws / 2 + 1)
     (hpm : prefixMax P.D settings.level3.walkStart ≤ θ)
     (hNr : lazyReadCap settings.level3 settings.epochs settings.blocks settings.blockSize P.L
       (Fintype.card σ) (Fintype.card α) ≤ Nr)
@@ -303,15 +304,15 @@ theorem loop_round_le_persist (Ls NP : ℕ) (m crossLimit θ tw : ℝ) (Nr : ℕ
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 r) p.2 r hr}
       ≤ lazyRoundBound σ settings.level3 settings.epochs settings.blocks
           settings.blockSize crossLimit Nr P.L tw
-        + settings.level3.walkStart / θ * (1 - θ) ^ settings.heavyDraws := by
+        + settings.level3.walkStart / θ * Real.exp (-(θ * settings.heavyDraws / 8)) := by
   set δb := lazyRoundBound σ settings.level3 settings.epochs settings.blocks settings.blockSize
-    crossLimit Nr P.L tw + settings.level3.walkStart / θ * (1 - θ) ^ settings.heavyDraws with hδb
+    crossLimit Nr P.L tw + settings.level3.walkStart / θ * Real.exp (-(θ * settings.heavyDraws / 8))
+    with hδb
   have hδb0 : 0 ≤ δb := by
     obtain ⟨hy0, hp8, hyd, hδ0, -, -, hd1, -⟩ := hprem
     have h1 : 0 ≤ 1 - settings.level3.harvestRate / 4 := by linarith
-    have h5 : (0 : ℝ) ≤ settings.level3.walkStart / θ * (1 - θ) ^ settings.heavyDraws := by
-      have : 0 ≤ 1 - θ := by linarith
-      positivity
+    have h5 : (0 : ℝ) ≤ settings.level3.walkStart / θ
+        * Real.exp (-(θ * settings.heavyDraws / 8)) := by positivity
     have h2 : (0 : ℝ) ≤ settings.epochs * settings.blocks
         * (1 - settings.level3.harvestRate / 4) ^ settings.blockSize := by positivity
     have h3 : (0 : ℝ) ≤ crossLimit * Nr := by positivity
@@ -349,7 +350,7 @@ theorem loop_round_le_persist (Ls NP : ℕ) (m crossLimit θ tw : ℝ) (Nr : ℕ
           (mkRound settings O P.D t.2.1 t.2.2.1 (t.2.2.2.image fun p => prefixOf p k)
             t.2.2.2 Sf (ω, v)) :=
     fun t ht => lazy_round_bad_exists M O hL P settings m crossLimit θ tw Nr hk hKw hη1 hcross
-      hprem hnh hθ hpm hNr htw hm1 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
+      hprem hnh hθ hhc hpm hNr htw hm1 t.2.1 t.2.2.1 t.2.2.2 ht.2.2.1 ht.2.2.2.1
       ((hband _ _ ht.2.1).2.2) (by
         have h1 : ((t.2.2.2.image fun p => prefixOf p k).card : ℝ) ≤ 6 * (K + 1) * NP := by
           exact_mod_cast Finset.card_image_le.trans ht.2.2.2.2

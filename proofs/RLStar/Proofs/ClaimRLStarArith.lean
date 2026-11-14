@@ -110,7 +110,7 @@ def knCapP (r : RLStarRun) : ℝ :=
 def knθ (r : RLStarRun) : ℝ := knCapP r * knε r / 192
 
 /-- The heavy draws, missing a prefix heavier than `θ` with chance at most `δ'/4`. -/
-def knNh (r : RLStarRun) : ℕ := ⌈log (4 * knX r / (knθ r * knδ' r)) / knθ r⌉₊
+def knNh (r : RLStarRun) : ℕ := ⌈8 * log (4 * knX r / (knθ r * knδ' r)) / knθ r⌉₊
 
 def knSC (r : RLStarRun) : ℝ := 8 * (r.Q + 4) * knRB r + 16 * log (16 * (r.Q + 2) / knδ' r) + 2
 
@@ -130,7 +130,7 @@ def knSuff (r : RLStarRun) : ℝ := (r.Q + 1) * (knPB r + 1)
 
 def knProbes (r : RLStarRun) : ℝ := (r.Q + 1) * (knNh r + knE r * (knB₃ r + knJ r * knB r))
 
-def knTrie (r : RLStarRun) : ℝ := 6 * (r.Q + 2) * knRB r + knNh r
+def knTrie (r : RLStarRun) : ℝ := 6 * (r.Q + 2) * knRB r + 2 / knθ r
 
 def knReads (r : RLStarRun) : ℝ :=
   lazyReads (r.Q + 1) (6 * (r.Q + 2) * knRB r) (knPB r + 1) (knFV r)
@@ -1367,8 +1367,8 @@ lemma knθ_bounds (hr : r ∈ rlStarRunRegion) :
           norm_num
 
 lemma knNh_bounds (hr : r ∈ rlStarRunRegion) :
-    (knNh r : ℝ) ≤ 2 ^ 12 * knCapInv r * (1 / r.ξc) * knΛ r
-      ∧ ∀ k : ℕ, k ≤ r.L → log (4 * k / (knθ r * knδ' r)) / knθ r ≤ knNh r := by
+    (knNh r : ℝ) ≤ 2 ^ 15 * knCapInv r * (1 / r.ξc) * knΛ r
+      ∧ ∀ k : ℕ, k ≤ r.L → 8 * log (4 * k / (knθ r * knδ' r)) / knθ r ≤ knNh r := by
   obtain ⟨hθ, hθ1, hiθ⟩ := knθ_bounds hr
   obtain ⟨hδ', hδ'1, hiδ'⟩ := knδ'_bounds hr
   obtain ⟨hc1, hcZ⟩ := knCapInv_bounds hr
@@ -1392,16 +1392,16 @@ lemma knNh_bounds (hr : r ∈ rlStarRunRegion) :
     rw [le_div_iff₀ (by positivity)]
     have : knθ r * knδ' r ≤ 1 := mul_le_one₀ hθ1 hδ'.le (by linarith)
     linarith
-  have hx0 : 0 ≤ log (4 * knX r / (knθ r * knδ' r)) / knθ r := by positivity
+  have hx0 : 0 ≤ 8 * log (4 * knX r / (knθ r * knδ' r)) / knθ r := by positivity
   have hc := Nat.ceil_lt_add_one hx0
-  have hc' := Nat.le_ceil (log (4 * knX r / (knθ r * knδ' r)) / knθ r)
-  have hN : knNh r = ⌈log (4 * knX r / (knθ r * knδ' r)) / knθ r⌉₊ := rfl
+  have hc' := Nat.le_ceil (8 * log (4 * knX r / (knθ r * knδ' r)) / knθ r)
+  have hN : knNh r = ⌈8 * log (4 * knX r / (knθ r * knδ' r)) / knθ r⌉₊ := rfl
   rw [hN]
   refine ⟨?_, fun k hk => ?_⟩
-  · have h1 : log (4 * knX r / (knθ r * knδ' r)) / knθ r ≤ knΛ r * (1 / knθ r) := by
+  · have h1 : 8 * log (4 * knX r / (knθ r * knδ' r)) / knθ r ≤ 8 * knΛ r * (1 / knθ r) := by
       rw [div_eq_mul_one_div]; gcongr
-    have h2 := mul_le_mul_of_nonneg_left hiθ (show 0 ≤ knΛ r by linarith)
-    have h3 : (1 : ℝ) ≤ 2 ^ 11 * knCapInv r * (1 / r.ξc) * knΛ r := by
+    have h2 := mul_le_mul_of_nonneg_left hiθ (show 0 ≤ 8 * knΛ r by linarith)
+    have h3 : (1 : ℝ) ≤ 2 ^ 14 * knCapInv r * (1 / r.ξc) * knΛ r := by
       have a3 : (1 : ℝ) ≤ knCapInv r * (1 / r.ξc) := one_le_mul_of_one_le_of_one_le hc1 iξ
       have a4 : (1 : ℝ) ≤ knCapInv r * (1 / r.ξc) * knΛ r :=
         one_le_mul_of_one_le_of_one_le a3 (by linarith)

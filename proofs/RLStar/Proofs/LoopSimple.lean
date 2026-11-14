@@ -161,7 +161,7 @@ lemma scan_tail_le {Kn T : ℕ} {cap δ δₘ : ℝ} (hδ : 0 < δ) (hcap0 : 0 �
 set_option maxHeartbeats 8000000 in -- the settings and the cap meet `LoopCore`'s conditions
 /-- The loop's claim with each round's failure `δ'` free and the last round's disagreeing probes
 at most `ε + ε/96 + tw`, level 3 running at disagreement rate `ε` over `E` epochs and top-ups of
-`J` blocks of `b` probes, one-string lists, `Nh` heavy draws, each lazy round asking at most `Nr`
+`J` blocks of `b` probes, one-string lists, `Nh` trie draws, each lazy round asking at most `Nr`
 strings and the band's `ζ = δ'/(8W)`; its family misreads at most `(1025/1024) εcov` and leaves
 undecided at most `(3/8) εcov` of `P.D`. Every round the filled draws run is good, and no epoch's
 tree has more than `|Q| + 2` leaves. -/
@@ -204,7 +204,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     1 ≤ k → (∀ᵐ x ∂P.D, k ≤ x.toList.length) →
     prefixMax P.D k ≤ cap * ε / 12288 →
     0 < ι → ι ≤ εcov / 8 → 1 ≤ W →
-    Real.log (4 * k / (θ * δ')) / θ ≤ Nh →
+    8 * Real.log (4 * k / (θ * δ')) / θ ≤ Nh →
     2 * k / (ε / 48) + 1 ≤ E → k + 2 ≤ J →
     E * J * (1 - ε / 192) ^ b ≤ δ' / 4 →
     E * ((B₃ + J * b) * (Random.Kappa.probeSifts (P.L + k) * (Q + 3))
@@ -215,7 +215,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.scanCap : ℝ) ≤ SC ∧
-      (settings.listSize = 1 ∧ settings.heavyDraws = Nh) ∧
+      (settings.listSize = 1 ∧ settings.heavyDraws = Nh ∧ settings.heavyCount = ⌈θ * Nh / 2⌉₊) ∧
       (settings.level3.harvestReadCap : ℝ) ≤ HR ∧ settings.level3.harvestRate = ε / 48 ∧
       settings.epochs = E ∧ settings.blocks = J
       ∧ settings.blockSize = b ∧
@@ -697,7 +697,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     (ε / (12288 * Jp)) cross Tu C (2 * Tsc) Tsc E J b Nr Nh θ tw (ε / 384) (δ' / (4 * (Q + 1)))
   dsimp only at hcore
   rw [hcexp] at hcore
-  obtain ⟨settings, -, -, -, -, hC3, hscan, hlist, hheavy, hep, hbl, hbs, hnp, hreads, hks,
+  obtain ⟨settings, -, -, -, -, hC3, hscan, hlist, hheavy, hhc, hep, hbl, hbs, hnp, hreads, hks,
     hmain⟩ :=
     hcore hL hgap hη₀ hι0 (by linarith) (by positivity) (by linarith) (by positivity)
     (by linarith) (by linarith) (by linarith) hδ'0 hδ'1 hι0 hpAP
@@ -716,7 +716,7 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     (by show ε / 384 ≤ ε / 48 / 8; linarith) (div_pos hδ'0 (by linarith)) (by omega)
     (le_max_left _ _) (by omega)
   refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud,
-    by rw [hscan]; exact hMSC, ⟨hlist, hheavy⟩, by rw [hC3]; exact hHR, by rw [hC3]; rfl,
+    by rw [hscan]; exact hMSC, ⟨hlist, hheavy, hhc⟩, by rw [hC3]; exact hHR, by rw [hC3]; rfl,
     hep, hbl, hbs, hnp, hreads, hks, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf hlen hpAPD hatom
@@ -730,21 +730,17 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     have hbsc := scan_tail_le (Kn := Fintype.card σ + 1) (T := Tsc) (δₘ := δ' / (4 * (Q + 1)))
       hδ'0 hcap0.le hρ (by rw [hK1]; exact hTsc8)
       (le_of_eq (by rw [hKQ]; field_simp))
-    have hheavyB : (C.walkStart : ℝ) / θ * (1 - θ) ^ Nh ≤ δ' / 4 := by
-      show (k : ℝ) / θ * (1 - θ) ^ Nh ≤ δ' / 4
+    have hheavyB : (C.walkStart : ℝ) / θ * Real.exp (-(θ * Nh / 8)) ≤ δ' / 4 := by
+      change (k : ℝ) / θ * Real.exp (-(θ * Nh / 8)) ≤ δ' / 4
       have hk0' : (1 : ℝ) ≤ k := by exact_mod_cast hk0
       have harg : 0 < 4 * k / (θ * δ') := by positivity
-      have h1 : Real.log (4 * k / (θ * δ')) ≤ θ * Nh := by
+      have h1 : Real.log (4 * k / (θ * δ')) ≤ θ * Nh / 8 := by
         rw [div_le_iff₀ hθ0] at hNh; linarith
-      have h2 : (1 - θ) ^ Nh ≤ Real.exp (-(θ * Nh)) := by
-        calc (1 - θ) ^ Nh ≤ Real.exp (-θ) ^ Nh :=
-              pow_le_pow_left₀ (by linarith) (by linarith [Real.add_one_le_exp (-θ)]) Nh
-          _ = Real.exp (-(θ * Nh)) := by rw [← Real.exp_nat_mul]; ring_nf
-      have h3 : Real.exp (-(θ * Nh)) ≤ Real.exp (-Real.log (4 * k / (θ * δ'))) :=
+      have h3 : Real.exp (-(θ * Nh / 8)) ≤ Real.exp (-Real.log (4 * k / (θ * δ'))) :=
         Real.exp_le_exp.2 (by linarith)
       rw [Real.exp_neg (Real.log _), Real.exp_log harg] at h3
-      calc (k : ℝ) / θ * (1 - θ) ^ Nh ≤ k / θ * (4 * k / (θ * δ'))⁻¹ :=
-            mul_le_mul_of_nonneg_left (h2.trans h3) (by positivity)
+      calc (k : ℝ) / θ * Real.exp (-(θ * Nh / 8)) ≤ k / θ * (4 * k / (θ * δ'))⁻¹ :=
+            mul_le_mul_of_nonneg_left h3 (by positivity)
         _ = δ' / 4 := by field_simp
     have hlr : lazyRoundBound σ C E J b cross Nr P.L tw ≤ 5 / 2 * δ' := by
       unfold lazyRoundBound
