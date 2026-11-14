@@ -31,9 +31,10 @@ def rlStarRegion : Set RLStarInputs :=
   {x | 1 ≤ x.Q ∧ 2 ≤ x.A ∧ 0 < x.δ ∧ x.δ ≤ 1 / 2 ∧ 0 < x.ξ ∧ x.ξ ≤ 1 ∧
     0 < x.pAP ∧ x.pAP ≤ 1 ∧ 0 < x.s₀ ∧ x.s₀ ≤ 1 / 2 ∧ 0 < x.β}
 
-/-- `L` the Python's length. -/
+/-- `L` the Python's length and `k` the walk start. -/
 structure RLStarRun extends RLStarInputs where
   L : ℕ
+  k : ℕ
 
 def rlStarRunRegion : Set RLStarRun := {r | r.toRLStarInputs ∈ rlStarRegion}
 
@@ -77,20 +78,20 @@ def RLStarWithin.{u, v, w}
   x.β ≤ (prefixLaw D L).real {p | p ∈ O.L} → x.β ≤ (prefixLaw D L).real {p | p ∉ O.L} →
   (∀ᵐ w ∂D, Ls ≤ w.toList.length) →
   k ≤ L →
-  (∀ u, D.real {w | prefixOf w k = u} ≤ p₀Tol { x with L }) →
+  (∀ u, D.real {w | prefixOf w k = u} ≤ p₀Tol { x with L, k }) →
   x.pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
     (∀ p : settings.Draws Ω A, ∀ rounds,
         indecisiveLStarLoop settings O (prefixLaw D L) (prefixLaw D Ls) p = some rounds →
-      ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
-        ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
+      ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L, k }
+        ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L, k }
         ∧ (rounds.length * (settings.heavyDraws + settings.epochs
             * (settings.level3.probeBudget + settings.blocks * settings.blockSize)) : ℝ)
-          ≤ totalProbes { x with L }) ∧
+          ≤ totalProbes { x with L, k }) ∧
     (settings.measure μ A).real
       {p | ¬ RLStarSucceeds settings O (prefixLaw D L) (prefixLaw D Ls) (prefixLaw D L) M
-        x.ξ (k * trieWidth { x with L }) (totalReads { x with L }) p}
+        x.ξ (k * trieWidth { x with L, k }) (totalReads { x with L, k }) p}
       ≤ x.δ
 
 open Real in
@@ -118,9 +119,9 @@ noncomputable def RLStarRun.nHeavy (r : RLStarRun) : ℝ :=
 noncomputable def RLStarRun.nProbe (r : RLStarRun) : ℝ := r.Q * r.nHeavy
 
 /-- Clusterings, then the walk-start table: `|Q| + 2` sifts at `|V̂| = logZ / s₀²` for each of
-the trie's frontier strings. -/
+the trie's `k |Σ| nHeavy` frontier strings; the samplers read as much as `logZ` letters of `k`. -/
 noncomputable def RLStarRun.nReads (r : RLStarRun) : ℝ :=
-  r.nPref * r.nSuff / r.Q + r.Q * r.A * (r.L + r.Q) * r.nHeavy * (r.logZ / r.s₀ ^ 2)
+  r.nPref * r.nSuff / r.Q + r.Q * r.A * (r.k + r.logZ) * r.nHeavy * (r.logZ / r.s₀ ^ 2)
 
 def RLStarClaim.{u, v, w} : Prop :=
   ∃ (p₀Tol totalPref totalSuff totalProbes trieWidth totalReads : RLStarRun → ℝ),
@@ -146,20 +147,20 @@ def RLStarWithinUniform.{u, v, w} (k₀ : RLStarRun → ℝ)
   2 * x.s₀ ≤ O.gap →
   x.β ≤ (uniformStrings L).real {p | p ∈ O.L} → x.β ≤ (uniformStrings L).real {p | p ∉ O.L} →
   x.pAP ≤ (uniformStrings (L₁ + Fintype.card Q + 3)).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-  k₀ { x with L } ≤ k → k ≤ L →
+  k₀ { x with L, k } ≤ k → k ≤ L →
   ∃ settings : LoopSettings (Fintype.card Q + 1),
     settings.level3.walkStart = k ∧
     (∀ p : settings.Draws Ω A, ∀ rounds, indecisiveLStarLoop settings O (uniformStrings L)
         (uniformStrings (L₁ + Fintype.card Q + 3)) p = some rounds →
-      ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L }
-        ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L }
+      ((rounds.map fun o => o.prefs.card).sum : ℝ) ≤ totalPref { x with L, k }
+        ∧ ((rounds.map fun o => o.suffs.card).sum : ℝ) ≤ totalSuff { x with L, k }
         ∧ (rounds.length * (settings.heavyDraws + settings.epochs
             * (settings.level3.probeBudget + settings.blocks * settings.blockSize)) : ℝ)
-          ≤ totalProbes { x with L }) ∧
+          ≤ totalProbes { x with L, k }) ∧
     (settings.measure μ A).real
       {p | ¬ RLStarSucceeds settings O (uniformStrings L)
         (uniformStrings (L₁ + Fintype.card Q + 3)) (uniformStrings L) M x.ξ
-        (k * trieWidth { x with L }) (totalReads { x with L }) p}
+        (k * trieWidth { x with L, k }) (totalReads { x with L, k }) p}
       ≤ x.δ
 
 open Real in
@@ -193,9 +194,9 @@ def RLStarClaimUniformSimple.{u, v, w} : Prop :=
         + r.Q * r.A * (r.L + r.Q) * r.logZ ^ 2 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 2)) ∧
     totalReads =O[𝓟 rlStarRunRegion] (fun r =>
       r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.logZ ^ 2 / (r.ξc ^ 2 * r.pAP * r.s₀ ^ 6)
-        + r.Q ^ 8 * r.A ^ 5 * (r.L + r.Q) ^ 5 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 8)
-        + r.Q ^ 10 * r.A ^ 5 * (r.L + r.Q) ^ 5 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 6)
-        + r.Q ^ 2 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.logZ ^ 3 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 4)) ∧
+        + (r.k + r.logZ) * (r.Q ^ 8 * r.A ^ 5 * (r.L + r.Q) ^ 4 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 8)
+          + r.Q ^ 10 * r.A ^ 5 * (r.L + r.Q) ^ 4 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 6)
+          + r.Q ^ 2 * r.A ^ 2 * (r.L + r.Q) * r.logZ ^ 3 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 4))) ∧
     RLStarWithinUniform.{u, v, w} k₀ totalPref totalSuff totalProbes trieWidth totalReads
 
 end OrthoDFA

@@ -238,25 +238,25 @@ theorem rlStarClaimUniform_of_rlStarClaim (h : RLStarClaim.{u, v, w}) :
     linarith [mul_nonneg hc₁ hVA]
   -- the run, at `D` uniform
   intro A _ _ _ Q _ Ω _ μ _ x M O L k L₁ hx hQ hA hL hgap hbL hbN hpAPu hk₀ hkL
-  have hr : ({ x with L } : RLStarRun) ∈ rlStarRunRegion := hx
+  have hr : ({ x with L, k } : RLStarRun) ∈ rlStarRunRegion := hx
   have hA' : (2 : ℝ) ≤ x.A := by exact_mod_cast hx.2.1
   have hAc : (Fintype.card A : ℝ) = x.A := by exact_mod_cast hA
   obtain ⟨-, hS16, -⟩ := tolShape_le hr
   -- `D`'s first `k` letters weigh at most `p₀Tol`
-  have hp₀k : ((x.A : ℝ) ^ k)⁻¹ ≤ p₀Tol { x with L } := by
-    have hpos' := hpos { x with L }
-    have hc : ‖1 / p₀Tol { x with L }‖ ≤ C * ‖tolShape { x with L }‖ := hC _ hr
+  have hp₀k : ((x.A : ℝ) ^ k)⁻¹ ≤ p₀Tol { x with L, k } := by
+    have hpos' := hpos { x with L, k }
+    have hc : ‖1 / p₀Tol { x with L, k }‖ ≤ C * ‖tolShape { x with L, k }‖ := hC _ hr
     rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_pos (one_div_pos.2 hpos'),
-      abs_of_nonneg (show (0 : ℝ) ≤ tolShape { x with L } by linarith)] at hc
-    have hc' : 1 / p₀Tol { x with L } ≤ C₀ * tolShape { x with L } :=
+      abs_of_nonneg (show (0 : ℝ) ≤ tolShape { x with L, k } by linarith)] at hc
+    have hc' : 1 / p₀Tol { x with L, k } ≤ C₀ * tolShape { x with L, k } :=
       hc.trans (mul_le_mul_of_nonneg_right (le_max_right 1 C) (by linarith))
     have hlA : 0 < log (x.A : ℝ) := Real.log_pos (by linarith)
-    have hpow : C₀ * tolShape { x with L } ≤ (x.A : ℝ) ^ k := by
-      have hk' : log (C₀ * tolShape { x with L }) / log (x.A : ℝ) ≤ k := hk₀
+    have hpow : C₀ * tolShape { x with L, k } ≤ (x.A : ℝ) ^ k := by
+      have hk' : log (C₀ * tolShape { x with L, k }) / log (x.A : ℝ) ≤ k := hk₀
       have h9 := (div_le_iff₀ hlA).1 hk'
       rw [← Real.log_le_log_iff (by positivity) (pow_pos (by linarith) k), Real.log_pow]
       linarith
-    have h1 : 1 / p₀Tol { x with L } ≤ (x.A : ℝ) ^ k := hc'.trans hpow
+    have h1 : 1 / p₀Tol { x with L, k } ≤ (x.A : ℝ) ^ k := hc'.trans hpow
     rw [one_div] at h1
     exact (inv_le_comm₀ (pow_pos (by linarith : (0 : ℝ) < x.A) k) hpos').2 h1
   set m := L + Fintype.card Q + 3 + Fintype.card Q + 3 with hmd
@@ -294,9 +294,9 @@ lemma simple_probe (r : RLStarRun) :
 
 lemma simple_reads (hr : r ∈ rlStarRunRegion) :
     r.nReads = r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.logZ ^ 2 / (r.ξc ^ 2 * r.pAP * r.s₀ ^ 6)
-      + r.Q ^ 8 * r.A ^ 5 * (r.L + r.Q) ^ 5 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 8)
-      + r.Q ^ 10 * r.A ^ 5 * (r.L + r.Q) ^ 5 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 6)
-      + r.Q ^ 2 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.logZ ^ 3 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 4) := by
+      + (r.k + r.logZ) * (r.Q ^ 8 * r.A ^ 5 * (r.L + r.Q) ^ 4 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 8)
+        + r.Q ^ 10 * r.A ^ 5 * (r.L + r.Q) ^ 4 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 6)
+        + r.Q ^ 2 * r.A ^ 2 * (r.L + r.Q) * r.logZ ^ 3 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 4)) := by
   obtain ⟨hQ, -⟩ := kn_base hr
   have hQ0 : (r.Q : ℝ) ≠ 0 := by positivity
   have e : r.nPref * r.nSuff / r.Q
