@@ -24,10 +24,10 @@ without its seed, at the gate's cut: a string reads accept at `hi + 1` or more o
 votes and reject at `lo` or fewer. Without its seed the family is suffix draws of one length, so
 it is suffix-free.
 
-Known modelling gap. The round starts its trie from every prefix shorter than `walkStart` of
-every prefix its clustering read and of `heavyDraws` fresh draws from `D` (`Random.prefixTrie`), so
-it spells out the walk starts heavy in `D` up front. The Python starts from the empty trie and
-spells out a walk start when a harvested string repeats.
+Known modelling gap. The round spells out up front every prefix shorter than `walkStart` of the
+prefixes its clustering read (`Random.prefixTrie`), and every prefix shorter than `walkStart` that
+at least `heavyCount` of `heavyDraws` fresh draws from `D` share (`heavySet`). The Python starts
+from the empty trie and spells out a walk start when a harvested string repeats.
 
 Known modelling gap. A harvest's population is its round's harvest law, drawn by the sampler
 above. The Python's (`HarvestSource`) holds the strings the round harvested and draws more by
@@ -172,8 +172,8 @@ def ScanWithin {K : ℕ} (sched : Finset State) (pops : Finset (Option (Fin K)))
       ≤ ((seqsOf n dr j).2.toFinset \ prefixesAt pops B.npref (streams (fun _ => ∅) none dr)).card
 
 /-- The clustering's schedule, FNR limit and gate level, level 3's settings, the draws whose short
-prefixes start a round's trie, and the lazy round's list size `nh`, epochs `E`, blocks per top-up
-`J` and block size `b`. -/
+prefixes start a round's trie and how many of them a prefix needs, and the lazy round's list size
+`nh`, epochs `E`, blocks per top-up `J` and block size `b`. -/
 structure LoopSettings (K : ℕ) where
   schedule : Finset (Option (Fin K)) → Finset State
   η₀ : ℝ
@@ -184,6 +184,7 @@ structure LoopSettings (K : ℕ) where
   /-- The draws each population makes. -/
   scanCap : ℕ
   heavyDraws : ℕ
+  heavyCount : ℕ
   listSize : ℕ
   epochs : ℕ
   blocks : ℕ
@@ -349,10 +350,11 @@ def lazyProbes {E P J b : ℕ} (ν : Measure (FreeMonoid α)) (u : LazyUniforms 
     Fin E → Random.EpochDraws α P J b :=
   fun e => (fun i => drawFrom ν ((u e).1 i), fun j t => drawFrom ν ((u e).2 j t))
 
-/-- The round's trie draws, drawn from `D` by `u`. -/
-def heavySet {Nh : ℕ} (D : Measure (FreeMonoid α)) (u : Fin Nh → unitInterval) :
+/-- The prefixes shorter than `K` that at least `m` of the round's trie draws share. -/
+def heavySet {Nh : ℕ} (D : Measure (FreeMonoid α)) (m K : ℕ) (u : Fin Nh → unitInterval) :
     Finset (FreeMonoid α) :=
-  Finset.univ.image fun i => drawFrom D (u i)
+  (Random.prefixTrie K (Finset.univ.image fun i => drawFrom D (u i))).filter
+    fun c => m ≤ (Finset.univ.filter fun i => prefixOf (drawFrom D (u i)) c.toList.length = c).card
 
 open scoped Classical in
 /-- The round after the history `h`; `none` if it fails. -/
@@ -377,7 +379,7 @@ def roundQ {K : ℕ} (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α
           let F := clusterAt mq ps x B
           let CP := roundPrefs sched ps x
           ((Random.lazyRoundQ settings.level3 Kw settings.listSize
-              (Random.prefixTrie Kw (CP ∪ heavySet D d.2.1))
+              (Random.prefixTrie Kw (CP ∪ heavySet D settings.heavyCount Kw d.2.1))
               (lazyProbes (avoidLaw D Kw (clusterKeys sched ps Kw x)) d.2.2)).subst
             (familyReadQ F B.lo (B.hi + 1))).map fun res =>
             some ⟨B, F, res, CP, roundSuffs sched x⟩

@@ -37,16 +37,18 @@ theorem rlStarClaim_holds : RLStarClaim.{u, v, w} := by
     obtain ⟨hPB, -⟩ := knPB_bounds hr
     unfold knSuff
     positivity
-  · refine isBigO_on (2 ^ 160) fun r hr => ⟨?_, (shape_pos hr).2.2.2.2.2.1, knProbes_le hr⟩
+  · refine isBigO_on (2 ^ 163) fun r hr => ⟨?_, (shape_pos hr).2.2.2.2.2.1, knProbes_le hr⟩
     obtain ⟨hB₃, -⟩ := knB₃_bounds hr
     unfold knProbes
     positivity
-  · refine isBigO_on (2 ^ 159) fun r hr => ⟨?_, (shape_pos hr).2.2.2.2.1, knTrie_le hr⟩
+  · refine isBigO_on (2 ^ 150) fun r hr => ⟨?_, nTrie_nonneg hr, knTrie_le hr⟩
     obtain ⟨hRB0, -⟩ := knRB_bounds hr
+    obtain ⟨hθ, -⟩ := knθ_bounds hr
     unfold knTrie
     positivity
-  · refine isBigO_on (2 ^ 180) fun r hr => ⟨?_, (shape_pos hr).2.2.2.2.2.2, knReads_le hr⟩
+  · refine isBigO_on (2 ^ 171) fun r hr => ⟨?_, (shape_pos hr).2.2.2.2.2.2, knReads_le hr⟩
     obtain ⟨hRB0, -⟩ := knRB_bounds hr
+    obtain ⟨hθ, -⟩ := knθ_bounds hr
     obtain ⟨hPB, -, hFV, -⟩ := knPB_bounds hr
     obtain ⟨hSC, -⟩ := knSC_bounds hr
     obtain ⟨hHR, -⟩ := knHR_bounds hr

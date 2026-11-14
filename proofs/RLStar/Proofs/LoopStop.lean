@@ -321,7 +321,8 @@ theorem popCode_congr (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
     fun p hp => hr p (hsub _ (le_max_left _ _) hp)
   have hres := lazyRound_result_congr O settings.level3 settings.level3.walkStart settings.listSize
     (Random.prefixTrie settings.level3.walkStart
-      ((roundSets settings D Dsf h (ω, d.1)).1 ∪ heavySet D d.2.1)) F B.lo (B.hi + 1) xs h1
+      ((roundSets settings D Dsf h (ω, d.1)).1
+        ∪ heavySet D settings.heavyCount settings.level3.walkStart d.2.1)) F B.lo (B.hi + 1) xs h1
   have hgraph : readGraph N (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω)
       = readGraph N (fun z => familyRead O.mq F B.lo (B.hi + 1) z ω') := by
     unfold readGraph

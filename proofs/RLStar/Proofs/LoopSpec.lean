@@ -119,6 +119,16 @@ def PopsHit {K : ℕ} (D : Measure (FreeMonoid α)) (Kw N M : ℕ) (pops : List 
   ∀ i : Fin K, i.val < pops.length → ∀ n < M,
     (popHit D Kw N pops T (some i) (c.2.1 (some i) n)).isSome
 
+/-- The prefixes shorter than `K` that at least `m` of the strings `v` share. -/
+def heavyOf {Nh : ℕ} (m K : ℕ) (v : Fin Nh → FreeMonoid α) : Finset (FreeMonoid α) :=
+  (Random.prefixTrie K (Finset.univ.image v)).filter
+    fun c => m ≤ (Finset.univ.filter fun i => prefixOf (v i) c.toList.length = c).card
+
+omit [DecidableEq α] in
+theorem heavySet_eq_heavyOf {Nh : ℕ} (D : Measure (FreeMonoid α)) (m K : ℕ)
+    (u : Fin Nh → unitInterval) : heavySet D m K u = heavyOf m K fun i => drawFrom D (u i) :=
+  rfl
+
 /-- A round: the state its clustering returned at and its family, the family's reads, what the lazy
 round returned, and the prefixes and suffixes its clustering read. -/
 structure SpecRound (α : Type*) where
@@ -132,8 +142,9 @@ structure SpecRound (α : Type*) where
 variable {μ : Measure Ω}
 
 /-- The round after the history `h` whose clustering ran `x`: the state it returned at and its
-family, and the lazy round from the trie of the clustering's prefixes and the trie draws, its
-probes drawn by `u` from `D` avoiding the first `walkStart` letters of those prefixes. -/
+family, and the lazy round from the trie of the clustering's prefixes and the trie draws' heavy
+prefixes, its probes drawn by `u` from `D` avoiding the first `walkStart` letters of those
+prefixes. -/
 def roundOf {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D : Measure (FreeMonoid α)) (h : SpecHist α) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
     (u : settings.Uniforms) : SpecRound α :=
@@ -145,7 +156,7 @@ def roundOf {K : ℕ} (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)
   let Kw := settings.level3.walkStart
   let CP := roundPrefs (settings.schedule ps) ps x
   ⟨B, F, read, (Random.lazyRoundQ settings.level3 Kw settings.listSize
-      (Random.prefixTrie Kw (CP ∪ heavySet D u.1))
+      (Random.prefixTrie Kw (CP ∪ heavySet D settings.heavyCount Kw u.1))
       (lazyProbes (avoidLaw D Kw (clusterKeys (settings.schedule ps) ps Kw x)) u.2)).eval read,
     CP, roundSuffs (settings.schedule ps) x⟩
 

@@ -568,7 +568,7 @@ lemma family_of_fresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : �
       (leastLossSubset_card_le _ _ _)
 
 /-- The loop's claim at a cap `cap`, level 3's settings `C`, one-string lists, `E` epochs of `J`
-blocks of `b` probes, `Nh` heavy draws, and `NS`, `NP` and `NF` bounding the schedule's suffix
+blocks of `b` probes, `Nh` trie draws, and `NS`, `NP` and `NF` bounding the schedule's suffix
 pool, prefix count and family, the clustering run at `slack - m` and `pAP - ms`. The clustering's
 band reads the rarer decided side at most `cross` times as often as undecided. A lazy round asks
 at most `Nr` strings; its harvest law meets the slope `lazySlope` and slack `lazySlack` at `2θ`,
@@ -633,7 +633,7 @@ def LoopCore : Prop :=
     settings.η₀ = 2 * η₀ - 1 / 2 ∧ settings.indecisionLimit = indecisionLimit
     ∧ settings.εcov = εcov ∧ settings.gateLevel = gateLevel ∧ settings.level3 = C
     ∧ settings.scanCap = scanCap ∧ settings.listSize = 1 ∧ settings.heavyDraws = Nh
-    ∧ settings.epochs = E
+    ∧ settings.heavyCount = ⌈θ * Nh / 2⌉₊ ∧ settings.epochs = E
     ∧ settings.blocks = J ∧ settings.blockSize = b ∧
     (∀ pops, ∑ n ∈ (settings.schedule pops).image State.npref, n ≤ 2 * NP) ∧
     (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
@@ -656,7 +656,7 @@ def LoopCore : Prop :=
                 RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
                   (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))}
         ≤ (Fintype.card σ + 1) * (δc + gateLevel + lazyRoundBound σ C E J b cross Nr P.L tw
-          + C.walkStart / θ * (1 - θ) ^ Nh + bsc)
+          + C.walkStart / θ * Real.exp (-(θ * Nh / 8)) + bsc)
 
 set_option maxHeartbeats 2000000 in -- the clustering's premises and the round bounds
 theorem loop_core_holds : LoopCore := by
@@ -683,7 +683,7 @@ theorem loop_core_holds : LoopCore := by
     · exact hband₀ pops B hB
     · simp at hB
   set settings : LoopSettings K :=
-    ⟨schedule, 2 * η₀ - 1 / 2, ι, εcov, gate, C, scanCap, Nh, 1, E, J, b⟩ with hset
+    ⟨schedule, 2 * η₀ - 1 / 2, ι, εcov, gate, C, scanCap, Nh, ⌈θ * Nh / 2⌉₊, 1, E, J, b⟩ with hset
   -- the schedule's sizes
   have hsizes : ∀ pops, ∀ B ∈ settings.schedule pops, B.nsuff = poolCount η₀ pops ι εcov (δc / 2)
       (pAP - ms) c ∧ B.npref ≤ NP ∧ none ∈ pops := fun pops B hB => by
@@ -720,7 +720,7 @@ theorem loop_core_holds : LoopCore := by
       · have he : settings.schedule pops = ∅ := if_neg hp
         rw [he]
         exact (card_roundSuffs_le (n := 0) ∅ (by simp) x).trans (by omega)
-  refine ⟨settings, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hNPsum, hreads, hks,
+  refine ⟨settings, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hNPsum, hreads, hks,
     ?_⟩
   intro Dsf hDsf hDsfLen hpAPDsf hatom
   set k := C.walkStart
@@ -993,11 +993,11 @@ theorem loop_core_holds : LoopCore := by
   have h1 : ∀ r (hr : r < K), μL.real (E1 r hr) ≤ δc + gate := fun r hr =>
     loop_cluster_round_le_persist settings O P Dsf Ls (513 / 512 * εcov) (δc + gate) slack cap cap
       m ms pAP (by linarith) hm1 hms1 hclust hLs' hDat hbalL hbalN hDsfLen hpAPDsf hatom r hr
-  set δ3 : ℝ := lazyRoundBound σ C E J b cross Nr P.L tw + C.walkStart / θ * (1 - θ) ^ Nh
-    with hδ3d
+  set δ3 : ℝ := lazyRoundBound σ C E J b cross Nr P.L tw
+    + C.walkStart / θ * Real.exp (-(θ * Nh / 8)) with hδ3d
   have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ3 := fun r hr =>
     loop_round_le_persist M O hL P Dsf settings Ls NP mr cross θ tw Nr hNPsum hband hk0 hKw
-      hη1 hcr hprem rfl hθ hpm hNr htw hmr hmr1 r hr
+      hη1 hcr hprem rfl hθ (Nat.ceil_lt_add_one (by positivity)).le hpm hNr htw hmr hmr1 r hr
   have h3 : ∀ r (hr : r < K), μL.real (E3 r hr) = 0 := fun r hr => by
     rw [measureReal_def, loop_coll_null settings O P Dsf Ls hLs' hDsfLen r hr,
       ENNReal.toReal_zero]
@@ -1018,8 +1018,8 @@ theorem loop_core_holds : LoopCore := by
     have e2 : 0 ≤ cross * Nr := mul_nonneg hcr.le (Nat.cast_nonneg _)
     have e3 : 0 ≤ ((P.L : ℝ) + 1) * (Fintype.card σ + 2) * cross / tw :=
       div_nonneg (mul_nonneg (by positivity) hcr.le) htw.le
-    have e4 : 0 ≤ (C.walkStart : ℝ) / θ * (1 - θ) ^ Nh :=
-      mul_nonneg (div_nonneg (Nat.cast_nonneg _) hθ.le) (pow_nonneg (by linarith) Nh)
+    have e4 : 0 ≤ (C.walkStart : ℝ) / θ * Real.exp (-(θ * Nh / 8)) :=
+      mul_nonneg (div_nonneg (Nat.cast_nonneg _) hθ.le) (Real.exp_pos _).le
     rw [hδ3d, lazyRoundBound]
     linarith
   have hEv : ∀ r, μL.real (Ev r) ≤ δc + gate + δ3 + bsc := by
@@ -1269,7 +1269,7 @@ theorem loop_core_holds : LoopCore := by
     _ ≤ ∑ _r ∈ Finset.range (Fintype.card σ + 1), (δc + gate + δ3 + bsc) :=
         Finset.sum_le_sum fun r _ => hEv r
     _ = (Fintype.card σ + 1) * (δc + gate + lazyRoundBound σ C E J b cross Nr P.L tw
-          + k / θ * (1 - θ) ^ Nh + bsc) := by
+          + k / θ * Real.exp (-(θ * Nh / 8)) + bsc) := by
         rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, hδ3d]
         push_cast
         ring

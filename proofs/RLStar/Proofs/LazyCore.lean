@@ -61,7 +61,7 @@ private lemma lazyEpochsQ_root (read : FreeMonoid α → ARU) (C : Random.Level3
     · simp at h
 
 /-- A consistent lazy round of lists of one string from the trie of `P` keeps its trie shorter than
-`K`, roots its tree at the empty string, and keeps the trie of at most `K |P|` strings. -/
+`K`, roots its tree at the empty string, and keeps a trie no larger than the trie of `P`. -/
 private lemma lazyRoundQ_consistent (read : FreeMonoid α → ARU) (C : Random.Level3Settings)
     (K : ℕ) {E J b : ℕ} (P : Finset (FreeMonoid α))
     (d : Fin E → Random.EpochDraws α C.probeBudget J b)
@@ -71,7 +71,7 @@ private lemma lazyRoundQ_consistent (read : FreeMonoid α → ARU) (C : Random.L
         u.toList.length < K)
       ∧ RootOne ((Random.lazyRoundQ C K 1 (Random.prefixTrie K P) d).eval read).hypothesis.tree
       ∧ ((Random.lazyRoundQ C K 1 (Random.prefixTrie K P) d).eval read).expanded.card
-        ≤ K * P.card := by
+        ≤ (Random.prefixTrie K P).card := by
   obtain ⟨hok, -, hcard, -, hlist, -, -, -⟩ :=
     lazyRoundShape_holds read C K 1 E J b (Random.prefixTrie K P) d one_pos (trieOK_prefixTrie K P)
   refine ⟨hok.1, lazyEpochsQ_root read C K 1 0 0 (List.ofFn d) (Random.prefixTrie K P)
@@ -82,7 +82,7 @@ private lemma lazyRoundQ_consistent (read : FreeMonoid α → ARU) (C : Random.L
       + (((Random.lazyRoundQ C K 1 (Random.prefixTrie K P) d).eval read).lists .middles).length
       = 0 := by omega
   rw [h4, mul_zero, add_zero] at hcard
-  exact hcard.trans (card_prefixTrie_le K P)
+  exact hcard
 
 private lemma lazyReads_mono {K a b f Nr A nX q K' a' b' f' Nr' A' nX' q' : ℝ} (hK0 : 0 ≤ K)
     (ha0 : 0 ≤ a) (hb0 : 0 ≤ b) (hf0 : 0 ≤ f) (hNr : 0 ≤ Nr) (hA0 : 0 ≤ A) (hnX0 : 0 ≤ nX)
@@ -156,7 +156,7 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     let HR : ℝ := Real.log (4 * (Q + 1) * (SC + 1) / δ') / (ε / 384) + 1
     let FV : ℝ := (50 * (max (Real.log (20 / τ)) (Real.log (8 * W / δ')) + 3) / s ^ 2 + 20 / s + 28)
         / 4
-    let nX : ℝ := k * (6 * Jp * RB + Nh)
+    let nX : ℝ := k * (6 * Jp * RB + 2 / θ)
     let Ns : ℝ := Nr + (Q + 1) * (SC * (HR * (Random.Kappa.probeSifts (L₁ + k) * (Q + 1))))
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
@@ -168,7 +168,7 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     p₀ ≤ capP * ε / 12288 →
     2 * ((⌊FV⌋₊ : ℝ) + 1) ^ 3 * (A ^ Ls + 1) ^ ⌊FV⌋₊ * Real.exp (-2 * t ^ 2 / p₀) ≤ δ / 8 →
     0 < ι → ι ≤ εcov / 8 → 1 ≤ W →
-    Real.log (4 * k / (θ * δ')) / θ ≤ Nh →
+    8 * Real.log (4 * k / (θ * δ')) / θ ≤ Nh →
     capP * Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / (δ' / 8)) ≤ 1 / 8 →
     2 * k / (ε / 48) + 1 ≤ E → k + 2 ≤ J →
     E * J * (1 - ε / 192) ^ b ≤ δ' / 4 →
@@ -180,7 +180,7 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ (settings.level3.probeBudget : ℝ) ≤ B₃ ∧
       (settings.scanCap : ℝ) ≤ SC ∧ settings.listSize = 1 ∧ settings.heavyDraws = Nh
-      ∧ settings.epochs = E
+      ∧ settings.heavyCount = ⌈θ * Nh / 2⌉₊ ∧ settings.epochs = E
       ∧ settings.blocks = J ∧ settings.blockSize = b ∧
       (∀ (p : settings.Draws Ω α) rounds,
           indecisiveLStarLoop settings O (prefixLaw D L) (prefixLaw D Ls) p = some rounds →
@@ -245,7 +245,7 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     ae_iff.2 (measure_mono_null (fun x hx => by
       simp only [Set.mem_ofPred_eq, not_le] at hx ⊢
       omega) hTL)
-  obtain ⟨settings, hwalk, -, hbud, hSC, ⟨hnh', hhd⟩, hHR, -, hE', hJ', hb', hnp, hab, hks,
+  obtain ⟨settings, hwalk, -, hbud, hSC, ⟨hnh', hhd, hhc⟩, hHR, -, hE', hJ', hb', hnp, hab, hks,
       hmain⟩ :=
     loop_simple_checks M O P η₀ εcov ε δ' pAP ι W Tu tw k E J b Nr Nh
     hL hgap hη₀ hεc0 hεcov1 hbalL hbalN hε0 hε12 hδ'0 hδ'1' hpAP hp1
@@ -332,7 +332,7 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
         _ = (Q + 1) * ((⌊PB⌋₊ : ℝ) + 1) := by rw [hQ]; push_cast; ring
         _ ≤ (Q + 1) * (PB + 1) :=
           mul_le_mul_of_nonneg_left (by linarith only [Nat.floor_le hPB0]) (by linarith only [hQ0])
-  refine ⟨settings, hwalk, hbud, hSC, hnh', hhd, hE', hJ', hb', hlenT, ?_⟩
+  refine ⟨settings, hwalk, hbud, hSC, hnh', hhd, hhc, hE', hJ', hb', hlenT, ?_⟩
   -- off both, the loop's last round classifies through its table, reading few strings
   have hsub : {p | ¬ RLStarSucceeds settings O (prefixLaw D L) (prefixLaw D Ls)
       (prefixLaw D L) M ξT nX (lazyReads (Q + 1) (6 * (Q + 2) * RB) (PB + 1) FV Ns A nX Q) p}
@@ -360,7 +360,8 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     obtain ⟨hh, x, u, hox⟩ :=
       (loopRounds_roundOf settings O P.D Dsf (persistDraws p) _ _ hloop).2 o hoK
     have hres : (Random.lazyRoundQ settings.level3 settings.level3.walkStart settings.listSize
-        (Random.prefixTrie settings.level3.walkStart (o.prefs ∪ heavySet P.D u.1))
+        (Random.prefixTrie settings.level3.walkStart (o.prefs
+          ∪ heavySet P.D settings.heavyCount settings.level3.walkStart u.1))
         (lazyProbes (avoidLaw P.D settings.level3.walkStart
           (clusterKeys (settings.schedule (loopPopulations (Fintype.card σ + 1) hh.pops.length))
             (loopPopulations (Fintype.card σ + 1) hh.pops.length) settings.level3.walkStart x))
@@ -368,17 +369,20 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
       subst hox; rfl
     rw [hnh'] at hres
     have hfacts := lazyRoundQ_consistent o.read settings.level3 settings.level3.walkStart
-      (o.prefs ∪ heavySet P.D u.1)
+      (o.prefs ∪ heavySet P.D settings.heavyCount settings.level3.walkStart u.1)
       (lazyProbes (avoidLaw P.D settings.level3.walkStart
         (clusterKeys (settings.schedule (loopPopulations (Fintype.card σ + 1) hh.pops.length))
           (loopPopulations (Fintype.card σ + 1) hh.pops.length) settings.level3.walkStart x)) u.2)
       (by rw [hres]; exact hcons)
     rw [hres, hwalk] at hfacts
     obtain ⟨hXK, hroot, hXc⟩ := hfacts
-    have hHc : (heavySet P.D u.1).card ≤ Nh := by
-      unfold heavySet
-      refine Finset.card_image_le.trans ?_
-      rw [Finset.card_univ, Fintype.card_fin, hhd]
+    rw [heavySet_eq_heavyOf] at hXc
+    have hθ0 : 0 < θ := div_pos (mul_pos hcap0 hε0) (by norm_num)
+    have hHc : (heavyOf settings.heavyCount k fun i => drawFrom P.D (u.1 i)).card
+        ≤ ⌊2 * k / θ⌋₊ := by
+      refine Nat.le_floor (card_heavyOf_le _ hθ0 ?_)
+      rw [hhc, hhd]
+      exact Nat.le_ceil _
     have hpk : ∀ o' ∈ (idealRounds settings O P.D Dsf (persistDraws p)
         (Fintype.card σ + 1)).map SpecRound.data, o'.result.peak ≤ Fintype.card σ + 2 := by
       intro o' ho'
@@ -387,27 +391,34 @@ theorem lazy_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     have hlast : ((idealRounds settings O P.D Dsf (persistDraws p) (Fintype.card σ + 1)).map
         SpecRound.data).getLast? = some o.data := by
       rw [List.getLast?_map, Option.mem_def.1 ho, Option.map_some]
-    obtain ⟨nXn, hnXn⟩ : ∃ n : ℕ, n = k * (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊ + Nh) :=
-      ⟨_, rfl⟩
+    obtain ⟨nXn, hnXn⟩ : ∃ n : ℕ, n = k * (6 * (Fintype.card σ + 1 + 1) * ⌊RB⌋₊)
+        + ⌊2 * k / θ⌋₊ := ⟨_, rfl⟩
     have hX : ∀ o' ∈ ((idealRounds settings O P.D Dsf (persistDraws p)
         (Fintype.card σ + 1)).map SpecRound.data).getLast?, o'.result.expanded.card ≤ nXn := by
       intro o' ho'
       rw [hlast, Option.mem_some_iff] at ho'
       subst ho'
       rw [hnXn]
-      refine hXc.trans (Nat.mul_le_mul_left _ ((Finset.card_union_le _ _).trans
-        (Nat.add_le_add ?_ hHc)))
+      refine hXc.trans ((Finset.card_le_card (prefixTrie_union_heavyOf_subset _ _)).trans
+        ((Finset.card_union_le _ _).trans (Nat.add_le_add
+          ((card_prefixTrie_le k _).trans (Nat.mul_le_mul_left _ ?_)) hHc)))
       rw [hox]
       exact (hab _ x).1
     have hQ : Q = (Fintype.card σ : ℝ) := rfl
     have hnX : (nXn : ℝ) ≤ nX := by
-      have e : (nXn : ℝ) = k * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ) + Nh) := by
+      have e : (nXn : ℝ) = k * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ)) + (⌊2 * k / θ⌋₊ : ℝ) := by
         rw [hnXn, hQ]; push_cast; ring
       rw [e]
-      show (k : ℝ) * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ) + Nh) ≤ k * (6 * (Q + 2) * RB + Nh)
-      have : 6 * (Q + 2) * (⌊RB⌋₊ : ℝ) ≤ 6 * (Q + 2) * RB :=
+      change (k : ℝ) * (6 * (Q + 2) * (⌊RB⌋₊ : ℝ)) + (⌊2 * k / θ⌋₊ : ℝ)
+        ≤ k * (6 * (Q + 2) * RB + 2 / θ)
+      have h1 : 6 * (Q + 2) * (⌊RB⌋₊ : ℝ) ≤ 6 * (Q + 2) * RB :=
         mul_le_mul_of_nonneg_left (Nat.floor_le hRB0) (by linarith)
-      exact mul_le_mul_of_nonneg_left (by linarith) (Nat.cast_nonneg _)
+      have h2 : (⌊2 * k / θ⌋₊ : ℝ) ≤ 2 * k / θ :=
+        Nat.floor_le (div_nonneg (by positivity) hθ0.le)
+      have h3 := mul_le_mul_of_nonneg_left h1 (Nat.cast_nonneg k : (0 : ℝ) ≤ k)
+      have e2 : (k : ℝ) * (6 * (Q + 2) * RB + 2 / θ) = k * (6 * (Q + 2) * RB) + 2 * k / θ := by
+        ring
+      linarith
     refine ⟨⟨_, hind, ⟨by simpa using hlen, o.data, hlast, hcons, ?_,
       (Nat.cast_le.2 (hX o.data (Option.mem_def.2 hlast))).trans hnX⟩, hpk⟩, ?_⟩
     · show (prefixLaw D L).real {w | ¬ o.result.hypothesis.LazyClassifies

@@ -82,7 +82,7 @@ theorem lazy_within : RLStarWithin.{u, v, w} knTol knPref knSuff knProbes knTrie
   obtain ⟨-, -, hJk, -⟩ := knJ_bounds hr
   rw [hK] at hEk hJk
   obtain ⟨htw0, htwε⟩ := knTw_spec hr
-  obtain ⟨settings, hwalk, hbud, -, -, hhd, hE', hJ', hb', hcnt, hprob⟩ :=
+  obtain ⟨settings, hwalk, hbud, -, -, hhd, -, hE', hJ', hb', hcnt, hprob⟩ :=
     lazy_loop_core (Ω := Ω) (μ := μ) M O L k (knη₀ r) r.ξc r.δ r.pAP r.ξc r.ξ (r.ξc / 4)
       (r.A : ℝ) (knP₀ r) (knι r) (knW r) (knTu r) (knTw r) (knE r) (knJ r) (knB r) (knNr r)
       (knNh r) D hLang (by rw [knη₀_s]; linarith) (by unfold knη₀; linarith)
@@ -110,7 +110,7 @@ theorem lazy_within : RLStarWithin.{u, v, w} knTol knPref knSuff knProbes knTrie
         (show L + Fintype.card σ + 3 + k ≤ r.L + r.Q + 3 + knK r by omega)
     have hle : lazyReads (r.Q + 1) (6 * (r.Q + 2) * knRB r) (knPB r + 1) (knFV r)
         (knNr r + (r.Q + 1) * (knSC r * (knHR r * (Random.Kappa.probeSifts (L₁ + k) * (r.Q + 1)))))
-        r.A (k * (6 * (r.Q + 2) * knRB r + knNh r)) r.Q ≤ knReads r := by
+        r.A (k * (6 * (r.Q + 2) * knRB r + 2 / knθ r)) r.Q ≤ knReads r := by
       unfold knReads knTrie
       refine lazyReads_mono_nX (by positivity) hFV0 (by positivity) (by positivity) ?_
         (le_of_eq (by rw [hK]))

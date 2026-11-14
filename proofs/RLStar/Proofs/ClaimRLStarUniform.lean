@@ -281,22 +281,23 @@ lemma simple_pref (r : RLStarRun) :
   unfold RLStarRun.nPref RLStarRun.ιInv; ring
 
 lemma simple_trie (r : RLStarRun) :
-    r.nHeavy = r.Q ^ 7 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 6)
-      + r.Q ^ 9 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 4)
-      + r.Q * r.A * (r.L + r.Q) * r.logZ ^ 2 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 2) := by
-  unfold RLStarRun.nHeavy RLStarRun.nCap RLStarRun.ιInv; ring
+    r.nTrie = r.Q ^ 7 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ / (r.ξc ^ 4 * r.s₀ ^ 6)
+      + r.Q ^ 9 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ / (r.ξc ^ 4 * r.s₀ ^ 4)
+      + r.Q * r.A * (r.L + r.Q) * r.logZ / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 2) := by
+  unfold RLStarRun.nTrie RLStarRun.nCap RLStarRun.ιInv; ring
 
 lemma simple_probe (r : RLStarRun) :
     r.nProbe = r.Q ^ 8 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 6)
       + r.Q ^ 10 * r.A ^ 4 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 4)
       + r.Q ^ 2 * r.A * (r.L + r.Q) * r.logZ ^ 2 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 2) := by
-  unfold RLStarRun.nProbe; rw [simple_trie]; ring
+  unfold RLStarRun.nProbe RLStarRun.nHeavy RLStarRun.nCap RLStarRun.ιInv; ring
 
 lemma simple_reads (hr : r ∈ rlStarRunRegion) :
     r.nReads = r.Q ^ 7 * r.A ^ 2 * (r.L + r.Q) ^ 2 * r.logZ ^ 2 / (r.ξc ^ 2 * r.pAP * r.s₀ ^ 6)
-      + (r.k + r.logZ) * (r.Q ^ 8 * r.A ^ 5 * (r.L + r.Q) ^ 4 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 8)
-        + r.Q ^ 10 * r.A ^ 5 * (r.L + r.Q) ^ 4 * r.logZ ^ 3 / (r.ξc ^ 4 * r.s₀ ^ 6)
-        + r.Q ^ 2 * r.A ^ 2 * (r.L + r.Q) * r.logZ ^ 3 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 4)) := by
+      + (r.k + r.logZ ^ 2) * (r.Q ^ 8 * r.A ^ 5 * (r.L + r.Q) ^ 4 * r.logZ ^ 2
+          / (r.ξc ^ 4 * r.s₀ ^ 8)
+        + r.Q ^ 10 * r.A ^ 5 * (r.L + r.Q) ^ 4 * r.logZ ^ 2 / (r.ξc ^ 4 * r.s₀ ^ 6)
+        + r.Q ^ 2 * r.A ^ 2 * (r.L + r.Q) * r.logZ ^ 2 / (r.ξc * r.pAP ^ 2 * r.s₀ ^ 4)) := by
   obtain ⟨hQ, -⟩ := kn_base hr
   have hQ0 : (r.Q : ℝ) ≠ 0 := by positivity
   have e : r.nPref * r.nSuff / r.Q
@@ -322,9 +323,9 @@ theorem rlStarClaimUniformSimple_of_claim (h : RLStarClaimUniform.{u, v, w}) :
     rw [← simple_probe r]
     exact ⟨hPr0, hPr0, by linarith⟩
   · refine isBigO_on 1 fun r hr => ?_
-    obtain ⟨-, -, -, -, hH0, -⟩ := shape_pos hr
+    have hT0 := nTrie_nonneg hr
     rw [← simple_trie r]
-    exact ⟨hH0, hH0, by linarith⟩
+    exact ⟨hT0, hT0, by linarith⟩
   · refine isBigO_on 1 fun r hr => ?_
     obtain ⟨-, -, -, -, -, -, hR0⟩ := shape_pos hr
     rw [← simple_reads hr]

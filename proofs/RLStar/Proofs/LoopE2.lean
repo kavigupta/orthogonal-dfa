@@ -109,6 +109,7 @@ theorem lazy_round_bad_exists (m crossLimit θ tw : ℝ) (Nr : ℕ)
     (hη1 : O.η ≤ 1) (hcross : 0 < crossLimit)
     (hprem : LazyPremises σ α settings.level3 settings.epochs settings.blocks (2 * θ))
     (hnh : settings.listSize = 1) (hθ : 0 < θ)
+    (hhc : (settings.heavyCount : ℝ) ≤ θ * settings.heavyDraws / 2 + 1)
     (hpm : prefixMax P.D settings.level3.walkStart ≤ θ)
     (hNr : lazyReadCap settings.level3 settings.epochs settings.blocks settings.blockSize P.L
       (Fintype.card σ) (Fintype.card α) ≤ Nr)
@@ -122,7 +123,7 @@ theorem lazy_round_bad_exists (m crossLimit θ tw : ℝ) (Nr : ℕ)
       ∧ (μ.prod settings.uniformLaw) Bd
         ≤ ENNReal.ofReal (lazyRoundBound σ settings.level3 settings.epochs settings.blocks
           settings.blockSize crossLimit Nr P.L tw
-          + settings.level3.walkStart / θ * (1 - θ) ^ settings.heavyDraws)
+          + settings.level3.walkStart / θ * Real.exp (-(θ * settings.heavyDraws / 8)))
       ∧ (∀ v ω ω', (∀ w ∈ lazyZone (max (P.L + settings.level3.probeBudget + 2)
           (lazyProbesLen (probesOf settings P.D
             (CP.image fun p => prefixOf p settings.level3.walkStart) v)
@@ -144,7 +145,6 @@ theorem lazy_round_bad_exists (m crossLimit θ tw : ℝ) (Nr : ℕ)
   set Oc := O.clamped
   have hprem' := hprem
   obtain ⟨hy0, hp8, hyd, hδ0, hδ1, hd0, hd1, -, hE, -⟩ := hprem
-  have hθ1 : θ ≤ 1 := by linarith
   have hηIn : 0 ≤ 1 - Oc.ηIn ∧ 1 - Oc.ηIn ≤ 1 := by
     have h1 : O.ηIn ≤ O.η := le_max_left _ _
     exact ⟨by simp only [Oc, Oracle.clamped]; have := le_max_left O.ηIn 0
@@ -208,10 +208,10 @@ theorem lazy_round_bad_exists (m crossLimit θ tw : ℝ) (Nr : ℕ)
   -- the trie draws missing a heavy prefix
   set HM : Set (Fin Nh → unitInterval) := {u | ∃ c : FreeMonoid α, c.toList.length < k
     ∧ θ < P.D.real {x | prefixOf x c.toList.length = c}
-    ∧ c ∉ Random.prefixTrie k (heavySet P.D u)} with hHM
-  have hHMm : MeasurableSet HM := measurableSet_heavyMiss P.D k Nh θ
+    ∧ c ∉ Random.prefixTrie k (heavySet P.D settings.heavyCount k u)} with hHM
+  have hHMm : MeasurableSet HM := measurableSet_heavyMiss P.D settings.heavyCount k Nh θ
   set X₀ : (Fin Nh → unitInterval) → Finset (FreeMonoid α) :=
-    fun u => Random.prefixTrie k (CP ∪ heavySet P.D u) with hX₀
+    fun u => Random.prefixTrie k (CP ∪ heavySet P.D settings.heavyCount k u) with hX₀
   have hX₀CP : ∀ u, Random.prefixTrie k CP ⊆ X₀ u :=
     fun u => prefixTrie_mono Finset.subset_union_left
   have hlightD : ∀ u ∉ HM, ∀ c : FreeMonoid α, c.toList.length < k → c ∉ X₀ u →
@@ -312,7 +312,7 @@ theorem lazy_round_bad_exists (m crossLimit θ tw : ℝ) (Nr : ℕ)
     refine MeasurableSet.iUnion fun X => MeasurableSet.inter (MeasurableSet.inter ?_ ?_) ?_
     · have : {q : Ω × settings.Uniforms | X₀ q.2.1 = X} = (fun q : Ω × settings.Uniforms =>
           heavyDrawsOf settings P.D q.2) ⁻¹'
-          {v | Random.prefixTrie k (CP ∪ Finset.univ.image v) = X} := rfl
+          {v | Random.prefixTrie k (CP ∪ heavyOf settings.heavyCount k v) = X} := rfl
       rw [this]
       exact ((measurable_heavyDrawsOf settings P.D).comp measurable_snd)
         (Set.to_countable _).measurableSet
@@ -324,12 +324,12 @@ theorem lazy_round_bad_exists (m crossLimit θ tw : ℝ) (Nr : ℕ)
   refine ⟨({q | q.2.1 ∈ HM} ∪ Bf) ∪ Sh, (hHMq.union hBfm).union hShm, ?_, ?_, ?_⟩
   · -- the chance
     have hHMb : (μ.prod settings.uniformLaw) {q | q.2.1 ∈ HM}
-        ≤ ENNReal.ofReal (k / θ * (1 - θ) ^ Nh) := by
+        ≤ ENNReal.ofReal (k / θ * Real.exp (-(θ * Nh / 8))) := by
       have e : {q : Ω × settings.Uniforms | q.2.1 ∈ HM} = Set.univ ×ˢ (HM ×ˢ Set.univ) := by
         ext q; simp
       rw [e, Measure.prod_prod, show settings.uniformLaw = ρ.prod ν from rfl, Measure.prod_prod,
         measure_univ, measure_univ, one_mul, mul_one, ← ofReal_measureReal]
-      exact ENNReal.ofReal_le_ofReal (heavy_miss_le P.D k Nh hθ hθ1)
+      exact ENNReal.ofReal_le_ofReal (heavy_miss_le P.D settings.heavyCount k Nh hθ hhc)
     have hBfb : (μ.prod settings.uniformLaw) Bf ≤ ENNReal.ofReal δb := by
       set e : (Fin Nh → unitInterval) × (Ω × LazyUniforms settings.epochs C.probeBudget
           settings.blocks settings.blockSize) → Ω × settings.Uniforms :=
@@ -366,16 +366,15 @@ theorem lazy_round_bad_exists (m crossLimit θ tw : ℝ) (Nr : ℕ)
             rw [hsub, hmp.measure_preimage (hSω _).nullMeasurableSet]
             exact (hω₀ _).trans (h4 u hu)
         _ = ENNReal.ofReal δb := by rw [lintegral_const, measure_univ, mul_one]
-    have hK0 : (0 : ℝ) ≤ k / θ * (1 - θ) ^ Nh := by
-      have : 0 ≤ 1 - θ := by linarith
-      positivity
+    have hK0 : (0 : ℝ) ≤ k / θ * Real.exp (-(θ * Nh / 8)) := by positivity
     calc (μ.prod settings.uniformLaw) (({q | q.2.1 ∈ HM} ∪ Bf) ∪ Sh)
         ≤ (μ.prod settings.uniformLaw) ({q | q.2.1 ∈ HM} ∪ Bf)
           + (μ.prod settings.uniformLaw) Sh := measure_union_le _ _
       _ ≤ ((μ.prod settings.uniformLaw) {q | q.2.1 ∈ HM} + (μ.prod settings.uniformLaw) Bf)
           + 0 := by rw [hSh0]; exact add_le_add (measure_union_le _ _) le_rfl
-      _ ≤ (ENNReal.ofReal (k / θ * (1 - θ) ^ Nh) + ENNReal.ofReal δb) + 0 := by gcongr
-      _ = ENNReal.ofReal (δb + k / θ * (1 - θ) ^ Nh) := by
+      _ ≤ (ENNReal.ofReal (k / θ * Real.exp (-(θ * Nh / 8))) + ENNReal.ofReal δb) + 0 := by
+          gcongr
+      _ = ENNReal.ofReal (δb + k / θ * Real.exp (-(θ * Nh / 8))) := by
         rw [add_zero, add_comm, ENNReal.ofReal_add hδb0 hK0]
   · -- the bad draws read only the zone
     intro v ω ω' h hω

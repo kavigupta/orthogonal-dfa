@@ -314,13 +314,14 @@ def probesOf (settings : LoopSettings K) (D : Measure (FreeMonoid α)) (K₀ : F
       Random.EpochDraws α settings.level3.probeBudget settings.blocks settings.blockSize :=
   lazyProbes (avoidLaw D settings.level3.walkStart K₀) u.2
 
-/-- A round at the state `B` and family `F`, its trie that of `CP` and the heavy draws from `D`,
-its probes drawn from `D` avoiding `K₀`, on the noise and uniforms `d`. -/
+/-- A round at the state `B` and family `F`, its trie that of `CP` and the heavy prefixes of the
+draws from `D`, its probes drawn from `D` avoiding `K₀`, on the noise and uniforms `d`. -/
 def mkRound (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D : Measure (FreeMonoid α))
     (B : State) (F K₀ CP Sf : Finset (FreeMonoid α))
     (d : Ω × (settings.Uniforms)) : SpecRound α :=
-  roundAt settings O B F (Random.prefixTrie settings.level3.walkStart (CP ∪ heavySet D d.2.1)) CP
-    Sf (d.1, probesOf settings D K₀ d.2)
+  roundAt settings O B F (Random.prefixTrie settings.level3.walkStart
+    (CP ∪ heavySet D settings.heavyCount settings.level3.walkStart d.2.1)) CP Sf
+    (d.1, probesOf settings D K₀ d.2)
 
 /-- The first `k` letters of the prefixes a round's clustering reads. -/
 def roundKeys (settings : LoopSettings K) (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α)
@@ -725,8 +726,8 @@ theorem measurableSet_roundCode (settings : LoopSettings K) (O : Oracle μ (Free
           ((fun e : Ω × settings.Uniforms =>
               (e.1, (heavyDrawsOf settings D e.2, probesOf settings D BFK.2.2.1 e.2))) ⁻¹'
             {d₂ | popCode N (roundAt settings O BFK.1 BFK.2.1
-                (Random.prefixTrie Kw (BFK.2.2.2.1 ∪ Finset.univ.image d₂.2.1)) BFK.2.2.2.1
-                BFK.2.2.2.2 (d₂.1, d₂.2.2)) = oc})) := by
+                (Random.prefixTrie Kw (BFK.2.2.2.1 ∪ heavyOf settings.heavyCount Kw d₂.2.1))
+                BFK.2.2.2.1 BFK.2.2.2.2 (d₂.1, d₂.2.2)) = oc})) := by
     ext d
     simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Set.mem_preimage]
     constructor
@@ -761,8 +762,8 @@ theorem measurableSet_roundCode (settings : LoopSettings K) (O : Oracle μ (Free
   have h2 : ∀ p ∈ readStrings (shortStrings N) BFK.2.1, (O.mq p ω' = 1 ↔ O.mq p ω = 1) :=
     fun p hp => (h' p (Finset.mem_union_right _ hp)).symm
   have hres := lazyRound_result_congr O settings.level3 Kw settings.listSize
-    (Random.prefixTrie Kw (BFK.2.2.2.1 ∪ Finset.univ.image xs.1)) BFK.2.1 BFK.1.lo (BFK.1.hi + 1)
-    xs.2 h1
+    (Random.prefixTrie Kw (BFK.2.2.2.1 ∪ heavyOf settings.heavyCount Kw xs.1)) BFK.2.1 BFK.1.lo
+    (BFK.1.hi + 1) xs.2 h1
   have hgraph : readGraph N (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω')
       = readGraph N (fun z => familyRead O.mq BFK.2.1 BFK.1.lo (BFK.1.hi + 1) z ω) := by
     unfold readGraph
