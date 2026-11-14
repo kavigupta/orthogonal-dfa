@@ -40,8 +40,9 @@ def knB₃ (r : RLStarRun) : ℝ :=
 
 def knRp (r : RLStarRun) : ℕ := Random.Kappa.probeSifts (r.L + r.Q + 3 + r.L)
 
-/-- A bound on the lists' slope `lazySlope` free of the list size. -/
-def knSlope (r : RLStarRun) : ℝ := 2 * r.Q * (r.Q + 3) * knE r * knRp r * (r.L + 3) * knB r / log 2
+/-- Level 3's slope at padded probes, at any walk start up to `L`. -/
+def knSlope (r : RLStarRun) : ℝ :=
+  2 * (r.Q + 1) * (288 / knε r + 16 * (2 + Nat.clog 2 (r.L + r.Q + 3 + r.L)))
 
 def knι (r : RLStarRun) : ℝ := min (knεcov r / 8) (1 / (48 * r.Q * knSlope r))
 
@@ -50,8 +51,7 @@ def knη₀ (r : RLStarRun) : ℝ := 1 / 2 - r.s₀ / 2
 def knτ (r : RLStarRun) : ℝ := min ((knεcov r / 2) * (1 - 2 * knη₀ r) ^ 2) (knι r)
 
 /-- A bound on `1/ι`. -/
-def knιInv (r : RLStarRun) : ℝ :=
-  2 ^ 41 * r.Q ^ 3 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r * knLg r
+def knιInv (r : RLStarRun) : ℝ := 2 ^ 22 * r.Q ^ 2 * r.A * knX r * (1 / r.ξc)
 
 /-- A bound on the prefix count `RB`. -/
 def knRBb (r : RLStarRun) : ℝ := 2 ^ 30 * r.Q * knΛ r * (1 / r.s₀) ^ 4 * knιInv r ^ 2
@@ -61,16 +61,17 @@ def knCapInv (r : RLStarRun) : ℝ :=
   2 ^ 60 * r.Q * knΛ r * (1 / r.s₀) ^ 4 * knιInv r ^ 3 * ((1 / r.s₀) ^ 2 + r.Q ^ 2)
     + 2 ^ 30 * r.Q * knΛ r * (1 / r.s₀) ^ 2 * (1 / r.pAP) ^ 2
 
-def knNh (r : RLStarRun) : ℕ := ⌈2 * knCapInv r⌉₊
-
-def knJ (r : RLStarRun) : ℕ := knNh r * (r.L + 1) + 1
+def knJ (r : RLStarRun) : ℕ := r.L + 2
 
 def knNr (r : RLStarRun) : ℕ :=
   ⌈(knE r : ℝ) * ((knB₃ r + knJ r * knB r) * (knRp r * (r.Q + 3))
     + (r.Q + 2) * ((r.Q + 2) * (r.A + 1) * (r.Q + 2)))⌉₊
 
+/-- The slack `tw` on a round's disagreement. -/
+def knTw (r : RLStarRun) : ℝ := knε r / 12288
+
 def knW (r : RLStarRun) : ℝ :=
-  max (knNr r : ℝ) (((r.L + r.Q + 3 : ℕ) + 1 : ℝ) * (r.Q + 2) / (r.ξc / 4))
+  max (knNr r : ℝ) (((r.L + r.Q + 3 : ℕ) + 1 : ℝ) * (r.Q + 2) / knTw r)
 
 def knTu (r : RLStarRun) : ℝ := 1 / (4 * knSlope r)
 
@@ -98,12 +99,21 @@ def knCapP (r : RLStarRun) : ℝ :=
     (min (min (r.pAP / (2 ^ 18 * (knPB r + 1))) (knι r / (2 ^ 24 * (r.Q + 2) ^ 2 * (knRB r + 1))))
       (min (r.pAP / (2 * (r.Q + 2) * (knPB r + 2))) (1 / (6 * (r.Q + 2) * (knRB r + 1)))))
 
+/-- The light-prefix level `θ`. -/
+def knθ (r : RLStarRun) : ℝ := knCapP r * knε r / 192
+
+/-- The heavy draws, missing a prefix heavier than `θ` with chance at most `δ'/4`. -/
+def knNh (r : RLStarRun) : ℕ := ⌈log (4 * knX r / (knθ r * knδ' r)) / knθ r⌉₊
+
+def knSC (r : RLStarRun) : ℝ := 8 * (r.Q + 4) * knRB r + 16 * log (16 * (r.Q + 2) / knδ' r) + 2
+
+/-- A bound on the sampler's probes per draw. -/
+def knHR (r : RLStarRun) : ℝ := log (4 * (r.Q + 1) * (knSC r + 1) / knδ' r) / (knε r / 384) + 1
+
 /-- The misread term's bound on `p₀`. -/
 def knMcD (r : RLStarRun) : ℝ := r.ξc ^ 2 * r.s₀ ^ 2 / (2 ^ 16 * knΛ r * knX r * log r.A)
 
-def knP₀ (r : RLStarRun) : ℝ :=
-  min (min (knε r / (1536 * knCapInv r)) (1 / (12 * (r.Q + 2) * knRBb r)))
-    (min (knε r / (768 * (2 * knCapInv r + 1))) (knMcD r))
+def knP₀ (r : RLStarRun) : ℝ := min (knCapP r * knε r / 12288) (knMcD r)
 
 /-! The totals. -/
 
@@ -111,13 +121,13 @@ def knPref (r : RLStarRun) : ℝ := (r.Q + 1) * (6 * (r.Q + 2) * knRB r)
 
 def knSuff (r : RLStarRun) : ℝ := (r.Q + 1) * (knPB r + 1)
 
-def knProbes (r : RLStarRun) : ℝ := (r.Q + 1) * (knE r * (knB₃ r + knJ r * knB r))
+def knProbes (r : RLStarRun) : ℝ := (r.Q + 1) * (knNh r + knE r * (knB₃ r + knJ r * knB r))
 
-def knTrie (r : RLStarRun) : ℝ := 6 * (r.Q + 2) * knRB r + 2 * (knNh r + knB r)
+def knTrie (r : RLStarRun) : ℝ := 6 * (r.Q + 2) * knRB r + knNh r
 
 def knReads (r : RLStarRun) : ℝ :=
-  lazyReads (r.Q + 1) (6 * (r.Q + 2) * knRB r) (knPB r + 1) (knFV r) (knNr r) r.A
-    (r.L * (6 * (r.Q + 2) * knRB r + 2 * (knNh r + knB r))) r.Q
+  lazyReads (r.Q + 1) (6 * (r.Q + 2) * knRB r) (knPB r + 1) (knFV r)
+    (knNr r + (r.Q + 1) * (knSC r * (knHR r * (knRp r * (r.Q + 1))))) r.A (r.L * knTrie r) r.Q
 
 /-! The fixed point: a log below its own argument's log. -/
 
@@ -413,73 +423,106 @@ lemma knRp_bounds (hr : r ∈ rlStarRunRegion) :
     nlinarith
   linarith
 
-lemma knSlope_bounds (hr : r ∈ rlStarRunRegion) :
-    0 < knSlope r ∧ knSlope r
-      ≤ 2 ^ 35 * r.Q ^ 2 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r * knLg r := by
-  obtain ⟨hE1, hE, -⟩ := knE_bounds hr
-  obtain ⟨hb1, hb, -⟩ := knB_bounds hr
-  obtain ⟨hrp1, hrp⟩ := knRp_bounds hr
-  obtain ⟨hQ, hA, hX, hQX, hLX, -, -, hξ, hξ1, -⟩ := kn_base hr
-  have hlt := Real.log_two_gt_d9
-  have hl0 : 0 < log 2 := by linarith
-  have hil : 1 / log 2 ≤ 3 / 2 := by rw [div_le_div_iff₀ hl0 (by norm_num)]; linarith
-  have hL0 : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _
-  have hXL : (r.L : ℝ) + 3 ≤ 3 * knX r := by unfold knX at *; linarith
-  have hΛ0 : 0 < knΛ r := by linarith [(knΛ_bounds hr).1]
-  have hlg0 : 0 < knLg r := by linarith [(knLg_bounds hr).1]
-  have e : knSlope r = 2 * r.Q * (r.Q + 3) * knE r * knRp r * (r.L + 3) * knB r * (1 / log 2) := by
-    unfold knSlope; ring
-  rw [e]
-  refine ⟨by positivity, ?_⟩
-  calc 2 * (r.Q : ℝ) * (r.Q + 3) * knE r * knRp r * (r.L + 3) * knB r * (1 / log 2)
-      ≤ 2 * r.Q * (4 * r.Q) * (2 ^ 12 * r.A * knX r ^ 2 * (1 / r.ξc)) * (16 * knLg r)
-        * (3 * knX r) * (2 ^ 13 * r.A * knX r * (1 / r.ξc) * knΛ r) * (3 / 2) := by
-        gcongr
-        linarith
-    _ = 576 * 2 ^ 25 * r.Q ^ 2 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r * knLg r := by
-        ring
-    _ ≤ 2 ^ 35 * r.Q ^ 2 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r * knLg r := by
-        have hΛ := (knΛ_bounds hr).1
-        have hlg := (knLg_bounds hr).1
-        gcongr
-        norm_num
+lemma clog_two_le_self (n : ℕ) : Nat.clog 2 n ≤ n :=
+  Nat.clog_le_of_le_pow (by have := n.lt_two_pow_self; omega)
 
-lemma knιInv_ge (hr : r ∈ rlStarRunRegion) : 2 ^ 46 * knX r * (1 / r.ξc) ≤ knιInv r := by
-  obtain ⟨hQ, hA, hX, -, -, -, -, hξ, hξ1, -⟩ := kn_base hr
-  obtain ⟨hΛ, -⟩ := knΛ_bounds hr
-  obtain ⟨hlg, -⟩ := knLg_bounds hr
+lemma knSlope_bounds (hr : r ∈ rlStarRunRegion) :
+    2 ^ 10 * r.Q * r.A * knX r * (1 / r.ξc) ≤ knSlope r
+      ∧ knSlope r ≤ 2 ^ 16 * r.Q * r.A * knX r * (1 / r.ξc) := by
+  obtain ⟨-, -, hXN⟩ := knN_bounds hr
+  obtain ⟨hε, -, hiε⟩ := knε_bounds hr
+  obtain ⟨hQ, hA, hX, hQX, hLX, -, -, hξ, hξ1, -⟩ := kn_base hr
   have iξ : 1 ≤ 1 / r.ξc := by rw [le_div_iff₀ hξ]; linarith
+  have hL0 : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _
+  have hc : ((Nat.clog 2 (r.L + r.Q + 3 + r.L) : ℕ) : ℝ) ≤ 2 * r.L + r.Q + 3 := by
+    have h : ((Nat.clog 2 (r.L + r.Q + 3 + r.L) : ℕ) : ℝ) ≤ ((r.L + r.Q + 3 + r.L : ℕ) : ℝ) := by
+      exact_mod_cast clog_two_le_self _
+    push_cast at h
+    linarith
+  have hc0 : (0 : ℝ) ≤ ((Nat.clog 2 (r.L + r.Q + 3 + r.L) : ℕ) : ℝ) := Nat.cast_nonneg _
+  set M : ℝ := r.A * knX r * (1 / r.ξc) with hM
+  have hXM : 2 * knX r ≤ M := by
+    have h1 : 2 * knX r ≤ r.A * knX r := by nlinarith
+    have h2 : (r.A : ℝ) * knX r ≤ r.A * knX r * (1 / r.ξc) :=
+      le_mul_of_one_le_right (by positivity) iξ
+    rw [hM]; linarith
+  have eε : 1 / knε r = 4 * (r.A + 1) * knN r * (1 / r.ξc) := by
+    unfold knε; field_simp
+  have hlo : 2 * M ≤ 1 / knε r := by
+    rw [eε, hM]
+    have : 2 * (r.A : ℝ) * knX r ≤ 4 * (r.A + 1) * knN r := by nlinarith
+    have := mul_le_mul_of_nonneg_right this (show 0 ≤ 1 / r.ξc by positivity)
+    linarith
+  have hhi : 1 / knε r ≤ 30 * M := by rw [hM]; linarith
+  have e : knSlope r
+      = 2 * (r.Q + 1)
+        * (288 * (1 / knε r) + 16 * (2 + (Nat.clog 2 (r.L + r.Q + 3 + r.L) : ℝ))) := by
+    unfold knSlope; ring
+  have eQ : 2 ^ 10 * (r.Q : ℝ) * r.A * knX r * (1 / r.ξc) = 2 ^ 10 * r.Q * M := by rw [hM]; ring
+  have eQ' : 2 ^ 16 * (r.Q : ℝ) * r.A * knX r * (1 / r.ξc) = 2 ^ 16 * r.Q * M := by rw [hM]; ring
+  rw [e, eQ, eQ']
+  have hM0 : 0 ≤ M := by linarith
+  constructor
+  · have h1 : 2 * (r.Q : ℝ) * (288 * (2 * M)) ≤ 2 * (r.Q + 1)
+        * (288 * (1 / knε r) + 16 * (2 + (Nat.clog 2 (r.L + r.Q + 3 + r.L) : ℝ))) := by
+      gcongr
+      · linarith
+      · linarith
+    nlinarith
+  · have h16 : 16 * (2 + (Nat.clog 2 (r.L + r.Q + 3 + r.L) : ℝ)) ≤ 56 * M := by
+      have hXe : knX r = r.L + r.Q := rfl
+      linarith
+    have h1 : 288 * (1 / knε r) + 16 * (2 + (Nat.clog 2 (r.L + r.Q + 3 + r.L) : ℝ))
+        ≤ 8696 * M := by linarith
+    have h2 : 2 * ((r.Q : ℝ) + 1) ≤ 4 * r.Q := by linarith
+    have h3 := mul_le_mul h2 h1 (by positivity) (by positivity)
+    nlinarith
+
+lemma knιInv_ge (hr : r ∈ rlStarRunRegion) : 2 ^ 23 * knX r * (1 / r.ξc) ≤ knιInv r := by
+  obtain ⟨hQ, hA, hX, -, -, -, -, hξ, hξ1, -⟩ := kn_base hr
+  have h : (2 : ℝ) ≤ r.Q ^ 2 * r.A := by nlinarith [one_le_pow₀ hQ (n := 2)]
+  have h0 : (0 : ℝ) ≤ knX r * (1 / r.ξc) := by positivity
+  have := mul_le_mul_of_nonneg_right h h0
   unfold knιInv
-  calc 2 ^ 46 * knX r * (1 / r.ξc) ≤ 2 ^ 41 * 1 * 4 * knX r * (1 / r.ξc) * 30 * (1 / 2) := by
-        nlinarith [mul_pos (by linarith : (0 : ℝ) < knX r) (by linarith : (0 : ℝ) < 1 / r.ξc)]
-    _ ≤ 2 ^ 41 * r.Q ^ 3 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r * knLg r := by
-        gcongr
-        · exact one_le_pow₀ hQ
-        · nlinarith
-        · exact le_self_pow₀ hX (by norm_num)
-        · exact le_self_pow₀ iξ (by norm_num)
+  nlinarith
+
+lemma knιInv_one (hr : r ∈ rlStarRunRegion) : 1 ≤ knιInv r := by
+  obtain ⟨-, -, hX, -, -, -, -, hξ, hξ1, -⟩ := kn_base hr
+  have h := knιInv_ge hr
+  have iξ : 1 ≤ 1 / r.ξc := by rw [le_div_iff₀ hξ]; linarith
+  nlinarith [one_le_mul_of_one_le_of_one_le hX iξ]
 
 lemma knι_bounds (hr : r ∈ rlStarRunRegion) :
     0 < knι r ∧ knι r ≤ knεcov r / 8 ∧ 48 * r.Q * knSlope r * knι r ≤ 1
-      ∧ 1 / knι r ≤ knιInv r ∧ knι r ≤ 1 / 80 := by
+      ∧ 1 / knι r ≤ knιInv r ∧ knι r ≤ 1 / 80
+      ∧ 2 ^ 15 * r.Q ^ 2 * r.A * knX r * (1 / r.ξc) * knι r ≤ 1 := by
   obtain ⟨hεc, -, hiεc, -, hεc1⟩ := knεcov_bounds hr
-  obtain ⟨hsl, hsl'⟩ := knSlope_bounds hr
+  obtain ⟨hslo, hsl⟩ := knSlope_bounds hr
   obtain ⟨hQ, hA, hX, -, -, -, -, hξ, hξ1, -⟩ := kn_base hr
-  have hιI := knιInv_ge hr
+  have iξ : 1 ≤ 1 / r.ξc := by rw [le_div_iff₀ hξ]; linarith
+  have hP : 0 < knX r * (1 / r.ξc) := by positivity
+  have hsl0 : 0 < knSlope r := lt_of_lt_of_le (by positivity) hslo
   have h0 : 0 < 48 * (r.Q : ℝ) * knSlope r := by positivity
   have hι0 : 0 < knι r := lt_min (by positivity) (by positivity)
   have hι8 : knι r ≤ knεcov r / 8 := min_le_left _ _
   have hι48 : knι r ≤ 1 / (48 * r.Q * knSlope r) := min_le_right _ _
-  refine ⟨hι0, hι8, ?_, ?_, by linarith⟩
-  · rw [le_div_iff₀ h0] at hι48; linarith
-  · calc 1 / knι r ≤ 1 / (knεcov r / 8) + 1 / (1 / (48 * r.Q * knSlope r)) :=
+  have h48 : 48 * r.Q * knSlope r * knι r ≤ 1 := by
+    rw [le_div_iff₀ h0] at hι48; linarith
+  refine ⟨hι0, hι8, h48, ?_, by linarith, ?_⟩
+  · have hq : (2 : ℝ) ≤ r.Q ^ 2 * r.A := by nlinarith [one_le_pow₀ hQ (n := 2)]
+    have hq' := mul_le_mul_of_nonneg_right hq hP.le
+    calc 1 / knι r ≤ 1 / (knεcov r / 8) + 1 / (1 / (48 * r.Q * knSlope r)) :=
           one_div_min_le (by positivity) (by positivity)
       _ = 8 * (1 / knεcov r) + 48 * r.Q * knSlope r := by rw [one_div_one_div]; ring
       _ ≤ 8 * (50 * knX r * (1 / r.ξc))
-          + 48 * r.Q * (2 ^ 35 * r.Q ^ 2 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r
-            * knLg r) := by gcongr
-      _ = 400 * knX r * (1 / r.ξc) + 3 / 4 * knιInv r := by unfold knιInv; ring
-      _ ≤ knιInv r := by nlinarith [mul_pos (by linarith : (0 : ℝ) < knX r) (one_div_pos.2 hξ)]
+          + 48 * r.Q * (2 ^ 16 * r.Q * r.A * knX r * (1 / r.ξc)) := by gcongr
+      _ = 400 * (knX r * (1 / r.ξc)) + 3 * 2 ^ 20 * (r.Q ^ 2 * r.A * (knX r * (1 / r.ξc))) := by
+          ring
+      _ ≤ knιInv r := by unfold knιInv; nlinarith
+  · have h1 : 2 ^ 15 * (r.Q : ℝ) ^ 2 * r.A * knX r * (1 / r.ξc) ≤ 48 * r.Q * knSlope r := by
+      have := mul_le_mul_of_nonneg_left hslo (show (0 : ℝ) ≤ 48 * r.Q by positivity)
+      nlinarith
+    nlinarith [mul_le_mul_of_nonneg_right h1 hι0.le]
 
 lemma knτ_bounds (hr : r ∈ rlStarRunRegion) :
     0 < knτ r ∧ knτ r ≤ knι r ∧ 1 / knτ r ≤ 2 * knιInv r * (1 / r.s₀) ^ 2 := by
@@ -510,29 +553,13 @@ section logs
 
 variable {r : RLStarRun}
 
-lemma knιInv_ge' (hr : r ∈ rlStarRunRegion) :
-    2 ^ 44 * r.Q ^ 3 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 ≤ knιInv r := by
-  obtain ⟨hQ, hA, hX, -, -, -, -, hξ, -⟩ := kn_base hr
-  obtain ⟨hΛ, -⟩ := knΛ_bounds hr
-  obtain ⟨hlg, -⟩ := knLg_bounds hr
-  have h : 0 ≤ r.Q ^ 3 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 := by positivity
-  have hl : 8 ≤ knΛ r * knLg r := by nlinarith
-  have e : knιInv r = 2 ^ 41 * (r.Q ^ 3 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2)
-      * (knΛ r * knLg r) := by unfold knιInv; ring
-  rw [e]
-  nlinarith
-
-lemma knιInv_Z (hr : r ∈ rlStarRunRegion) : knιInv r ≤ 2 ^ 41 * knZ r ^ 12 * knΛ r := by
+lemma knιInv_Z (hr : r ∈ rlStarRunRegion) : knιInv r ≤ 2 ^ 22 * knZ r ^ 5 := by
   obtain ⟨hZ8, hXZ, hAZ, -, hξZ, -, -, hQZ⟩ := knZ_ge hr
   obtain ⟨hQ, hA, hX, -, -, -, -, hξ, -⟩ := kn_base hr
-  obtain ⟨hΛ, -⟩ := knΛ_bounds hr
-  obtain ⟨hlg, hlgX⟩ := knLg_bounds hr
   unfold knιInv
-  calc 2 ^ 41 * r.Q ^ 3 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r * knLg r
-      ≤ 2 ^ 41 * knZ r ^ 3 * knZ r ^ 2 * knZ r ^ 4 * knZ r ^ 2 * knΛ r * knZ r := by
-        gcongr
-        linarith
-    _ = 2 ^ 41 * knZ r ^ 12 * knΛ r := by ring
+  calc 2 ^ 22 * (r.Q : ℝ) ^ 2 * r.A * knX r * (1 / r.ξc)
+      ≤ 2 ^ 22 * knZ r ^ 2 * knZ r * knZ r * knZ r := by gcongr
+    _ = 2 ^ 22 * knZ r ^ 5 := by ring
 
 lemma knL1 (hr : r ∈ rlStarRunRegion) :
     log (16 * knS r * (knS r + 1) * (knE r * (knE r + 1)) / knδ' r) ≤ knΛ r := by
@@ -593,59 +620,54 @@ lemma knB₃_bounds (hr : r ∈ rlStarRunRegion) :
           mul_le_mul h5 hΛ (by norm_num) (by linarith)
         nlinarith
 
-lemma knιInv_one (hr : r ∈ rlStarRunRegion) : 1 ≤ knιInv r := by
-  obtain ⟨-, -, hX, -, -, -, -, hξ, hξ1, -⟩ := kn_base hr
-  have h := knιInv_ge hr
-  have iξ : 1 ≤ 1 / r.ξc := by rw [le_div_iff₀ hξ]; linarith
-  nlinarith [one_le_mul_of_one_le_of_one_le hX iξ]
-
 lemma knL2 (hr : r ∈ rlStarRunRegion) : log (20 / knτ r) ≤ knΛ r := by
   obtain ⟨hZ8, hXZ, hAZ, hδZ, hξZ, hpZ, hsZ, hQZ⟩ := knZ_ge hr
   obtain ⟨hτ, -, hiτ⟩ := knτ_bounds hr
   obtain ⟨hQ, hA, hX, -, -, hδ, -, hξ, -, -, -, hs, -⟩ := kn_base hr
   have hι := knιInv_Z hr
   have hι0 : 0 ≤ knιInv r := by linarith [knιInv_one hr]
-  have hΛ0 : 0 < knΛ r := by linarith [(knΛ_bounds hr).1]
-  refine knob_log_le hr (by positivity) (knob_pow_le hr (c := 40 * 2 ^ 41) (n := 14) (j := 1)
-    (k := 16) (by norm_num) ?_ (by norm_num) (by norm_num))
+  refine knob_log_le hr (by positivity) (knob_pow_le hr (c := 40 * 2 ^ 22) (n := 7) (j := 0)
+    (k := 10) (by norm_num) ?_ (by norm_num) (by norm_num))
   calc 20 / knτ r = 20 * (1 / knτ r) := by ring
-    _ ≤ 20 * (2 * (2 ^ 41 * knZ r ^ 12 * knΛ r) * knZ r ^ 2) := by
+    _ ≤ 20 * (2 * (2 ^ 22 * knZ r ^ 5) * knZ r ^ 2) := by
         gcongr; exact hiτ.trans (by gcongr)
-    _ = 40 * 2 ^ 41 * knZ r ^ 14 * knΛ r ^ 1 := by ring
+    _ = 40 * 2 ^ 22 * knZ r ^ 7 * knΛ r ^ 0 := by ring
 
 lemma knL4 (hr : r ∈ rlStarRunRegion) :
-    log (3 / (knδ' r / 2)) ≤ knΛ r ∧ log (r.Q / (knδ' r / 4)) ≤ knΛ r
+    log (3 / (knδ' r / 2)) ≤ knΛ r ∧ log (16 * (r.Q + 2) / knδ' r) ≤ knΛ r
       ∧ log (16 / r.δ) ≤ knΛ r := by
   obtain ⟨hZ8, hXZ, hAZ, hδZ, hξZ, hpZ, hsZ, hQZ⟩ := knZ_ge hr
   obtain ⟨hQ, -, -, -, -, hδ, -⟩ := kn_base hr
   obtain ⟨hδ', -, hiδ'⟩ := knδ'_bounds hr
   refine ⟨knob_log_le hr (by positivity) (knob_pow_le hr (c := 96) (n := 2) (j := 0) (k := 3)
     (by norm_num) ?_ (by norm_num) (by norm_num)),
-    knob_log_le hr (by positivity) (knob_pow_le hr (c := 64) (n := 3) (j := 0) (k := 2)
+    knob_log_le hr (by positivity) (knob_pow_le hr (c := 768) (n := 3) (j := 0) (k := 4)
     (by norm_num) ?_ (by norm_num) (by norm_num)),
     knob_log_le hr (by positivity) (knob_pow_le hr (c := 16) (n := 1) (j := 0) (k := 2)
     (by norm_num) ?_ (by norm_num) (by norm_num))⟩
   · calc 3 / (knδ' r / 2) = 6 * (1 / knδ' r) := by field_simp; norm_num
       _ ≤ 6 * (16 * knZ r * knZ r) := by gcongr; exact hiδ'.trans (by gcongr)
       _ = 96 * knZ r ^ 2 * knΛ r ^ 0 := by ring
-  · calc r.Q / (knδ' r / 4) = 4 * r.Q * (1 / knδ' r) := by field_simp
-      _ ≤ 4 * knZ r * (16 * knZ r * knZ r) := by gcongr; exact hiδ'.trans (by gcongr)
-      _ = 64 * knZ r ^ 3 * knΛ r ^ 0 := by ring
+  · calc 16 * ((r.Q : ℝ) + 2) / knδ' r = 16 * (r.Q + 2) * (1 / knδ' r) := by ring
+      _ ≤ 16 * (3 * knZ r) * (16 * knZ r * knZ r) := by
+          gcongr
+          · linarith
+          · exact hiδ'.trans (by gcongr)
+      _ = 768 * knZ r ^ 3 * knΛ r ^ 0 := by ring
   · calc 16 / r.δ = 16 * (1 / r.δ) := by ring
       _ ≤ 16 * knZ r := by gcongr
       _ = 16 * knZ r ^ 1 * knΛ r ^ 0 := by ring
 
 end logs
 
-/-! The list size and what grows with it. -/
+/-! The rounds' sizes. -/
 
-section lists
+section sizes
 
 variable {r : RLStarRun}
 
 lemma knCapInv_bounds (hr : r ∈ rlStarRunRegion) :
-    2 ^ 64 * r.Q ^ 3 * knΛ r * knιInv r ≤ knCapInv r
-      ∧ knCapInv r ≤ 2 ^ 185 * knZ r ^ 43 * knΛ r ^ 4 := by
+    1 ≤ knCapInv r ∧ knCapInv r ≤ 2 ^ 128 * knZ r ^ 22 * knΛ r := by
   obtain ⟨hZ8, hXZ, hAZ, hδZ, hξZ, hpZ, hsZ, hQZ⟩ := knZ_ge hr
   obtain ⟨hQ, hA, hX, -, -, hδ, -, hξ, -, hp, -, hs, hs1⟩ := kn_base hr
   obtain ⟨hΛ, -⟩ := knΛ_bounds hr
@@ -654,244 +676,150 @@ lemma knCapInv_bounds (hr : r ∈ rlStarRunRegion) :
   have is : 2 ≤ 1 / r.s₀ := by rw [le_div_iff₀ hs]; linarith
   have hZ1 : 1 ≤ knZ r := by linarith
   constructor
-  · have h1 : knιInv r ≤ knιInv r ^ 3 := le_self_pow₀ hι1 (by norm_num)
-    have h2 : 16 ≤ (1 / r.s₀) ^ 4 := by nlinarith [pow_le_pow_left₀ (by norm_num) is 4]
-    have h3 : r.Q ^ 2 ≤ (1 / r.s₀) ^ 2 + r.Q ^ 2 := by nlinarith
+  · have h1 : (1 : ℝ) ≤ r.Q * knΛ r := one_le_mul_of_one_le_of_one_le hQ (by linarith)
+    have h2 : (1 : ℝ) ≤ r.Q * knΛ r * (1 / r.s₀) ^ 4 :=
+      one_le_mul_of_one_le_of_one_le h1 (one_le_pow₀ (by linarith))
+    have h3 : (1 : ℝ) ≤ r.Q * knΛ r * (1 / r.s₀) ^ 4 * knιInv r ^ 3 :=
+      one_le_mul_of_one_le_of_one_le h2 (one_le_pow₀ hι1)
+    have h4 : (1 : ℝ) ≤ (1 / r.s₀) ^ 2 + r.Q ^ 2 := by
+      have := one_le_pow₀ hQ (n := 2)
+      have : (0 : ℝ) ≤ (1 / r.s₀) ^ 2 := by positivity
+      linarith
+    have h5 := one_le_mul_of_one_le_of_one_le h3 h4
+    have h6 : (0 : ℝ) ≤ 2 ^ 30 * r.Q * knΛ r * (1 / r.s₀) ^ 2 * (1 / r.pAP) ^ 2 := by positivity
     unfold knCapInv
-    have h4 : 0 ≤ 2 ^ 30 * r.Q * knΛ r * (1 / r.s₀) ^ 2 * (1 / r.pAP) ^ 2 := by positivity
-    calc 2 ^ 64 * r.Q ^ 3 * knΛ r * knιInv r
-        = 2 ^ 60 * r.Q * knΛ r * 16 * knιInv r * r.Q ^ 2 := by ring
-      _ ≤ 2 ^ 60 * r.Q * knΛ r * (1 / r.s₀) ^ 4 * knιInv r ^ 3 * ((1 / r.s₀) ^ 2 + r.Q ^ 2) := by
-          gcongr
-      _ ≤ _ := le_add_of_nonneg_right h4
+    nlinarith
   · unfold knCapInv
     calc 2 ^ 60 * r.Q * knΛ r * (1 / r.s₀) ^ 4 * knιInv r ^ 3 * ((1 / r.s₀) ^ 2 + r.Q ^ 2)
           + 2 ^ 30 * r.Q * knΛ r * (1 / r.s₀) ^ 2 * (1 / r.pAP) ^ 2
-        ≤ 2 ^ 60 * knZ r * knΛ r * knZ r ^ 4 * (2 ^ 41 * knZ r ^ 12 * knΛ r) ^ 3
+        ≤ 2 ^ 60 * knZ r * knΛ r * knZ r ^ 4 * (2 ^ 22 * knZ r ^ 5) ^ 3
             * (knZ r ^ 2 + knZ r ^ 2)
           + 2 ^ 30 * knZ r * knΛ r * knZ r ^ 2 * knZ r ^ 2 := by
           gcongr
-      _ = 2 ^ 184 * knZ r ^ 43 * knΛ r ^ 4 + 2 ^ 30 * knZ r ^ 5 * knΛ r := by ring
-      _ ≤ 2 ^ 185 * knZ r ^ 43 * knΛ r ^ 4 := by
-          have h1 : knZ r ^ 5 ≤ knZ r ^ 43 := pow_le_pow_right₀ hZ1 (by norm_num)
-          have h2 : knΛ r ≤ knΛ r ^ 4 := le_self_pow₀ (by linarith) (by norm_num)
-          have h3 : knZ r ^ 5 * knΛ r ≤ knZ r ^ 43 * knΛ r ^ 4 :=
-            mul_le_mul h1 h2 (by linarith) (pow_nonneg (by linarith) _)
-          have h5 : 0 ≤ knZ r ^ 43 * knΛ r ^ 4 :=
-            mul_nonneg (pow_nonneg (by linarith) _) (pow_nonneg (by linarith) _)
-          linarith
-
-lemma knNh_bounds (hr : r ∈ rlStarRunRegion) :
-    2 * knCapInv r ≤ knNh r ∧ (knNh r : ℝ) ≤ 2 * knCapInv r + 1 ∧ 1 ≤ (knNh r : ℝ)
-      ∧ knB₃ r + (r.Q + 2) * ((r.Q + 2) * (r.A + 1) * (r.Q + 2)) + 1 ≤ knNh r
-      ∧ 6 * r.Q * knΛ r ≤ knNh r ∧ (knNh r : ℝ) ≤ 2 ^ 187 * knZ r ^ 43 * knΛ r ^ 4 := by
-  obtain ⟨hcap, hcapZ⟩ := knCapInv_bounds hr
-  obtain ⟨hQ, hA, hX, -, -, hδ, -, hξ, hξ1, -⟩ := kn_base hr
-  obtain ⟨hΛ, -⟩ := knΛ_bounds hr
-  obtain ⟨hZ8, -⟩ := knZ_ge hr
-  obtain ⟨-, hB₃⟩ := knB₃_bounds hr
-  have hι := knιInv_ge' hr
-  have hι1 := knιInv_one hr
-  have iξ : 1 ≤ 1 / r.ξc := by rw [le_div_iff₀ hξ]; linarith
-  have hQ3 : (1 : ℝ) ≤ r.Q ^ 3 := one_le_pow₀ hQ
-  have hc0 : 0 ≤ 2 * knCapInv r := by
-    have : 0 ≤ (r.Q : ℝ) ^ 3 * knΛ r * knιInv r :=
-      mul_nonneg (mul_nonneg (by linarith) (by linarith)) (by linarith)
-    linarith
-  have hc : (knNh r : ℝ) < 2 * knCapInv r + 1 := Nat.ceil_lt_add_one hc0
-  have hc' : 2 * knCapInv r ≤ (knNh r : ℝ) := Nat.le_ceil (2 * knCapInv r)
-  -- `2 capInv ≥ 2^109 M`, `M = Q⁶ A² X⁴ (1/ξc)² Λ`
-  have hQ6 : (1 : ℝ) ≤ r.Q ^ 6 := one_le_pow₀ hQ
-  have hA2 : (4 : ℝ) ≤ r.A ^ 2 := by nlinarith
-  have hX4 : 1 ≤ knX r ^ 4 := one_le_pow₀ hX
-  have hξ2 : 1 ≤ (1 / r.ξc) ^ 2 := one_le_pow₀ iξ
-  set M := (r.Q : ℝ) ^ 6 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r with hMd
-  have hM : 2 ^ 109 * M ≤ 2 * knCapInv r := by
-    have e : 2 ^ 109 * M = 2 * (2 ^ 64 * r.Q ^ 3 * knΛ r
-        * (2 ^ 44 * r.Q ^ 3 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2)) := by rw [hMd]; ring
-    have h0 : (0 : ℝ) ≤ 2 ^ 64 * r.Q ^ 3 * knΛ r := by
-      have : (0 : ℝ) ≤ r.Q ^ 3 := by linarith
-      have : (0 : ℝ) ≤ knΛ r := by linarith
-      positivity
-    have h1 := mul_le_mul_of_nonneg_left hι h0
-    linarith
-  -- each factor of `M` is at least one
-  have f1 : (1 : ℝ) * 4 ≤ r.Q ^ 6 * r.A ^ 2 := mul_le_mul hQ6 hA2 (by norm_num) (by linarith)
-  have f2 : (4 : ℝ) * 1 ≤ r.Q ^ 6 * r.A ^ 2 * knX r ^ 4 :=
-    mul_le_mul (by linarith) hX4 (by norm_num) (by linarith)
-  have f3 : (4 : ℝ) * 1 ≤ r.Q ^ 6 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 :=
-    mul_le_mul (by linarith) hξ2 (by norm_num) (by linarith)
-  have hM1 : (4 : ℝ) * 30 ≤ M := mul_le_mul (by linarith) hΛ (by norm_num) (by linarith)
-  have hB₃M : knB₃ r ≤ 2 ^ 14 * M := by
-    refine hB₃.trans ?_
-    have g1 : (r.Q : ℝ) ^ 2 ≤ r.Q ^ 6 := pow_le_pow_right₀ hQ (by norm_num)
-    have g2 : knX r ≤ knX r ^ 4 := le_self_pow₀ hX (by norm_num)
-    have g3 : 1 / r.ξc ≤ (1 / r.ξc) ^ 2 := le_self_pow₀ iξ (by norm_num)
-    have : (r.Q : ℝ) ^ 2 * r.A ^ 2 * knX r * (1 / r.ξc) * knΛ r ≤ M := by
-      rw [hMd]
-      have a1 : (r.Q : ℝ) ^ 2 * r.A ^ 2 ≤ r.Q ^ 6 * r.A ^ 2 :=
-        mul_le_mul_of_nonneg_right g1 (by positivity)
-      have a2 : (r.Q : ℝ) ^ 2 * r.A ^ 2 * knX r ≤ r.Q ^ 6 * r.A ^ 2 * knX r ^ 4 :=
-        mul_le_mul a1 g2 (by linarith) (by linarith)
-      have a3 : (r.Q : ℝ) ^ 2 * r.A ^ 2 * knX r * (1 / r.ξc)
-          ≤ r.Q ^ 6 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 :=
-        mul_le_mul a2 g3 (by linarith) (by linarith)
-      exact mul_le_mul_of_nonneg_right a3 (by linarith)
-    linarith
-  have hVM : ((r.Q : ℝ) + 2) * ((r.Q + 2) * (r.A + 1) * (r.Q + 2)) ≤ 41 * M := by
-    have g1 : ((r.Q : ℝ) + 2) ^ 3 ≤ (3 * r.Q) ^ 3 :=
-      pow_le_pow_left₀ (by linarith) (by linarith) 3
-    have g2 : (r.A : ℝ) + 1 ≤ 3 / 2 * r.A := by linarith
-    have g3 : ((r.Q : ℝ) + 2) ^ 3 * (r.A + 1) ≤ (3 * r.Q) ^ 3 * (3 / 2 * r.A) :=
-      mul_le_mul g1 g2 (by linarith) (by positivity)
-    have g4 : (r.Q : ℝ) ^ 3 * r.A ≤ M := by
-      rw [hMd]
-      have a1 : (r.Q : ℝ) ^ 3 ≤ r.Q ^ 6 := pow_le_pow_right₀ hQ (by norm_num)
-      have a2 : (r.A : ℝ) ≤ r.A ^ 2 := le_self_pow₀ (by linarith) (by norm_num)
-      have a3 : (r.Q : ℝ) ^ 3 * r.A ≤ r.Q ^ 6 * r.A ^ 2 :=
-        mul_le_mul a1 a2 (by linarith) (by linarith)
-      have a4 : (r.Q : ℝ) ^ 6 * r.A ^ 2
-          ≤ r.Q ^ 6 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r := by
-        have b1 : (r.Q : ℝ) ^ 6 * r.A ^ 2 ≤ r.Q ^ 6 * r.A ^ 2 * knX r ^ 4 :=
-          le_mul_of_one_le_right (by linarith) hX4
-        have b2 : (r.Q : ℝ) ^ 6 * r.A ^ 2 * knX r ^ 4
-            ≤ r.Q ^ 6 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 :=
-          le_mul_of_one_le_right (by linarith) hξ2
-        have b3 : (r.Q : ℝ) ^ 6 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2
-            ≤ r.Q ^ 6 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r :=
-          le_mul_of_one_le_right (by linarith) (by linarith)
-        linarith
-      linarith
-    have e : ((r.Q : ℝ) + 2) * ((r.Q + 2) * (r.A + 1) * (r.Q + 2))
-        = ((r.Q : ℝ) + 2) ^ 3 * (r.A + 1) := by
-      ring
-    have e2 : (3 * (r.Q : ℝ)) ^ 3 * (3 / 2 * r.A) = 81 / 2 * (r.Q ^ 3 * r.A) := by ring
-    rw [e]
-    linarith
-  have hQM : 6 * (r.Q : ℝ) * knΛ r ≤ 6 * M := by
-    have a1 : (r.Q : ℝ) ≤ r.Q ^ 6 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 := by
-      have : (r.Q : ℝ) ≤ r.Q ^ 6 := le_self_pow₀ hQ (by norm_num)
-      have b1 : (r.Q : ℝ) ^ 6 ≤ r.Q ^ 6 * r.A ^ 2 :=
-        le_mul_of_one_le_right (by linarith) (by linarith)
-      have b2 : (r.Q : ℝ) ^ 6 * r.A ^ 2 ≤ r.Q ^ 6 * r.A ^ 2 * knX r ^ 4 :=
-        le_mul_of_one_le_right (by linarith) hX4
-      have b3 : (r.Q : ℝ) ^ 6 * r.A ^ 2 * knX r ^ 4
-          ≤ r.Q ^ 6 * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 :=
-        le_mul_of_one_le_right (by linarith) hξ2
-      linarith
-    have := mul_le_mul_of_nonneg_right a1 (show 0 ≤ knΛ r by linarith)
-    rw [hMd]
-    linarith
-  have hcZ2 : 2 * knCapInv r + 1 ≤ 2 ^ 187 * knZ r ^ 43 * knΛ r ^ 4 := by
-    have hZ1 : 1 ≤ knZ r ^ 43 * knΛ r ^ 4 :=
-      one_le_mul_of_one_le_of_one_le (one_le_pow₀ (by linarith)) (one_le_pow₀ (by linarith))
-    have : 2 * knCapInv r ≤ 2 * (2 ^ 185 * knZ r ^ 43 * knΛ r ^ 4) := by linarith
-    linarith
-  refine ⟨hc', hc.le, by linarith, by linarith, by linarith, by linarith⟩
+      _ = 2 ^ 127 * knZ r ^ 22 * knΛ r + 2 ^ 30 * knZ r ^ 5 * knΛ r := by ring
+      _ ≤ 2 ^ 128 * knZ r ^ 22 * knΛ r := by
+          have h1 : knZ r ^ 5 ≤ knZ r ^ 22 := pow_le_pow_right₀ hZ1 (by norm_num)
+          have h3 := mul_le_mul_of_nonneg_right h1 (show 0 ≤ knΛ r by linarith)
+          have h5 : (0 : ℝ) ≤ knZ r ^ 22 * knΛ r := by positivity
+          nlinarith
 
 lemma knJ_bounds (hr : r ∈ rlStarRunRegion) :
-    (knNh r : ℝ) ≤ knJ r ∧ (knJ r : ℝ) ≤ 2 * knX r * knNh r
-      ∧ (knJ r : ℝ) ≤ knNh r * (r.L + 2)
-      ∧ ∀ k : ℕ, k ≤ r.L → knNh r * (k + 1) + 1 ≤ knJ r := by
-  obtain ⟨-, -, hnh1, -⟩ := knNh_bounds hr
+    1 ≤ (knJ r : ℝ) ∧ (knJ r : ℝ) ≤ 3 * knX r ∧ ∀ k : ℕ, k ≤ r.L → k + 2 ≤ knJ r := by
   obtain ⟨hQ, -, hX, -, hLX, -⟩ := kn_base hr
-  have hL0 : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _
-  have e : (knJ r : ℝ) = knNh r * (r.L + 1) + 1 := by unfold knJ; push_cast; ring
+  have e : (knJ r : ℝ) = r.L + 2 := by unfold knJ; push_cast; ring
   rw [e]
-  refine ⟨by nlinarith, ?_, by nlinarith, fun k hk => ?_⟩
-  · unfold knX at *; nlinarith
-  · have : (k : ℝ) ≤ r.L := by exact_mod_cast hk
-    have : (knNh r : ℝ) * (k + 1) ≤ knNh r * (r.L + 1) := by gcongr
-    exact_mod_cast (by linarith : (knNh r : ℝ) * (k + 1) + 1 ≤ knNh r * (r.L + 1) + 1)
+  have hL0 : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _
+  refine ⟨by linarith, by linarith, fun k hk => ?_⟩
+  unfold knJ; omega
+
+/-- `E ((B₃ + J b) u + V) ≤ 2³⁵ Q³ A³ X⁴ ξi² Λ lg` from each factor's bound. -/
+lemma nr_body_le {E B₃ J b u V Q A X ξi Λ lg : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hX : 1 ≤ X)
+    (hξi : 1 ≤ ξi) (hΛ : 30 ≤ Λ) (hlg : 1 / 2 ≤ lg)
+    (hE1 : 1 ≤ E) (hE : E ≤ 2 ^ 12 * A * X ^ 2 * ξi)
+    (hB0 : 0 ≤ B₃) (hB : B₃ ≤ 2 ^ 14 * Q ^ 2 * A ^ 2 * X * ξi * Λ)
+    (hJ1 : 1 ≤ J) (hJ : J ≤ 3 * X) (hb1 : 1 ≤ b) (hb : b ≤ 2 ^ 13 * A * X * ξi * Λ)
+    (hu1 : 1 ≤ u) (hu : u ≤ 64 * Q * lg) (hV0 : 0 ≤ V) (hV : V ≤ 41 * Q ^ 3 * A) :
+    1 ≤ E * ((B₃ + J * b) * u + V)
+      ∧ E * ((B₃ + J * b) * u + V) ≤ 2 ^ 35 * Q ^ 3 * A ^ 3 * X ^ 4 * ξi ^ 2 * Λ * lg := by
+  obtain ⟨m, hm⟩ : ∃ m : ℝ, m = Q ^ 2 * A ^ 2 * X ^ 2 * ξi * Λ := ⟨_, rfl⟩
+  have hQ2 : 1 ≤ Q ^ 2 := one_le_pow₀ hQ
+  have hA2 : A ≤ A ^ 2 := le_self_pow₀ (by linarith) (by norm_num)
+  have hX2 : X ≤ X ^ 2 := le_self_pow₀ hX (by norm_num)
+  have hm0 : 0 ≤ m := by rw [hm]; positivity
+  have hBm : B₃ ≤ 2 ^ 14 * m := by
+    have := mul_le_mul_of_nonneg_left hX2 (show 0 ≤ Q ^ 2 * A ^ 2 by positivity)
+    have := mul_le_mul_of_nonneg_right this (show 0 ≤ ξi * Λ by positivity)
+    rw [hm]; nlinarith
+  have hJbm : J * b ≤ 3 * 2 ^ 13 * m := by
+    have h1 := mul_le_mul hJ hb (by linarith) (by linarith)
+    have h3 : A ≤ Q ^ 2 * A ^ 2 := hA2.trans (le_mul_of_one_le_left (by positivity) hQ2)
+    have := mul_le_mul_of_nonneg_right h3 (show 0 ≤ X ^ 2 * ξi * Λ by positivity)
+    rw [hm]; nlinarith
+  have hVm : V ≤ 2 ^ 22 * m * Q * lg := by
+    have c1 : 1 ≤ X ^ 2 * ξi * Λ :=
+      one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (one_le_pow₀ hX) hξi)
+        (by linarith)
+    have b1 := mul_le_mul hA2 c1 (by linarith) (by positivity)
+    have a1 : Q ^ 3 * A ≤ Q * m := by
+      have := mul_le_mul_of_nonneg_left b1 (show 0 ≤ Q ^ 3 by positivity)
+      rw [hm]; nlinarith
+    have a2 : 0 ≤ Q * m := by positivity
+    have a3 : Q * m ≤ Q * m * (2 * lg) := le_mul_of_one_le_right a2 (by linarith)
+    have a4 : 0 ≤ Q * m * lg := by positivity
+    nlinarith
+  have h1 : (B₃ + J * b) * u ≤ (2 ^ 16 * m) * (64 * Q * lg) :=
+    mul_le_mul (by linarith) hu (by linarith) (by positivity)
+  have h2 : (B₃ + J * b) * u + V ≤ 2 ^ 23 * m * Q * lg := by nlinarith
+  have h3 := mul_le_mul hE h2 (by positivity) (by positivity)
+  have e : 2 ^ 12 * A * X ^ 2 * ξi * (2 ^ 23 * m * Q * lg)
+      = 2 ^ 35 * Q ^ 3 * A ^ 3 * X ^ 4 * ξi ^ 2 * Λ * lg := by rw [hm]; ring
+  refine ⟨?_, by linarith⟩
+  have hJb : 1 ≤ J * b := one_le_mul_of_one_le_of_one_le hJ1 hb1
+  have h4 : 1 ≤ (B₃ + J * b) * u := one_le_mul_of_one_le_of_one_le (by linarith) hu1
+  exact one_le_mul_of_one_le_of_one_le hE1 (by linarith)
 
 lemma knNr_bounds (hr : r ∈ rlStarRunRegion) :
-    (knNr r : ℝ) ≤ knE r * knRp r * (r.Q + 3) * knNh r * knB r * (r.L + 3)
-      ∧ (knNr r : ℝ) ≤ 2 ^ 34 * r.Q * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r * knLg r
-        * knNh r
+    (knNr r : ℝ) ≤ 2 ^ 36 * r.Q ^ 3 * r.A ^ 3 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r * knLg r
       ∧ 1 ≤ (knNr r : ℝ) := by
   obtain ⟨hE1, hE, -⟩ := knE_bounds hr
   obtain ⟨hb1, hb, -⟩ := knB_bounds hr
   obtain ⟨hrp1, hrp⟩ := knRp_bounds hr
-  obtain ⟨hB₃0, -⟩ := knB₃_bounds hr
-  obtain ⟨-, -, hnh1, hnhB, -⟩ := knNh_bounds hr
-  obtain ⟨hJnh, hJX, hJL, -⟩ := knJ_bounds hr
+  obtain ⟨hB₃0, hB₃⟩ := knB₃_bounds hr
+  obtain ⟨hJ1, hJX, -⟩ := knJ_bounds hr
   obtain ⟨hQ, hA, hX, hQX, hLX, -, -, hξ, hξ1, -⟩ := kn_base hr
-  have hΛ0 : 0 < knΛ r := by linarith [(knΛ_bounds hr).1]
-  have hlg0 : 0 < knLg r := by linarith [(knLg_bounds hr).1]
-  have hL0 : (0 : ℝ) ≤ r.L := Nat.cast_nonneg _
-  have hJ1 : (1 : ℝ) ≤ knJ r := hnh1.trans hJnh
-  set u : ℝ := knRp r * (r.Q + 3) with hud
-  have hu : 1 ≤ u := by
+  obtain ⟨hΛ, -⟩ := knΛ_bounds hr
+  obtain ⟨hlg, -⟩ := knLg_bounds hr
+  have iξ : 1 ≤ 1 / r.ξc := by rw [le_div_iff₀ hξ]; linarith
+  have hu1 : (1 : ℝ) ≤ knRp r * ((r.Q : ℝ) + 3) := by
     have := mul_le_mul hrp1 (show (1 : ℝ) ≤ r.Q + 3 by linarith) zero_le_one (by linarith)
     linarith
-  set V : ℝ := (r.Q + 2) * ((r.Q + 2) * (r.A + 1) * (r.Q + 2)) with hVd
-  have hV : 0 ≤ V := by positivity
-  set T : ℝ := knE r * ((knB₃ r + knJ r * knB r) * u + V) with hTd
-  have hJb : (1 : ℝ) ≤ knJ r * knB r := one_le_mul_of_one_le_of_one_le hJ1 hb1
-  have hBu : (1 : ℝ) ≤ (knB₃ r + knJ r * knB r) * u :=
-    one_le_mul_of_one_le_of_one_le (by linarith) hu
-  have hT1 : 1 ≤ T := by
-    have := mul_le_mul hE1 (show (1 : ℝ) ≤ (knB₃ r + knJ r * knB r) * u + V by linarith)
-      zero_le_one (by linarith)
-    rw [hTd]; linarith
-  have hc' : T ≤ ((⌈T⌉₊ : ℕ) : ℝ) := Nat.le_ceil T
-  have hc : ((⌈T⌉₊ : ℕ) : ℝ) < T + 1 := Nat.ceil_lt_add_one (by linarith)
-  have hNr : knNr r = ⌈T⌉₊ := rfl
-  rw [hNr]
-  -- `T + 1 ≤ E u nh + E J b u`
-  have h1 : T + 1 ≤ knE r * u * knNh r + knE r * knJ r * knB r * u := by
-    have a1 : knE r * V ≤ knE r * u * V :=
-      mul_le_mul_of_nonneg_right (le_mul_of_one_le_right (by linarith) hu) hV
-    have a2 : (1 : ℝ) ≤ knE r * u := one_le_mul_of_one_le_of_one_le hE1 hu
-    have a3 : knE r * u * (knB₃ r + V + 1) ≤ knE r * u * knNh r :=
-      mul_le_mul_of_nonneg_left hnhB (by linarith)
-    rw [hTd]; linarith
-  have hEu : (0 : ℝ) ≤ knE r * u := by linarith [one_le_mul_of_one_le_of_one_le hE1 hu]
-  refine ⟨?_, ?_, by linarith⟩
-  · have b1 : knE r * u * knNh r ≤ knE r * u * knNh r * knB r :=
-      le_mul_of_one_le_right (mul_nonneg hEu (by linarith)) hb1
-    have b2 := mul_le_mul_of_nonneg_left hJL (show 0 ≤ knE r * u * knB r from
-      mul_nonneg hEu (by linarith))
-    have e : knE r * u * knNh r * knB r * (r.L + 3)
-        = knE r * knRp r * (r.Q + 3) * knNh r * knB r * (r.L + 3) := by rw [hud]; ring
-    rw [← e]
+  have hu : (knRp r : ℝ) * ((r.Q : ℝ) + 3) ≤ 64 * r.Q * knLg r := by
+    have := mul_le_mul hrp (show (r.Q : ℝ) + 3 ≤ 4 * r.Q by linarith) (by linarith)
+      (by linarith)
     linarith
-  · have a1 : (knNh r : ℝ) ≤ knJ r * knB r := hJnh.trans (le_mul_of_one_le_right (by linarith) hb1)
-    have a2 := mul_le_mul_of_nonneg_left a1 hEu
-    have h3 : knE r * knJ r * knB r * u
-        ≤ (2 ^ 12 * r.A * knX r ^ 2 * (1 / r.ξc)) * (2 * knX r * knNh r)
-          * (2 ^ 13 * r.A * knX r * (1 / r.ξc) * knΛ r) * (16 * knLg r * (4 * r.Q)) := by
-      rw [hud]
-      gcongr
-      linarith
-    have hY0 : 0 ≤ knE r * knJ r * knB r * u := by positivity
-    have e : 4 * ((2 ^ 12 * r.A * knX r ^ 2 * (1 / r.ξc)) * (2 * knX r * knNh r)
-          * (2 ^ 13 * r.A * knX r * (1 / r.ξc) * knΛ r) * (16 * knLg r * (4 * r.Q)))
-        = 2 ^ 34 * r.Q * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r * knLg r * knNh r := by
-      ring
-    linarith
+  have hV0 : (0 : ℝ) ≤ ((r.Q : ℝ) + 2) * (((r.Q : ℝ) + 2) * ((r.A : ℝ) + 1) * ((r.Q : ℝ) + 2)) := by
+    positivity
+  have hV : ((r.Q : ℝ) + 2) * (((r.Q : ℝ) + 2) * ((r.A : ℝ) + 1) * ((r.Q : ℝ) + 2))
+      ≤ 41 * r.Q ^ 3 * r.A := by
+    have g1 : ((r.Q : ℝ) + 2) ^ 3 ≤ (3 * r.Q) ^ 3 := pow_le_pow_left₀ (by linarith) (by linarith) 3
+    have g2 : (r.A : ℝ) + 1 ≤ 3 / 2 * r.A := by linarith
+    have g3 := mul_le_mul g1 g2 (by linarith) (by positivity)
+    have : (0 : ℝ) ≤ r.Q ^ 3 * r.A := by positivity
+    nlinarith
+  obtain ⟨h1, h2⟩ := nr_body_le hQ hA hX iξ hΛ hlg hE1 hE hB₃0 hB₃ hJ1 hJX hb1 hb hu1 hu hV0 hV
+  have hc : (knNr r : ℝ) < (knE r : ℝ) * ((knB₃ r + knJ r * knB r) * (knRp r * ((r.Q : ℝ) + 3))
+      + ((r.Q : ℝ) + 2) * (((r.Q : ℝ) + 2) * ((r.A : ℝ) + 1) * ((r.Q : ℝ) + 2))) + 1 := by
+    unfold knNr; exact Nat.ceil_lt_add_one (by linarith)
+  have hc' : (knE r : ℝ) * ((knB₃ r + knJ r * knB r) * (knRp r * ((r.Q : ℝ) + 3))
+      + ((r.Q : ℝ) + 2) * (((r.Q : ℝ) + 2) * ((r.A : ℝ) + 1) * ((r.Q : ℝ) + 2))) ≤ knNr r := by
+    unfold knNr; exact Nat.le_ceil _
+  constructor <;> linarith
 
 lemma knW_bounds (hr : r ∈ rlStarRunRegion) :
     1 ≤ knW r ∧ (knNr r : ℝ) ≤ knW r
-      ∧ (((r.L + r.Q + 3 : ℕ) : ℝ) + 1) * (r.Q + 2) ≤ r.ξc / 4 * knW r
-      ∧ knW r ≤ knNr r + 60 * knX r * r.Q * (1 / r.ξc) := by
-  obtain ⟨-, -, hNr1⟩ := knNr_bounds hr
+      ∧ (((r.L + r.Q + 3 : ℕ) : ℝ) + 1) * (r.Q + 2) ≤ knTw r * knW r
+      ∧ knW r ≤ knNr r + 2 ^ 23 * r.Q * r.A * knX r ^ 2 * (1 / r.ξc) := by
+  obtain ⟨-, hNr1⟩ := knNr_bounds hr
+  obtain ⟨hε, -, hiε⟩ := knε_bounds hr
   obtain ⟨hQ, hA, hX, hQX, hLX, -, -, hξ, -⟩ := kn_base hr
-  have e : (((r.L + r.Q + 3 : ℕ) : ℝ) + 1) * (r.Q + 2) / (r.ξc / 4)
-      = 4 * ((r.L : ℝ) + r.Q + 4) * (r.Q + 2) * (1 / r.ξc) := by
-    push_cast; field_simp; ring
-  have hw : (((r.L + r.Q + 3 : ℕ) : ℝ) + 1) * (r.Q + 2) / (r.ξc / 4) ≤ knW r := le_max_right _ _
+  have htw : 0 < knTw r := by unfold knTw; positivity
+  have hw : (((r.L + r.Q + 3 : ℕ) : ℝ) + 1) * (r.Q + 2) / knTw r ≤ knW r := le_max_right _ _
   refine ⟨hNr1.trans (le_max_left _ _), le_max_left _ _, ?_, ?_⟩
-  · rw [div_le_iff₀ (by positivity)] at hw
+  · rw [div_le_iff₀ htw] at hw
     linarith
   · unfold knW
+    refine max_le (by linarith [show 0 ≤ 2 ^ 23 * r.Q * r.A * knX r ^ 2 * (1 / r.ξc) by positivity])
+      ?_
+    have e : (((r.L + r.Q + 3 : ℕ) : ℝ) + 1) * (r.Q + 2) / knTw r
+        = 12288 * ((r.L : ℝ) + r.Q + 4) * (r.Q + 2) * (1 / knε r) := by
+      unfold knTw; push_cast; field_simp; ring
     rw [e]
-    refine max_le (by linarith [show 0 ≤ 60 * knX r * r.Q * (1 / r.ξc) by positivity]) ?_
-    have h1 : 4 * ((r.L : ℝ) + r.Q + 4) * (r.Q + 2) ≤ 60 * knX r * r.Q := by
-      unfold knX at *; nlinarith
-    have : 4 * ((r.L : ℝ) + r.Q + 4) * (r.Q + 2) * (1 / r.ξc) ≤ 60 * knX r * r.Q * (1 / r.ξc) := by
-      gcongr
+    have h1 : ((r.L : ℝ) + r.Q + 4) * (r.Q + 2) ≤ (5 * knX r) * (3 * r.Q) := by
+      have hXe : knX r = r.L + r.Q := rfl
+      exact mul_le_mul (by linarith) (by linarith) (by positivity) (by positivity)
+    have h2 := mul_le_mul h1 hiε (by positivity) (by positivity)
     have : (0 : ℝ) ≤ knNr r := Nat.cast_nonneg _
+    have : (0 : ℝ) ≤ r.Q * r.A * knX r ^ 2 * (1 / r.ξc) := by positivity
     linarith
 
 lemma knL3 (hr : r ∈ rlStarRunRegion) :
@@ -903,57 +831,49 @@ lemma knL3 (hr : r ∈ rlStarRunRegion) :
   obtain ⟨hlg, hlgX⟩ := knLg_bounds hr
   obtain ⟨hδ', -, hiδ'⟩ := knδ'_bounds hr
   obtain ⟨hW1, -, -, hW⟩ := knW_bounds hr
-  obtain ⟨-, hNr, -⟩ := knNr_bounds hr
-  obtain ⟨-, -, hnh1, -, -, hnhZ⟩ := knNh_bounds hr
+  obtain ⟨hNr, -⟩ := knNr_bounds hr
   obtain ⟨hE1, hE, -⟩ := knE_bounds hr
-  obtain ⟨-, hJX, -⟩ := knJ_bounds hr
+  obtain ⟨hJ1, hJX, -⟩ := knJ_bounds hr
   have hZ1 : 1 ≤ knZ r := by linarith
-  have hZΛ : 1 ≤ knZ r ^ 43 * knΛ r ^ 4 :=
-    one_le_mul_of_one_le_of_one_le (one_le_pow₀ hZ1) (one_le_pow₀ (by linarith))
-  have hJ0 : (0 : ℝ) < knJ r := by linarith [knJ_bounds hr |>.1]
   have hΛ0 : 0 < knΛ r := by linarith
-  have hlg0 : 0 < knLg r := by linarith
   constructor
-  · refine knob_log_le hr (by positivity) (knob_pow_le hr (c := 2 ^ 229) (n := 55) (j := 5)
-      (k := 77) (by norm_num) ?_ (by norm_num) (by norm_num))
-    have hNrZ : (knNr r : ℝ) ≤ 2 ^ 221 * knZ r ^ 53 * knΛ r ^ 5 := by
+  · refine knob_log_le hr (by positivity) (knob_pow_le hr (c := 2 ^ 44) (n := 15) (j := 1)
+      (k := 15) (by norm_num) ?_ (by norm_num) (by norm_num))
+    have hNrZ : (knNr r : ℝ) ≤ 2 ^ 36 * knZ r ^ 13 * knΛ r := by
       calc (knNr r : ℝ)
-          ≤ 2 ^ 34 * r.Q * r.A ^ 2 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r * knLg r * knNh r := hNr
-        _ ≤ 2 ^ 34 * knZ r * knZ r ^ 2 * knZ r ^ 4 * knZ r ^ 2 * knΛ r * knZ r
-            * (2 ^ 187 * knZ r ^ 43 * knΛ r ^ 4) := by
+          ≤ 2 ^ 36 * r.Q ^ 3 * r.A ^ 3 * knX r ^ 4 * (1 / r.ξc) ^ 2 * knΛ r * knLg r := hNr
+        _ ≤ 2 ^ 36 * knZ r ^ 3 * knZ r ^ 3 * knZ r ^ 4 * knZ r ^ 2 * knΛ r * knZ r := by
             gcongr
             linarith
-        _ = 2 ^ 221 * knZ r ^ 53 * knΛ r ^ 5 := by ring
-    have h60 : 60 * knX r * r.Q * (1 / r.ξc) ≤ 2 ^ 221 * knZ r ^ 53 * knΛ r ^ 5 := by
-      have a1 : 60 * knX r * r.Q * (1 / r.ξc) ≤ 60 * knZ r * knZ r * knZ r := by gcongr
-      have a2 : knZ r ^ 3 ≤ knZ r ^ 53 := pow_le_pow_right₀ hZ1 (by norm_num)
-      have a3 : knZ r ^ 53 ≤ knZ r ^ 53 * knΛ r ^ 5 :=
-        le_mul_of_one_le_right (by positivity) (one_le_pow₀ (by linarith))
-      have a4 : 0 ≤ knZ r ^ 53 * knΛ r ^ 5 := by positivity
-      have e : 60 * knZ r * knZ r * knZ r = 60 * knZ r ^ 3 := by ring
-      have e2 : 2 ^ 221 * knZ r ^ 53 * knΛ r ^ 5 = 2 ^ 221 * (knZ r ^ 53 * knΛ r ^ 5) := by ring
-      rw [e2]
+        _ = 2 ^ 36 * knZ r ^ 13 * knΛ r := by ring
+    have h23 : 2 ^ 23 * r.Q * r.A * knX r ^ 2 * (1 / r.ξc) ≤ 2 ^ 36 * knZ r ^ 13 * knΛ r := by
+      have a1 : 2 ^ 23 * r.Q * r.A * knX r ^ 2 * (1 / r.ξc)
+          ≤ 2 ^ 23 * knZ r * knZ r * knZ r ^ 2 * knZ r := by
+        gcongr
+      have a2 : knZ r ^ 5 ≤ knZ r ^ 13 := pow_le_pow_right₀ hZ1 (by norm_num)
+      have a3 : knZ r ^ 13 ≤ knZ r ^ 13 * knΛ r :=
+        le_mul_of_one_le_right (by positivity) (by linarith)
+      have e : 2 ^ 23 * knZ r * knZ r * knZ r ^ 2 * knZ r = 2 ^ 23 * knZ r ^ 5 := by ring
+      have : (0 : ℝ) ≤ knZ r ^ 13 * knΛ r := by positivity
       linarith
     calc 8 * knW r / knδ' r = 8 * knW r * (1 / knδ' r) := by ring
-      _ ≤ 8 * (2 ^ 221 * knZ r ^ 53 * knΛ r ^ 5 + 2 ^ 221 * knZ r ^ 53 * knΛ r ^ 5)
+      _ ≤ 8 * (2 ^ 36 * knZ r ^ 13 * knΛ r + 2 ^ 36 * knZ r ^ 13 * knΛ r)
           * (16 * knZ r * knZ r) := by
           gcongr
           · linarith
           · exact hiδ'.trans (by gcongr)
-      _ = 2 ^ 229 * knZ r ^ 55 * knΛ r ^ 5 := by ring
-  · refine knob_log_le hr (by positivity) (knob_pow_le hr (c := 2 ^ 206) (n := 50) (j := 4)
-      (k := 69) (by norm_num) ?_ (by norm_num) (by norm_num))
+      _ = 2 ^ 44 * knZ r ^ 15 * knΛ r ^ 1 := by ring
+  · refine knob_log_le hr (by positivity) (knob_pow_le hr (c := 3 * 2 ^ 18) (n := 7) (j := 0)
+      (k := 7) (by norm_num) ?_ (by norm_num) (by norm_num))
     calc 4 * (knE r * knJ r) / knδ' r = 4 * (knE r * knJ r) * (1 / knδ' r) := by ring
-      _ ≤ 4 * ((2 ^ 12 * knZ r * knZ r ^ 2 * knZ r)
-          * (2 * knZ r * (2 ^ 187 * knZ r ^ 43 * knΛ r ^ 4)))
-          * (16 * knZ r * knZ r) := by
+      _ ≤ 4 * ((2 ^ 12 * knZ r * knZ r ^ 2 * knZ r) * (3 * knZ r)) * (16 * knZ r * knZ r) := by
           gcongr
           · exact hE.trans (by gcongr)
           · exact hJX.trans (by gcongr)
           · exact hiδ'.trans (by gcongr)
-      _ = 2 ^ 206 * knZ r ^ 50 * knΛ r ^ 4 := by ring
+      _ = 3 * 2 ^ 18 * knZ r ^ 7 * knΛ r ^ 0 := by ring
 
-end lists
+end sizes
 
 /-! The pool, the prefix count and the cap. -/
 
@@ -1040,7 +960,7 @@ lemma knL56 (hr : r ∈ rlStarRunRegion) :
   refine ⟨Real.log_nonneg (by rw [le_div_iff₀ hδ']; linarith), knob_log_le hr (by positivity)
     (knob_pow_le hr (c := 2 ^ 22) (n := 5) (j := 1) (k := 8) (by norm_num) ?_ (by norm_num)
     (by norm_num)), Real.log_nonneg ?_, knob_log_le hr (by positivity)
-    (knob_pow_le hr (c := 5 * 2 ^ 64) (n := 23) (j := 2) (k := 23) (by norm_num) ?_
+    (knob_pow_le hr (c := 5 * 2 ^ 45) (n := 16) (j := 1) (k := 16) (by norm_num) ?_
     (by norm_num) (by norm_num))⟩
   · calc 128 * (knPB r + 1) / knδ' r = 128 * (knPB r + 1) * (1 / knδ' r) := by ring
       _ ≤ 128 * (2 ^ 11 * knΛ r * knZ r ^ 3) * (16 * knZ r * knZ r) := by
@@ -1060,13 +980,13 @@ lemma knL56 (hr : r ∈ rlStarRunRegion) :
     rw [e]
     calc 16 * (r.Q + 4) * knPB r * (1 / knδ' r) ^ 2 * (1 / r.pAP) * (1 / knτ r)
         ≤ 16 * (5 * knZ r) * (2 ^ 10 * knΛ r * knZ r ^ 2 * knZ r) * (16 * knZ r * knZ r) ^ 2
-          * knZ r * (2 * (2 ^ 41 * knZ r ^ 12 * knΛ r) * knZ r ^ 2) := by
+          * knZ r * (2 * (2 ^ 22 * knZ r ^ 5) * knZ r ^ 2) := by
           gcongr
           · linarith
           · exact hPB.trans (by gcongr)
           · exact hiδ'.trans (by gcongr)
           · exact hiτ.trans (by gcongr)
-      _ = 5 * 2 ^ 64 * knZ r ^ 23 * knΛ r ^ 2 := by ring
+      _ = 5 * 2 ^ 45 * knZ r ^ 16 * knΛ r ^ 1 := by ring
 
 lemma knRB_bounds (hr : r ∈ rlStarRunRegion) : 0 ≤ knRB r ∧ knRB r ≤ knRBb r ∧ 1 ≤ knRBb r := by
   obtain ⟨l50, l5, l60, l6⟩ := knL56 hr
@@ -1104,7 +1024,7 @@ lemma knRB_bounds (hr : r ∈ rlStarRunRegion) : 0 ≤ knRB r ∧ knRB r ≤ knR
         gcongr
         linarith
 
-lemma knRBb_Z (hr : r ∈ rlStarRunRegion) : knRBb r ≤ 2 ^ 112 * knZ r ^ 29 * knΛ r ^ 3 := by
+lemma knRBb_Z (hr : r ∈ rlStarRunRegion) : knRBb r ≤ 2 ^ 74 * knZ r ^ 15 * knΛ r := by
   obtain ⟨hZ8, hXZ, hAZ, hδZ, hξZ, hpZ, hsZ, hQZ⟩ := knZ_ge hr
   obtain ⟨hQ, -, -, -, -, -, -, -, -, -, -, hs, -⟩ := kn_base hr
   obtain ⟨hΛ, -⟩ := knΛ_bounds hr
@@ -1112,9 +1032,9 @@ lemma knRBb_Z (hr : r ∈ rlStarRunRegion) : knRBb r ≤ 2 ^ 112 * knZ r ^ 29 * 
   have hι1 := knιInv_one hr
   unfold knRBb
   calc 2 ^ 30 * r.Q * knΛ r * (1 / r.s₀) ^ 4 * knιInv r ^ 2
-      ≤ 2 ^ 30 * knZ r * knΛ r * knZ r ^ 4 * (2 ^ 41 * knZ r ^ 12 * knΛ r) ^ 2 := by
+      ≤ 2 ^ 30 * knZ r * knΛ r * knZ r ^ 4 * (2 ^ 22 * knZ r ^ 5) ^ 2 := by
         gcongr
-    _ = 2 ^ 112 * knZ r ^ 29 * knΛ r ^ 3 := by ring
+    _ = 2 ^ 74 * knZ r ^ 15 * knΛ r := by ring
 
 lemma knL7 (hr : r ∈ rlStarRunRegion) :
     0 ≤ log (128 * (r.Q + 2) * (knPB r + 1) * (3 + 2 * Real.logb 2 (knRB r + 1)) / knδ' r)
@@ -1139,8 +1059,8 @@ lemma knL7 (hr : r ∈ rlStarRunRegion) :
     linarith
   have hy0 : 0 < 128 * (r.Q + 2) * (knPB r + 1) * (3 + 2 * Real.logb 2 (knRB r + 1)) / knδ' r := by
     positivity
-  refine ⟨Real.log_nonneg ?_, knob_log_le hr hy0 (knob_pow_le hr (c := 2 ^ 139) (n := 35)
-    (j := 4) (k := 47) (by norm_num) ?_ (by norm_num) (by norm_num))⟩
+  refine ⟨Real.log_nonneg ?_, knob_log_le hr hy0 (knob_pow_le hr (c := 2 ^ 101) (n := 21)
+    (j := 2) (k := 34) (by norm_num) ?_ (by norm_num) (by norm_num))⟩
   · rw [le_div_iff₀ hδ']
     have h1 : (1 : ℝ) ≤ 128 * (r.Q + 2) * (knPB r + 1) :=
       one_le_mul_of_one_le_of_one_le (by linarith) (by linarith)
@@ -1159,13 +1079,13 @@ lemma knL7 (hr : r ∈ rlStarRunRegion) :
         = 128 * (r.Q + 2) * (knPB r + 1) * (3 + 2 * Real.logb 2 (knRB r + 1))
           * (1 / knδ' r) := by ring
       _ ≤ 128 * (3 * knZ r) * (2 ^ 11 * knΛ r * knZ r ^ 3)
-          * (6 * (2 ^ 112 * knZ r ^ 29 * knΛ r ^ 3)) * (16 * knZ r * knZ r) := by
+          * (6 * (2 ^ 74 * knZ r ^ 15 * knΛ r)) * (16 * knZ r * knZ r) := by
           gcongr
           · linarith
           · exact hlb.trans (by gcongr)
           · exact hiδ'.trans (by gcongr)
-      _ = 2 ^ 134 * 18 * knZ r ^ 35 * knΛ r ^ 4 := by ring
-      _ ≤ 2 ^ 139 * knZ r ^ 35 * knΛ r ^ 4 := by gcongr; norm_num
+      _ = 2 ^ 96 * 18 * knZ r ^ 21 * knΛ r ^ 2 := by ring
+      _ ≤ 2 ^ 101 * knZ r ^ 21 * knΛ r ^ 2 := by gcongr; norm_num
 
 lemma inv_le_of_inv_le {t C : ℝ} (ht : 0 < t) (h : 1 / t ≤ C) : 1 / C ≤ t := by
   calc 1 / C ≤ 1 / (1 / t) := one_div_le_one_div_of_le (by positivity) h
@@ -1316,7 +1236,175 @@ lemma knCapP_ge (hr : r ∈ rlStarRunRegion) : 1 / knCapInv r ≤ knCapP r := by
 
 end counts
 
-/-! The premises that pin `p₀`, and the lists' slope. -/
+/-! The heavy draws and the sampler. -/
+
+section draws
+
+variable {r : RLStarRun}
+
+lemma knCapP_pos (hr : r ∈ rlStarRunRegion) : 0 < knCapP r :=
+  lt_of_lt_of_le (by have := (knCapInv_bounds hr).1; positivity) (knCapP_ge hr)
+
+lemma knCapP_le_one (hr : r ∈ rlStarRunRegion) : knCapP r ≤ 1 := by
+  obtain ⟨hRB0, -⟩ := knRB_bounds hr
+  have h : knCapP r ≤ 1 / (6 * (r.Q + 2) * (knRB r + 1)) :=
+    (min_le_right _ _).trans ((min_le_right _ _).trans (min_le_right _ _))
+  refine h.trans ?_
+  rw [div_le_one (by positivity)]
+  have : (0 : ℝ) ≤ r.Q := Nat.cast_nonneg _
+  nlinarith
+
+lemma knθ_bounds (hr : r ∈ rlStarRunRegion) :
+    0 < knθ r ∧ knθ r ≤ 1 ∧ 1 / knθ r ≤ 2 ^ 13 * knCapInv r * r.A * knX r * (1 / r.ξc) := by
+  have hc := knCapP_ge hr
+  have hcp := knCapP_pos hr
+  have hcp1 := knCapP_le_one hr
+  obtain ⟨hc1, -⟩ := knCapInv_bounds hr
+  obtain ⟨hε, hε12, hiε⟩ := knε_bounds hr
+  obtain ⟨-, hA, hX, -, -, -, -, hξ, hξ1, -⟩ := kn_base hr
+  have hic : 1 / knCapP r ≤ knCapInv r := (one_div_le hcp (by linarith)).2 hc
+  refine ⟨by unfold knθ; positivity, ?_, ?_⟩
+  · unfold knθ
+    rw [div_le_one (by norm_num)]
+    nlinarith
+  · have e : 1 / knθ r = 192 * (1 / knCapP r) * (1 / knε r) := by unfold knθ; field_simp
+    rw [e]
+    calc 192 * (1 / knCapP r) * (1 / knε r)
+        ≤ 192 * knCapInv r * (30 * r.A * knX r * (1 / r.ξc)) := by gcongr
+      _ = 5760 * knCapInv r * r.A * knX r * (1 / r.ξc) := by ring
+      _ ≤ 2 ^ 13 * knCapInv r * r.A * knX r * (1 / r.ξc) := by
+          gcongr
+          norm_num
+
+lemma knNh_bounds (hr : r ∈ rlStarRunRegion) :
+    (knNh r : ℝ) ≤ 2 ^ 14 * knCapInv r * r.A * knX r * (1 / r.ξc) * knΛ r
+      ∧ ∀ k : ℕ, k ≤ r.L → log (4 * k / (knθ r * knδ' r)) / knθ r ≤ knNh r := by
+  obtain ⟨hθ, hθ1, hiθ⟩ := knθ_bounds hr
+  obtain ⟨hδ', hδ'1, hiδ'⟩ := knδ'_bounds hr
+  obtain ⟨hc1, hcZ⟩ := knCapInv_bounds hr
+  obtain ⟨hQ, hA, hX, -, hLX, hδ, -, hξ, hξ1, -⟩ := kn_base hr
+  obtain ⟨hZ8, hXZ, hAZ, hδZ, hξZ, -, -, hQZ⟩ := knZ_ge hr
+  obtain ⟨hΛ, -⟩ := knΛ_bounds hr
+  have iξ : 1 ≤ 1 / r.ξc := by rw [le_div_iff₀ hξ]; linarith
+  have hlog : log (4 * knX r / (knθ r * knδ' r)) ≤ knΛ r := by
+    refine knob_log_le hr (by positivity) (knob_pow_le hr (c := 2 ^ 147) (n := 28) (j := 1)
+      (k := 49) (by norm_num) ?_ (by norm_num) (by norm_num))
+    calc 4 * knX r / (knθ r * knδ' r) = 4 * knX r * (1 / knθ r) * (1 / knδ' r) := by
+          field_simp
+      _ ≤ 4 * knZ r * (2 ^ 13 * (2 ^ 128 * knZ r ^ 22 * knΛ r) * knZ r * knZ r * knZ r)
+          * (16 * knZ r * knZ r) := by
+          gcongr
+          · exact hiθ.trans (by gcongr)
+          · exact hiδ'.trans (by gcongr)
+      _ = 2 ^ 147 * knZ r ^ 28 * knΛ r ^ 1 := by ring
+  have hlog0 : 0 ≤ log (4 * knX r / (knθ r * knδ' r)) := by
+    refine Real.log_nonneg ?_
+    rw [le_div_iff₀ (by positivity)]
+    have : knθ r * knδ' r ≤ 1 := mul_le_one₀ hθ1 hδ'.le (by linarith)
+    linarith
+  have hx0 : 0 ≤ log (4 * knX r / (knθ r * knδ' r)) / knθ r := by positivity
+  have hc := Nat.ceil_lt_add_one hx0
+  have hc' := Nat.le_ceil (log (4 * knX r / (knθ r * knδ' r)) / knθ r)
+  have hN : knNh r = ⌈log (4 * knX r / (knθ r * knδ' r)) / knθ r⌉₊ := rfl
+  rw [hN]
+  refine ⟨?_, fun k hk => ?_⟩
+  · have h1 : log (4 * knX r / (knθ r * knδ' r)) / knθ r ≤ knΛ r * (1 / knθ r) := by
+      rw [div_eq_mul_one_div]; gcongr
+    have h2 := mul_le_mul_of_nonneg_left hiθ (show 0 ≤ knΛ r by linarith)
+    have h3 : (1 : ℝ) ≤ 2 ^ 13 * knCapInv r * r.A * knX r * (1 / r.ξc) * knΛ r := by
+      have a1 : (1 : ℝ) ≤ knCapInv r * r.A := one_le_mul_of_one_le_of_one_le hc1 (by linarith)
+      have a2 : (1 : ℝ) ≤ knCapInv r * r.A * knX r := one_le_mul_of_one_le_of_one_le a1 hX
+      have a3 : (1 : ℝ) ≤ knCapInv r * r.A * knX r * (1 / r.ξc) :=
+        one_le_mul_of_one_le_of_one_le a2 iξ
+      have a4 : (1 : ℝ) ≤ knCapInv r * r.A * knX r * (1 / r.ξc) * knΛ r :=
+        one_le_mul_of_one_le_of_one_le a3 (by linarith)
+      nlinarith
+    nlinarith
+  · rcases Nat.eq_zero_or_pos k with rfl | hk0
+    · simp only [Nat.cast_zero, mul_zero, zero_div, Real.log_zero]
+      exact Nat.cast_nonneg _
+    refine le_trans ?_ hc'
+    have hk' : (k : ℝ) ≤ knX r := (Nat.cast_le.2 hk).trans hLX
+    have hk1 : (0 : ℝ) < k := by exact_mod_cast hk0
+    gcongr
+
+lemma knSC_bounds (hr : r ∈ rlStarRunRegion) : 0 ≤ knSC r ∧ knSC r ≤ 2 ^ 6 * r.Q * knRBb r := by
+  obtain ⟨hRB0, hRB, hRBb1⟩ := knRB_bounds hr
+  obtain ⟨-, hl, -⟩ := knL4 hr
+  obtain ⟨hQ, -, -, -, -, -, -, -, -, -, -, hs, hs1⟩ := kn_base hr
+  obtain ⟨hδ', hδ'1, -⟩ := knδ'_bounds hr
+  obtain ⟨hΛ, -⟩ := knΛ_bounds hr
+  have hι1 := knιInv_one hr
+  have hl0 : 0 ≤ log (16 * (r.Q + 2) / knδ' r) :=
+    Real.log_nonneg (by rw [le_div_iff₀ hδ']; nlinarith)
+  have hΛR : 2 ^ 30 * knΛ r ≤ knRBb r := by
+    have a1 : (1 : ℝ) ≤ r.Q * (1 / r.s₀) ^ 4 :=
+      one_le_mul_of_one_le_of_one_le hQ (one_le_pow₀ (by rw [le_div_iff₀ hs]; linarith))
+    have a2 : (1 : ℝ) ≤ r.Q * (1 / r.s₀) ^ 4 * knιInv r ^ 2 :=
+      one_le_mul_of_one_le_of_one_le a1 (one_le_pow₀ hι1)
+    have := mul_le_mul_of_nonneg_left a2 (show (0 : ℝ) ≤ 2 ^ 30 * knΛ r by positivity)
+    unfold knRBb
+    nlinarith
+  unfold knSC
+  constructor
+  · positivity
+  · have h1 : 8 * ((r.Q : ℝ) + 4) * knRB r ≤ 40 * r.Q * knRBb r := by
+      have := mul_le_mul (show 8 * ((r.Q : ℝ) + 4) ≤ 40 * r.Q by linarith) hRB hRB0
+        (by positivity)
+      linarith
+    have h2 : (r.Q : ℝ) * knRBb r ≥ knRBb r := le_mul_of_one_le_left (by linarith) hQ
+    nlinarith
+
+lemma knHR_bounds (hr : r ∈ rlStarRunRegion) :
+    1 ≤ knHR r ∧ knHR r ≤ 2 ^ 14 * r.A * knX r * (1 / r.ξc) * knΛ r := by
+  obtain ⟨hSC0, hSC⟩ := knSC_bounds hr
+  obtain ⟨hRB0, hRB, hRBb1⟩ := knRB_bounds hr
+  have hRBZ := knRBb_Z hr
+  obtain ⟨hZ8, hXZ, hAZ, hδZ, hξZ, -, -, hQZ⟩ := knZ_ge hr
+  obtain ⟨hQ, hA, hX, -, -, hδ, -, hξ, hξ1, -⟩ := kn_base hr
+  obtain ⟨hδ', hδ'1, hiδ'⟩ := knδ'_bounds hr
+  obtain ⟨hε, -, hiε⟩ := knε_bounds hr
+  obtain ⟨hΛ, -⟩ := knΛ_bounds hr
+  have iξ : 1 ≤ 1 / r.ξc := by rw [le_div_iff₀ hξ]; linarith
+  have hZ1 : 1 ≤ knZ r := by linarith
+  have hl0 : 0 ≤ log (4 * (r.Q + 1) * (knSC r + 1) / knδ' r) := by
+    refine Real.log_nonneg ?_
+    rw [le_div_iff₀ hδ']
+    have : (1 : ℝ) ≤ (r.Q + 1) * (knSC r + 1) :=
+      one_le_mul_of_one_le_of_one_le (by linarith) (by linarith)
+    nlinarith
+  have hl : log (4 * (r.Q + 1) * (knSC r + 1) / knδ' r) ≤ knΛ r := by
+    refine knob_log_le hr (by positivity) (knob_pow_le hr (c := 2 ^ 88) (n := 19) (j := 1)
+      (k := 30) (by norm_num) ?_ (by norm_num) (by norm_num))
+    have hS1 : knSC r + 1 ≤ 2 ^ 81 * knZ r ^ 16 * knΛ r := by
+      have a1 : 2 ^ 6 * (r.Q : ℝ) * knRBb r ≤ 2 ^ 6 * knZ r * (2 ^ 74 * knZ r ^ 15 * knΛ r) := by
+        gcongr
+      have a2 : (1 : ℝ) ≤ knZ r ^ 16 * knΛ r :=
+        one_le_mul_of_one_le_of_one_le (one_le_pow₀ hZ1) (by linarith)
+      nlinarith
+    calc 4 * ((r.Q : ℝ) + 1) * (knSC r + 1) / knδ' r
+        = 4 * (r.Q + 1) * (knSC r + 1) * (1 / knδ' r) := by ring
+      _ ≤ 4 * (2 * knZ r) * (2 ^ 81 * knZ r ^ 16 * knΛ r) * (16 * knZ r * knZ r) := by
+          gcongr
+          · linarith
+          · exact hiδ'.trans (by gcongr)
+      _ = 2 ^ 88 * knZ r ^ 19 * knΛ r ^ 1 := by ring
+  have e : knHR r = 384 * log (4 * (r.Q + 1) * (knSC r + 1) / knδ' r) * (1 / knε r) + 1 := by
+    unfold knHR; field_simp
+  rw [e]
+  have hpos : 0 ≤ 384 * log (4 * (r.Q + 1) * (knSC r + 1) / knδ' r) * (1 / knε r) := by
+    positivity
+  refine ⟨by linarith, ?_⟩
+  have h1 := mul_le_mul hl hiε (by positivity) (by linarith)
+  have h2 : (1 : ℝ) ≤ r.A * knX r * (1 / r.ξc) * knΛ r := by
+    have a1 : (1 : ℝ) ≤ r.A * knX r := one_le_mul_of_one_le_of_one_le (by linarith) hX
+    have a2 := one_le_mul_of_one_le_of_one_le a1 iξ
+    exact one_le_mul_of_one_le_of_one_le a2 (by linarith)
+  nlinarith
+
+end draws
+
+/-! The premises that pin `p₀`, and level 3's slope and slack. -/
 
 section premises
 
@@ -1415,84 +1503,189 @@ lemma knMcD_spec (hr : r ∈ rlStarRunRegion) {p₀ : ℝ} (hp0 : 0 < p₀) (hp 
         rw [Real.exp_neg, Real.exp_log (by positivity), inv_div]
         ring
 
-/-- The lists' slope and slack premise. -/
-lemma knSlope_spec (hr : r ∈ rlStarRunRegion) :
-    2 * (r.Q : ℝ) * (knNr r : ℝ) / ((knNh r : ℝ) * Real.log 2) * knTu r
-      + (r.Q : ℝ) * Real.log ((r.Q : ℝ) / (knδ' r / 4)) / ((knNh r : ℝ) * Real.log 2)
-      + (r.Q : ℝ) * (3 * knι r) / knTu r < 1 := by
+/-- Level 3's slope premise at any walk start up to `L`. -/
+lemma knSlope_spec (hr : r ∈ rlStarRunRegion) {k : ℕ} (hk : k ≤ r.L) :
+    2 * ((r.Q : ℝ) + 1) * (288 / knε r + 16 * (2 + (Nat.clog 2 (r.L + r.Q + 3 + k) : ℝ)))
+        * knTu r + r.Q * (3 * knι r) / knTu r < 7 / 8 := by
   obtain ⟨hQ, -⟩ := kn_base hr
-  obtain ⟨hsl, -⟩ := knSlope_bounds hr
-  obtain ⟨hι, -, hι48, -, -⟩ := knι_bounds hr
-  obtain ⟨hNr, -, -⟩ := knNr_bounds hr
-  obtain ⟨-, -, hnh1, -, hnhΛ, -⟩ := knNh_bounds hr
-  obtain ⟨-, hlQ, -⟩ := knL4 hr
-  obtain ⟨hΛ, -⟩ := knΛ_bounds hr
-  have hlt := Real.log_two_gt_d9
-  have hl0 : 0 < Real.log 2 := by linarith
-  have hnh0 : (0 : ℝ) < knNh r := by linarith
+  obtain ⟨hε, -⟩ := knε_bounds hr
+  obtain ⟨hslo, -⟩ := knSlope_bounds hr
+  obtain ⟨hι, -, hι48, -⟩ := knι_bounds hr
+  have hsl0 : 0 < knSlope r := lt_of_lt_of_le (by
+    obtain ⟨-, hA, hX, -, -, -, -, hξ, -⟩ := kn_base hr; positivity) hslo
+  have hc : ((Nat.clog 2 (r.L + r.Q + 3 + k) : ℕ) : ℝ) ≤ Nat.clog 2 (r.L + r.Q + 3 + r.L) := by
+    exact_mod_cast Nat.clog_mono_right 2 (by omega)
+  have h1 : 2 * ((r.Q : ℝ) + 1) * (288 / knε r + 16 * (2 + (Nat.clog 2 (r.L + r.Q + 3 + k) : ℝ)))
+      ≤ knSlope r := by
+    unfold knSlope; gcongr
   have hTu : knTu r = 1 / (4 * knSlope r) := rfl
-  have e1 : knSlope r = 2 * r.Q * (r.Q + 3) * knE r * knRp r * (r.L + 3) * knB r / log 2 := rfl
-  -- `Nr/nh` times `2 Q / log 2` is at most the slope bound
-  have h1 : 2 * (r.Q : ℝ) * (knNr r : ℝ) / ((knNh r : ℝ) * Real.log 2) ≤ knSlope r := by
-    rw [e1, div_le_div_iff₀ (by positivity) hl0]
-    have := mul_le_mul_of_nonneg_left hNr (show (0 : ℝ) ≤ 2 * r.Q * log 2 by positivity)
-    linarith
-  have h1' : 2 * (r.Q : ℝ) * (knNr r : ℝ) / ((knNh r : ℝ) * Real.log 2) * knTu r ≤ 1 / 4 := by
+  have h2 : 2 * ((r.Q : ℝ) + 1) * (288 / knε r + 16 * (2 + (Nat.clog 2 (r.L + r.Q + 3 + k) : ℝ)))
+      * knTu r ≤ 1 / 4 := by
     rw [hTu]
-    calc 2 * (r.Q : ℝ) * (knNr r : ℝ) / ((knNh r : ℝ) * Real.log 2) * (1 / (4 * knSlope r))
-        ≤ knSlope r * (1 / (4 * knSlope r)) := by gcongr
-      _ = 1 / 4 := by field_simp; try ring
-  have h2 : (r.Q : ℝ) * Real.log ((r.Q : ℝ) / (knδ' r / 4)) / ((knNh r : ℝ) * Real.log 2)
-      ≤ 1 / 4 := by
-    rw [div_le_div_iff₀ (by positivity) (by norm_num)]
-    have := mul_le_mul_of_nonneg_left hlQ (show (0 : ℝ) ≤ r.Q by linarith)
-    have := mul_le_mul_of_nonneg_left (show (2 : ℝ) / 3 ≤ Real.log 2 by linarith) hnh0.le
-    linarith
+    calc 2 * ((r.Q : ℝ) + 1) * (288 / knε r + 16 * (2 + (Nat.clog 2 (r.L + r.Q + 3 + k) : ℝ)))
+          * (1 / (4 * knSlope r)) ≤ knSlope r * (1 / (4 * knSlope r)) := by gcongr
+      _ = 1 / 4 := by field_simp
   have h3 : (r.Q : ℝ) * (3 * knι r) / knTu r ≤ 1 / 4 := by
     rw [hTu, div_div_eq_mul_div, div_one]
     linarith
   linarith
 
-lemma knP₀_bounds (hr : r ∈ rlStarRunRegion) :
-    0 < knP₀ r ∧ knP₀ r < 1 ∧ knP₀ r ≤ 1 / knCapInv r * knε r / 1536
-      ∧ 6 * (r.Q + 2) * knRB r * knP₀ r ≤ 1 / 2
-      ∧ 16 * knNh r * knP₀ r ≤ knε r / 48 ∧ knP₀ r ≤ knMcD r := by
-  obtain ⟨hQ, -⟩ := kn_base hr
-  obtain ⟨hε, hε12, -⟩ := knε_bounds hr
-  obtain ⟨hξ, hξ1, -⟩ := ξc_mem hr
-  obtain ⟨hcap, -⟩ := knCapInv_bounds hr
-  obtain ⟨-, hnh, -⟩ := knNh_bounds hr
-  obtain ⟨hRB0, hRB, hRBb1⟩ := knRB_bounds hr
-  obtain ⟨hΛ, -⟩ := knΛ_bounds hr
-  have hMc := knMcD_pos hr
-  have hι1 := knιInv_one hr
-  have hc1 : 1 ≤ knCapInv r := by
-    refine le_trans ?_ hcap
-    have h1 : (1 : ℝ) ≤ r.Q ^ 3 := one_le_pow₀ hQ
-    have h2 : (1 : ℝ) ≤ r.Q ^ 3 * knΛ r := one_le_mul_of_one_le_of_one_le h1 (by linarith)
-    have h3 : (1 : ℝ) ≤ r.Q ^ 3 * knΛ r * knιInv r := one_le_mul_of_one_le_of_one_le h2 hι1
+/-- The log of the slack's count `(q + 1) Kt e (e + 1)`. -/
+lemma log_kt_le {q a e K1 K2 : ℝ} {nq nm : ℕ} (hq : 1 ≤ q) (ha : 2 ≤ a) (he : 1 ≤ e)
+    (hK1 : K1 = 1 + (q + 1) ^ 3 * (a + 1)) (hK2 : K2 = q + 3) (hnq : (nq : ℝ) = q)
+    (hnm : (nm : ℝ) = (q + 2) * (a + 1)) :
+    log ((q + 1) * (K1 ^ nq * K2 ^ nm) * (e * (e + 1))) ≤ 32 * q ^ 4 * a + 2 * e := by
+  subst hK1 hK2
+  have hK10 : 0 < 1 + (q + 1) ^ 3 * (a + 1) := by positivity
+  have hK20 : 0 < q + 3 := by positivity
+  rw [Real.log_mul (x := (q + 1) * ((1 + (q + 1) ^ 3 * (a + 1)) ^ nq * (q + 3) ^ nm))
+      (y := e * (e + 1)) (by positivity) (by positivity),
+    Real.log_mul (x := q + 1) (y := (1 + (q + 1) ^ 3 * (a + 1)) ^ nq * (q + 3) ^ nm)
+      (by positivity) (by positivity),
+    Real.log_mul (x := (1 + (q + 1) ^ 3 * (a + 1)) ^ nq) (y := (q + 3) ^ nm) (by positivity)
+      (by positivity),
+    Real.log_mul (x := e) (y := e + 1) (by positivity) (by positivity), Real.log_pow,
+    Real.log_pow, hnq, hnm]
+  have l1 := Real.log_le_sub_one_of_pos (show 0 < q + 1 by linarith)
+  have l2 := Real.log_le_sub_one_of_pos hK10
+  have l3 := Real.log_le_sub_one_of_pos hK20
+  have l4 := Real.log_le_sub_one_of_pos (show 0 < e by linarith)
+  have l5 := Real.log_le_sub_one_of_pos (show 0 < e + 1 by linarith)
+  have t1 := mul_le_mul_of_nonneg_left l2 (show 0 ≤ q by linarith)
+  have t2 := mul_le_mul_of_nonneg_left l3 (show 0 ≤ (q + 2) * (a + 1) by positivity)
+  have p1 : (q + 1) ^ 3 ≤ 8 * q ^ 3 := by
+    have := pow_le_pow_left₀ (by linarith) (show q + 1 ≤ 2 * q by linarith) 3
+    linarith [show (2 * q) ^ 3 = 8 * q ^ 3 by ring]
+  have p2 : q * ((q + 1) ^ 3 * (a + 1)) ≤ 12 * q ^ 4 * a := by
+    have h1 := mul_le_mul p1 (show a + 1 ≤ 3 / 2 * a by linarith) (by positivity) (by positivity)
+    have h2 := mul_le_mul_of_nonneg_left h1 (show 0 ≤ q by linarith)
+    linarith [show q * (8 * q ^ 3 * (3 / 2 * a)) = 12 * q ^ 4 * a by ring]
+  have p3 : (q + 2) * (a + 1) * (q + 3 - 1) ≤ 14 * q ^ 4 * a := by
+    have h1 : (q + 2) * (q + 2) ≤ 9 * q ^ 2 := by nlinarith
+    have h2 : q ^ 2 ≤ q ^ 4 := pow_le_pow_right₀ hq (by norm_num)
+    have h3 := mul_le_mul (show (q + 2) * (q + 2) ≤ 9 * q ^ 4 by linarith)
+      (show a + 1 ≤ 3 / 2 * a by linarith) (by positivity) (by positivity)
+    have : 0 ≤ q ^ 4 * a := by positivity
+    linarith [show (q + 2) * (a + 1) * (q + 3 - 1) = (q + 2) * (q + 2) * (a + 1) by ring]
+  have p4 : q ≤ q ^ 4 * a := by
+    have h1 : q ≤ q ^ 4 := le_self_pow₀ hq (by norm_num)
+    have h2 : q ^ 4 ≤ q ^ 4 * a := le_mul_of_one_le_right (by positivity) (by linarith)
     linarith
-  have hp1 : knP₀ r ≤ knε r / (1536 * knCapInv r) :=
-    (min_le_left _ _).trans (min_le_left _ _)
-  have hp2 : knP₀ r ≤ 1 / (12 * (r.Q + 2) * knRBb r) :=
-    (min_le_left _ _).trans (min_le_right _ _)
-  have hp3 : knP₀ r ≤ knε r / (768 * (2 * knCapInv r + 1)) :=
-    (min_le_right _ _).trans (min_le_left _ _)
-  have hp4 : knP₀ r ≤ knMcD r := (min_le_right _ _).trans (min_le_right _ _)
-  have hpos : 0 < knP₀ r :=
-    lt_min (lt_min (by positivity) (by positivity)) (lt_min (by positivity) hMc)
-  refine ⟨hpos, ?_, ?_, ?_, ?_, hp4⟩
-  · refine hp1.trans_lt ?_
-    rw [div_lt_one (by positivity)]
-    linarith
-  · refine hp1.trans (le_of_eq ?_)
+  linarith
+
+/-- `ι² log H ≤ 2⁻¹⁶` once `2¹⁵ Q² A X ξi ι ≤ 1` and `log H ≤ 2¹⁴ Q⁴ A X² ξi`. -/
+lemma iota_sq_log_le {ι lH Q A X ξi : ℝ} (hQ : 1 ≤ Q) (hA : 2 ≤ A) (hX : 1 ≤ X) (hξi : 1 ≤ ξi)
+    (hι : 0 ≤ ι) (hm : 2 ^ 15 * Q ^ 2 * A * X * ξi * ι ≤ 1)
+    (hlH : lH ≤ 2 ^ 14 * Q ^ 4 * A * X ^ 2 * ξi) : ι ^ 2 * lH ≤ 1 / 2 ^ 16 := by
+  have hAξ : 2 ≤ A * ξi := by nlinarith
+  have ht : 0 ≤ Q ^ 4 * A * X ^ 2 * ξi := by positivity
+  have e : (2 ^ 15 * Q ^ 2 * A * X * ξi) ^ 2 = 2 ^ 30 * (Q ^ 4 * A * X ^ 2 * ξi) * (A * ξi) := by
     ring
-  · have : 0 < 12 * ((r.Q : ℝ) + 2) * knRBb r := by positivity
-    rw [le_div_iff₀ this] at hp2
-    linarith [mul_le_mul_of_nonneg_left hRB (show 0 ≤ 6 * ((r.Q : ℝ) + 2) * knP₀ r by positivity)]
-  · have h0 : 0 < 768 * (2 * knCapInv r + 1) := by positivity
-    rw [le_div_iff₀ h0] at hp3
-    linarith [mul_le_mul_of_nonneg_left hnh (show 0 ≤ 16 * knP₀ r by positivity)]
+  have hm2 : 2 ^ 17 * (2 ^ 14 * Q ^ 4 * A * X ^ 2 * ξi) ≤ (2 ^ 15 * Q ^ 2 * A * X * ξi) ^ 2 := by
+    have := mul_le_mul_of_nonneg_left hAξ ht
+    rw [e]; nlinarith
+  have h0 : 0 ≤ 2 ^ 15 * Q ^ 2 * A * X * ξi * ι := by positivity
+  have h1 : (2 ^ 15 * Q ^ 2 * A * X * ξi * ι) ^ 2 ≤ 1 := by nlinarith
+  have a := mul_le_mul_of_nonneg_left hm2 (sq_nonneg ι)
+  have b : ι ^ 2 * (2 ^ 15 * Q ^ 2 * A * X * ξi) ^ 2 = (2 ^ 15 * Q ^ 2 * A * X * ξi * ι) ^ 2 := by
+    ring
+  have c := mul_le_mul_of_nonneg_left hlH (sq_nonneg ι)
+  rw [le_div_iff₀ (by norm_num)]
+  nlinarith
+
+/-- `cap L ≤ 1/8` from `cap ≤ ι²/(2²⁸ ly)` and `L ≤ ly + lH`. -/
+lemma slack_final {cap ι ly lH L : ℝ} (hcap0 : 0 ≤ cap) (hcap : cap * (2 ^ 28 * ly) ≤ ι ^ 2)
+    (hly : 1 ≤ ly) (hlH : 0 ≤ lH) (hι : ι ^ 2 ≤ 1 / 6400) (hιH : ι ^ 2 * lH ≤ 1 / 2 ^ 16)
+    (hL : L ≤ ly + lH) : cap * L ≤ 1 / 8 := by
+  have h1 : cap * ly ≤ ι ^ 2 / 2 ^ 28 := by rw [le_div_iff₀ (by norm_num)]; linarith
+  have h2 : cap * lH ≤ cap * ly * lH := by
+    have := mul_le_mul_of_nonneg_right hly (mul_nonneg hcap0 hlH)
+    linarith
+  have h3 : cap * ly * lH ≤ ι ^ 2 / 2 ^ 28 * lH := mul_le_mul_of_nonneg_right h1 hlH
+  have h4 : cap * L ≤ cap * (ly + lH) := mul_le_mul_of_nonneg_left hL hcap0
+  have h5 : ι ^ 2 / 2 ^ 28 * lH = ι ^ 2 * lH / 2 ^ 28 := by ring
+  linarith
+
+lemma slack_arg_le {q Kt E d c : ℝ} (hd : 0 < d) (hc : 64 ≤ c)
+    (hH : 0 ≤ (q + 1) * Kt * (E * (E + 1))) :
+    8 * (q + 1) * Kt * (E * (E + 1)) / (d / 8) ≤ c / d * ((q + 1) * Kt * (E * (E + 1))) := by
+  have e1 : 8 * (q + 1) * Kt * (E * (E + 1)) / (d / 8)
+      = 64 * ((q + 1) * Kt * (E * (E + 1)) / d) := by
+    field_simp; ring
+  have e2 : c / d * ((q + 1) * Kt * (E * (E + 1))) = c * ((q + 1) * Kt * (E * (E + 1)) / d) := by
+    ring
+  rw [e1, e2]
+  exact mul_le_mul_of_nonneg_right hc (div_nonneg hH hd.le)
+
+/-- Level 3's slack at `2θ`, at most `1/16`. -/
+lemma knSlack_spec (hr : r ∈ rlStarRunRegion) :
+    knCapP r * log (8 * ((r.Q : ℝ) + 1) * ((1 + ((r.Q : ℝ) + 1) ^ 3 * ((r.A : ℝ) + 1)) ^ r.Q
+        * ((r.Q : ℝ) + 3) ^ ((r.Q + 2) * (r.A + 1))) * ((knE r : ℝ) * (knE r + 1))
+        / (knδ' r / 8)) ≤ 1 / 8 := by
+  obtain ⟨hQ, hA, hX, -, -, -, -, hξ, hξ1, -⟩ := kn_base hr
+  obtain ⟨hι0, -, -, -, hι80, hιm⟩ := knι_bounds hr
+  obtain ⟨hE1, hE, -⟩ := knE_bounds hr
+  obtain ⟨hδ', -⟩ := knδ'_bounds hr
+  obtain ⟨hPB28, -⟩ := knPB_bounds hr
+  obtain ⟨hRB0, -⟩ := knRB_bounds hr
+  have hcp := knCapP_pos hr
+  have iξ : 1 ≤ 1 / r.ξc := by rw [le_div_iff₀ hξ]; linarith
+  have hlb0 : 0 ≤ Real.logb 2 (knRB r + 1) := Real.logb_nonneg (by norm_num) (by linarith)
+  have hg1 : (1 : ℝ) ≤ (r.Q + 2) * (knPB r + 1) * (3 + 2 * Real.logb 2 (knRB r + 1)) :=
+    one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by linarith) (by linarith))
+      (by linarith)
+  have hy3 : 3 ≤ 128 * (r.Q + 2) * (knPB r + 1) * (3 + 2 * Real.logb 2 (knRB r + 1)) / knδ' r := by
+    rw [le_div_iff₀ hδ']
+    obtain ⟨-, hδ'1, -⟩ := knδ'_bounds hr
+    nlinarith
+  have hl7 := one_le_log_of_three_le hy3
+  have hcap : knCapP r ≤ knι r ^ 2 / (2 ^ 28 * log (128 * (r.Q + 2) * (knPB r + 1)
+      * (3 + 2 * Real.logb 2 (knRB r + 1)) / knδ' r)) :=
+    (min_le_left _ _).trans ((min_le_left _ _).trans (min_le_right _ _))
+  rw [le_div_iff₀ (by positivity)] at hcap
+  have hK1 : (1 : ℝ) ≤ 1 + ((r.Q : ℝ) + 1) ^ 3 * ((r.A : ℝ) + 1) := by
+    have : (0 : ℝ) ≤ ((r.Q : ℝ) + 1) ^ 3 * ((r.A : ℝ) + 1) := by positivity
+    linarith
+  have hH1 : (1 : ℝ) ≤ ((r.Q : ℝ) + 1) * ((1 + ((r.Q : ℝ) + 1) ^ 3 * ((r.A : ℝ) + 1)) ^ r.Q
+      * ((r.Q : ℝ) + 3) ^ ((r.Q + 2) * (r.A + 1))) * ((knE r : ℝ) * (knE r + 1)) :=
+    one_le_mul_of_one_le_of_one_le (one_le_mul_of_one_le_of_one_le (by linarith)
+      (one_le_mul_of_one_le_of_one_le (one_le_pow₀ hK1) (one_le_pow₀ (by linarith))))
+      (one_le_mul_of_one_le_of_one_le hE1 (by linarith))
+  have harg := slack_arg_le (q := (r.Q : ℝ))
+    (Kt := (1 + ((r.Q : ℝ) + 1) ^ 3 * ((r.A : ℝ) + 1)) ^ r.Q
+    * ((r.Q : ℝ) + 3) ^ ((r.Q + 2) * (r.A + 1))) (E := (knE r : ℝ)) (d := knδ' r)
+    (c := 128 * (r.Q + 2) * (knPB r + 1) * (3 + 2 * Real.logb 2 (knRB r + 1))) hδ'
+    (by linarith) (by linarith)
+  have hlog := (Real.log_le_log (by positivity) harg).trans_eq
+    (Real.log_mul (by positivity) (by positivity))
+  have hlH := log_kt_le (q := (r.Q : ℝ)) (a := (r.A : ℝ)) (e := (knE r : ℝ))
+    (K1 := 1 + ((r.Q : ℝ) + 1) ^ 3 * ((r.A : ℝ) + 1)) (K2 := (r.Q : ℝ) + 3) (nq := r.Q)
+    (nm := (r.Q + 2) * (r.A + 1)) hQ hA hE1 rfl rfl rfl (by push_cast; ring)
+  have hlH' : log (((r.Q : ℝ) + 1) * ((1 + ((r.Q : ℝ) + 1) ^ 3 * ((r.A : ℝ) + 1)) ^ r.Q
+      * ((r.Q : ℝ) + 3) ^ ((r.Q + 2) * (r.A + 1))) * ((knE r : ℝ) * (knE r + 1)))
+      ≤ 2 ^ 14 * r.Q ^ 4 * r.A * knX r ^ 2 * (1 / r.ξc) := by
+    have a1 : (1 : ℝ) ≤ knX r ^ 2 * (1 / r.ξc) := one_le_mul_of_one_le_of_one_le (one_le_pow₀ hX) iξ
+    have a2 : (r.Q : ℝ) ^ 4 * r.A ≤ r.Q ^ 4 * r.A * (knX r ^ 2 * (1 / r.ξc)) :=
+      le_mul_of_one_le_right (by positivity) a1
+    have a3 : (r.A : ℝ) * knX r ^ 2 * (1 / r.ξc) ≤ r.Q ^ 4 * (r.A * knX r ^ 2 * (1 / r.ξc)) :=
+      le_mul_of_one_le_left (by positivity) (one_le_pow₀ hQ)
+    linarith
+  have hιH := iota_sq_log_le hQ hA hX iξ hι0.le hιm hlH'
+  have hι2 : knι r ^ 2 ≤ 1 / 6400 := by nlinarith
+  exact slack_final hcp.le hcap hl7 (Real.log_nonneg hH1) hι2 hιH hlog
+
+lemma knP₀_bounds (hr : r ∈ rlStarRunRegion) :
+    0 < knP₀ r ∧ knP₀ r < 1 ∧ knP₀ r ≤ knCapP r * knε r / 12288 ∧ knP₀ r ≤ knMcD r := by
+  obtain ⟨hε, hε12, -⟩ := knε_bounds hr
+  obtain ⟨-, hξ1, -⟩ := ξc_mem hr
+  have hcp := knCapP_pos hr
+  have hcp1 := knCapP_le_one hr
+  have hMc := knMcD_pos hr
+  have hp1 : knP₀ r ≤ knCapP r * knε r / 12288 := min_le_left _ _
+  have hpos : 0 < knP₀ r := lt_min (by positivity) hMc
+  refine ⟨hpos, hp1.trans_lt ?_, hp1, min_le_right _ _⟩
+  have : knCapP r * knε r ≤ 1 := mul_le_one₀ hcp1 hε.le (by linarith)
+  linarith
 
 end premises
 
@@ -1507,7 +1700,9 @@ lemma probeSifts_mono {m n : ℕ} (h : m ≤ n) :
   min_le_min (by omega) (by have := Nat.clog_mono_right 2 h; omega)
 
 lemma knTu_pos (hr : r ∈ rlStarRunRegion) : 0 < knTu r := by
-  have := (knSlope_bounds hr).1
+  obtain ⟨hslo, -⟩ := knSlope_bounds hr
+  obtain ⟨hQ, hA, hX, -, -, -, -, hξ, -⟩ := kn_base hr
+  have : 0 < knSlope r := lt_of_lt_of_le (by positivity) hslo
   unfold knTu; positivity
 
 lemma knb_spec (hr : r ∈ rlStarRunRegion) :
@@ -1516,11 +1711,9 @@ lemma knb_spec (hr : r ∈ rlStarRunRegion) :
   obtain ⟨hξ, hξ1, -⟩ := ξc_mem hr
   obtain ⟨-, -, hb⟩ := knB_bounds hr
   obtain ⟨hE1, -, -⟩ := knE_bounds hr
-  obtain ⟨hJ, -, -⟩ := knJ_bounds hr
-  obtain ⟨-, -, hnh1, -⟩ := knNh_bounds hr
+  obtain ⟨hJ1, -, -⟩ := knJ_bounds hr
   obtain ⟨hδ', -, -⟩ := knδ'_bounds hr
   obtain ⟨-, hL9⟩ := knL3 hr
-  have hJ1 : (1 : ℝ) ≤ knJ r := hnh1.trans hJ
   have hx : 0 ≤ 1 - knε r / 192 := by linarith
   have h1 : (1 - knε r / 192) ^ knB r ≤ Real.exp (-knΛ r) := by
     calc (1 - knε r / 192) ^ knB r ≤ Real.exp (-(knε r / 192)) ^ knB r :=
@@ -1554,8 +1747,12 @@ lemma knNr_spec (hr : r ∈ rlStarRunRegion) {k : ℕ} (hk : k ≤ r.L) :
   refine le_trans ?_ (Nat.le_ceil _)
   gcongr
 
+lemma knTw_spec (hr : r ∈ rlStarRunRegion) : 0 < knTw r ∧ knTw r ≤ knε r / 12288 := by
+  obtain ⟨hε, -⟩ := knε_bounds hr
+  exact ⟨by unfold knTw; positivity, le_rfl⟩
+
 lemma knξT_spec (hr : r ∈ rlStarRunRegion) :
-    knε r + knε r / 96 + r.ξc / 4 + (1025 / 1024 + 3 / 8) * knεcov r + r.ξc / 4 ≤ r.ξ := by
+    knε r + knε r / 96 + knTw r + (1025 / 1024 + 3 / 8) * knεcov r + r.ξc / 4 ≤ r.ξ := by
   obtain ⟨hε, hε12, -⟩ := knε_bounds hr
   obtain ⟨hεc, hεce, -⟩ := knεcov_bounds hr
   obtain ⟨hN1, -⟩ := knN_bounds hr
@@ -1563,6 +1760,7 @@ lemma knξT_spec (hr : r ∈ rlStarRunRegion) :
   have : knεcov r ≤ r.ξc / 10 := by
     rw [hεce, div_le_div_iff₀ (by positivity) (by norm_num)]
     linarith [mul_le_mul_of_nonneg_left hN1 hξ.le]
+  unfold knTw
   linarith
 
 end rest

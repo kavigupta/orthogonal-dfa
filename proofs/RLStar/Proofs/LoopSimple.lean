@@ -8,7 +8,7 @@ import RLStar.Proofs.Budget
 `capPB` and `capRB` bound the suffix pool and the prefix count over at most `Jm` populations, by
 `poolCount_le` and `prefCount_le_split_of_le` (`counts_le`). `loop_simple_checks` takes `LoopCore`
 at `K = |Q| + 1`, with the failure split evenly between the clustering's and the lazy round's
-`|Q| + 1` rounds. The lazy round's knobs `nh, E, J, b, Nr, W, Tu` are its premises: they depend on
+`|Q| + 1` rounds. The lazy round's knobs `E, J, b, Nr, Nh, W, Tu` are its premises: they depend on
 the cap, and the cap on them, through a log.
 -/
 
@@ -161,14 +161,14 @@ lemma scan_tail_le {Kn T : ℕ} {cap δ δₘ : ℝ} (hδ : 0 < δ) (hcap0 : 0 �
 set_option maxHeartbeats 8000000 in -- the settings and the cap meet `LoopCore`'s conditions
 /-- The loop's claim with each round's failure `δ'` free and the last round's disagreeing probes
 at most `ε + ε/96 + tw`, level 3 running at disagreement rate `ε` over `E` epochs and top-ups of
-`J` blocks of `b` probes, lists of `nh` strings, each lazy round asking at most `Nr` strings and
-the band's `ζ = δ'/(8W)`; its family misreads at most `(1025/1024) εcov` and leaves undecided at
-most `(3/8) εcov` of `P.D`. Every round the filled draws run is good, and no epoch's tree has more
-than `|Q| + 2` leaves. -/
+`J` blocks of `b` probes, one-string lists, `Nh` heavy draws, each lazy round asking at most `Nr`
+strings and the band's `ζ = δ'/(8W)`; its family misreads at most `(1025/1024) εcov` and leaves
+undecided at most `(3/8) εcov` of `P.D`. Every round the filled draws run is good, and no epoch's
+tree has more than `|Q| + 2` leaves. -/
 theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*}
     [Fintype σ] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (η₀ εcov ε δ' pAP ι W Tu tw : ℝ) (k nh E J b Nr : ℕ) :
+    (η₀ εcov ε δ' pAP ι W Tu tw : ℝ) (k E J b Nr Nh : ℕ) :
     let Q : ℝ := Fintype.card σ
     let A : ℝ := Fintype.card α
     let L : ℝ := P.L
@@ -189,27 +189,34 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
         (ι / 2 / (8 * Jp * (RB + 1))))
       (min (min (pAP / (2 ^ 18 * (PB + 1))) (ι / (2 ^ 24 * Jp ^ 2 * (RB + 1))))
         (min (pAP / (2 * Jp * (PB + 2))) (1 / (6 * Jp * (RB + 1)))))
+    let θ : ℝ := cap * ε / 192
+    let Kt : ℝ := (1 + (Q + 1) ^ 3 * (A + 1)) ^ Fintype.card σ
+      * (Q + 3) ^ ((Fintype.card σ + 2) * (Fintype.card α + 1))
     let SC : ℝ := 8 * (Q + 4) * RB + 16 * Real.log (16 * (Q + 2) / δ') + 2
+    let HR : ℝ := Real.log (4 * (Q + 1) * (SC + 1) / δ') / (ε / 384) + 1
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
     0 < εcov → εcov ≤ 1 →
     2 * εcov ≤ P.D.real {p | p ∈ O.L} → 2 * εcov ≤ P.D.real {p | p ∉ O.L} →
     0 < ε → ε ≤ 1 / 2 → 0 < δ' → δ' < 1 → 0 < pAP → pAP ≤ 1 → 1 ≤ P.L →
     1 ≤ k → (∀ᵐ x ∂P.D, k ≤ x.toList.length) → (2 + Nat.clog 2 P.L) * ε < 3 / 8 →
-    prefixMax P.D k ≤ cap * ε / 1536 →
+    prefixMax P.D k ≤ cap * ε / 12288 →
     0 < ι → ι ≤ εcov / 8 → 1 ≤ W →
-    0 < nh → 2 ≤ nh * cap → 16 * nh * prefixMax P.D k ≤ ε / 48 →
-    2 * k / (ε / 48) + 1 ≤ E → nh * (k + 1) + 1 ≤ J →
+    Real.log (4 * k / (θ * δ')) / θ ≤ Nh →
+    cap * Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / (δ' / 8)) ≤ 1 / 8 →
+    2 * k / (ε / 48) + 1 ≤ E → k + 2 ≤ J →
     E * J * (1 - ε / 192) ^ b ≤ δ' / 4 →
     E * ((B₃ + J * b) * (Random.Kappa.probeSifts (P.L + k) * (Q + 3))
       + (Q + 2) * ((Q + 2) * (A + 1) * (Q + 2))) ≤ Nr →
-    Nr ≤ W → (L + 1) * (Q + 2) ≤ tw * W → 0 < tw →
+    Nr ≤ W → (L + 1) * (Q + 2) ≤ tw * W → 0 < tw → tw ≤ ε / 12288 →
     0 < Tu →
-    lazySlope σ Nr nh * Tu + lazySlack σ nh (δ' / 4) + Q * (3 * ι) / Tu < 1 →
+    2 * (Q + 1) * (288 / ε + 16 * (2 + Nat.clog 2 (P.L + k))) * Tu + Q * (3 * ι) / Tu < 7 / 8 →
     ∃ settings : LoopSettings (Fintype.card σ + 1),
       settings.level3.walkStart = k ∧ settings.level3.disagreementRate = ε ∧
       (settings.level3.probeBudget : ℝ) ≤ B₃ ∧ (settings.scanCap : ℝ) ≤ SC ∧
-      settings.listSize = nh ∧ settings.epochs = E ∧ settings.blocks = J
+      (settings.listSize = 1 ∧ settings.heavyDraws = Nh) ∧
+      (settings.level3.harvestReadCap : ℝ) ≤ HR ∧ settings.level3.harvestRate = ε / 48 ∧
+      settings.epochs = E ∧ settings.blocks = J
       ∧ settings.blockSize = b ∧
       (∀ pops, ∑ n ∈ (settings.schedule pops).image State.npref, n ≤ 2 * ⌊RB⌋₊) ∧
       (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin (Fintype.card σ + 1)))),
@@ -231,10 +238,10 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
                   AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
                     RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
                       (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))}
-          ≤ (Q + 1) * (4 * δ') := by
-  intro Q A L s τ Jp S B₃ PB FV RB cap SC
+          ≤ (Q + 1) * (5 * δ') := by
+  intro Q A L s τ Jp S B₃ PB FV RB cap θ Kt SC HR
     hL hgap hη₀ hε hε1 hbalL hbalN hεd hεd12 hδ'0 hδ'1' hpAP hpAP1 hL1 hk0 hkD _ hk1 hι0 hι8
-    hW1 hnh hnhc hnhp hE hJ hb hNr hNrW htwW htw hTu hslope
+    hW1 hNh hslack hE hJ hb hNr hNrW htwW htw htwε hTu hslope
   have hδ'1 : δ' ≤ 1 := hδ'1'.le
   classical
   have : Nonempty σ := ⟨M.start⟩
@@ -275,7 +282,6 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       * Real.log (16 * S * (S + 1) * (E * (E + 1)) / δ') + S by positivity)
     show (budget : ℝ) ≤ 36 * S / ε * Real.log (16 * S * (S + 1) * (E * (E + 1)) / δ') + S + 1
     linarith
-  set C : Random.Level3Settings := ⟨k, δ', ε, budget, 0⟩ with hCd
   -- the band's far side
   set cross : ℝ := δ' / (8 * W) with hcrossd
   have hcr : 0 < cross := div_pos hδ'0 (by linarith)
@@ -366,6 +372,34 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     have := mul_le_mul_of_nonneg_left hNP hQ4
     change ((2 * Tsc : ℕ) : ℝ) ≤ 8 * (Q + 4) * RB + 16 * Real.log (16 * Jp / δ') + 2
     linarith only [hTR, hc, this, hM]
+  have hTsc0 : 0 < Tsc := by
+    have : (0 : ℝ) < Tsc := lt_of_lt_of_le (by positivity) hTsc8
+    exact_mod_cast this
+  have hQ1' : (0 : ℝ) < Q + 1 := by linarith
+  set C : Random.Level3Settings := ⟨k, δ', ε, budget,
+    Random.harvestN (ε / 384) (δ' / (4 * (Q + 1)) / ((2 * Tsc : ℕ) : ℝ))⟩ with hCd
+  have hHR : (C.harvestReadCap : ℝ) ≤ HR := by
+    show ((Random.harvestN (ε / 384) (δ' / (4 * (Q + 1)) / ((2 * Tsc : ℕ) : ℝ)) : ℕ) : ℝ)
+      ≤ Real.log (4 * (Q + 1) * (SC + 1) / δ') / (ε / 384) + 1
+    unfold Random.harvestN
+    have hT1 : (1 : ℝ) ≤ ((2 * Tsc : ℕ) : ℝ) := by exact_mod_cast (by omega : 1 ≤ 2 * Tsc)
+    have he : 1 / (δ' / (4 * (Q + 1)) / ((2 * Tsc : ℕ) : ℝ))
+        = 4 * (Q + 1) * ((2 * Tsc : ℕ) : ℝ) / δ' := by
+      field_simp
+    rw [he]
+    have hlog0 : 0 ≤ Real.log (4 * (Q + 1) * ((2 * Tsc : ℕ) : ℝ) / δ') := by
+      refine Real.log_nonneg ?_
+      rw [le_div_iff₀ hδ'0]
+      have h := mul_le_mul (show (1 : ℝ) ≤ 4 * (Q + 1) by linarith) hT1 (by norm_num)
+        (by linarith)
+      linarith only [h, hδ'1']
+    have hle : Real.log (4 * (Q + 1) * ((2 * Tsc : ℕ) : ℝ) / δ')
+        ≤ Real.log (4 * (Q + 1) * (SC + 1) / δ') :=
+      Real.log_le_log (by positivity) (div_le_div_of_nonneg_right
+        (mul_le_mul_of_nonneg_left (by linarith [hMSC]) (by linarith)) hδ'0.le)
+    have hc := Nat.ceil_lt_add_one (div_nonneg hlog0 (by positivity : (0 : ℝ) ≤ ε / 384))
+    have := div_le_div_of_nonneg_right hle (by positivity : (0 : ℝ) ≤ ε / 384)
+    linarith
   have hJ0 : 0 < Jp := by show 0 < Q + 2; linarith
   have hτ0 : 0 < τ := by
     have ha : 0 < (1 - 2 * η₀) := gateA_pos hη0 hη₀
@@ -487,16 +521,16 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       (((min_le_right _ _).trans (min_le_left _ _)).trans (min_le_right _ _))
     linarith only [h, hι8, hε1]
   have hmr : 6 * (((Fintype.card σ + 1 : ℕ) : ℝ) + 1) * ((⌊RB⌋₊ : ℕ) : ℝ) * prefixMax P.D k
-      ≤ ε / (1536 * Jp) := by
+      ≤ ε / (12288 * Jp) := by
     rw [hK1]
     calc 6 * Jp * ((⌊RB⌋₊ : ℕ) : ℝ) * prefixMax P.D k
-        ≤ 6 * Jp * (RB + 1) * (cap * ε / 1536) :=
+        ≤ 6 * Jp * (RB + 1) * (cap * ε / 12288) :=
           mul_le_mul (mul_le_mul_of_nonneg_left (by linarith [Nat.floor_le hRB0])
             (by positivity)) hk1 hpm0 (by positivity)
-      _ = 6 * Jp ^ 2 * (RB + 1) * cap * (ε / (1536 * Jp)) := by field_simp
-      _ ≤ 1 * (ε / (1536 * Jp)) := mul_le_mul_of_nonneg_right hcapJ (by positivity)
-      _ = ε / (1536 * Jp) := one_mul _
-  have hmr96 : ε / (1536 * Jp) ≤ ε / 96 :=
+      _ = 6 * Jp ^ 2 * (RB + 1) * cap * (ε / (12288 * Jp)) := by field_simp
+      _ ≤ 1 * (ε / (12288 * Jp)) := mul_le_mul_of_nonneg_right hcapJ (by positivity)
+      _ = ε / (12288 * Jp) := one_mul _
+  have hmr12 : ε / (12288 * Jp) ≤ ε / 12288 :=
     div_le_div_of_nonneg_left hεd.le (by norm_num) (by linarith)
   -- the scan tail's atoms: `32 T cap ≤ 1`
   have hρ : 32 * (Tsc : ℝ) * cap ≤ 1 := by
@@ -548,14 +582,26 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       have h3 : min (εcov / 2) ι ≤ 1 := (min_le_right _ _).trans hιl
       nlinarith only [h0, h1, h2, h3]
   -- the lazy round's premises
-  have hprem : LazyPremises σ α C nh E J (2 * prefixMax P.D k) := by
+  have hθ0 : 0 < θ := by positivity
+  have hcap4 : cap ≤ 1 / 4 := by
+    have hJ1 : (1 : ℝ) ≤ Jp := by linarith
+    have h1 : (1 : ℝ) ≤ Jp ^ 2 * (RB + 1) :=
+      one_le_mul_of_one_le_of_one_le (one_le_pow₀ hJ1) (by linarith)
+    have h6 : (6 : ℝ) ≤ 6 * Jp ^ 2 * (RB + 1) := by linarith only [h1]
+    have := mul_le_mul_of_nonneg_right h6 hcap0.le
+    linarith only [this, hcapJ]
+  have hθ1 : θ ≤ 1 := by
+    show cap * ε / 192 ≤ 1
+    have := mul_le_mul hcap4 hεd12 hεd.le (by norm_num : (0 : ℝ) ≤ 1 / 4)
+    linarith only [this]
+  have hprem : LazyPremises σ α C E J (2 * θ) := by
     unfold LazyPremises
     dsimp only
-    refine ⟨hnh, ?_, ?_, hδ'0, hδ'1', hεd, show ε < 1 by linarith, ?_, hE, hJ⟩
-    · show 8 * (nh : ℝ) * (2 * prefixMax P.D k) ≤ ε / 48
-      linarith
-    · show ε / 48 ≤ 1
-      linarith
+    refine ⟨show (0 : ℝ) < ε / 48 by positivity, ?_, show ε / 48 ≤ ε / 48 from le_rfl, hδ'0,
+      hδ'1', hεd, show ε < 1 by linarith, ?_, hE, hJ⟩
+    · show 8 * (2 * (cap * ε / 192)) ≤ ε / 48
+      have := mul_le_mul_of_nonneg_right hcap4 hεd.le
+      linarith only [this]
     · show 36 * (S' : ℝ) / ε * Real.log (16 * S' * (S' + 1) * (E * (E + 1)) / δ') + S'
         ≤ (budget : ℝ)
       rw [hSS]
@@ -575,19 +621,60 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
           (show (0 : ℝ) ≤ Q + 3 from add_nonneg (Nat.cast_nonneg _) (by norm_num)))) le_rfl)
         (Nat.cast_nonneg _)
     exact_mod_cast h
-  have hcond : lazySlope σ Nr nh * Tu + lazySlack σ nh (δ' / 4)
+  have hcr1 : cross ≤ 1 := by
+    rw [hcrossd, div_le_one (by linarith)]
+    linarith
+  have hslope1 : lazySlope σ cross C P.L
+      ≤ 2 * (Q + 1) * (288 / ε + 16 * (2 + Nat.clog 2 (P.L + k))) := by
+    unfold lazySlope
+    show (1 + cross) * ((Fintype.card σ : ℝ) + 1)
+        * (6 / (ε / 48) + 16 * (2 + (Nat.clog 2 (P.L + k) : ℝ))) ≤ _
+    rw [show 6 / (ε / 48) = 288 / ε by field_simp; ring]
+    have h0 : 0 ≤ 288 / ε + 16 * (2 + (Nat.clog 2 (P.L + k) : ℝ)) := by positivity
+    have h1 : (1 + cross) * ((Fintype.card σ : ℝ) + 1) ≤ 2 * (Q + 1) :=
+      mul_le_mul_of_nonneg_right (by linarith) (by positivity)
+    exact mul_le_mul_of_nonneg_right h1 h0
+  have hslack1 : lazySlack σ α C E (2 * θ) ≤ 1 / 16 := by
+    have hX : 0 < 8 * (Q + 1) * Kt * (E * (E + 1)) := by
+      have hKt : 0 < Kt := by positivity
+      have hE0 : (0 : ℝ) < E := by linarith
+      positivity
+    have hlog : Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / δ')
+        ≤ Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / (δ' / 8)) :=
+      Real.log_le_log (by positivity) (div_le_div_of_nonneg_left hX.le (by positivity)
+        (by linarith))
+    have e : lazySlack σ α C E (2 * θ)
+        = cap * Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / δ') / 2 := by
+      unfold lazySlack
+      dsimp only
+      push_cast
+      show 2 * (cap * ε / 192) * Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / δ') / (ε / 48) = _
+      generalize Real.log (8 * (Q + 1) * Kt * (E * (E + 1)) / δ') = Lg
+      field_simp
+      ring
+    rw [e]
+    have := mul_le_mul_of_nonneg_left hlog hcap0.le
+    linarith
+  have hcond : lazySlope σ cross C P.L * Tu + lazySlack σ α C E (2 * θ)
+      + (2 * tw + ε / (12288 * Jp)) / (C.harvestRate / 4)
       + Fintype.card σ * (2 * ι + ι) / Tu < 1 := by
     have e : (Fintype.card σ : ℝ) * (2 * ι + ι) = Q * (3 * ι) := by
       show (Fintype.card σ : ℝ) * (2 * ι + ι) = (Fintype.card σ : ℝ) * (3 * ι)
       ring
     rw [e]
-    exact hslope
+    have h1 := mul_le_mul_of_nonneg_right hslope1 hTu.le
+    have h2 : (2 * tw + ε / (12288 * Jp)) / (C.harvestRate / 4) ≤ 3 / 64 := by
+      show (2 * tw + ε / (12288 * Jp)) / (ε / 48 / 4) ≤ 3 / 64
+      rw [div_le_iff₀ (by positivity)]
+      linarith
+    linarith
   have hcore := loop_core_holds M O P (Fintype.card σ + 1) (P.L + Fintype.card σ + 3)
-    ⌊PB⌋₊ ⌊RB⌋₊ ⌊FV⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2) (ε / (1536 * Jp))
-    cross Tu C (2 * Tsc) Tsc nh E J b Nr (δ' / 4) tw
+    ⌊PB⌋₊ ⌊RB⌋₊ ⌊FV⌋₊ η₀ ι (δ' / 4) (εcov / 2) δ' ι pAP cap (ι / 2) (pAP / 2)
+    (ε / (12288 * Jp)) cross Tu C (2 * Tsc) Tsc E J b Nr Nh θ tw (ε / 384) (δ' / (4 * (Q + 1)))
   dsimp only at hcore
   rw [hcexp] at hcore
-  obtain ⟨settings, -, -, -, -, hC3, hscan, hlist, hep, hbl, hbs, hnp, hreads, hks, hmain⟩ :=
+  obtain ⟨settings, -, -, -, -, hC3, hscan, hlist, hheavy, hep, hbl, hbs, hnp, hreads, hks,
+    hmain⟩ :=
     hcore hL hgap hη₀ hι0 (by linarith) (by positivity) (by linarith) (by positivity)
     (by linarith) (by linarith) (by linarith) hδ'0 hδ'1 hι0 hpAP
     hL1 (by omega) (by omega) hcap0 (by linarith) (by linarith) (by linarith) (by linarith)
@@ -598,10 +685,15 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
       rw [show pAP - pAP / 2 = pAP / 2 by ring]
       exact Nat.le_floor (hcounts pops hpops).2)
     (fun pops _ => hfam pops)
-    hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0 hkD hmr (by linarith) hcr hprem hnhc hNr'
-    (by positivity) htw hTu hcond (le_max_left _ _) (by omega)
+    hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0 hkD hmr (by linarith) hcr hprem hθ0
+    (hk1.trans (div_le_div_of_nonneg_left (by positivity) (by norm_num) (by norm_num)))
+    (le_of_eq (by show 4 * (cap * ε / 192) = cap * (ε / 48); ring))
+    (by show 2 * tw ≤ ε / 48; linarith) hNr' htw hTu hcond rfl (by positivity)
+    (by show ε / 384 ≤ ε / 48 / 8; linarith) (div_pos hδ'0 (by linarith)) (by omega)
+    (le_max_left _ _) (by omega)
   refine ⟨settings, by rw [hC3], by rw [hC3], by rw [hC3]; exact hbud,
-    by rw [hscan]; exact hMSC, hlist, hep, hbl, hbs, hnp, hreads, hks, ?_⟩
+    by rw [hscan]; exact hMSC, ⟨hlist, hheavy⟩, by rw [hC3]; exact hHR, by rw [hC3]; rfl,
+    hep, hbl, hbs, hnp, hreads, hks, ?_⟩
   intro Dsf hDsf hlen hpAPD hatom
   have h := hmain Dsf hDsf hlen hpAPD hatom
   refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (h.trans ?_)
@@ -609,11 +701,28 @@ theorem loop_simple_checks {α : Type*} [Fintype α] [DecidableEq α] [Nonempty 
     apply hd
     obtain ⟨⟨h1, o, ho, hag⟩, hlv, hfr, hrg⟩ := hgood
     exact ⟨⟨h1, o, ho, checks_mono (by linarith) (by linarith)
-      (by show ε + tw + ε / (1536 * Jp) ≤ ε + ε / 96 + tw; linarith) hag⟩, hlv, hfr, hrg⟩
-  · have hbsc := scan_tail_le (Kn := Fintype.card σ + 1) (T := Tsc) (δₘ := 0) hδ'0 hcap0.le hρ
-      (by rw [hK1]; exact hTsc8) (by rw [mul_zero]; positivity)
-    rw [mul_zero, zero_add] at hbsc
-    have hlr : lazyRoundBound σ C E J b cross Nr P.L (δ' / 4) tw ≤ 7 / 4 * δ' := by
+      (by show ε + tw + ε / (12288 * Jp) ≤ ε + ε / 96 + tw; linarith) hag⟩, hlv, hfr, hrg⟩
+  · have hKQ : ((Fintype.card σ + 1 : ℕ) : ℝ) = Q + 1 := by push_cast; rfl
+    have hbsc := scan_tail_le (Kn := Fintype.card σ + 1) (T := Tsc) (δₘ := δ' / (4 * (Q + 1)))
+      hδ'0 hcap0.le hρ (by rw [hK1]; exact hTsc8)
+      (le_of_eq (by rw [hKQ]; field_simp))
+    have hheavyB : (C.walkStart : ℝ) / θ * (1 - θ) ^ Nh ≤ δ' / 4 := by
+      show (k : ℝ) / θ * (1 - θ) ^ Nh ≤ δ' / 4
+      have hk0' : (1 : ℝ) ≤ k := by exact_mod_cast hk0
+      have harg : 0 < 4 * k / (θ * δ') := by positivity
+      have h1 : Real.log (4 * k / (θ * δ')) ≤ θ * Nh := by
+        rw [div_le_iff₀ hθ0] at hNh; linarith
+      have h2 : (1 - θ) ^ Nh ≤ Real.exp (-(θ * Nh)) := by
+        calc (1 - θ) ^ Nh ≤ Real.exp (-θ) ^ Nh :=
+              pow_le_pow_left₀ (by linarith) (by linarith [Real.add_one_le_exp (-θ)]) Nh
+          _ = Real.exp (-(θ * Nh)) := by rw [← Real.exp_nat_mul]; ring_nf
+      have h3 : Real.exp (-(θ * Nh)) ≤ Real.exp (-Real.log (4 * k / (θ * δ'))) :=
+        Real.exp_le_exp.2 (by linarith)
+      rw [Real.exp_neg (Real.log _), Real.exp_log harg] at h3
+      calc (k : ℝ) / θ * (1 - θ) ^ Nh ≤ k / θ * (4 * k / (θ * δ'))⁻¹ :=
+            mul_le_mul_of_nonneg_left (h2.trans h3) (by positivity)
+        _ = δ' / 4 := by field_simp
+    have hlr : lazyRoundBound σ C E J b cross Nr P.L tw ≤ 5 / 2 * δ' := by
       unfold lazyRoundBound
       have e1 : C.δ = δ' := rfl
       have e2 : C.harvestRate = ε / 48 := rfl

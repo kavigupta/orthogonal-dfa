@@ -518,6 +518,30 @@ theorem reads_lazyRoundQ_keyOff (C : Random.Level3Settings) (k nh : ℕ) {E J b 
   have h2 := length_of_padZone (fun x hx => hx.2) h
   exact ⟨keyOff_of_padZone (fun x hx => hx.1) h, by omega⟩
 
+/-- `reads_lazyRoundQ_keyOff` from any trie holding `CP`'s. -/
+theorem reads_lazyRoundQ_keyOff_of_sub (C : Random.Level3Settings) (k nh : ℕ) {E J b : ℕ}
+    (CP X₀ : Finset (FreeMonoid α)) (hX₀ : Random.prefixTrie k CP ⊆ X₀)
+    (d : Fin E → Random.EpochDraws α C.probeBudget J b)
+    (read : FreeMonoid α → ARU) (hk : C.walkStart = k)
+    (hd : LazyDrawsAll (fun x => k ≤ x.toList.length
+      ∧ Avoids k ↑(CP.image fun p => prefixOf p k) x) d) :
+    ∀ z ∈ (Random.lazyRoundQ C k nh X₀ d).reads read,
+      LazyKeyOff k CP z ∧ z.toList.length ≤ lazyProbesLen d + 1 + C.probeBudget + 2 := by
+  subst hk
+  have hlen := lazyDrawsAll_len d
+  intro z hz
+  have h := lazyRoundQ_zone read C _ nh _ d (Φ := fun x => (C.walkStart ≤ x.toList.length
+    ∧ Avoids C.walkStart ↑(CP.image fun p => prefixOf p C.walkStart) x)
+    ∧ x.toList.length ≤ lazyProbesLen d)
+    (fun e => ⟨fun i => ⟨(hd e).1 i, (hlen e).1 i⟩, fun j t => ⟨(hd e).2 j t, (hlen e).2 j t⟩⟩)
+    z hz
+  have h2 := length_of_padZone (fun x hx => hx.2) h
+  obtain ⟨x, hx, X, hX, rest⟩ := h
+  refine ⟨keyOff_of_padZone (P := C.probeBudget) (Φ := fun x => (C.walkStart ≤ x.toList.length
+    ∧ Avoids C.walkStart ↑(CP.image fun p => prefixOf p C.walkStart) x)
+    ∧ x.toList.length ≤ lazyProbesLen d) (fun x hx => hx.1) ⟨x, hx, X, hX₀.trans hX, rest⟩,
+    by omega⟩
+
 /-- With every epoch's tree at most `nQ + 2` leaves, a round over probes at most `Lp` long asks at
 most `lazyReadCap` strings. -/
 theorem card_reads_lazyRoundQ_le (C : Random.Level3Settings) (k nh : ℕ) {E J b : ℕ}

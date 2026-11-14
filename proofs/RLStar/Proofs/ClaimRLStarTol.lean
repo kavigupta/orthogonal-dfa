@@ -5,8 +5,8 @@ import RLStar.Proofs.ClaimRLStarArith
 # The lazy loop at the claim's knobs
 
 `lazy_loop_core` at the knobs of `ClaimRLStarArith`, with `η₀ = 1/2 − s₀/2`, `c = ξc`, the
-coverage's accuracy `ξc`, `t = tw = ξc/4` and `Ae = |Σ|`. A walk start of no letters puts all of
-`D` on one prefix, which `p₀Tol < 1` rules out.
+coverage's accuracy `ξc`, `t = ξc/4`, `tw = ε/12288` and `Ae = |Σ|`. A walk start of no letters
+puts all of `D` on one prefix, which `p₀Tol < 1` rules out.
 -/
 
 noncomputable section
@@ -24,8 +24,9 @@ lemma rlStarSucceeds_mono {A : Type*} [Fintype A] [DecidableEq A] {Q : Type*} [F
   obtain ⟨⟨rounds, hrun, ⟨hlen, o, ho, hc, hT, hXo⟩, hpk⟩, S, hS, hdep⟩ := h
   exact ⟨⟨rounds, hrun, ⟨hlen, o, ho, hc, hT, hXo.trans hX⟩, hpk⟩, S, hS.trans hR, hdep⟩
 
-lemma lazyReads_mono_nX {K a b f Nr A nX nX' q : ℝ} (hf : 0 ≤ f) (hA : 0 ≤ A) (hq : 0 ≤ q)
-    (h : nX ≤ nX') : lazyReads K a b f Nr A nX q ≤ lazyReads K a b f Nr A nX' q := by
+lemma lazyReads_mono_nX {K a b f Nr Nr' A nX nX' q : ℝ} (hK : 0 ≤ K) (hf : 0 ≤ f) (hA : 0 ≤ A)
+    (hq : 0 ≤ q) (hN : Nr ≤ Nr') (h : nX ≤ nX') :
+    lazyReads K a b f Nr A nX q ≤ lazyReads K a b f Nr' A nX' q := by
   unfold lazyReads
   gcongr
 
@@ -55,7 +56,7 @@ theorem lazy_within : RLStarWithin.{u, v, w} knTol knPref knSuff knProbes knTrie
     (hpre u).trans (le_of_eq (if_pos hr))
   have hkL' : k ≤ r.L := hkL
   have hA2 : 2 ≤ Fintype.card α := hx.2.1
-  obtain ⟨hP0, hP1, hPcap, hP3, hPnh, hPmc⟩ := knP₀_bounds hr
+  obtain ⟨hP0, hP1, hPcap, hPmc⟩ := knP₀_bounds hr
   -- a walk start of no letters is ruled out
   have hk1 : 1 ≤ k := by
     by_contra h0
@@ -73,49 +74,46 @@ theorem lazy_within : RLStarWithin.{u, v, w} knTol knPref knSuff knProbes knTrie
       unfold knX
       linarith
     linarith
-  obtain ⟨hι0, hι8, -, -, -⟩ := knι_bounds hr
+  obtain ⟨hι0, hι8, -⟩ := knι_bounds hr
   obtain ⟨hW1, hNrW, htwW, -⟩ := knW_bounds hr
-  obtain ⟨hnhc, -, hnh1, -⟩ := knNh_bounds hr
-  have hnh0 : 0 < knNh r := by exact_mod_cast (show (0 : ℝ) < knNh r by linarith)
+  obtain ⟨-, hNh⟩ := knNh_bounds hr
   obtain ⟨-, -, hEk⟩ := knE_bounds hr
-  obtain ⟨-, -, -, hJk⟩ := knJ_bounds hr
-  have hcapP := knCapP_ge hr
-  have hcap0 : 0 < knCapInv r := by
-    have := (knCapInv_bounds hr).1
-    have : 0 < (r.Q : ℝ) ^ 3 * knΛ r * knιInv r := by
-      have := (knΛ_bounds hr).1; have := knιInv_one hr; positivity
-    linarith
-  have hk1' : knP₀ r ≤ knCapP r * knε r / 1536 := by
-    refine hPcap.trans ?_
-    have := (knε_bounds hr).1
-    gcongr
-  have hnhcap : 2 ≤ (knNh r : ℝ) * knCapP r := by
-    have h1 : 2 * knCapInv r * (1 / knCapInv r) ≤ (knNh r : ℝ) * knCapP r :=
-      mul_le_mul hnhc hcapP (by positivity) (by linarith)
-    have h2 : 2 * knCapInv r * (1 / knCapInv r) = 2 := by field_simp
-    linarith
-  obtain ⟨settings, hwalk, hbud, -, -, hE', hJ', hb', hcnt, hprob⟩ :=
+  obtain ⟨-, -, hJk⟩ := knJ_bounds hr
+  obtain ⟨htw0, htwε⟩ := knTw_spec hr
+  obtain ⟨settings, hwalk, hbud, -, -, hhd, hE', hJ', hb', hcnt, hprob⟩ :=
     lazy_loop_core (Ω := Ω) (μ := μ) M O L k (knη₀ r) r.ξc r.δ r.pAP r.ξc r.ξ (r.ξc / 4)
-      (r.A : ℝ) (knP₀ r) (knι r) (knW r) (knTu r) (r.ξc / 4) (knNh r) (knE r) (knJ r) (knB r)
-      (knNr r) D hLang (by rw [knη₀_s]; linarith) (by unfold knη₀; linarith)
+      (r.A : ℝ) (knP₀ r) (knι r) (knW r) (knTu r) (knTw r) (knE r) (knJ r) (knB r) (knNr r)
+      (knNh r) D hLang (by rw [knη₀_s]; linarith) (by unfold knη₀; linarith)
       (hbal.trans hbL') (hbal.trans hbN') hξc hξc1 hδ (by linarith) hp hξc hA2 le_rfl hk1 hkL
-      (by linarith) hlong hP0 hpre' hpAPu hk1' hP3 (knMcD_spec hr hP0 hPmc) hι0 hι8 hW1 hnh0
-      hnhcap hPnh (hEk k hkL') (hJk k hkL') (knb_spec hr) (knNr_spec hr hkL') hNrW htwW
-      (by linarith) (knTu_pos hr) (knSlope_spec hr) (knξT_spec hr)
+      (by linarith) hlong hP0 hpre' hpAPu hPcap (knMcD_spec hr hP0 hPmc) hι0 hι8 hW1
+      (hNh k hkL') (knSlack_spec hr) (hEk k hkL') (hJk k hkL') (knb_spec hr) (knNr_spec hr hkL')
+      hNrW htwW htw0 htwε (knTu_pos hr) (knSlope_spec hr hkL') (knξT_spec hr)
   refine ⟨settings, hwalk, fun p rounds hrun => ?_, ?_⟩
   · obtain ⟨hlen, hpref, hsuff⟩ := hcnt p rounds hrun
     refine ⟨hpref, hsuff, ?_⟩
     have hlen' : (rounds.length : ℝ) ≤ r.Q + 1 := by exact_mod_cast hlen
     have hbud' : (settings.level3.probeBudget : ℝ) ≤ knB₃ r := hbud
-    rw [hE', hJ', hb']
+    rw [hhd, hE', hJ', hb']
     unfold knProbes
     gcongr
   · obtain ⟨hRB0, -⟩ := knRB_bounds hr
     obtain ⟨-, -, hFV0, -⟩ := knPB_bounds hr
+    obtain ⟨hSC0, -⟩ := knSC_bounds hr
+    obtain ⟨hHR1, -⟩ := knHR_bounds hr
     have hk : (k : ℝ) ≤ r.L := by exact_mod_cast hkL'
-    have hle : lazyReads (r.Q + 1) (6 * (r.Q + 2) * knRB r) (knPB r + 1) (knFV r) (knNr r) r.A
-        (k * (6 * (r.Q + 2) * knRB r + 2 * (knNh r + knB r))) r.Q ≤ knReads r :=
-      lazyReads_mono_nX hFV0 (by positivity) (by positivity) (by gcongr)
+    have hRp : (Random.Kappa.probeSifts (L₁ + k) : ℝ) ≤ knRp r := by
+      have e1 : r.L = L := rfl
+      have e2 : r.Q = Fintype.card σ := rfl
+      unfold knRp
+      exact_mod_cast probeSifts_mono
+        (show L + Fintype.card σ + 3 + k ≤ r.L + r.Q + 3 + r.L by omega)
+    have hle : lazyReads (r.Q + 1) (6 * (r.Q + 2) * knRB r) (knPB r + 1) (knFV r)
+        (knNr r + (r.Q + 1) * (knSC r * (knHR r * (Random.Kappa.probeSifts (L₁ + k) * (r.Q + 1)))))
+        r.A (k * (6 * (r.Q + 2) * knRB r + knNh r)) r.Q ≤ knReads r := by
+      unfold knReads knTrie
+      refine lazyReads_mono_nX (by positivity) hFV0 (by positivity) (by positivity) ?_
+        (by gcongr)
+      gcongr
     refine le_trans (measureReal_mono (fun p hp => ?_) (measure_ne_top _ _)) hprob
     exact fun hs => hp (rlStarSucceeds_mono le_rfl hle hs)
 

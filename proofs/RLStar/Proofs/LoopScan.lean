@@ -7,8 +7,8 @@ import RLStar.Proofs.RawWindow
 Where every scheduled state finds its samples among the first `n j` draws of each population `j`'s
 streams (`ScanWithin`), two round's draws agreeing on those draws (`AgreeTo`) give the clustering
 the same samples at every scheduled state (`sameReads_of_scan`), so the same round
-(`roundOf_congr`).  Where the streams scan within `scanCap` and return at a scheduled state, the
-round is the one on the streams (`loopRound_eq_some`).
+(`roundOf_congr`).  Where the harvested draws hit, and the filled draws scan within `scanCap` and
+return at a scheduled state, the round is the one on the filled draws (`loopRound_eq_some`).
 -/
 
 noncomputable section
@@ -371,29 +371,32 @@ lemma exists_getElem_of_mem_loopPopulations {h : SpecHist α} {i : Fin K}
   obtain ⟨a, ha, rfl⟩ := hi
   exact ⟨_, List.getElem?_eq_getElem ha⟩
 
-/-- Where the draws after the history `h` scan within `scanCap` and return at a scheduled state,
-the round is the one on the streams. -/
+/-- Where every harvested population's first `scanCap` draws after the history `h` hit, and the
+filled draws scan within `scanCap` and return at a scheduled state, the round is the one on the
+filled draws. -/
 theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α)) (h : SpecHist α) (d : LoopRoundDraws Ω α settings)
+    (hhit : PopsHit D settings.level3.walkStart settings.level3.harvestReadCap settings.scanCap
+      h.pops h.prefs d.2.1)
     (hscan : ScanWithin (settings.schedule (loopPopulations K h.pops.length))
       (loopPopulations K h.pops.length) (fun _ => settings.scanCap)
-      (idealDraws D Dsf h (d.1, d.2.1)))
+      (idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)))
     (hret : ∃ B ∈ settings.schedule (loopPopulations K h.pops.length),
-      idealRun D Dsf h (d.1, d.2.1)
+      idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)
         ∈ ret O.mq (loopPopulations K h.pops.length) none settings.η₀ settings.indecisionLimit
           settings.εcov settings.gateLevel B) :
-    loopRound settings O D Dsf h d = some (roundOf settings O D h (idealRun D Dsf h (d.1, d.2.1))
+    loopRound settings O D Dsf h d = some (roundOf settings O D h
+      (idealRun D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1))
       d.2.2) := by
   classical
   set ps := loopPopulations K h.pops.length
   set sched := settings.schedule ps
   set M := settings.scanCap
-  set I := idealDraws D Dsf h (d.1, d.2.1)
-  set dr := drawsOf d.1 D Dsf M h.prefs h.suffs d.2.1 (popTables D M h d.2.1)
+  set I := idealDraws D Dsf settings.level3.walkStart settings.level3.harvestReadCap h (d.1, d.2.1)
+  set dr := drawsOf d.1 D Dsf M h.prefs h.suffs d.2.1 (specTables settings D h d.2.1)
   have hag : AgreeTo none (fun _ => M) dr I := by
     refine ⟨rfl, rfl, rfl, fun j n hn => ?_, fun n hn => ?_⟩
-    · simp only [dr, I, drawsOf, idealDraws, padList, popTables, uniDraws]
-      rw [List.getD_eq_getElem _ _ (by simpa using hn), List.getElem_ofFn]
+    · exact padList_popTable D _ _ M h.pops h.prefs j _ hn
     · simp only [dr, I, drawsOf, idealDraws, padDraws, dif_pos hn, loopDistributions]
   have hscan' := scanWithin_agree hag.symm hscan
   have hsr := sameReads_of_scan hag.symm hscan
@@ -403,7 +406,7 @@ theorem loopRound_eq_some (settings : LoopSettings K) (O : Oracle μ (FreeMonoid
     exact ⟨B, hB, (hsr.ret O.mq none (Finset.mem_insert_self _ _) _ _ _ _ hB).1 hx⟩
   have hro := roundOf_congr settings O D h (sameReads_of_scan hag hscan') hret' d.2.2
   unfold loopRound
-  rw [if_pos ⟨hscan', hret'⟩]
+  rw [if_pos ⟨hhit, hscan', hret'⟩]
   exact congrArg some hro
 
 end OrthoDFA

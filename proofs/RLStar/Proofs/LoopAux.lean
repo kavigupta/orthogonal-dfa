@@ -17,8 +17,8 @@ open MeasureTheory
 variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
   {μ : Measure Ω}
 
-def clusterLaw (μ : Measure Ω) (α : Type*) (K : ℕ) : Measure (ClusterDraws Ω α K) :=
-  μ.prod (restLaw α K)
+def clusterLaw (μ : Measure Ω) (α : Type*) (K N : ℕ) : Measure (ClusterDraws Ω α K N) :=
+  μ.prod (restLaw α K N)
 
 open scoped Classical in
 /-- The chance `F`'s read of `p`, cut at `kl` and `kh`, is decided against `p`'s membership. -/

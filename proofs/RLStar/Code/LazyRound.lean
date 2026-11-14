@@ -17,10 +17,6 @@ runs with the grown trie.
 Known modelling gap. A retraction restarts level 3 from its first hypothesis, and each epoch
 tests at its own level. The Python keeps its hypothesis and its counts.
 
-Known modelling gap. The lists are kept per site for the whole round, and the round's population
-is uniform over the list that fills, at least `nh` strings. The Python's population is the strings
-its harvest draws.
-
 Known modelling gap. The top-up runs blocks of a fixed size, expands at each block's end, and
 retracts at the first block without progress. The Python's top-up budget differs.
 

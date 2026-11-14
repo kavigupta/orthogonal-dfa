@@ -444,13 +444,13 @@ theorem runMeasure_scanShort_le (L : Option (Fin K) → Measure (FreeMonoid α))
 `runMeasure_scanShort_le`, every string holding at most `ρ` of each population off the earlier
 rounds' prefixes. -/
 theorem clusterLaw_scanShort_le (D Dsf : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (h : SpecHist α) (pops : Finset (Option (Fin K))) {M T A : ℕ} {ρ : ℝ}
-    (hρ : ∀ j ∈ pops, ∀ s, (offLaw (loopDistributions D h.pops j) h.prefs).real {s} ≤ ρ)
+    (k N : ℕ) (h : SpecHist α) (pops : Finset (Option (Fin K))) {M T A : ℕ} {ρ : ℝ}
+    (hρ : ∀ j ∈ pops, ∀ s, (offLaw (loopDistributions D k h.pops j) h.prefs).real {s} ≤ ρ)
     (hA : 4 * A ≤ T) (hT : T ≤ M) :
-    (clusterLaw μ α K).real {c | ScanShort pops M T A (idealDraws D Dsf h c)}
+    (clusterLaw μ α K N).real {c | ScanShort pops M T A (idealDraws D Dsf k N h c)}
       ≤ pops.card * (2 * (M.choose T * (T * ρ) ^ (M - T)) + 2 * Real.exp (-(T / 8 : ℝ))) := by
   classical
-  have hmp := measurePreserving_idealDraws (μ := μ) (K := K) D Dsf h
+  have hmp := measurePreserving_idealDraws (μ := μ) (K := K) D Dsf k N h
   have e := hmp.measureReal_preimage (measurableSet_scanShort pops M T A).nullMeasurableSet
   exact (le_of_eq e).trans (runMeasure_scanShort_le _ _ pops hρ hA hT)
 
