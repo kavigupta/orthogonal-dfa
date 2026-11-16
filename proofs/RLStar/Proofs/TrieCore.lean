@@ -150,14 +150,14 @@ set_option maxHeartbeats 8000000 in -- the settings meet `loop_simple_checks`'s 
 /-- The loop with local walk starts below `k` letters, over `D`'s first `L` letters: its DFA
 misjudges at most `ξT` of them, reading at most `learnerReads` strings, but for chance `δ`. -/
 theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L k cap : ℕ)
-    (η₀ c δ pAP ξ ξT t Ae p₀ : ℝ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] :
+    (η₀ c δ pAP ξ ξT t p₀ : ℝ) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] :
     let Q : ℝ := Fintype.card σ
     let A : ℝ := Fintype.card α
     let kN : ℕ := (L + 1) / 2
     let L₁ : ℕ := L + Fintype.card σ + 3
     let Ls : ℕ := L₁ + Fintype.card σ + 3
     let N : ℝ := L₁ + 1 - kN
-    let ε : ℝ := c / (4 * (Ae + 1) * N)
+    let ε : ℝ := c / (8 + 4 * c * (2 + (Nat.clog 2 L₁ : ℝ)))
     let εcov : ℝ := min (c / (10 * N)) (ξ / (8 * N))
     let δ' : ℝ := δ / (8 * (Q + 1))
     let ι : ℝ := min (εcov / 8) (ε / (4608 * Q * (Q + 1)))
@@ -189,8 +189,7 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
     4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
     2 * εcov ≤ (prefixLaw D L).real {p | p ∈ O.L} → 2 * εcov ≤ (prefixLaw D L).real {p | p ∉ O.L} →
-    0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ →
-    2 ≤ Fintype.card α → A ≤ Ae → 1 ≤ k → k ≤ L → cap ≤ k → 0 ≤ t →
+    0 < c → c ≤ 1 → 0 < δ → δ ≤ 1 → 0 < pAP → 0 < ξ → 1 ≤ k → k ≤ L → cap ≤ k → 0 ≤ t →
     (∀ᵐ w ∂D, Ls ≤ w.toList.length) → 0 < p₀ → (∀ u, D.real {w | prefixOf w k = u} ≤ p₀) →
     pAP ≤ (prefixLaw D Ls).real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
     p₀ ≤ capP * ε / 1536 →
@@ -217,13 +216,10 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
             ((3 + Nat.clog 2 L₁ : ℕ) : ℝ) A 0) p}
         ≤ δ := by
   intro Q A kN L₁ Ls N ε εcov δ' ι s τ J S B₃ Wm W PB RB capP Kc SC HN FV SH HB
-    hL hgap hη₀ hbalL hbalN hc hc1 hδ hδ1 hpAP hξ hA2 hAe hk0 hkL hcap ht hlong hp₀0 hpreD hpAPu
+    hL hgap hη₀ hbalL hbalN hc hc1 hδ hδ1 hpAP hξ hk0 hkL hcap ht hlong hp₀0 hpreD hpAPu
     hk1 hk2 hk3 hk4 hk6 hξT
   classical
   have hη0 : 0 ≤ η₀ := by have := gap_le_one O; linarith
-  have hA2' : (2 : ℝ) ≤ A := by show (2 : ℝ) ≤ (Fintype.card α : ℝ); exact_mod_cast hA2
-  have hA0 : (0 : ℝ) < A := by linarith
-  have hAe2 : (2 : ℝ) ≤ Ae := hA2'.trans hAe
   have : Nonempty σ := ⟨M.start⟩
   have hQ1 : (1 : ℝ) ≤ Q := by
     show (1 : ℝ) ≤ (Fintype.card σ : ℝ); exact_mod_cast Fintype.card_pos
@@ -233,18 +229,22 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
   have hN1 : (1 : ℝ) ≤ N := by
     have : (kN : ℝ) ≤ L₁ := by exact_mod_cast hkL₁
     rw [hNe]; linarith
-  have hwN : 2 + (Nat.clog 2 L₁ : ℝ) ≤ 2 * N := by
-    rw [hNe]
-    have h1 : 1 ≤ L₁ := by change 1 ≤ L + Fintype.card σ + 3; omega
-    have h2 : Nat.clog 2 L₁ ≤ L₁ - 1 :=
-      Nat.clog_le_of_le_pow (by have := (L₁ - 1).lt_two_pow_self; omega)
-    have h3 : 2 * kN ≤ L₁ + 1 := by show 2 * ((L + 1) / 2) ≤ L + Fintype.card σ + 3 + 1; omega
-    have : 2 + Nat.clog 2 L₁ + 2 * kN ≤ 2 * (L₁ + 1) := by omega
-    have : 2 + (Nat.clog 2 L₁ : ℝ) + 2 * kN ≤ 2 * (L₁ + 1) := by exact_mod_cast this
+  have hN0 : 0 < N := by linarith
+  have hlam0 : (0 : ℝ) ≤ c * (2 + (Nat.clog 2 L₁ : ℝ)) := by positivity
+  have hε0 : 0 < ε := div_pos hc (by positivity)
+  have hε8 : ε ≤ c / 8 := div_le_div_of_nonneg_left hc.le (by norm_num) (by linarith)
+  have hε12 : ε ≤ 1 / 2 := hε8.trans (by linarith)
+  have hιL : (2 + (Nat.clog 2 L₁ : ℝ)) * ε < 3 / 8 := by
+    show (2 + (Nat.clog 2 L₁ : ℝ)) * (c / (8 + 4 * c * (2 + (Nat.clog 2 L₁ : ℝ)))) < 3 / 8
+    rw [mul_div_assoc', div_lt_iff₀ (by positivity)]
+    nlinarith
+  have hεc0 : 0 < εcov := lt_min (div_pos hc (by positivity)) (div_pos hξ (by positivity))
+  have hεcov1 : εcov ≤ 1 := by
+    refine (min_le_left _ _).trans ?_
+    rw [div_le_one (by positivity)]
     linarith
-  obtain ⟨hε0, hε12, hεc0, hεcov1, hι0, hι8, -, -, hιL⟩ :=
-    dfa_rates (ℓ := 2 + (Nat.clog 2 L₁ : ℝ)) hQ1 hAe2 hN1 (by positivity) hwN hc hc1 hξ rfl rfl
-      rfl
+  have hι0 : 0 < ι := lt_min (by positivity) (div_pos hε0 (by positivity))
+  have hι8 : ι ≤ εcov / 8 := min_le_left _ _
   have hδ'0 : 0 < δ' := by show 0 < δ / (8 * (Q + 1)); positivity
   have hδ'1' : δ' < 1 := by
     show δ / (8 * (Q + 1)) < 1
@@ -266,7 +266,7 @@ theorem trie_loop_core (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (L
     unfold prefixMax
     exact ciSup_le hpre
   have hp1 : pAP ≤ 1 := hpAPu.trans measureReal_le_one
-  have hKc1 : (1 : ℝ) ≤ Kc := kc_ge_one hQ0 (by linarith)
+  have hKc1 : (1 : ℝ) ≤ Kc := kc_ge_one hQ0 (Nat.cast_nonneg _)
   have hlogK : 0 ≤ Real.log (16 * (Q + 1) * Kc / δ') :=
     Real.log_nonneg (by
       rw [le_div_iff₀ hδ'0]

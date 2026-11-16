@@ -24,9 +24,6 @@ lemma one_div_min_le {x y : ℝ} (hx : 0 < x) (hy : 0 < y) : 1 / min x y ≤ 1 /
 
 lemma div_one_div' (a b : ℝ) : a / (1 / b) = a * b := by rw [one_div, div_inv_eq_mul]
 
-lemma log_two_le_log {x : ℝ} (hx : 2 ≤ x) : log 2 ≤ log x :=
-  Real.log_le_log (by norm_num) hx
-
 lemma half_le_log {x : ℝ} (hx : 2 ≤ x) : 1 / 2 ≤ log x :=
   (by linarith [log_two_gt_d9] : (1 : ℝ) / 2 ≤ log 2).trans (Real.log_le_log (by norm_num) hx)
 
@@ -41,10 +38,6 @@ lemma log_le_log_max {x y : ℝ} (hx : 0 ≤ x) (h : x ≤ y) : log x ≤ log (m
   rcases hx.eq_or_lt with rfl | hx
   · rw [Real.log_zero]; exact Real.log_nonneg (le_max_left _ _)
   · exact Real.log_le_log hx (h.trans (le_max_right _ _))
-
-lemma pow_length_le_prod {l : List ℝ} {c : ℝ} (hc : 0 ≤ c) (h : ∀ x ∈ l, c ≤ x) :
-    c ^ l.length ≤ l.prod := by
-  simpa using List.prod_map_le_prod_map₀ (fun _ => c) id (fun _ _ => hc) h
 
 lemma prod_le_prod_of_sublist {l₁ l₂ : List ℝ} (hs : l₁.Sublist l₂) (h : ∀ x ∈ l₂, 1 ≤ x) :
     l₁.prod ≤ l₂.prod := by
