@@ -66,6 +66,21 @@ class RestartRecorder(SynthesisTracker):
             json.dump(self.restarts, f, indent=1)
 
 
+def round_zero(pst, out):
+    """The restarts of round 0, each recorded in ``out`` as it ends."""
+    configure(pst)
+    tracker = RestartRecorder(out)
+    cs.counterexample_driven_synthesis(
+        pst,
+        acc_threshold=0.98,
+        tracker=tracker,
+        max_rounds=1,
+        indecisive_fraction=0.1,
+        min_indecisive=200,
+    )
+    return tracker.restarts
+
+
 def git(*args):
     """None outside a git checkout, such as the artifact."""
     here = os.path.dirname(os.path.abspath(__file__))
@@ -97,17 +112,7 @@ def main():
         seed=a.seed,
         sampler=SuperSampler(VOCAB, SYMBOLS),
     )
-    configure(pst)
-    tracker = RestartRecorder(a.out)
-    cs.counterexample_driven_synthesis(
-        pst,
-        acc_threshold=0.98,
-        tracker=tracker,
-        max_rounds=1,
-        indecisive_fraction=0.1,
-        min_indecisive=200,
-    )
-    restarts = tracker.restarts
+    restarts = round_zero(pst, a.out)
     assert len(restarts) == RESTARTS, len(restarts)
     status = git("status", "--porcelain", "--untracked-files=no")
     with open(f"{a.out}/run.json", "w") as f:
