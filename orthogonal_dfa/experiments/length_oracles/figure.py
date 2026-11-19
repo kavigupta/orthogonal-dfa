@@ -148,31 +148,37 @@ def minimal_dfa(table, accepting):
     )
 
 
+def flat_fit(table, y, data):
+    """The table's accepting states fit on the flat labels' fit half, and its phi on
+    their read half."""
+    transitions = np.array(table["transitions"])
+    end = table_end_states(transitions, table["start"], data.s)
+    fit, read = ~data.read, data.read
+    counts = np.bincount(end[fit], minlength=len(transitions))
+    accepts = np.bincount(end[fit], weights=y["flat"][fit], minlength=len(transitions))
+    chosen = above_rate_states(
+        {q: c for q, c in enumerate(counts) if c},
+        {q: a for q, a in enumerate(accepts) if counts[q]},
+    )
+    accepting = np.isin(np.arange(len(transitions)), list(chosen))
+    return accepting, phi(accepting[end][read].astype(float), y["flat"][read])
+
+
+def product_tables(run):
+    return dict(run, product=product(run["first_stage"], run["residual"]))
+
+
 def product_parts(y, data, run):
     """Each part's minimal DFA, and its phi on the flat labels where it reads them."""
     parts = {}
-    tables = dict(run, product=product(run["first_stage"], run["residual"]))
+    tables = product_tables(run)
     for key, name in PRODUCT_PARTS.items():
         table = tables[key]
         if key == "residual":
             parts[name] = dict(minimal=minimal_dfa(table, table["accepting"]))
             continue
-        transitions = np.array(table["transitions"])
-        end = table_end_states(transitions, table["start"], data.s)
-        fit, read = ~data.read, data.read
-        counts = np.bincount(end[fit], minlength=len(transitions))
-        accepts = np.bincount(
-            end[fit], weights=y["flat"][fit], minlength=len(transitions)
-        )
-        chosen = above_rate_states(
-            {q: c for q, c in enumerate(counts) if c},
-            {q: a for q, a in enumerate(accepts) if counts[q]},
-        )
-        accepting = np.isin(np.arange(len(transitions)), list(chosen))
-        parts[name] = dict(
-            minimal=minimal_dfa(table, accepting),
-            phi=phi(accepting[end][read].astype(float), y["flat"][read]),
-        )
+        accepting, found = flat_fit(table, y, data)
+        parts[name] = dict(minimal=minimal_dfa(table, accepting), phi=found)
     return parts
 
 
@@ -342,7 +348,9 @@ def main():
     for name, key in REPRESENTATIVES.items():
         if not described[key]["kept"]:
             raise ValueError(f"{key} is not the restart its run kept")
-        (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(described[key]["minimal"]))
+        (OUT_DIR / f"dfa_{name}.tex").write_text(
+            dfa_tikz(described[key]["minimal"], {})
+        )
     with open(RESIDUAL_PRODUCTS) as f:
         runs = {r["seed"]: r for r in json.load(f)}
     parts = product_parts(y, data, runs[PRODUCT_SEED])
@@ -352,7 +360,7 @@ def main():
     if parts["product"]["phi"] <= parts["first"]["phi"]:
         raise ValueError(f"seed {PRODUCT_SEED}'s product does not beat its first stage")
     for name, d in parts.items():
-        (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(d["minimal"]))
+        (OUT_DIR / f"dfa_{name}.tex").write_text(dfa_tikz(d["minimal"], {}))
     (OUT_DIR / "values.tex").write_text(values(described, data, parts))
     (OUT_DIR / "phis.tex").write_text(phis(data, parts, product_phis, y))
     write_lengths(data)

@@ -20,3 +20,4 @@ python -m $E.draw_luhn
 
 python -m $E.length_oracles.reproduce scratchpad/length_oracle_runs --gpus "$@"
 python -m $E.length_oracles.figure
+python -m $E.length_oracles.corrected_svg

@@ -122,9 +122,10 @@ def spline_edges(dfa, rows, xy):
     return lines
 
 
-def dfa_tikz(dfa):
+def dfa_tikz(dfa, decorations):
     """In the paper's lstarex style, at graphviz's node positions.  A ring is drawn as
-    two rows instead, with its edges on its outside."""
+    two rows instead, with its edges on its outside.  decorations maps a state to TikZ
+    node options and the text inside it."""
     plain = subprocess.run(
         [layout(dfa), "-Tplain"],
         input=dot_source(dfa),
@@ -141,7 +142,10 @@ def dfa_tikz(dfa):
     )
     lines = [rf"\begin{{tikzpicture}}[lstarex, x={CM_PER_INCH}cm, y={CM_PER_INCH}cm]"]
     for q in sorted(dfa.states):
-        accepting = ", accepting" if q in dfa.final_states else ""
-        lines.append(rf"\node[state{accepting}] (q{q}) at {xy[f'q{q}']} {{}};")
+        style = "state" + (", accepting" if q in dfa.final_states else "")
+        options, text = decorations.get(q, ("", ""))
+        if options:
+            style += ", " + options
+        lines.append(rf"\node[{style}] (q{q}) at {xy[f'q{q}']} {{{text}}};")
     lines += ring_edges(dfa, xy) if ring else spline_edges(dfa, rows, xy)
     return "\n".join(lines + [r"\end{tikzpicture}", ""])
