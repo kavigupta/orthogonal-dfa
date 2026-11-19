@@ -64,3 +64,21 @@ def dfa_accepts(dfa, string):
     for c in string:
         q = dfa.transitions[q][c]
     return q in dfa.final_states
+
+
+def frame_states(dfa):
+    """Each state's (phase, closed frames) over the strings that reach it.  The phase is
+    the count of wildcards mod 3, and a stop closes the frame of the phase it is read
+    at."""
+    start = (0, frozenset())
+    found = {q: set() for q in dfa.states}
+    found[dfa.initial_state].add(start)
+    frontier = [(dfa.initial_state, start)]
+    while frontier:
+        q, (phase, closed) = frontier.pop()
+        for c, t in dfa.transitions[q].items():
+            after = ((phase + 1) % 3, closed) if c >= 3 else (phase, closed | {phase})
+            if after not in found[t]:
+                found[t].add(after)
+                frontier.append((t, after))
+    return found
