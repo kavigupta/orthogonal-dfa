@@ -1,0 +1,11 @@
+{
+ "oracle": "flat-raw",
+ "length": 40,
+ "seed": 3,
+ "commit": "52ce98da",
+ "dirty": false,
+ "hours": 0.7724058326085409,
+ "restarts": 4,
+ "family_size": 2489,
+ "family_fnr": 0.045
+}
