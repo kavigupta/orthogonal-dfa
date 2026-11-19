@@ -5,4 +5,4 @@ with no superlanguage, then residual stages on top.  From the repo root:
     python -m orthogonal_dfa.experiments.raw_acgt.report
 
 ``run``'s results are checked in under data/neural/raw_acgt; ``report`` also draws
-figures/raw-acgt/stage_one.png (needs graphviz)."""
+figures/raw-acgt/stages.png (needs graphviz)."""
