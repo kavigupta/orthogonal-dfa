@@ -204,14 +204,17 @@ def dot_png(table, cells, labels):
 def draw_stages():
     """Row s, column k: seed s's stage-k DFA, minimized under its held-out accepting
     states for the labels it learned (the flat oracle's for stage 1, the residual's
-    after)."""
+    after).  A seed's row ends before the first stage that lowers its product's phi."""
     c_fit, c_ev = saved_centred("fit"), saved_centred("eval")
     panels = {}
     for s in SEEDS:
         with open(RESIDUAL / f"s{s}" / "stages.jsonl") as f:
             records = [json.loads(line) for line in f]
-        labels = c_ev > 0
+        labels, best = c_ev > 0, -1.0
         for r in records:
+            if r["product_phi"] < best:
+                break
+            best = r["product_phi"]
             q = end_states(r["dfa"], EVAL)
             table = minimize(r["dfa"], accepting(q, labels))
             panels[s, r["stage"]] = (
