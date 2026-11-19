@@ -4,4 +4,5 @@ with no superlanguage, then residual stages on top.  From the repo root:
     python -u -m orthogonal_dfa.experiments.raw_acgt.run --seed S     # S in 0..3, GPU
     python -m orthogonal_dfa.experiments.raw_acgt.report
 
-``run``'s results are checked in under data/neural/raw_acgt."""
+``run``'s results are checked in under data/neural/raw_acgt; ``report`` also draws
+figures/raw-acgt/stage_one.png (needs graphviz)."""
