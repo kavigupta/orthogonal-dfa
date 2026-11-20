@@ -14,7 +14,12 @@ import RLStar.Proofs.FamilyOracle
 import RLStar.Proofs.FamilyRead
 import RLStar.Proofs.HypothesisDFA
 import RLStar.Proofs.Level2Round
+import RLStar.Proofs.LazyEpoch
+import RLStar.Proofs.LazyRound
+import RLStar.Proofs.LazyTable
+import RLStar.Proofs.LazyTopUp
 import RLStar.Proofs.Level3NoWrong
+import RLStar.Proofs.ListSlope
 import RLStar.Proofs.LoopRuns
 import RLStar.Proofs.Probe
 import RLStar.Proofs.LoopDFA
@@ -62,9 +67,11 @@ The supporting claims are stated under `RLStar.LowLevelClaims`: `AdaptiveReadsBo
 `UnaskedFresh`, `RaceTailBound`, `QueryBadTail`, `Level3AllowanceCorrect`, `BitSumTails`,
 `BandKappaBound`, `SuccessiveDrawsTails`, `BlockMiss`, `CoveredStartCorrect`,
 `TrieProbeAgreeCorrect`, `TrieSinglePieceCorrect`, `TrieTableCorrect`, `TrieTableReads`,
-`Level3TrieRootOne`, `Level3TrieAgrees`, `Level3NoWrongCorrect`, `TrieLoopAgrees`, `TrieMassBound`,
-`WalkStartMoves`, `RateTestSound`, `SeqRateSound`, `TripartiteSearchCorrect`, `SiftWithPathCorrect`,
-`SiftAndSplitCorrect`, `WalkCorrect`, `SplitAndLearnCorrect` and `RunsKeepEdgesAtLeaves`.
+`Level3TrieRootOne`, `Level3TrieAgrees`, `Level3NoWrongCorrect`, `EpochCorrect`, `TopUpCorrect`,
+`LazyRoundShape`, `LazyRoundCorrect`, `LazyTableCorrect`, `LazyTableReads`, `ListSlope`,
+`TrieLoopAgrees`, `TrieMassBound`, `WalkStartMoves`, `RateTestSound`, `SeqRateSound`,
+`TripartiteSearchCorrect`, `SiftWithPathCorrect`, `SiftAndSplitCorrect`, `WalkCorrect`,
+`SplitAndLearnCorrect` and `RunsKeepEdgesAtLeaves`.
 
 The costs, as big-O shapes in the inputs alone, are stated under `RLStar.Claims`:
 `TrainFamilyClaim`, `CounterexSynthClaim`, `RLStarClaim`,
@@ -263,5 +270,35 @@ theorem trie_mass_bound : TrieMassBound := trieMassBound_holds
 theorem walk_start_moves : WalkStartMoves := walkStartMoves_holds
 
 #print axioms walk_start_moves
+
+theorem epoch_correct : EpochCorrect := epochCorrect_holds
+
+#print axioms epoch_correct
+
+theorem top_up_correct : TopUpCorrect := topUpCorrect_holds
+
+#print axioms top_up_correct
+
+theorem lazy_round_shape : LazyRoundShape := lazyRoundShape_holds
+
+#print axioms lazy_round_shape
+
+theorem lazy_round_correct : LazyRoundCorrect :=
+  lazyRoundCorrect_of epochCorrect_holds topUpCorrect_holds trieMassBound_holds
+    walkStartMoves_holds
+
+#print axioms lazy_round_correct
+
+theorem lazy_table_correct : LazyTableCorrect := lazyTableCorrect_holds
+
+#print axioms lazy_table_correct
+
+theorem lazy_table_reads : LazyTableReads := lazyTableReads_holds
+
+#print axioms lazy_table_reads
+
+theorem list_slope : ListSlope := listSlope_holds
+
+#print axioms list_slope
 
 end OrthoDFA
