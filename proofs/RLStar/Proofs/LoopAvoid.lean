@@ -100,14 +100,13 @@ lemma prefixMax_avoidLaw_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure 
     (measure_ne_top _ _)).trans (le_prefixMax D k w)) hApos.le
 
 omit [DecidableEq α] in
-lemma LooseEndsWell.mono {σ H : Type*} {M : _root_.DFA α σ} {U : σ → ℝ} {A sl m m' : ℝ}
-    {D : Measure (FreeMonoid α)} {ε ε' : ℝ} {dis : Set (FreeMonoid α)} {k : ℕ}
-    {law : H → Measure (FreeMonoid α)} {y y' : ℝ} (hm : m ≤ m') (hε : ε ≤ ε') (hy : y' ≤ y)
-    {e : RoundEnd H} (h : LooseEndsWell M U A sl m D ε dis k law y e) :
-    LooseEndsWell M U A sl m' D ε' dis k law y' e := by
+lemma LooseEndsWell.mono {σ : Type*} {M : _root_.DFA α σ} {U : σ → ℝ} {A sl sl' : ℝ}
+    {D : Measure (FreeMonoid α)} {ε ε' : ℝ} {dis : Set (FreeMonoid α)} (hsl : sl ≤ sl')
+    (hε : ε ≤ ε') {e : Random.LazyEnd α} (h : LooseEndsWell M U A sl D ε dis e) :
+    LooseEndsWell M U A sl' D ε' dis e := by
   cases e with
   | consistent => exact le_trans h hε
-  | harvest h' => exact ⟨fun T hT => (h.1 T hT).trans (by linarith), h.2.1, hy.trans h.2.2⟩
+  | harvest _ _ => exact fun T hT => (h T hT).trans (by linarith)
   | failed => exact h
 
 end OrthoDFA

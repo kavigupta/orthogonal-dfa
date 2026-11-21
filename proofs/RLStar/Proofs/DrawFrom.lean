@@ -206,9 +206,12 @@ instance (ν : Measure (FreeMonoid α)) (T : Finset (FreeMonoid α)) :
     IsProbabilityMeasure (offLaw ν T) := by
   unfold offLaw; infer_instance
 
-instance {K : ℕ} (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k : ℕ)
-    (pops : List (SpecSampler α)) (j : Option (Fin K)) :
-    IsProbabilityMeasure (loopDistributions D k pops j) := by
+instance (l : List (FreeMonoid α)) : IsProbabilityMeasure (listLaw l) := by
+  unfold listLaw; infer_instance
+
+instance {K : ℕ} (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (pops : List (List (FreeMonoid α))) (j : Option (Fin K)) :
+    IsProbabilityMeasure (loopDistributions D pops j) := by
   cases j with
   | none => simp only [loopDistributions]; infer_instance
   | some i =>

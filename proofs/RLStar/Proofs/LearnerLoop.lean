@@ -3,6 +3,8 @@ import RLStar.Proofs.LoopGood
 import RLStar.Proofs.ClusteringQuality
 import RLStar.Proofs.BandKappa
 import Mathlib.Data.List.GetD
+import Mathlib.Data.List.ReduceOption
+import RLStar.Proofs.LazyShape
 
 /-!
 # The loop's theorem
@@ -12,11 +14,11 @@ read, so no round reads a string an earlier round read but with chance zero (`lo
 Round `r` fails the clustering's claim, given the earlier rounds, but for chance `δc`
 (`loop_cluster_round_le_persist`): off what the earlier rounds read the clustering meets its
 claim at `slack - m`, and a population's average moves by at most the `m` the earlier rounds'
-prefixes hold of it. It fails level 5's but for chance `δ` (`loop_round_le_persist`). A
-round meeting level 5's claim hands on a population putting at most `prefixMax / (ρ/4)` on any
-string, within the cap. Where every one of the first `|Q| + 1` rounds meets both claims, the loop
-stops in agreement (`loop_agrees_of_specs`), each harvest's population putting more than `c/T` on
-a state read undecided more than `T` of the time.
+prefixes hold of it. It fails the lazy round's claim but for chance `lazyRoundBound`
+(`loop_round_le_persist`). A harvest hands on a list of at least `nh` distinct strings, putting at
+most `1/nh` on any string, within the cap. Where every one of the first `|Q| + 1` rounds meets
+both claims, the loop stops in agreement (`loop_agrees_of_specs`), each harvest's list putting
+more than `c/T` on a state read undecided more than `T` of the time.
 -/
 
 noncomputable section
@@ -247,32 +249,278 @@ theorem clustering_schedule_exists {Ω : Type*} [MeasurableSpace Ω] {μ : Measu
 
 /-! ## The theorem -/
 
+section Lists
+
+open Random Query
+
+omit [DecidableEq α] in
+private lemma length_unpad_le (K : ℕ) (X : Finset (FreeMonoid α)) (x : FreeMonoid α) (p : ℕ)
+    (m : FreeMonoid (Option α)) :
+    (unpad (prefixOf (padIn K X x) p * m)).toList.length ≤ x.toList.length + m.toList.length := by
+  have h1 : (unpad (prefixOf (padIn K X x) p * m)).toList
+      = ((padIn K X x).toList.take p).reduceOption ++ m.toList.reduceOption := by
+    simp [unpad, prefixOf, List.reduceOption_append]
+  have h2 : ((padIn K X x).toList.take p).reduceOption.length
+      ≤ (padIn K X x).toList.reduceOption.length :=
+    ((List.take_sublist p _).filterMap _).length_le
+  have h3 : (padIn K X x).toList.reduceOption = x.toList := by
+    simp only [padIn, FreeMonoid.toList_ofList, List.reduceOption_append,
+      List.reduceOption_replicate_none, List.nil_append]
+    simp [List.reduceOption]
+  rw [h1, List.length_append]
+  have := List.reduceOption_length_le m.toList
+  rw [h3] at h2
+  omega
+
+private lemma midsLe_epoch (read : FreeMonoid α → ARU) (C : Level3Settings) (K : ℕ)
+    (X : Finset (FreeMonoid α)) {P : ℕ} (xs : Fin P → FreeMonoid α) {n : ℕ}
+    (h : ((epochQ C K X xs).eval read).hypothesis.tree.leaves.length ≤ n + 2) :
+    MidsLe n ((epochQ C K X xs).eval read).hypothesis.tree := by
+  have hinv := (runProbes_tree (padRead read) { C with walkStart := K }
+    (List.ofFn fun i => padIn K X (xs i))).1.inv.cls
+  have he : ((epochQ C K X xs).eval read).hypothesis.tree
+      = (runProbes (padRead read) { C with walkStart := K } initialState
+        (List.ofFn fun i => padIn K X (xs i))).1.tree := by
+    rw [epochQ, eval_subst, level3Q, eval_map]
+    rfl
+  rw [he] at h ⊢
+  exact (classSet_props n _ (classSet_mono' (by omega) hinv)).1
+
+omit [DecidableEq α] in
+private lemma blockQ_short (read : FreeMonoid α → ARU) (K : ℕ) (H : HypothesisDFA (Option α))
+    (s : Level3Site) (X : Finset (FreeMonoid α)) {L n : ℕ} (hH : MidsLe n H.tree) :
+    ∀ xs : List (FreeMonoid α), (∀ x ∈ xs, x.toList.length ≤ L) →
+      ∀ w ∈ (blockQ K H s X xs).eval read, w.toList.length ≤ L + n
+  | [], _ => by simp [blockQ]
+  | x :: xs, hxs => by
+    intro w hw
+    simp only [blockQ, eval_bind, eval_map, List.mem_append, List.mem_map] at hw
+    rcases hw with ⟨z, hz, rfl⟩ | hw
+    · rw [eval_subst] at hz
+      change z ∈ (siteHarvestQ K H s (padIn K X x)).eval (padRead read) at hz
+      rw [eval_siteHarvestQ] at hz
+      have hp := (siteHarvest_pot (padRead read) K H s (padIn K X x) z hz).1
+      simp only [pot, Finset.mem_biUnion, Finset.mem_image, Finset.mem_Icc] at hp
+      obtain ⟨j, -, m, hm, rfl⟩ := hp
+      have h1 := length_unpad_le K X x j m
+      have h2 := hH m hm
+      have h3 := hxs x (by simp)
+      omega
+    · exact blockQ_short read K H s X hH xs (fun y hy => hxs y (by simp [hy])) w hw
+
+omit [DecidableEq α] in
+private lemma mem_blockUpdate (K : ℕ) (X : Finset (FreeMonoid α)) :
+    ∀ (ℓ ws : List (FreeMonoid α)), ∀ w ∈ (blockUpdate K X ℓ ws).1, w ∈ ℓ ∨ w ∈ ws
+  | ℓ, [] => by simp [blockUpdate]
+  | ℓ, w' :: ws => by
+    intro w hw
+    by_cases h : w' ∈ ℓ
+    · simp only [blockUpdate, if_pos h] at hw
+      rcases mem_blockUpdate K X ℓ ws w hw with h1 | h1
+      · exact Or.inl h1
+      · exact Or.inr (List.mem_cons_of_mem _ h1)
+    · simp only [blockUpdate, if_neg h] at hw
+      rcases mem_blockUpdate K X (ℓ ++ [w']) ws w hw with h1 | h1
+      · rcases List.mem_append.1 h1 with h2 | h2
+        · exact Or.inl h2
+        · rw [List.mem_singleton.1 h2]
+          exact Or.inr List.mem_cons_self
+      · exact Or.inr (List.mem_cons_of_mem _ h1)
+
+omit [DecidableEq α] in
+private lemma topUpQ_short (read : FreeMonoid α → ARU) (K nh : ℕ) (H : HypothesisDFA (Option α))
+    (s : Level3Site) {L n : ℕ} (hH : MidsLe n H.tree) {b : ℕ} :
+    ∀ (Bs : List (Fin b → FreeMonoid α)) (X : Finset (FreeMonoid α)) (ℓ : List (FreeMonoid α)),
+      (∀ B ∈ Bs, ∀ t, (B t).toList.length ≤ L) → (∀ w ∈ ℓ, w.toList.length ≤ L + n) →
+      (∀ ℓ' rest, (topUpQ K nh H s Bs X ℓ).eval read = some (.full ℓ', rest) →
+          ∀ w ∈ ℓ', w.toList.length ≤ L + n)
+        ∧ ∀ ℓ' X' rest, (topUpQ K nh H s Bs X ℓ).eval read = some (.retract ℓ' X', rest) →
+          ∀ w ∈ ℓ', w.toList.length ≤ L + n
+  | [], _, _, _, _ => by simp [topUpQ, eval_pure]
+  | B :: Bs, X, ℓ, hB, hℓ => by
+    have hws := blockQ_short read K H s X hH (List.ofFn B) fun x hx => by
+      obtain ⟨t, rfl⟩ := List.mem_ofFn.1 hx
+      exact hB B (by simp) t
+    simp only [topUpQ, eval_bind]
+    generalize (blockQ K H s X (List.ofFn B)).eval read = ws at hws
+    have hr : ∀ w ∈ (blockUpdate K X ℓ ws).1, w.toList.length ≤ L + n := fun w hw =>
+      (mem_blockUpdate K X ℓ ws w hw).elim (hℓ w) (hws w)
+    split_ifs with hfull hret
+    · refine ⟨fun ℓ' rest h => ?_, fun ℓ' X' rest h => by simp [eval_pure] at h⟩
+      simp only [eval_pure, Option.some.injEq, Prod.mk.injEq, TopUpEnd.full.injEq] at h
+      rw [← h.1]
+      exact hr
+    · refine ⟨fun ℓ' rest h => by simp [eval_pure] at h, fun ℓ' X' rest h => ?_⟩
+      simp only [eval_pure, Option.some.injEq, Prod.mk.injEq, TopUpEnd.retract.injEq] at h
+      rw [← h.1.1]
+      exact hr
+    · exact topUpQ_short read K nh H s hH Bs _ _ (fun B' hB' => hB B' (by simp [hB'])) hr
+
+private lemma le_peak_lazyEpochsQ (read : FreeMonoid α → ARU) (C : Level3Settings) (K nh : ℕ)
+    {J b : ℕ} :
+    ∀ (e pk : ℕ) (ds : List (EpochDraws α C.probeBudget J b)) (X : Finset (FreeMonoid α))
+      (ls : LazyLists α), pk ≤ ((lazyEpochsQ C K nh e pk ds X ls).eval read).peak
+  | _, pk, [], X, ls => by simp [lazyEpochsQ, eval_pure]
+  | e, pk, d :: ds, X, ls => by
+    simp only [lazyEpochsQ, eval_bind]
+    generalize (epochQ (epochSettings C e) K X d.1).eval read = res
+    rcases res with ⟨hyp, _ | s | _⟩
+    · exact le_max_left _ _
+    · simp only [eval_bind]
+      generalize (topUpQ K nh hyp s (List.ofFn d.2) X (ls s)).eval read = o
+      rcases o with _ | ⟨_ | ⟨ℓ, X'⟩, rest⟩
+      · exact le_max_left _ _
+      · exact le_max_left _ _
+      · exact (le_max_left _ _).trans (le_peak_lazyEpochsQ read C K nh (e + 1) _ ds X' _)
+    · exact le_max_left _ _
+
+omit [Fintype α] [DecidableEq α] in
+open scoped Classical in
+private lemma mem_update_lists {ls : LazyLists α} {s : Level3Site} {ℓ : List (FreeMonoid α)}
+    {Φ : FreeMonoid α → Prop} (hls : ∀ s, ∀ w ∈ ls s, Φ w) (hℓ : ∀ w ∈ ℓ, Φ w) :
+    ∀ s', ∀ w ∈ Function.update ls s ℓ s', Φ w := by
+  intro s' w hw
+  by_cases hs : s' = s
+  · subst hs
+    have e : Function.update ls s' ℓ s' = ℓ := Function.update_self ..
+    rw [e] at hw
+    exact hℓ w hw
+  · have e : Function.update ls s ℓ s' = ls s' := Function.update_of_ne hs ..
+    rw [e] at hw
+    exact hls s' w hw
+
+private lemma lazyEpochsQ_short (read : FreeMonoid α → ARU) (C : Level3Settings) (K nh : ℕ)
+    {J b L n : ℕ} :
+    ∀ (e pk : ℕ) (ds : List (EpochDraws α C.probeBudget J b)) (X : Finset (FreeMonoid α))
+      (ls : LazyLists α),
+      (∀ d ∈ ds, (∀ i, (d.1 i).toList.length ≤ L) ∧ ∀ j t, (d.2 j t).toList.length ≤ L) →
+      (∀ s, ∀ w ∈ ls s, w.toList.length ≤ L + n) →
+      ((lazyEpochsQ C K nh e pk ds X ls).eval read).peak ≤ n + 2 →
+      (∀ s, ∀ w ∈ ((lazyEpochsQ C K nh e pk ds X ls).eval read).lists s,
+          w.toList.length ≤ L + n)
+        ∧ ∀ s ℓ, ((lazyEpochsQ C K nh e pk ds X ls).eval read).ending = .harvest s ℓ →
+          ∀ w ∈ ℓ, w.toList.length ≤ L + n
+  | _, pk, [], X, ls, _, hls, _ => by
+    simp only [lazyEpochsQ, eval_pure]
+    exact ⟨hls, fun s ℓ h => by cases h⟩
+  | e, pk, d :: ds, X, ls, hd, hls, hpk => by
+    obtain ⟨hd1, hd2⟩ := hd d (by simp)
+    have hH := midsLe_epoch read (epochSettings C e) K X d.1 (n := n)
+    simp only [lazyEpochsQ, eval_bind] at hpk ⊢
+    generalize (epochQ (epochSettings C e) K X d.1).eval read = res at hH hpk ⊢
+    rcases res with ⟨hyp, _ | s | _⟩
+    · simp only [eval_pure]
+      exact ⟨hls, fun s ℓ h => by cases h⟩
+    · simp only [eval_bind] at hpk ⊢
+      have hT := fun hm : MidsLe n hyp.tree => topUpQ_short read K nh hyp s hm (List.ofFn d.2) X
+        (ls s) (fun B hB t => by
+          obtain ⟨j, rfl⟩ := List.mem_ofFn.1 hB
+          exact hd2 j t) (hls s)
+      generalize (topUpQ K nh hyp s (List.ofFn d.2) X (ls s)).eval read = o at hT hpk ⊢
+      rcases o with _ | ⟨_ | ⟨ℓ, X'⟩, rest⟩
+      · simp only [eval_pure]
+        exact ⟨hls, fun s ℓ h => by cases h⟩
+      · rename_i ℓ
+        simp only [eval_pure] at hpk ⊢
+        have hℓ := (hT (hH (le_trans (le_max_right _ _) hpk))).1 ℓ rest rfl
+        refine ⟨mem_update_lists hls hℓ, fun s' ℓ' h => ?_⟩
+        simp only [LazyEnd.harvest.injEq] at h
+        rw [← h.2]
+        exact hℓ
+      · have hℓ := (hT (hH (le_trans (le_max_right _ _)
+          ((le_peak_lazyEpochsQ read C K nh (e + 1) _ ds X' _).trans hpk)))).2 ℓ X' rest rfl
+        exact lazyEpochsQ_short read C K nh (e + 1) _ ds X' _
+          (fun d' hd' => hd d' (by simp [hd'])) (mem_update_lists hls hℓ) hpk
+    · simp only [eval_pure]
+      exact ⟨hls, fun s ℓ h => by cases h⟩
+
+private lemma lazyRoundQ_short (read : FreeMonoid α → ARU) (C : Level3Settings) (K nh : ℕ)
+    {E J b L n : ℕ} (X₀ : Finset (FreeMonoid α)) (d : Fin E → EpochDraws α C.probeBudget J b)
+    (hd : LazyDrawsAll (fun x => x.toList.length ≤ L) d)
+    (hpk : ((lazyRoundQ C K nh X₀ d).eval read).peak ≤ n + 2) {s : Level3Site}
+    {ℓ : List (FreeMonoid α)} (he : ((lazyRoundQ C K nh X₀ d).eval read).ending = .harvest s ℓ) :
+    ∀ w ∈ ℓ, w.toList.length ≤ L + n :=
+  (lazyEpochsQ_short read C K nh 0 0 (List.ofFn d) X₀ (fun _ => [])
+    (fun d' hd' => by
+      obtain ⟨e, rfl⟩ := List.mem_ofFn.1 hd'
+      exact hd e)
+    (fun _ w hw => by simp at hw) hpk).2 s ℓ he
+
+private lemma length_drawFrom_le (ν : Measure (FreeMonoid α)) [IsFiniteMeasure ν] {L : ℕ}
+    (hν : ∀ᵐ x ∂ν, x.toList.length ≤ L) (u : unitInterval) :
+    (drawFrom ν u).toList.length ≤ L := by
+  rcases drawFrom_pos_or_one ν u with h | h
+  · by_contra hlt
+    have : ν {drawFrom ν u} = 0 := measure_mono_null (fun z hz => by
+      rw [Set.mem_singleton_iff.1 hz]; exact hlt) (ae_iff.1 hν)
+    rw [measureReal_def, this, ENNReal.toReal_zero] at h
+    exact lt_irrefl _ h
+  · rw [h]; simp
+
+private lemma lazyProbes_short (P : PrefixDistribution α) (k : ℕ) (K₀ : Finset (FreeMonoid α))
+    {E Pb J b : ℕ} (u : LazyUniforms E Pb J b) :
+    LazyDrawsAll (fun x => x.toList.length ≤ P.L) (lazyProbes (avoidLaw P.D k K₀) u) := by
+  have : IsProbabilityMeasure (avoidLaw P.D k K₀) := by unfold avoidLaw; infer_instance
+  have h := avoidLaw_len P.D P.length_le k K₀
+  exact fun e => ⟨fun i => length_drawFrom_le _ h _, fun j t => length_drawFrom_le _ h _⟩
+
+omit [Fintype α] [DecidableEq α] in
+private lemma harvest_of_population {o : SpecRound α} {ℓ : List (FreeMonoid α)}
+    (h : o.population = some ℓ) : ∃ s, o.result.ending = .harvest s ℓ := by
+  unfold SpecRound.population at h
+  rcases he : o.result.ending with _ | ⟨s, ℓ'⟩ | _ <;> simp only [he, reduceCtorEq,
+    Option.some.injEq] at h
+  exact ⟨s, by rw [h]⟩
+
+end Lists
+
 section Pops
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
 
-omit [MeasurableSpace Ω] in
-/-- A round whose tree is in `classSet |Q|` hands on a population supported on strings shorter
-than `Ls`. -/
-lemma population_short {σ : Type*} [Fintype σ] (P : PrefixDistribution α) {Ls : ℕ}
-    (hLs : P.L + Fintype.card σ < Ls) (k : ℕ) (o : SpecRound α)
-    (hcls : o.result.hypothesis.tree ∈ Random.classSet (Fintype.card σ))
-    {ν : Measure (FreeMonoid α)} (hν : o.population P.D k = some ν) :
-    ν {p | Ls ≤ p.toList.length} = 0 := by
-  unfold SpecRound.population at hν
-  rcases hh : o.result.ending.harvested with _ | site
-  · rw [hh] at hν; cases hν
-  rw [hh, Option.map_some, Option.some.injEq] at hν
-  subst hν
-  refine popLaw_null (measure_mono_null (fun p hp => ?_)
-    (Random.harvestLaw_short o.read P.length_le k (Random.classSet_props _ _ hcls).1 site)) ?_
-  · simp only [Set.mem_ofPred_eq] at hp ⊢
-    omega
-  · simp only [Set.mem_ofPred_eq, FreeMonoid.toList_one, List.length_nil, not_le]
-    omega
+/-- A loop round whose epochs' trees have at most `|Q| + 2` leaves hands on a list of strings
+shorter than `Ls`. -/
+lemma population_short {σ : Type*} [Fintype σ] (settings : LoopSettings K)
+    (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α) {Ls : ℕ}
+    (hLs : P.L + Fintype.card σ < Ls) (h : SpecHist α) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
+    (u : settings.Uniforms)
+    (hpk : (roundOf settings O P.D h x u).result.peak ≤ Fintype.card σ + 2)
+    {ℓ : List (FreeMonoid α)} (hℓ : (roundOf settings O P.D h x u).population = some ℓ) :
+    listLaw ℓ {p | Ls ≤ p.toList.length} = 0 := by
+  obtain ⟨s, he⟩ := harvest_of_population hℓ
+  have hw := lazyRoundQ_short _ settings.level3 _ _ _ _ (lazyProbes_short P _ _ u) hpk he
+  unfold listLaw
+  refine popLaw_null ?_ (by simp only [Set.mem_ofPred_eq, FreeMonoid.toList_one,
+    List.length_nil, not_le]; omega)
+  rw [Measure.coe_finsetSum, Finset.sum_apply, Finset.sum_eq_zero_iff]
+  intro z hz
+  rw [Measure.dirac_apply' _ (measurableSet_of_countable _), Set.indicator_of_notMem]
+  have := hw z (List.mem_toFinset.1 hz)
+  simp only [Set.mem_ofPred_eq, not_le]
+  omega
+
+/-- A loop round's harvested list has no repeats and at least `listSize` strings. -/
+lemma population_nodup (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
+    (D : Measure (FreeMonoid α)) (h : SpecHist α) (x : Run Ω (FreeMonoid α) (Option (Fin K)))
+    (u : settings.Uniforms) (hnh : 0 < settings.listSize) {ℓ : List (FreeMonoid α)}
+    (hℓ : (roundOf settings O D h x u).population = some ℓ) :
+    ℓ.Nodup ∧ settings.listSize ≤ ℓ.length := by
+  obtain ⟨s, he⟩ := harvest_of_population hℓ
+  have key : ∀ {E J b : ℕ} (X₀ : Finset (FreeMonoid α))
+      (d : Fin E → Random.EpochDraws α settings.level3.probeBudget J b)
+      (read : FreeMonoid α → ARU), Random.TrieOK settings.level3.walkStart X₀ →
+      ((Random.lazyRoundQ settings.level3 settings.level3.walkStart settings.listSize X₀ d).eval
+        read).ending = .harvest s ℓ → ℓ.Nodup ∧ settings.listSize ≤ ℓ.length := by
+    intro E J b X₀ d read hX he
+    obtain ⟨-, -, -, hnd, -, hh, -, -⟩ := lazyRoundShape_holds read settings.level3
+      settings.level3.walkStart settings.listSize E J b X₀ d hnh hX
+    obtain ⟨e1, e2⟩ := hh s ℓ he
+    exact ⟨e1 ▸ hnd s, e2⟩
+  exact key _ _ _ (trieOK_prefixTrie _ _) he
 
 end Pops
 
+omit [DecidableEq α] in
 lemma flat_of_length (Ls : ℕ) :
     Flat {p : FreeMonoid α | p.toList.length < Ls} {v : FreeMonoid α | v.toList.length = Ls} := by
   intro p hp p' hp' v hv v' hv' e
@@ -289,48 +537,62 @@ lemma flat_of_length (Ls : ℕ) :
       first | omega | (simp only [FreeMonoid.toList_one, List.length_nil] at hlen; omega)
   exact FreeMonoid.toList.injective (List.append_inj_left hl hpp)
 
-
-lemma le_prefixMax_of_spread {D : Measure (FreeMonoid α)} [IsProbabilityMeasure D] {k : ℕ}
-    {ν : Measure (FreeMonoid α)} (h : Spread D k ν) (t : FreeMonoid α) :
-    ν.real {t} ≤ prefixMax D k := by
-  refine (h t).trans (le_of_eq_of_le ?_ (le_prefixMax D k (prefixOf t k)))
-  congr 1
-
-
 lemma real_singleton_le_prefixMax (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k : ℕ)
     (t : FreeMonoid α) : D.real {t} ≤ prefixMax D k :=
   (measureReal_mono (fun x hx => by rw [Set.mem_singleton_iff.1 hx]; rfl)
     (measure_ne_top _ _)).trans (le_prefixMax D k (prefixOf t k))
 
-lemma popLaw_atom_le {ν : Measure (FreeMonoid α)} {q y : ℝ} (hy : 0 < y)
-    (hyν : y ≤ ν.real Set.univ) (htop : ν Set.univ ≠ ∞) (hq : ∀ t, ν.real {t} ≤ q) (t : FreeMonoid
-        α) :
-    (popLaw ν).real {t} ≤ q / y := by
-  have hpos : 0 < ν.real Set.univ := lt_of_lt_of_le hy hyν
-  have h0 : ν Set.univ ≠ 0 := fun h => by
-    rw [measureReal_def, h, ENNReal.toReal_zero] at hpos; exact lt_irrefl _ hpos
-  have hq0 : 0 ≤ q := measureReal_nonneg.trans (hq 1)
-  rw [popLaw_real h0 htop]
-  calc ν.real {t} / ν.real Set.univ ≤ q / ν.real Set.univ :=
-        div_le_div_of_nonneg_right (hq t) hpos.le
-    _ ≤ q / y := div_le_div_of_nonneg_left hq0 hy hyν
+omit [DecidableEq α] in
+/-- A list of `n` distinct strings puts `1/n` on each. -/
+lemma listLaw_atom_le {ℓ : List (FreeMonoid α)} (hℓ : ℓ.Nodup) {nh : ℕ} (hn : nh ≤ ℓ.length)
+    (hnh : 0 < nh) (t : FreeMonoid α) : (listLaw ℓ).real {t} ≤ 1 / nh := by
+  have hsum : ∀ A : Set (FreeMonoid α), (∑ z ∈ ℓ.toFinset, Measure.dirac z) A
+      = ∑ z ∈ ℓ.toFinset, A.indicator 1 z := fun A => by
+    rw [Measure.coe_finsetSum, Finset.sum_apply]
+    exact Finset.sum_congr rfl fun z _ => Measure.dirac_apply' _ (measurableSet_of_countable A)
+  have huniv : (∑ z ∈ ℓ.toFinset, Measure.dirac z) Set.univ = ℓ.length := by
+    rw [hsum]
+    simp [List.toFinset_card_of_nodup hℓ]
+  have hat : (∑ z ∈ ℓ.toFinset, Measure.dirac z) {t} ≤ 1 := by
+    rw [hsum]
+    calc ∑ z ∈ ℓ.toFinset, ({t} : Set (FreeMonoid α)).indicator 1 z
+        = ∑ z ∈ ℓ.toFinset, if z = t then (1 : ENNReal) else 0 :=
+          Finset.sum_congr rfl fun z _ => by simp [Set.indicator, Set.mem_singleton_iff]
+      _ ≤ 1 := by
+          rw [Finset.sum_ite_eq']
+          split_ifs <;> simp
+  have h0 : (∑ z ∈ ℓ.toFinset, Measure.dirac z) Set.univ ≠ 0 := by
+    rw [huniv]
+    exact Nat.cast_ne_zero.2 (by omega)
+  have htop : (∑ z ∈ ℓ.toFinset, Measure.dirac z) Set.univ ≠ ∞ := by
+    rw [huniv]
+    exact ENNReal.natCast_ne_top _
+  have hpos : (0 : ℝ) < ℓ.length := by exact_mod_cast hnh.trans_le hn
+  have hu : (∑ z ∈ ℓ.toFinset, Measure.dirac z).real Set.univ = ℓ.length := by
+    rw [measureReal_def, huniv]
+    simp
+  have hat' : (∑ z ∈ ℓ.toFinset, Measure.dirac z).real {t} ≤ 1 :=
+    ENNReal.toReal_le_of_le_ofReal zero_le_one (by rw [ENNReal.ofReal_one]; exact hat)
+  unfold listLaw
+  rw [popLaw_real h0 htop, hu]
+  calc _ ≤ 1 / (ℓ.length : ℝ) := div_le_div_of_nonneg_right hat' hpos.le
+    _ ≤ 1 / nh := div_le_div_of_nonneg_left zero_le_one (by exact_mod_cast hnh)
+        (by exact_mod_cast hn)
 
 section Bridge
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ] {K : ℕ}
   (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-  [IsProbabilityMeasure D] {L : ℕ} (hlen : ∀ᵐ x ∂D, x.toList.length ≤ L)
+  [IsProbabilityMeasure D]
 
-omit [IsProbabilityMeasure μ] in
-include hlen in
+omit [IsProbabilityMeasure μ] [IsProbabilityMeasure D] in
 /-- Round `i` of the persistent run is the round after the history the rounds before it hand
 on. -/
-lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap
-    settings.level3.probeBudget)) (i : ℕ)
+lemma persist_bridge (p : Ω × (Fin K → settings.RoundDraws α)) (i : ℕ)
     (hi : i < (idealRounds settings O D Dsf (persistDraws p) K).length) :
     ∃ hK : i < K, (histCodes settings O D Dsf p.1 p.2 i).length = i
-      ∧ HistAlike (lenBound D) (decodeHist (histCodes settings O D Dsf p.1 p.2 i))
-        (specHistOf ((idealRounds settings O D Dsf (persistDraws p) K).take i))
+      ∧ decodeHist (histCodes settings O D Dsf p.1 p.2 i)
+        = specHistOf ((idealRounds settings O D Dsf (persistDraws p) K).take i)
       ∧ (idealRounds settings O D Dsf (persistDraws p) K)[i] = idealRound settings O D Dsf
         (decodeHist (histCodes settings O D Dsf p.1 p.2 i))
         (p.1, p.2 ⟨i, hK⟩) := by
@@ -345,36 +607,33 @@ lemma persist_bridge (p : Ω × (Fin K → RoundDraws α K settings.level3.harve
     rw [List.getElem_take]
     simp only [List.length_take] at hj
     exact harvested_of_lt settings O D Dsf draws K j (by omega)
-  have hdec := decodeHist_alike (L := lenBound D) (N := codeLen settings D) settings.level3 le_rfl
-    (idealRounds settings O D Dsf draws i) (idealRounds_result settings O D Dsf draws i) hall
+  have hdec := decodeHist_codesOf (idealRounds settings O D Dsf draws i) hall
   have hc : histCodes settings O D Dsf p.1 p.2 i
-      = codesOf (codeLen settings D) (idealRounds settings O D Dsf draws i) := rfl
+      = codesOf (idealRounds settings O D Dsf draws i) := rfl
   refine ⟨hK, ?_, ?_, ?_⟩
-  · rw [hc, length_codesOf (codeLen settings D) D settings.level3.walkStart,
-      length_harvestsOf hall,
+  · rw [hc, length_codesOf, length_specHistOf_pops hall,
       length_eq_of_allHarvested settings O D Dsf draws hiK hall]
-  · rw [hc, htake]; exact hdec
-  · rw [e, hc, idealRound_alike settings O D Dsf (ae_lenBound hlen) hdec, htake]
+  · rw [hc, hdec, htake]
+  · rw [e, hc, hdec, htake]
     rfl
 
-include hlen in
+omit [IsProbabilityMeasure μ] [IsProbabilityMeasure D] in
 /-- Every earlier clustering returned, where each met its claim. -/
 lemma histOK_of_specs (εcov slack : ℝ)
-    (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap settings.level3.probeBudget)) :
+    (p : Ω × (Fin K → settings.RoundDraws α)) :
     ∀ i, i ≤ (idealRounds settings O D Dsf (persistDraws p) K).length →
       (∀ j (_ : j < (idealRounds settings O D Dsf (persistDraws p) K).length) (hjK : j < K),
-        j < i → ClusterSpec settings O D settings.level3.walkStart εcov slack
+        j < i → ClusterSpec settings O D εcov slack
           (specHistOf ((idealRounds settings O D Dsf (persistDraws p) K).take j)).pops
           (idealRunAt settings O D Dsf (persistDraws p) ⟨j, hjK⟩)) →
       HistOK settings O D Dsf p.1 p.2 i
   | 0, _, _ => trivial
   | i + 1, hi, h => by
     refine ⟨histOK_of_specs εcov slack p i (by omega) fun j hj hjK hji => h j hj hjK (by omega),
-      fun hK hlen' => ?_⟩
-    obtain ⟨hK', -, hdec, -⟩ := persist_bridge settings O D Dsf hlen p i (by omega)
+      fun hK _ => ?_⟩
+    obtain ⟨hK', -, hdec, -⟩ := persist_bridge settings O D Dsf p i (by omega)
     have hs := (h i (by omega) hK' (by omega)).1
-    rw [idealRunAt, ← take_idealRounds settings O D Dsf (persistDraws p) hK'.le,
-      ← idealRun_alike hdec D Dsf (ae_lenBound hlen), ← hdec.length] at hs
+    rw [idealRunAt, ← take_idealRounds settings O D Dsf (persistDraws p) hK'.le, ← hdec] at hs
     exact hs
 
 end Bridge
@@ -401,8 +660,7 @@ lemma measureReal_le_card_mul {ν : Measure (FreeMonoid α)} [IsFiniteMeasure ν
 lemma loop_reads_le {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
     (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α))
     (D Dsf : Measure (FreeMonoid α))
-    (draws : Fin K → LoopRoundDraws Ω α K settings.level3.harvestReadCap
-        settings.level3.probeBudget) (a b : ℕ)
+    (draws : Fin K → LoopRoundDraws Ω α settings) (a b : ℕ)
     (h : ∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ a
         ∧ (roundSuffs (settings.schedule pops) x).card ≤ b) :
@@ -431,37 +689,71 @@ lemma loop_reads_le {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ
 reads no prefix or suffix an earlier round read. -/
 def RoundsFresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
     (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
-    (Ls : ℕ) (p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap
-        settings.level3.probeBudget)) : Prop :=
+    (Ls : ℕ) (p : Ω × (Fin K → settings.RoundDraws α)) : Prop :=
   ∀ i < (idealRounds settings O D Dsf (persistDraws p) K).length, ∃ hK : i < K,
     HistOK settings O D Dsf p.1 p.2 i
       ∧ Returns settings O D Dsf (decodeHist
           (histCodes settings O D Dsf p.1 p.2 i)) (p.1, (p.2 ⟨i, hK⟩).1)
       ∧ NoColl settings D Dsf Ls (histCodes settings O D Dsf p.1 p.2 i) p.2 i hK
 
-/-- The loop's claim at a cap `cap` and level 3's settings `C`, `NS`, `NP` and `NF` bounding the
-schedule's suffix pool, prefix count and family, the clustering run at `slack - m` and
-`pAP - ms`. The clustering's band reads the rarer decided side at most `ζ = cross` times as often as undecided,
-small enough for level 5's premises at `f = 0`. The last round has at most
-`C.disagreementRate + mr` of the probes in `disagreeSet`, and at most half of each `E q`, plus
-`u + mr`, misled, `mr` bounding the mass the round's probes avoid. Every round the filled draws
-run is good but for chance `K δₘ` of a miss at the cap `harvestN y (δₘ / scanCap)` and the scan
-tail at `4 (K + 3) NP ≤ Tsc ≤ scanCap`. Its harvested populations' first `Nh` filled draws hold
-their samples (`DrawsWithin`) but for the scan tail at `4 · 3 NP ≤ Th ≤ Nh`, and walk at most `B`
-probes in all but for chance `2^(K Nh) (1 - y/2)^(B + 1)`. Every round's tree has at most
-`|Q| + 2` leaves. -/
+/-- Off a collision, each round of the persistent run reads its family through the one noise,
+its family suffixes `Ls` long and at most its state's `k - 1`. -/
+lemma family_of_fresh {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {K : ℕ}
+    (settings : LoopSettings K) (O : Oracle μ (FreeMonoid α)) (D Dsf : Measure (FreeMonoid α))
+    (Ls : ℕ) (p : Ω × (Fin K → settings.RoundDraws α))
+    (hfr : RoundsFresh settings O D Dsf Ls p) :
+    ∀ o ∈ idealRounds settings O D Dsf (persistDraws p) K,
+      (∀ v ∈ o.family, v.toList.length = Ls) ∧ o.family.card ≤ o.state.k - 1
+        ∧ (∃ pops, o.state ∈ settings.schedule pops)
+        ∧ o.read = fun z => familyRead O.mq o.family o.state.lo (o.state.hi + 1) z p.1 := by
+  intro o ho
+  obtain ⟨r, hr, rfl⟩ := List.getElem_of_mem ho
+  obtain ⟨hK, -, hret, hnc⟩ := hfr r hr
+  obtain ⟨hK', hlen, -, e⟩ := persist_bridge settings O D Dsf p r hr
+  rw [e]
+  set H := decodeHist (histCodes settings O D Dsf p.1 p.2 r)
+  have hBs := (idealRound_returns settings O D Dsf H (p.1, p.2 ⟨r, hK'⟩) hret).1
+  have hpop : histAt (histCodes settings O D Dsf p.1 p.2 r) r = H := by
+    simp only [histAt, List.take_of_length_le (le_of_eq hlen)]
+    rfl
+  refine ⟨fun v hv => ?_, ?_, ⟨_, hBs⟩, rfl⟩
+  · have hv' : v ∈ clusterAt O.mq (loopPopulations K H.pops.length)
+        (idealRun D Dsf H (p.1, (p.2 ⟨r, hK'⟩).1))
+        (idealRound settings O D Dsf H (p.1, p.2 ⟨r, hK'⟩)).state := hv
+    unfold clusterAt nearestRows at hv'
+    obtain ⟨hv1, hv2⟩ := Finset.mem_erase.1 hv'
+    rcases Finset.mem_insert.1 hv2 with h1 | h1
+    · exact absurd h1 hv1
+    have hpool := Finset.filter_subset _ _
+      (Finset.mem_of_mem_erase (leastLossSubset_subset' _ _ _ h1))
+    rcases Finset.mem_insert.1 (poolAt_sub_roundSuffs hBs _ hpool) with h2 | h2
+    · exact absurd h2 hv1
+    have hsub : v ∈ suffsOf settings D Dsf H (p.2 ⟨r, hK'⟩).1 := Finset.mem_erase.2 ⟨hv1, h2⟩
+    rw [← hpop] at hsub
+    exact hnc.1 ⟨r, hK'⟩ le_rfl v hsub
+  · change (clusterAt O.mq _ _ _).card ≤ _
+    unfold clusterAt nearestRows
+    exact (Finset.card_le_card (Finset.erase_insert_subset _ _)).trans
+      (leastLossSubset_card_le _ _ _)
+
+/-- The loop's claim at a cap `cap`, level 3's settings `C`, lists of `nh` strings, `E` epochs of
+`J` blocks of `b` probes, and `NS`, `NP` and `NF` bounding the schedule's suffix pool, prefix count
+and family, the clustering run at `slack - m` and `pAP - ms`. The clustering's band reads the
+rarer decided side at most `cross` times as often as undecided. A lazy round asks at most `Nr`
+strings; its lists meet the slope `A = lazySlope` and slack `lazySlack` at `δH`, and the last
+round has at most `C.disagreementRate + tw + mr` of the probes in `lazyDisagree`, `mr` bounding
+the mass the round's probes avoid. Every round the loop runs scans within `scanCap` but for the
+scan tail at `4 (K + 3) NP ≤ Tsc ≤ scanCap`. No epoch's tree has more than `|Q| + 2` leaves. -/
 def LoopCore : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] {σ : Type*} [Fintype σ] {Ω : Type*}
     [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     (M : _root_.DFA α σ) (O : Oracle μ (FreeMonoid α)) (P : PrefixDistribution α)
-    (E : σ → Set (FreeMonoid α)) (K Ls NS NP NF : ℕ)
-    (η₀ indecisionLimit gateLevel εcov δc slack pAP cap m ms mr u cross Tu : ℝ)
-    (C : Random.Level3Settings) (scanCap : ℕ) (y δₘ : ℝ) (Tsc Th Nh B : ℕ),
+    (K Ls NS NP NF : ℕ)
+    (η₀ indecisionLimit gateLevel εcov δc slack pAP cap m ms mr cross Tu : ℝ)
+    (C : Random.Level3Settings) (scanCap Tsc nh E J b Nr : ℕ) (δH tw : ℝ),
   let c : ℝ := cross ^ 4
-  let bsc : ℝ := K * δₘ + (K + 1) * (2 * (scanCap.choose Tsc * (Tsc * (2 * cap)) ^ (scanCap - Tsc))
+  let bsc : ℝ := (K + 1) * (2 * (scanCap.choose Tsc * (Tsc * (2 * cap)) ^ (scanCap - Tsc))
     + 2 * Real.exp (-(Tsc / 8 : ℝ)))
-    + (K + 1) * (2 * (Nh.choose Th * (Th * (2 * cap)) ^ (Nh - Th)) + 2 * Real.exp (-(Th / 8 : ℝ)))
-    + 2 ^ (K * Nh) * (1 - y / 2) ^ (B + 1)
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   4 * (1 / 2 - η₀) ≤ O.gap → η₀ < 1 / 2 →
   0 < indecisionLimit → indecisionLimit ≤ 1 / 2 →
@@ -491,21 +783,22 @@ def LoopCore : Prop :=
   2 ^ 17 * NS * cap ≤ pAP - ms →
   6 * K * (K + 1) * NP * cap ≤ m →
   K * (NS + 1) * cap ≤ ms →
-  1 ≤ C.walkStart → prefixMax P.D C.walkStart ≤ cap * C.harvestRate / 2 →
-  0 < u → 0 < C.harvestRate →
+  1 ≤ C.walkStart → (∀ᵐ x ∂P.D, C.walkStart ≤ x.toList.length) →
   6 * (K + 1) * NP * prefixMax P.D C.walkStart ≤ mr → mr ≤ 1 / 2 → 0 < cross →
-  RoundPremises σ α C cross (2 * prefixMax P.D C.walkStart) →
-  -- Each harvest puts more than `c/Tu` of its population on a state read undecided more than `Tu`
-  -- of the time, `c` the gate's limit.
+  LazyPremises σ α C nh E J (2 * prefixMax P.D C.walkStart) → 2 ≤ nh * cap →
+  lazyReadCap C E J b P.L (Fintype.card σ) (Fintype.card α) ≤ Nr →
+  0 < δH → 0 < tw →
+  -- Each harvest puts more than `c/Tu` of its list on a state read undecided more than `Tu` of
+  -- the time, `c` the gate's limit.
   0 < Tu →
-  roundSlope σ P.L C * Tu + roundSlack σ α C (2 * prefixMax P.D C.walkStart)
-    + mr / (C.harvestRate / 2) + Fintype.card σ * (2 * indecisionLimit + slack) / Tu < 1 →
-  C.harvestReadCap = Random.harvestN y (δₘ / scanCap) →
-  0 < y → y ≤ C.harvestRate / 4 → y ≤ 1 → 0 < δₘ → 0 < scanCap →
-  4 * ((K + 3) * NP) ≤ Tsc → Tsc ≤ scanCap → 4 * (3 * NP) ≤ Th → Th ≤ Nh →
+  lazySlope σ Nr nh * Tu + lazySlack σ nh δH
+    + Fintype.card σ * (2 * indecisionLimit + slack) / Tu < 1 →
+  4 * ((K + 3) * NP) ≤ Tsc → Tsc ≤ scanCap →
   ∃ settings : LoopSettings K,
     settings.η₀ = 2 * η₀ - 1 / 2 ∧ settings.indecisionLimit = indecisionLimit
-    ∧ settings.εcov = εcov ∧ settings.gateLevel = gateLevel ∧ settings.level3 = C ∧ settings.scanCap = scanCap ∧
+    ∧ settings.εcov = εcov ∧ settings.gateLevel = gateLevel ∧ settings.level3 = C
+    ∧ settings.scanCap = scanCap ∧ settings.listSize = nh ∧ settings.epochs = E
+    ∧ settings.blocks = J ∧ settings.blockSize = b ∧
     (∀ pops, ∑ n ∈ (settings.schedule pops).image State.npref, n ≤ 2 * NP) ∧
     (∀ pops (x : Run Ω (FreeMonoid α) (Option (Fin K))),
       (roundPrefs (settings.schedule pops) pops x).card ≤ 6 * (K + 1) * NP
@@ -515,31 +808,27 @@ def LoopCore : Prop :=
       Dsf {v | v.toList.length ≠ Ls} = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       (∀ v, Dsf.real {v} ≤ cap) →
-      (loopMeasure μ α K settings.level3.harvestReadCap settings.level3.probeBudget).real
-          {p | let rounds := idealRounds settings O
-                P.D Dsf (persistDraws p) K
+      (settings.measure μ α).real
+          {p | let rounds := idealRounds settings O P.D Dsf (persistDraws p) K
             ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
                 o.Checks M O P.D C.walkStart (513 / 512 * εcov + 2 * indecisionLimit + 2 * slack)
-                  (2 * indecisionLimit + slack) (C.disagreementRate + mr) E (u + mr))
-              ∧ (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2)
+                  (2 * indecisionLimit + slack) (C.disagreementRate + tw + mr))
+              ∧ (∀ o ∈ rounds, o.result.peak ≤ Fintype.card σ + 2)
               ∧ RoundsFresh settings O P.D Dsf Ls p
-              ∧ (∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r)
+              ∧ ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r)
                   →
                 RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
-                  (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))
-              ∧ RoundsWalkWithin settings O P.D Dsf p Nh B)}
+                  (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))}
         ≤ (Fintype.card σ + 1) * (δc + gateLevel
-          + (C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
-            (2 * prefixMax P.D C.walkStart) (2 * (Fintype.card σ + 1) * cross) u) + bsc)
+          + lazyRoundBound σ C E J b cross Nr P.L δH tw + bsc)
 
-set_option maxHeartbeats 2000000 in -- the three round bounds and the induction
+set_option maxHeartbeats 2000000 in -- the clustering's premises and the round bounds
 theorem loop_core_holds : LoopCore := by
-  intro α _ _ _ σ _ Ω _ μ _ M O P E K Ls NS NP NF η₀ ι gate εcov δc slack pAP cap m ms mr u cross
-    Tu C scanCap y δₘ Tsc Th Nh B c bsc hL hgap hη₀ hι hι1 hg hg1 hε hε1 hbalL hbalN hδc hδc1 hsl
-    hpAP hL1 hK hLs hcap hmsl hm1 hmsp hms1 hNSb hNPb hNFb hq1a hq1c hq1b hq2a hq2b hq3 hqm hqms hk0
-    hk1 hu hy0 hmr hmr1 hcr hprem hT hcond hcapN hyp hyr hyl1 hδₘ hsc hTsc hTM hThA hThN
+  intro α _ _ _ σ _ Ω _ μ _ M O P K Ls NS NP NF η₀ ι gate εcov δc slack pAP cap m ms mr cross
+    Tu C scanCap Tsc nh E J b Nr δH tw c bsc hL hgap hη₀ hι hι1 hg hg1 hε hε1 hbalL hbalN hδc
+    hδc1 hsl hpAP hL1 hK hLs hcap hmsl hm1 hmsp hms1 hNSb hNPb hNFb hq1a hq1c hq1b hq2a hq2b hq3
+    hqm hqms hk0 hKw hmr hmr1 hcr hprem hnhc hNr hδH htw hT hcond hTsc hTM
   classical
-  have hδ : 0 < C.δ := hprem.1
   have hc : cross ^ 4 = c := rfl
   obtain ⟨schedule₀, hband₀, hsize₀, hsum₀, hclust₀⟩ := clustering_schedule_exists O K
     {p : FreeMonoid α | p.toList.length < Ls} {v : FreeMonoid α | v.toList.length = Ls}
@@ -556,7 +845,8 @@ theorem loop_core_holds : LoopCore := by
     split_ifs at hB
     · exact hband₀ pops B hB
     · simp at hB
-  set settings : LoopSettings K := ⟨schedule, 2 * η₀ - 1 / 2, ι, εcov, gate, C, scanCap⟩ with hset
+  set settings : LoopSettings K :=
+    ⟨schedule, 2 * η₀ - 1 / 2, ι, εcov, gate, C, scanCap, nh, E, J, b⟩ with hset
   -- the schedule's sizes
   have hsizes : ∀ pops, ∀ B ∈ settings.schedule pops, B.nsuff = poolCount η₀ pops ι εcov (δc / 2)
       (pAP - ms) c ∧ B.npref ≤ NP ∧ none ∈ pops := fun pops B hB => by
@@ -593,26 +883,23 @@ theorem loop_core_holds : LoopCore := by
       · have he : settings.schedule pops = ∅ := if_neg hp
         rw [he]
         exact (card_roundSuffs_le (n := 0) ∅ (by simp) x).trans (by omega)
-  refine ⟨settings, rfl, rfl, rfl, rfl, rfl, rfl, hNPsum, hreads, hks, ?_⟩
+  refine ⟨settings, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, hNPsum, hreads, hks, ?_⟩
   intro Dsf hDsf hDsfLen hpAPDsf hatom
   set k := C.walkStart
-  set T := C.probeBudget
-  have hlenB := ae_lenBound P.length_le
   set dec := decodeHist (α := α) with hdecd
-  set A := roundSlope σ P.L C
-  set sl := roundSlack σ α C (2 * prefixMax P.D k)
-  set μL := loopMeasure μ α K settings.level3.harvestReadCap T
+  set μL := settings.measure μ α
   have hpm0 : 0 ≤ prefixMax P.D k := measureReal_nonneg.trans (le_prefixMax P.D k 1)
-  have hy1 : C.harvestRate ≤ 1 := by
-    have h1 := hprem.2.2.2.1
-    have h2 := hprem.2.2.2.2.1
-    have : C.harvestRate ≤ 1 / 48 := by linarith
-    linarith
-  have hcap4 : cap * C.harvestRate / 2 ≤ cap := by
-    have : cap * C.harvestRate ≤ cap * 1 := mul_le_mul_of_nonneg_left hy1 hcap.le
-    linarith
-  have hDat : ∀ t, P.D.real {t} ≤ cap := fun t =>
-    (real_singleton_le_prefixMax P.D k t).trans (hk1.trans hcap4)
+  have hnh : 0 < nh := hprem.1
+  have hnhR : (1 : ℝ) ≤ nh := by exact_mod_cast hnh
+  have hDat : ∀ t, P.D.real {t} ≤ cap := by
+    have hy : 8 * nh * (2 * prefixMax P.D k) ≤ C.harvestRate := hprem.2.1
+    have hy1 : C.harvestRate ≤ 1 := hprem.2.2.1
+    have hpc : (nh : ℝ) * prefixMax P.D k ≤ nh * cap := by nlinarith
+    have hpc' : prefixMax P.D k ≤ cap := le_of_mul_le_mul_left hpc (by positivity)
+    exact fun t => (real_singleton_le_prefixMax P.D k t).trans hpc'
+  have hinv : (1 : ℝ) / nh ≤ cap := by
+    rw [div_le_iff₀ (by positivity)]
+    nlinarith
   have hLs' : P.L < Ls := by omega
   have hK1 : (K : ℝ) + 1 ≤ K + 2 := by linarith
   have hpopc : ∀ pops : Finset (Option (Fin K)), ((pops.card : ℕ) : ℝ) + 1 ≤ K + 2 := by
@@ -781,23 +1068,20 @@ theorem loop_core_holds : LoopCore := by
         _ ≤ 2 ^ 16 * (NS * (2 * cap)) := mul_le_mul_of_nonneg_left hcc (by norm_num)
         _ = 2 ^ 17 * NS * cap := by ring
         _ ≤ _ := hq3
-  -- the history's reads number at most `6 (K + 1) NP` prefixes and `NS + 1` suffixes a round
-  have hcodes : ∀ (ω : Ω) (g : Fin K → RoundDraws α K settings.level3.harvestReadCap T) (r : ℕ),
+  have hcodes : ∀ (ω : Ω) (g : Fin K → settings.RoundDraws α) (r : ℕ),
       ∀ code ∈ histCodes settings O P.D Dsf ω g r,
-        code.2.2.2.1.card ≤ 6 * (K + 1) * NP ∧ code.2.2.2.2.card ≤ NS + 1 := by
+        code.2.1.card ≤ 6 * (K + 1) * NP ∧ code.2.2.card ≤ NS + 1 := by
     intro ω g r code hcode
     obtain ⟨i, hi, hget⟩ := List.getElem_of_mem hcode
-    obtain ⟨hiK, code', hget', h1, h2⟩ :=
-      histCodes_getElem settings O P.D Dsf P.length_le ω g r i hi
+    obtain ⟨hiK, code', hget', h1, h2⟩ := histCodes_getElem settings O P.D Dsf ω g r i hi
     rw [List.getElem?_eq_getElem hi, hget, Option.some.injEq] at hget'
     subst hget'
-    set h := histAt (histCodes settings O P.D Dsf ω g r) i
-    set pops := loopPopulations K h.pops.length
+    set pops := loopPopulations K (histAt (histCodes settings O P.D Dsf ω g r) i).pops.length
     have hpops : pops.card ≤ K + 1 := by
       have := Finset.card_le_univ pops
       simpa using this
     refine ⟨?_, ?_⟩
-    · rw [h1]
+    · rw [h1, prefsOf]
       refine (card_roundPrefs_le _ _ _).trans ?_
       calc 3 * pops.card * ∑ n ∈ (settings.schedule pops).image State.npref, n
           ≤ 3 * (K + 1) * (2 * NP) := Nat.mul_le_mul (Nat.mul_le_mul_left 3 hpops) (hNPsum pops)
@@ -809,92 +1093,76 @@ theorem loop_core_holds : LoopCore := by
       refine (card_roundSuffs_le _ hn _).trans (Nat.succ_le_succ ?_)
       exact hNSb pops (Finset.mem_insert_self _ _)
   -- the rounds' bad events
-  set Hist : (r : ℕ) → Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap T) → List
-      (HarvestCode α) := fun r p =>
-    histCodes settings O P.D Dsf p.1 p.2 r
-  set Masses : ℝ → ℝ → List (HarvestCode α) → Prop := fun a b c' =>
-    (∀ j ∈ loopPopulations K c'.length,
-      (loopDistributions P.D k (dec c').pops j).real ↑(dec c').prefs ≤ a)
-      ∧ Dsf.real ↑(dec c').suffs ≤ b
-  set E1 : (r : ℕ) → r < K → Set (Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap T)) :=
-      fun r hr =>
+  set E1 : (r : ℕ) → r < K → Set (Ω × (Fin K → settings.RoundDraws α)) := fun r hr =>
     {p | HistOK settings O P.D Dsf p.1 p.2 r
         ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
-        ∧ (∀ ν' ∈ samplerLaws P.D k (dec (histCodes settings O P.D Dsf p.1 p.2 r)).pops,
-          (∀ t, ν'.real {t} ≤ cap) ∧ ν' {q | Ls ≤ q.toList.length} = 0)
-        ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D k (dec
+        ∧ (∀ ℓ ∈ (dec (histCodes settings O P.D Dsf p.1 p.2 r)).pops,
+          (∀ t, (listLaw ℓ).real {t} ≤ cap) ∧ listLaw ℓ {q | Ls ≤ q.toList.length} = 0)
+        ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D (dec
             (histCodes settings O P.D Dsf p.1 p.2 r)).pops j).real
               ↑(dec (histCodes settings O P.D Dsf p.1 p.2 r)).prefs ≤ m)
         ∧ Dsf.real ↑(dec (histCodes settings O P.D Dsf p.1 p.2 r)).suffs ≤ ms
-        ∧ ¬ ClusterSpec settings O P.D k (513 / 512 * εcov) slack (dec
+        ∧ ¬ ClusterSpec settings O P.D (513 / 512 * εcov) slack (dec
             (histCodes settings O P.D Dsf p.1 p.2 r)).pops
-          (idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap (dec (histCodes
-              settings O P.D Dsf p.1 p.2 r))
+          (idealRun P.D Dsf (dec (histCodes settings O P.D Dsf p.1 p.2 r))
             (p.1, (p.2 ⟨r, hr⟩).1))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 r) p.2 r hr}
-  set E2 : (r : ℕ) → r < K → Set (Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap T)) :=
-      fun r hr =>
+  set A := lazySlope σ Nr nh
+  set sl := lazySlack σ nh δH
+  set E2 : (r : ℕ) → r < K → Set (Ω × (Fin K → settings.RoundDraws α)) := fun r hr =>
     {p | HistOK settings O P.D Dsf p.1 p.2 r
         ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
         ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf p.1 p.2 r))
             (p.1, (p.2 ⟨r, hr⟩).1)
-        ∧ ¬ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) k E (u + mr)
+        ∧ ¬ RoundSpec M O P A sl (C.disagreementRate + tw + mr) k
             (idealRound settings O P.D Dsf (dec (histCodes settings O P.D Dsf p.1 p.2 r))
               (p.1, p.2 ⟨r, hr⟩))
         ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 r) p.2 r hr}
-  set E3 : (r : ℕ) → r < K → Set (Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap T)) :=
-      fun r hr =>
+  set E3 : (r : ℕ) → r < K → Set (Ω × (Fin K → settings.RoundDraws α)) := fun r hr =>
     {p | (histCodes settings O P.D Dsf p.1 p.2 r).length = r
-        ∧ (∀ ν ∈ samplerLaws P.D k (dec (histCodes settings O P.D Dsf p.1 p.2 r)).pops,
-          ν {q | Ls ≤ q.toList.length} = 0)
-        ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D k (dec
+        ∧ (∀ ℓ ∈ (dec (histCodes settings O P.D Dsf p.1 p.2 r)).pops,
+            listLaw ℓ {q | Ls ≤ q.toList.length} = 0)
+        ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D (dec
             (histCodes settings O P.D Dsf p.1 p.2 r)).pops j).real
               ↑(dec (histCodes settings O P.D Dsf p.1 p.2 r)).prefs ≤ 1 / 2)
         ∧ Dsf.real ↑(dec (histCodes settings O P.D Dsf p.1 p.2 r)).suffs ≤ 1 / 2
         ∧ ¬ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 r) p.2 r hr}
-  set E4 : (r : ℕ) → r < K → Set (Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap T)) :=
-      fun r hr =>
+  set E4 : (r : ℕ) → r < K → Set (Ω × (Fin K → settings.RoundDraws α)) := fun r hr =>
     {p | HistOK settings O P.D Dsf p.1 p.2 r
         ∧ (histCodes settings O P.D Dsf p.1 p.2 r).length = r
-        ∧ (∀ ν' ∈ samplerLaws P.D k (dec (histCodes settings O P.D Dsf p.1 p.2 r)).pops,
-            ∀ t, ν'.real {t} ≤ cap)
-        ∧ (∀ s ∈ (dec (histCodes settings O P.D Dsf p.1 p.2 r)).pops,
-            2 * y ≤ (Random.harvestLaw s.read P.D k s.hyp s.site).real Set.univ)
-        ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D k (dec
+        ∧ (∀ ℓ ∈ (dec (histCodes settings O P.D Dsf p.1 p.2 r)).pops,
+            ∀ t, (listLaw ℓ).real {t} ≤ cap)
+        ∧ (∀ j ∈ loopPopulations K r, (loopDistributions P.D (dec
             (histCodes settings O P.D Dsf p.1 p.2 r)).pops j).real
               ↑(dec (histCodes settings O P.D Dsf p.1 p.2 r)).prefs ≤ m)
-        ∧ (MissAt P.D k settings.level3.harvestReadCap settings.scanCap
-            (dec (histCodes settings O P.D Dsf p.1 p.2 r)).pops
-            (dec (histCodes settings O P.D Dsf p.1 p.2 r)).prefs (p.2 ⟨r, hr⟩).1.2.1
-          ∨ ScanShort (loopPopulations K r) settings.scanCap Tsc ((K + 3) * NP)
-            (idealDraws P.D Dsf k settings.level3.harvestReadCap
-              (dec (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))
-          ∨ ScanShort (loopPopulations K r) Nh Th (3 * NP)
-            (idealDraws P.D Dsf k settings.level3.harvestReadCap
-              (dec (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))
-          ∨ B < harvestWalk P.D k settings.level3.harvestReadCap Nh
-            (dec (histCodes settings O P.D Dsf p.1 p.2 r)).pops
-            (dec (histCodes settings O P.D Dsf p.1 p.2 r)).prefs (p.2 ⟨r, hr⟩).1.2.1)}
+        ∧ ScanShort (loopPopulations K r) settings.scanCap Tsc ((K + 3) * NP)
+            (idealDraws P.D Dsf
+              (dec (histCodes settings O P.D Dsf p.1 p.2 r)) (p.1, (p.2 ⟨r, hr⟩).1))}
   have h1 : ∀ r (hr : r < K), μL.real (E1 r hr) ≤ δc + gate := fun r hr =>
     loop_cluster_round_le_persist settings O P Dsf Ls (513 / 512 * εcov) (δc + gate) slack cap cap
       m ms pAP (by linarith) hm1 hms1 hclust hLs' hDat hbalL hbalN hDsfLen hpAPDsf hatom r hr
-  set δ3 : ℝ := C.δ + Fintype.card σ * Fintype.card α * misledTail C.probeBudget
-    (2 * prefixMax P.D C.walkStart) (2 * (Fintype.card σ + 1) * cross) u with hδ3d
+  set δ3 : ℝ := lazyRoundBound σ C E J b cross Nr P.L δH tw with hδ3d
   have h2 : ∀ r (hr : r < K), μL.real (E2 r hr) ≤ δ3 := fun r hr =>
-    loop_round_le_persist M O hL P Dsf settings E Ls NP mr u cross hu.le hNPsum hband hk0
-      hη1 hcr hprem hmr hmr1 r hr
+    loop_round_le_persist M O hL P Dsf settings Ls NP mr cross δH tw Nr hNPsum hband hk0 hKw
+      hη1 hcr hprem hNr hδH htw hmr hmr1 r hr
   have h3 : ∀ r (hr : r < K), μL.real (E3 r hr) = 0 := fun r hr => by
     rw [measureReal_def, loop_coll_null settings O P Dsf Ls hLs' hDsfLen r hr,
       ENNReal.toReal_zero]
   have h4 : ∀ r (hr : r < K), μL.real (E4 r hr) ≤ bsc := fun r hr =>
-    loop_good_round_le_persist settings O P Dsf cap m y δₘ B hcapN hyp hyl1 hδₘ hsc hm1 hTsc hTM
-      hThA hThN hDat r hr
-  set Ev : ℕ → Set (Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap T)) := fun r =>
+    loop_good_round_le_persist settings O P Dsf cap m hm1 hTsc hTM hDat r hr
+  set Ev : ℕ → Set (Ω × (Fin K → settings.RoundDraws α)) := fun r =>
     if hr : r < K then ((E1 r hr ∪ E2 r hr) ∪ E3 r hr) ∪ E4 r hr else ∅ with hEvd
-  have hbsc : 0 ≤ bsc := by
-    have : 0 ≤ cap := hcap.le
-    have hy2 : 0 ≤ 1 - y / 2 := by linarith
-    exact add_nonneg (by positivity) (mul_nonneg (by positivity) (pow_nonneg hy2 _))
+  have hbsc : 0 ≤ bsc := by positivity
+  have hδ30 : 0 ≤ δ3 := by
+    have hδ : 0 < C.δ := hprem.2.2.2.1
+    have hy1 : C.harvestRate ≤ 1 := hprem.2.2.1
+    have e1 : 0 ≤ (E : ℝ) * J * (1 - C.harvestRate / 4) ^ b :=
+      mul_nonneg (by positivity) (pow_nonneg (by linarith) b)
+    have e2 : 0 ≤ cross * Nr := mul_nonneg hcr.le (Nat.cast_nonneg _)
+    have e3 : 0 ≤ ((P.L : ℝ) + 1) * (Fintype.card σ + 2) * cross / tw :=
+      div_nonneg (mul_nonneg (by positivity) hcr.le) htw.le
+    rw [hδ3d, lazyRoundBound]
+    linarith
   have hEv : ∀ r, μL.real (Ev r) ≤ δc + gate + δ3 + bsc := by
     intro r
     simp only [hEvd]
@@ -907,113 +1175,87 @@ theorem loop_core_holds : LoopCore := by
             add_le_add (add_le_add (add_le_add (h1 r hr) (h2 r hr)) (le_of_eq (h3 r hr))) (h4 r hr)
         _ = δc + gate + δ3 + bsc := by ring
     · rw [measureReal_empty]
-      have := (prefixMax_pos P.D C.walkStart).le
-      have := misledTail_nonneg (T := (C.probeBudget : ℝ)) (u := u)
-        (by positivity : 0 ≤ 2 * prefixMax P.D C.walkStart)
-        (by positivity : (0 : ℝ) ≤ 2 * (Fintype.card σ + 1) * cross)
-      have : (0 : ℝ) ≤ Fintype.card σ * Fintype.card α := by positivity
-      have : 0 ≤ δc + gate + δ3 := by simp only [hδ3d]; nlinarith
       linarith
   -- a failing run fails one of the first `|Q| + 1` rounds' claims
-  have hsub : {p : Ω × (Fin K → RoundDraws α K settings.level3.harvestReadCap T) |
+  have hsub : {p : Ω × (Fin K → settings.RoundDraws α) |
       let rounds := idealRounds settings O P.D Dsf (persistDraws p) K
       ¬ ((rounds.length ≤ Fintype.card σ + 1 ∧ ∃ o ∈ rounds.getLast?,
           o.Checks M O P.D k (513 / 512 * εcov + 2 * ι + 2 * slack) (2 * ι + slack)
-            (C.disagreementRate + mr) E (u + mr))
-        ∧ (∀ o ∈ rounds, o.result.hypothesis.tree.leaves.length ≤ Fintype.card σ + 2)
+            (C.disagreementRate + tw + mr))
+        ∧ (∀ o ∈ rounds, o.result.peak ≤ Fintype.card σ + 2)
         ∧ RoundsFresh settings O P.D Dsf Ls p
-        ∧ (∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
+        ∧ ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
           RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf
-            (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))
-        ∧ RoundsWalkWithin settings O P.D Dsf p Nh B)}
+            (persistDraws p) r)) (persistDraws p ⟨r, hr⟩))}
       ⊆ ⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r := by
     intro p hp
     by_contra hno
     simp only [Set.mem_iUnion, Finset.mem_range, not_exists] at hno
     set Lr := idealRounds settings O P.D Dsf (persistDraws p) K with hLr
     have hspec : ∀ i, i ≤ Fintype.card σ → ∀ (hi : i < Lr.length) (hK : i < K),
-        (ClusterSpec settings O P.D k (513 / 512 * εcov) slack (specHistOf (Lr.take i)).pops
+        (ClusterSpec settings O P.D (513 / 512 * εcov) slack (specHistOf (Lr.take i)).pops
             (idealRunAt settings O P.D Dsf (persistDraws p) ⟨i, hK⟩)
-          ∧ RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) k E (u + mr)
-            Lr[i])
+          ∧ RoundSpec M O P A sl (C.disagreementRate + tw + mr) k Lr[i])
         ∧ (HistOK settings O P.D Dsf p.1 p.2 i
           ∧ Returns settings O P.D Dsf (dec (histCodes settings O P.D Dsf p.1 p.2 i))
             (p.1, (p.2 ⟨i, hK⟩).1)
           ∧ NoColl settings P.D Dsf Ls (histCodes settings O P.D Dsf p.1 p.2 i) p.2 i hK)
         ∧ RoundGood settings O P.D Dsf (specHistOf (idealRounds settings O P.D Dsf (persistDraws p)
-            i))
-          (persistDraws p ⟨i, hK⟩)
-        ∧ DrawsWithin settings P.D Dsf
-            (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i))
-            (persistDraws p ⟨i, hK⟩) Nh B := by
+            i)) (persistDraws p ⟨i, hK⟩) := by
       intro i
       induction i using Nat.strong_induction_on with
       | _ i ih =>
         intro hiσ hi hK'
-        obtain ⟨_, hlen, hdec, e⟩ :=
-          persist_bridge settings O P.D Dsf P.length_le p i hi
+        obtain ⟨_, hlen, hdec, e⟩ := persist_bridge settings O P.D Dsf p i hi
         have hnot : p ∉ Ev i := hno i (by omega)
         simp only [hEvd, dif_pos hK', Set.mem_union, not_or] at hnot
         obtain ⟨⟨⟨hn1, hn2⟩, hn3⟩, hn4⟩ := hnot
         set cH := histCodes settings O P.D Dsf p.1 p.2 i
+        have hdec' : dec cH = specHistOf (Lr.take i) := hdec
         have hok : HistOK settings O P.D Dsf p.1 p.2 i :=
-          histOK_of_specs settings O P.D Dsf P.length_le (513 / 512 * εcov) slack p i hi.le
+          histOK_of_specs settings O P.D Dsf (513 / 512 * εcov) slack p i hi.le
             fun j hj hjK hji => (ih j hji (by omega) hj hjK).1.1
-        have hsl : samplerLaws P.D k (dec cH).pops = harvestsOf P.D k (Lr.take i) := by
-          rw [← histOf_pops]; exact samplerLaws_alike hdec.1 P.D hlenB k
-        have hpops : ∀ ν ∈ samplerLaws P.D k (dec cH).pops,
-            (∀ t, ν.real {t} ≤ cap) ∧ ν {q | Ls ≤ q.toList.length} = 0 := by
-          rw [hsl]
-          intro ν hν
-          obtain ⟨o, ho, hoν⟩ := List.mem_filterMap.1 hν
+        have hti := take_idealRounds settings O P.D Dsf (persistDraws p) hK'.le
+        have hpops : ∀ ℓ ∈ (dec cH).pops,
+            (∀ t, (listLaw ℓ).real {t} ≤ cap) ∧ listLaw ℓ {q | Ls ≤ q.toList.length} = 0 := by
+          rw [hdec']
+          intro ℓ hℓ
+          obtain ⟨o, ho, hoℓ⟩ := List.mem_filterMap.1 hℓ
           obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem ho
           simp only [List.length_take] at hj
-          rw [List.getElem_take] at hoν
+          rw [List.getElem_take] at hoℓ
           have hji : j < i := by omega
-          obtain ⟨h4, hcls, -⟩ := (ih j hji (by omega) (by omega) (by omega)).1.2
-          have hsupp := population_short P (Ls := Ls) (by omega) k _ hcls hoν
-          unfold SpecRound.population at hoν
-          rcases hh : (Lr[j]'(by omega)).result.ending.harvested with _ | h
-          · rw [hh] at hoν; cases hoν
-          rw [hh, Option.map_some, Option.some.injEq] at hoν
-          subst hoν
-          have he : (Lr[j]'(by omega)).result.ending = .harvest h := by
-            revert hh
-            cases (Lr[j]'(by omega)).result.ending <;> simp [RoundEnd.harvested]
-          rw [he] at h4
-          obtain ⟨-, hsp, hyl⟩ := h4
-          have hatc : ∀ t, (popLaw (Random.harvestLaw (Lr[j]'(by omega)).read P.D k
-              (Lr[j]'(by omega)).result.hypothesis h)).real {t} ≤ cap := fun t =>
-            (popLaw_atom_le (by positivity : (0 : ℝ) < C.harvestRate / 2) hyl
-              (Random.harvestLaw_univ_ne_top _ P.D k _ h) (le_prefixMax_of_spread hsp) t).trans
-              (by rw [div_le_iff₀ (by positivity)]; linarith)
-          exact ⟨hatc, hsupp⟩
+          obtain ⟨hKj, ej⟩ := getElem_idealRounds settings O P.D Dsf (persistDraws p) K j
+            (by rw [← hLr]; omega)
+          have hpk := (ih j hji (by omega) (by omega) hKj).1.2.2
+          rw [ej] at hoℓ hpk
+          have hnd := population_nodup settings O P.D _ _ _ hnh hoℓ
+          refine ⟨fun t => (listLaw_atom_le hnd.1 hnd.2 hnh t).trans hinv, ?_⟩
+          exact population_short settings O P (by omega) _ _ _ hpk hoℓ
         have hpl : (dec cH).pops.length = i := by simp [hdecd, decodeHist, cH, hlen]
         have hatoms : ∀ j ∈ loopPopulations K i, ∀ t,
-            (loopDistributions P.D k (dec cH).pops j).real {t} ≤ cap := by
+            (loopDistributions P.D (dec cH).pops j).real {t} ≤ cap := by
           intro j hj t
           cases j with
           | none => exact hDat t
           | some i' =>
-            have hi' : i'.val < (samplerLaws P.D k (dec cH).pops).length := by
-              rw [samplerLaws_length, hpl]; exact lt_of_some_mem_loopPops hj
-            rw [loopDistributions_eq_popDists]
-            simp only [popDists]
-            rw [List.getD_eq_getElem (hn := hi')]
+            have hi' : i'.val < (dec cH).pops.length := by
+              rw [hpl]; exact lt_of_some_mem_loopPops hj
+            rw [loopDistributions, List.getElem?_eq_getElem hi']
             exact (hpops _ (List.getElem_mem _)).1 t
         have hiK : (i : ℝ) ≤ K := by exact_mod_cast hK'.le
         have hcardP : ((dec cH).prefs.card : ℝ) ≤ i * (6 * (K + 1) * NP) := by
-          have := card_foldr_union_le (fun c' : HarvestCode α => c'.2.2.2.1) cH (6 * (K + 1) * NP)
+          have := card_foldr_union_le (fun c' : HarvestCode α => c'.2.1) cH (6 * (K + 1) * NP)
             fun x hx => (hcodes p.1 p.2 i x hx).1
           rw [hlen] at this
           exact_mod_cast this
         have hcardS : ((dec cH).suffs.card : ℝ) ≤ i * (NS + 1) := by
-          have := card_foldr_union_le (fun c' : HarvestCode α => c'.2.2.2.2) cH (NS + 1)
+          have := card_foldr_union_le (fun c' : HarvestCode α => c'.2.2) cH (NS + 1)
             fun x hx => (hcodes p.1 p.2 i x hx).2
           rw [hlen] at this
           exact_mod_cast this
         have hmP : ∀ j ∈ loopPopulations K i,
-            (loopDistributions P.D k (dec cH).pops j).real ↑(dec cH).prefs ≤ m := by
+            (loopDistributions P.D (dec cH).pops j).real ↑(dec cH).prefs ≤ m := by
           intro j hj
           refine (measureReal_le_card_mul _ (hatoms j hj)).trans ?_
           calc ((dec cH).prefs.card : ℝ) * cap ≤ i * (6 * (K + 1) * NP) * cap :=
@@ -1029,125 +1271,75 @@ theorem loop_core_holds : LoopCore := by
             _ ≤ ms := hqms
         have hnc : NoColl settings P.D Dsf Ls cH p.2 i hK' := by
           by_contra h
-          exact hn3 ⟨hlen, fun ν hν => (hpops ν hν).2, fun j hj => (hmP j hj).trans hm1,
+          exact hn3 ⟨hlen, fun ℓ hℓ => (hpops ℓ hℓ).2, fun j hj => (hmP j hj).trans hm1,
             hmS.trans hms1, h⟩
-        have hcs : ClusterSpec settings O P.D k (513 / 512 * εcov) slack (dec cH).pops
-            (idealRun P.D Dsf settings.level3.walkStart settings.level3.harvestReadCap (dec cH)
-                (p.1, (p.2 ⟨i, hK'⟩).1)) := by
+        have hcs : ClusterSpec settings O P.D (513 / 512 * εcov) slack (dec cH).pops
+            (idealRun P.D Dsf (dec cH) (p.1, (p.2 ⟨i, hK'⟩).1)) := by
           by_contra h
           exact hn1 ⟨hok, hlen, hpops, hmP, hmS, h, hnc⟩
-        have h4 : RoundSpec M O P A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) k E (u + mr)
+        have h4 : RoundSpec M O P A sl (C.disagreementRate + tw + mr) k
             (idealRound settings O P.D Dsf (dec cH) (p.1, p.2 ⟨i, hK'⟩)) := by
           by_contra h
           exact hn2 ⟨hok, hlen, hcs.1, h, hnc⟩
-        have hcs' : ClusterSpec settings O P.D k (513 / 512 * εcov) slack (specHistOf (Lr.take
-            i)).pops
+        have hcs' : ClusterSpec settings O P.D (513 / 512 * εcov) slack
+            (specHistOf (Lr.take i)).pops
             (idealRunAt settings O P.D Dsf (persistDraws p) ⟨i, hK'⟩) := by
-          rw [idealRunAt, ← take_idealRounds settings O P.D Dsf (persistDraws p) hK'.le,
-            ← idealRun_alike hdec P.D Dsf hlenB]
-          exact (clusterSpec_alike settings O P.D hlenB k _ slack hdec.1 _).1 hcs
-        have hyl2 : ∀ s ∈ (dec cH).pops,
-            2 * y ≤ (Random.harvestLaw s.read P.D k s.hyp s.site).real Set.univ := by
-          intro s hs
-          obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hs
-          rw [harvestLaw_alike (SamplerAlike.of_forall₂ hdec.1 hj) P.D hlenB k]
-          have hmem := List.getElem_mem (l := (specHistOf (Lr.take i)).pops) (hdec.1.length_eq ▸ hj)
-          obtain ⟨o, ho, hos⟩ := List.mem_filterMap.1 hmem
-          obtain ⟨j', hj', rfl⟩ := List.getElem_of_mem ho
-          simp only [List.length_take] at hj'
-          rw [List.getElem_take] at hos
-          obtain ⟨h4', -, -⟩ := (ih j' (by omega) (by omega) (by omega) (by omega)).1.2
-          unfold SpecRound.sampler at hos
-          rcases hh : (Lr[j']'(by omega)).result.ending.harvested with _ | h
-          · rw [hh] at hos; cases hos
-          rw [hh, Option.map_some, Option.some.injEq] at hos
-          rw [← hos]
-          have he : (Lr[j']'(by omega)).result.ending = .harvest h := by
-            revert hh
-            cases (Lr[j']'(by omega)).result.ending <;> simp [RoundEnd.harvested]
-          rw [he] at h4'
-          obtain ⟨-, -, hyl⟩ := h4'
-          dsimp only
-          unfold Yields at hyl
-          linarith
+          rw [idealRunAt, ← hti, ← hdec]
+          exact hcs
         have hnA : (2 + (loopPopulations K (specHistOf (Lr.take i)).pops.length).card) * NP
             ≤ (K + 3) * NP :=
           Nat.mul_le_mul_right _ (by
             have := card_loopPopulations_le K (specHistOf (Lr.take i)).pops.length
             omega)
-        have hn4' : ¬ (MissAt P.D k settings.level3.harvestReadCap settings.scanCap (dec cH).pops
-              (dec cH).prefs (p.2 ⟨i, hK'⟩).1.2.1
-            ∨ ScanShort (loopPopulations K i) settings.scanCap Tsc ((K + 3) * NP)
-              (idealDraws P.D Dsf k settings.level3.harvestReadCap (dec cH)
-                (p.1, (p.2 ⟨i, hK'⟩).1))
-            ∨ ScanShort (loopPopulations K i) Nh Th (3 * NP)
-              (idealDraws P.D Dsf k settings.level3.harvestReadCap (dec cH)
-                (p.1, (p.2 ⟨i, hK'⟩).1))
-            ∨ B < harvestWalk P.D k settings.level3.harvestReadCap Nh (dec cH).pops
-              (dec cH).prefs (p.2 ⟨i, hK'⟩).1.2.1) :=
-          fun h => hn4 ⟨hok, hlen, fun ν hν => (hpops ν hν).1, hyl2, hmP, h⟩
-        rw [not_or, not_or, not_or] at hn4'
-        have hti := take_idealRounds settings O P.D Dsf (persistDraws p) hK'.le
-        have hl : (specHistOf (Lr.take i)).pops.length = i := by rw [← hdec.length]; exact hpl
+        have hn4' : ¬ ScanShort (loopPopulations K i) settings.scanCap Tsc ((K + 3) * NP)
+              (idealDraws P.D Dsf (dec cH) (p.1, (p.2 ⟨i, hK'⟩).1)) :=
+          fun h => hn4 ⟨hok, hlen, fun ℓ hℓ => (hpops ℓ hℓ).1, hmP, h⟩
+        have hl : (specHistOf (Lr.take i)).pops.length = i := by rw [← hdec]; exact hpl
         have hgood : RoundGood settings O P.D Dsf
             (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i))
             (persistDraws p ⟨i, hK'⟩) := by
           rw [← hti]
           refine roundGood_of settings O P.D Dsf _ _ (NP := NP) (A := (K + 3) * NP) (T := Tsc)
-            (fun B hB => (hsizes _ B hB).2.1) hnA (by omega) ?_ ?_ ?_
-          · rw [← missAt_alike hdec.1 P.D hlenB, ← hdec.2.1]; exact hn4'.1
-          · rw [hl, ← idealDraws_alike hdec P.D Dsf hlenB]; exact hn4'.2.1
+            (fun B hB => (hsizes _ B hB).2.1) hnA (by omega) ?_ ?_
+          · rw [hl, ← hdec]
+            exact hn4'
           · have h3 := hcs'.1
             unfold idealRunAt at h3
             rw [← hti] at h3
             exact h3
-        have hwalk : DrawsWithin settings P.D Dsf
-            (specHistOf (idealRounds settings O P.D Dsf (persistDraws p) i))
-            (persistDraws p ⟨i, hK'⟩) Nh B := by
-          rw [← hti]
-          refine drawsWithin_of settings P.D Dsf _ _ (NP := NP) (Th := Th)
-            (fun B hB => (hsizes _ B hB).2.1) ?_ ?_
-          · rw [hl, ← idealDraws_alike hdec P.D Dsf hlenB]; exact hn4'.2.2.1
-          · rw [← harvestWalk_alike hdec.1 P.D hlenB, ← hdec.2.1]
-            exact not_lt.1 hn4'.2.2.2
         rw [e]
-        exact ⟨⟨hcs', h4⟩, ⟨hok, hcs.1, hnc⟩, hgood, hwalk⟩
-    have hag := loop_agrees_of_specs M O hL P Dsf settings (persistDraws p) k rfl
-      (513 / 512 * εcov)
-      slack A sl mr (C.disagreementRate + mr) (C.harvestRate / 2) Tu E (u + mr) hK hT (by linarith)
-      ((mul_nonneg (by positivity) hpm0).trans hmr) (by linarith) hcond
-      (fun pops B hB => (hband pops B hB).1)
+        exact ⟨⟨hcs', h4⟩, ⟨hok, hcs.1, hnc⟩, hgood⟩
+    have hsched : ∀ pops, ∀ B ∈ settings.schedule pops, B.lo ≤ B.hi := fun pops B hB =>
+      (hband pops B hB).1
+    have hag := loop_agrees_of_specs M O hL P Dsf settings (persistDraws p) k (513 / 512 * εcov)
+      slack A sl (C.disagreementRate + tw + mr) Tu hK hT (by linarith) hcond hsched
       fun i hi hiK hiσ => (hspec i hiσ hi hiK).1
     have hrlt : ∀ r (hr : r < K), AllHarvested (idealRounds settings O P.D Dsf (persistDraws p) r) →
         r < Lr.length := by
       intro r hr hall
       have hlr := length_eq_of_allHarvested settings O P.D Dsf (persistDraws p) hr.le hall
-      have hr1 : r < Lr.length := by
-        have h1 := length_idealRounds_le settings O P.D Dsf (persistDraws p) (r + 1)
-        have h2 : (idealRounds settings O P.D Dsf (persistDraws p) (r + 1)).length = r + 1 := by
-          rw [idealRounds_succ, dif_pos ⟨hr, hall⟩, List.length_append, hlr, List.length_singleton]
-        have h3 := congrArg List.length (take_idealRounds settings O P.D Dsf (persistDraws p)
-          (show r + 1 ≤ K by omega))
-        have h4 := congrArg List.length hLr
-        rw [List.length_take, h2] at h3
-        omega
-      exact hr1
-    refine hp ⟨hag, fun o ho => ?_, fun i hi => ?_, fun r hr hall => ?_, fun r hr hall => ?_⟩
+      have h1 := length_idealRounds_le settings O P.D Dsf (persistDraws p) (r + 1)
+      have h2 : (idealRounds settings O P.D Dsf (persistDraws p) (r + 1)).length = r + 1 := by
+        rw [idealRounds_succ, dif_pos ⟨hr, hall⟩, List.length_append, hlr, List.length_singleton]
+      have h3 := congrArg List.length (take_idealRounds settings O P.D Dsf (persistDraws p)
+        (show r + 1 ≤ K by omega))
+      have h4 := congrArg List.length hLr
+      rw [List.length_take, h2] at h3
+      omega
+    refine hp ⟨hag, fun o ho => ?_, fun i hi => ?_, fun r hr hall => ?_⟩
     · obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ho
       have hle := hag.1
-      exact Random.classSet_leaves _ _ (hspec i (by omega) hi (by omega)).1.2.2.1
+      exact (hspec i (by omega) hi (by omega)).1.2.2
     · have hle := hag.1
       have hK : i < K := by omega
       exact ⟨hK, (hspec i (by omega) hi hK).2.1⟩
     · have hr1 := hrlt r hr hall
       have h4 := congrArg List.length hLr
-      exact (hspec r (by have := hag.1; omega) hr1 hr).2.2.1
-    · have hr1 := hrlt r hr hall
-      have h4 := congrArg List.length hLr
-      exact (hspec r (by have := hag.1; omega) hr1 hr).2.2.2
+      exact (hspec r (by have := hag.1; omega) hr1 hr).2.2
   calc μL.real _ ≤ μL.real (⋃ r ∈ Finset.range (Fintype.card σ + 1), Ev r) :=
         measureReal_mono hsub (measure_ne_top _ _)
-    _ ≤ ∑ r ∈ Finset.range (Fintype.card σ + 1), μL.real (Ev r) := measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ r ∈ Finset.range (Fintype.card σ + 1), μL.real (Ev r) :=
+        measureReal_biUnion_finset_le _ _
     _ ≤ ∑ _r ∈ Finset.range (Fintype.card σ + 1), (δc + gate + δ3 + bsc) :=
         Finset.sum_le_sum fun r _ => hEv r
     _ = (Fintype.card σ + 1) * (δc + gate + δ3 + bsc) := by

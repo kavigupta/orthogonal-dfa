@@ -1,6 +1,6 @@
 import RLStar.LowLevelClaims.Trie
 import RLStar.Proofs.DFABridge
-import RLStar.Proofs.LoopDFA
+import RLStar.Proofs.LazyArith
 import RLStar.Proofs.TrieAgree
 
 /-!
