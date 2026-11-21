@@ -48,7 +48,7 @@ class SearchConfig:
     #: true accept-preserving distinction: the share of the prefixes it decides that
     #: it decides against the denoised oracle.  The accept-preserving test holds
     #: that at `(1 - eps/signal)/2`, so asking for less asks for a wider band,
-    #: bought with a tighter `cross_limit` and paid for in indecision.  Keep
+    #: bought with more suffixes.  Keep
     #: `acceptable_fnr` below `fnr_limit`, which holds the same indecision rate over
     #: the pool, or a clean family fails its round.
     cross_limit: float = 1.5e-7

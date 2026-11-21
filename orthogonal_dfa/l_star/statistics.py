@@ -34,7 +34,7 @@ def binom_sf(k, n, p):
 
 @functools.cache
 def population_size_and_evidence_margin(
-    signal_strength, cross_limit, acceptable_fnr, *, center
+    signal_strength, cross_limit, acceptable_fnr, *, center, min_margin
 ) -> Tuple[int, float]:
     """
     Decisions will be made by taking N samples and seeing if the proportion is outside
@@ -42,7 +42,8 @@ def population_size_and_evidence_margin(
     center + signal_strength and reject rate center - signal_strength.
 
     We want a rate outside the band to land past its far edge at most cross_limit
-    of the time, and FNR (under the true distribution) at most acceptable_fnr.
+    of the time, FNR (under the true distribution) at most acceptable_fnr, and
+    epsilon at least min_margin.
     """
     assert signal_strength > 0
     # Both class rates have to be probabilities. Otherwise no band ever meets the
@@ -59,55 +60,27 @@ def population_size_and_evidence_margin(
         else:
             N_try = (N_low + N_high) // 2
         result = evidence_margin_for_population_size(
-            signal_strength, cross_limit, acceptable_fnr, N_try, center=center
+            signal_strength,
+            cross_limit,
+            acceptable_fnr,
+            N_try,
+            center=center,
+            min_margin=min_margin,
         )
         if result is None:
             N_low = N_try + 1
         else:
             N_high = N_try
     res = evidence_margin_for_population_size(
-        signal_strength, cross_limit, acceptable_fnr, N_high, center=center
+        signal_strength,
+        cross_limit,
+        acceptable_fnr,
+        N_high,
+        center=center,
+        min_margin=min_margin,
     )
     assert res is not None
     return res
-
-
-@functools.cache
-def cross_limit_for_coverage_error(
-    signal_strength, acceptable_fnr, max_coverage_error, *, center, at_most
-):
-    """The loosest cross limit up to ``at_most`` whose band holds
-    ``max_coverage_error``.
-
-    A side of the cut keeps its class while the share of it belonging to the other
-    stays under ``(1 - eps/signal)/2``, since a prefix on the wrong side reads
-    ``2 * signal`` from where the side is held.  So the bound asks the band for a
-    width, and width is bought by asking for a smaller limit.
-
-    ``eps`` only grows as the limit falls, so the limits meeting the width are an
-    interval from zero and the largest is the one worth finding.
-    """
-    wanted = signal_strength * (1 - 2 * max_coverage_error)
-
-    def holds(limit):
-        _, eps = population_size_and_evidence_margin(
-            signal_strength, limit, acceptable_fnr, center=center
-        )
-        return eps >= wanted
-
-    if wanted <= 0 or holds(at_most):
-        return at_most
-    low, high = -30.0, 0.0
-    for _ in range(24):
-        mid = (low + high) / 2
-        low, high = (mid, high) if holds(10**mid) else (low, mid)
-    # A band this wide leaves the class it is meant to admit inside it, so no
-    # limit buys one: the undecided rate has to give first.
-    assert low > -30, (
-        f"no cross limit holds the cut's error under {max_coverage_error} "
-        f"at a signal of {signal_strength} and an undecided rate of {acceptable_fnr}"
-    )
-    return 10**low
 
 
 def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
@@ -150,12 +123,14 @@ MINORITY_UNDECIDED_RATIO = 4e-3
 
 
 def evidence_margin_for_population_size(
-    signal_strength, cross_limit, acceptable_fnr, N, *, center
+    signal_strength, cross_limit, acceptable_fnr, N, *, center, min_margin
 ) -> Optional[Tuple[int, float]]:
     """
     See population_size_and_evidence_margin for context.
     """
     for k_low, k_high, eps in candidate_tests(N, center):
+        if eps < min_margin:
+            continue
         # Crossing only gets less likely further from the band, so the worst rates
         # are its edges: just above k_high - 1, and at k_low.
         cross = max(

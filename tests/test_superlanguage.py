@@ -259,7 +259,7 @@ class TestSuffixFamily(unittest.TestCase):
         wanted = smallest_readable_family(
             pst.config.min_signal_strength,
             pst.decision_boundary,
-            read_rates(pst, pst.decision_boundary),
+            read_rates(pst),
         )
         family, seen = [], set()
         # Bounded: if the wildcard-only suffixes ever stop being plentiful this
@@ -288,7 +288,7 @@ class TestSuffixFamily(unittest.TestCase):
             if all(vocab.is_unknown(y) for y in s):
                 seen.add(tuple(s))
         self.assertEqual(len(seen), 1)
-        wanted = smallest_readable_family(0.3, 0.5, (0.01, 0.01))
+        wanted = smallest_readable_family(0.3, 0.5, (0.01, 0.01, 0))
         self.assertGreater(wanted, len(seen))
 
 
