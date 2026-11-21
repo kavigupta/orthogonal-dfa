@@ -9,11 +9,9 @@ Fewer than `T` distinct values among `M` i.i.d. draws, each value of mass at mos
 at most `C(M, T) (Tρ)^(M-T)` (`measureReal_card_image_lt`): some `T` of the draws then take every
 value the draws take.  Where each population's two sides offer `(2 + |pops|) NP` distinct strings
 among the first `M` draws, every state reading at most `NP` prefixes scans within `M`
-(`scanWithin_of_not_scanShort`), and where a harvested population's sides offer `3 NP` its first
-`M` draws hold every such state's samples (`drawsHold_of_not_popShort`); a harvested population's
-sides split its one stream by the
-hash, which past `T ≥ 4A` distinct strings leaves a side short of `A` with chance at most
-`2 exp(-T/8)`.  Some population falls short with the chance of `runMeasure_scanShort_le`.
+(`scanWithin_of_not_scanShort`). A population's sides split its one stream by the hash, which
+past `T ≥ 4A` distinct strings leaves a side short of `A` with chance at most `2 exp(-T/8)`.
+Some population falls short with the chance of `runMeasure_scanShort_le`.
 -/
 
 noncomputable section
@@ -381,38 +379,6 @@ lemma scanWithin_of_not_scanShort {M T A NP : ℕ} (sched : Finset State)
         = (Finset.univ.image fun i' : Fin M => dr.1.2.1.2 (some i) i').filter
           fun s => dr.2 s = false := Finset.filter_congr fun s _ => by simp
     rw [this]; exact hNA.trans h3.2
-
-omit [IsProbabilityMeasure μ] in
-/-- Where a harvested population's sides do not fall short of `A ≥ 3 NP` among its first `M`
-draws, those draws hold every sample of a state reading at most `NP` prefixes, off a table `U`
-holding at most `m` strings at count `m`. -/
-lemma drawsHold_of_not_popShort {M T A NP : ℕ} (sched : Finset State)
-    (hNP : ∀ B ∈ sched, B.npref ≤ NP) (hNA : 3 * NP ≤ A) {U : ℕ → Finset (FreeMonoid α)}
-    (hU : ∀ m, (U m).card ≤ m) (dr : Draws Ω (FreeMonoid α) (Option (Fin K))) (i : Fin K)
-    (h : dr ∉ popShort M T A (some i)) :
-    DrawsHold sched dr.2 U ((List.range M).map (dr.1.2.1.2 (some i))) := by
-  classical
-  simp only [popShort, Set.mem_union, Set.mem_ofPred_eq, not_or, not_lt] at h
-  obtain ⟨h1, h2⟩ := h
-  have h3 := not_not.1 (fun h => h2 ⟨h1, h⟩)
-  intro B hB
-  have hn := hNP B hB
-  have et : (((List.range M).map (dr.1.2.1.2 (some i))).filter dr.2).toFinset
-      = (Finset.univ.image fun i' : Fin M => dr.1.2.1.2 (some i) i').filter
-        fun s => dr.2 s = true := by
-    rw [List.toFinset_filter, toFinset_map_range]
-  have er : (((List.range M).map (dr.1.2.1.2 (some i))).filter fun s => !dr.2 s).toFinset
-      = (Finset.univ.image fun i' : Fin M => dr.1.2.1.2 (some i) i').filter
-        fun s => dr.2 s = false := by
-    rw [List.toFinset_filter, toFinset_map_range]
-    exact Finset.filter_congr fun s _ => by simp
-  refine ⟨by rw [et]; exact le_trans (by omega) h3.1, ?_⟩
-  rw [er]
-  have hsd := Finset.le_card_sdiff (U B.npref) ((Finset.univ.image fun i' : Fin M =>
-    dr.1.2.1.2 (some i) i').filter fun s => dr.2 s = false)
-  have := hU B.npref
-  have h32 := h3.2
-  omega
 
 omit [IsProbabilityMeasure μ] in
 lemma measurableSet_popShort (M T A : ℕ) (j : Option (Fin K)) :
