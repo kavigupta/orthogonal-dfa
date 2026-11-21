@@ -73,7 +73,7 @@ def build_pst(
     )
     return PrefixSuffixTracker.create(
         sampler,
-        np.random.default_rng(0),
+        np.random.default_rng(seed),
         oracle,
         config,
         num_prefixes=NUM_PREFIXES,
