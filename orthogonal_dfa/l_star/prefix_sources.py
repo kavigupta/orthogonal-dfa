@@ -111,8 +111,3 @@ class Replay:
         """``sample``, and the walk start of the probe it read."""
         x = self.draw()
         return self.read(self.round.probe(x)[1]), x[: self.round.walk_start(x)]
-
-
-def draw_many(source, wanted: int) -> list:
-    """``wanted`` prefixes from ``source``, sorted rather than in draw order."""
-    return sorted(source.draw() for _ in range(wanted))
