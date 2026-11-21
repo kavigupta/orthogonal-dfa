@@ -5,10 +5,9 @@ import RLStar.Proofs.LoopQuery
 # The strings the learner asks, as a real bound
 
 `learnerReads` is `K` rounds of `roundCallBound` and the start leaf's `n f` reads, split by
-source, `3 + ⌈log₂ L⌉` standing for the sifts of a probe (`reads_le_learnerReads`). `loopSC` and
-`loopHB` bound `LearnerLoopDFASimple`'s scan cap and the probes a round's harvested draws walk at
-`ℓ = L₁ + 1`, the prefix count `RB` at `loopCount`, and `loopSH` the draws a harvested
-population makes in a round.
+source, `3 + ⌈log₂ L⌉` standing for the sifts of a probe (`reads_le_learnerReads`). `loopHB`
+bounds the probes a round of `LearnerLoopDFASimple`'s harvested draws walk at `ℓ = L₁ + 1`, the
+prefix count `RB` at `loopCount`, and `loopSH` the draws a harvested population makes in a round.
 -/
 
 noncomputable section
@@ -68,11 +67,6 @@ lemma reads_le_learnerReads (K a b f T W L A n q : ℕ) :
       = K * (f * (T * ((3 + Nat.clog 2 L) * (q + 1)))) by ring]
     gcongr
   linarith [h]
-
-/-- `LearnerLoopDFASimple`'s scan cap, its prefix count at `loopCount ℓ`. -/
-def loopSC (ℓ Q A Ae δ c ξ pAP η₀ : ℝ) : ℝ :=
-  8 * (Q + 4) * loopCount ℓ Q A Ae δ c ξ pAP η₀
-    + 16 * Real.log (16 * (Q + 2) / (δ / (8 * (Q + 1)))) + 2
 
 /-- The draws a harvested population of `LearnerLoopDFASimple` makes in a round, its prefix count
 at `loopCount ℓ`. -/
