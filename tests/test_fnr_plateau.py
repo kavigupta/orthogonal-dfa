@@ -15,6 +15,7 @@ def _search(fnrs, patience):
     pst = SimpleNamespace(
         config=SimpleNamespace(
             min_signal_strength=0.3,
+            centre_grid=False,
             fnr_plateau_patience=patience,
             fnr_plateau_tol=0.01,
         ),

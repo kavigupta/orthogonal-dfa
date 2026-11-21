@@ -29,8 +29,19 @@ def _floor_rate(fewest: int, num_prefixes: int, failure_prob: float) -> float:
 
 @dataclass
 class SearchConfig:
-    suffix_size_counterexample_gen: int
     min_signal_strength: float
+    #: Read the family at the centre of a grid that the centre check bears out,
+    #: rather than at the boundary the cluster's means estimate from a half.
+    centre_grid: bool
+    #: Screen and order suffixes by the disagreement weighted at the centre.
+    centred_screen: bool
+    order_by_misread: bool
+    #: Draw suffixes until the pool holds the amount asked for over
+    #: min_suffix_frequency within the centred screen's slack, rather than until
+    #: the amount asked for survive it.
+    centred_supply: bool
+    #: The least share of the uniform pool either side of the centre must hold.
+    class_floor: float
     num_addtl_prefixes: Optional[int] = None
     #: A rate every prefix population has to meet on its own, not an average
     #: across them.
@@ -144,6 +155,8 @@ class PrefixSuffixTracker:
     oracle: Oracle
     config: SearchConfig
     table: MaskTable
+    #: Under ``centre_grid``, read only by the suffix screen until a centre is
+    #: found.
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
     #: The suffix rows clustering picks families from.
@@ -215,6 +228,61 @@ class PrefixSuffixTracker:
         out.append(available)
         return out
 
+    def _screen_columns(self):
+        """The representative prefixes the screen reads, in a random order."""
+        candidates = np.flatnonzero(self.table.representative)[
+            ~self.table.seed_scoring()
+        ]
+        return candidates[self.rng.permutation(len(candidates))]
+
+    def _centred_means(self, rows, reference, columns) -> np.ndarray:
+        """Per row x against the reference's reads y, Lean's misreadAt numerator
+        per column, at c the decision boundary:
+
+            mean_p ( [x_p != y_p] - (1 - 2c) x_p )."""
+        subset = np.zeros(self.num_prefixes, dtype=bool)
+        subset[columns] = True
+        x = self.table.observed_masks(rows, subset).astype(float)
+        y = self.table.column(reference)[subset]
+        return ((x != y) - (1 - 2 * self.decision_boundary) * x).mean(1)
+
+    def _centred_cut(self, means, p, alpha) -> float:
+        """The highest mean still explicable as the cohort's floor plus noise,
+        by Hoeffding over p columns, each moving the mean by up to 2 max(c, 1-c).
+        The floor never sits above what an accept-preserving row reads at the
+        declared rates."""
+        c, s = self.decision_boundary, self.config.min_signal_strength
+        ceiling = max(2 * a * (1 - a) - (1 - 2 * c) * a for a in (c - s, c + s))
+        deviation = 2 * max(c, 1 - c) * math.sqrt(math.log(1 / alpha) / (2 * p))
+        return min(ceiling, float(means.min()) + deviation) + deviation
+
+    def _screen_centred(self, rows: List[int], reference: int) -> List[int]:
+        """_screen_cohort under the centred statistic."""
+        order = self._screen_columns()
+        staircase = self._screening_staircase(len(order))
+        alpha = self.config.screening_alpha / len(staircase)
+        alive = list(rows)
+        for p in staircase:
+            if not alive:
+                break
+            means = self._centred_means(alive, reference, order[:p])
+            cut = self._centred_cut(means, p, alpha)
+            alive = [row for row, mean in zip(alive, means) if mean <= cut]
+        return alive
+
+    def _within_slack(self, reference: int) -> int:
+        """How many of the pool besides reference the centred screen would keep
+        over every column, against the pool's own floor."""
+        rows = [row for row in self.suffix_pool if row != reference]
+        if not rows:
+            return 0
+        columns = np.flatnonzero(self.table.representative)[~self.table.seed_scoring()]
+        alpha = self.config.screening_alpha / len(
+            self._screening_staircase(len(columns))
+        )
+        means = self._centred_means(rows, reference, columns)
+        return int((means <= self._centred_cut(means, len(columns), alpha)).sum())
+
     def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
         """The rows still explicable as ``reference`` plus per-cell noise, which
         flips one of the two observations at rate ``2*eta*(1-eta)``.
@@ -226,13 +294,12 @@ class PrefixSuffixTracker:
         accept-preserving suffix, and the declared rate stays as a ceiling so the
         screen can only tighten.
         """
+        if self.config.centred_screen:
+            return self._screen_centred(rows, reference)
         eta = 0.5 - self.config.min_signal_strength
         declared_rate = 2 * eta * (1 - eta)
         ref = self.table.column(reference)
-        candidates = np.flatnonzero(self.table.representative)[
-            ~self.table.seed_scoring()
-        ]
-        order = candidates[self.rng.permutation(len(candidates))]
+        order = self._screen_columns()
         staircase = self._screening_staircase(len(order))
         alpha = self.config.screening_alpha / len(staircase)
         alive = list(rows)
@@ -321,18 +388,29 @@ class PrefixSuffixTracker:
         survive screening against ``reference``, returning ``(kept, drawn)``.
 
         A cohort is screened whole, so the last one can carry ``kept`` past
-        ``amount``."""
+        ``amount``.
+
+        Under ``centred_supply`` it stops early only once the whole pool holds
+        ``amount / min_suffix_frequency`` within the centred screen's slack: the
+        screen cannot tell a class-preserving suffix from one that moves a rare
+        state, so the pool holds ``amount`` of them only at the share the
+        preconditions promise."""
         kept = 0
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
         with counter(amount, "Completing suffix family") as pbar:
-            while kept < amount and drawn < max_draws:
+            while drawn < max_draws:
                 cohort = self._draw_cohort(min(amount, max_draws - drawn))
                 drawn += len(cohort)
                 survivors = self._screen_cohort(cohort, reference)
                 self.suffix_pool.extend(survivors)
                 kept += len(survivors)
                 pbar.update(len(survivors))
+                if not self.config.centred_supply:
+                    if kept >= amount:
+                        break
+                elif self._within_slack(reference) >= max_draws:
+                    break
         return kept, drawn
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:

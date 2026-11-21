@@ -5,6 +5,7 @@ which alone read like the seed, however many suffixes agree with each other."""
 import unittest
 
 import numpy as np
+from parameterized import parameterized
 
 from orthogonal_dfa.l_star.cluster import identify_cluster_around
 from tests.lstar_common import cluster_pst
@@ -34,19 +35,31 @@ def _pool(seed):
 
 
 class TestClusterAnchor(unittest.TestCase):
-    def test_the_family_leads_with_the_keepers(self):
+    # Ranked row by row, the misread lifts the keepers from the pool's 22% to
+    # about 62%; the grouping ranks them all first.
+    @parameterized.expand([(False, 0.9), (True, 0.5)])
+    def test_the_family_leads_with_the_keepers(self, order_by_misread, share):
         reads, shifts = _pool(0)
         vs, _ = identify_cluster_around(
-            cluster_pst(reads, SIGNAL, seed=0), 0, 260, BOUNDARY, []
+            cluster_pst(reads, SIGNAL, seed=0, order_by_misread=order_by_misread),
+            0,
+            260,
+            BOUNDARY,
+            [],
         )
         # The family asks for more than the keepers, so the rest pad it after them.
-        self.assertGreater(np.mean(shifts[vs[:KEEPERS]] == 0), 0.9)
+        self.assertGreater(np.mean(shifts[vs[:KEEPERS]] == 0), share)
 
-    def test_the_family_reads_anchored_prefixes_as_the_seed(self):
+    @parameterized.expand([(False,), (True,)])
+    def test_the_family_reads_anchored_prefixes_as_the_seed(self, order_by_misread):
         reads, _ = _pool(0)
         anchored = [0, 1, 2]
         vs, _ = identify_cluster_around(
-            cluster_pst(reads, SIGNAL, seed=0), 0, 260, BOUNDARY, anchored
+            cluster_pst(reads, SIGNAL, seed=0, order_by_misread=order_by_misread),
+            0,
+            260,
+            BOUNDARY,
+            anchored,
         )
         self.assertTrue(vs)
         self.assertTrue((reads[vs][:, anchored] == reads[0, anchored]).all())
